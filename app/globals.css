@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    /* PAWship Color Palette */
+    /* ROSE WHITE: #FFF6EE */
+    --background: 28 100% 96.5%;
+    --foreground: 20 30% 18%;
+
+    /* Card uses white for contrast on rose white bg */
+    --card: 0 0% 100%;
+    --card-foreground: 20 30% 18%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 30% 18%;
+
+    /* DARK SALMON: #F79985 */
+    --primary: 9 89% 75%;
+    --primary-foreground: 0 0% 100%;
+
+    /* NEBULA: #CBE1D4 */
+    --secondary: 145 30% 84%;
+    --secondary-foreground: 20 30% 18%;
+
+    /* Muted uses lighter rose white tones */
+    --muted: 28 40% 94%;
+    --muted-foreground: 20 12% 48%;
+
+    /* PEACH: #FCBE87 */
+    --accent: 30 96% 76%;
+    --accent-foreground: 20 30% 18%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 28 30% 88%;
+    --input: 28 30% 88%;
+    --ring: 9 89% 75%;
+
+    --chart-1: 9 89% 75%;
+    --chart-2: 145 30% 84%;
+    --chart-3: 30 96% 76%;
+    --chart-4: 20 30% 18%;
+    --chart-5: 28 100% 96.5%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 20 30% 18%;
+    --sidebar-primary: 9 89% 75%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 28 100% 96.5%;
+    --sidebar-accent-foreground: 20 30% 18%;
+    --sidebar-border: 28 30% 88%;
+    --sidebar-ring: 9 89% 75%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}

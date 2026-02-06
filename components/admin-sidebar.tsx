@@ -1,0 +1,92 @@
+"use client"
+
+import Link from "next/link"
+import Image from "next/image"
+import { usePathname } from "next/navigation"
+import {
+  LayoutDashboard,
+  CalendarDays,
+  Users,
+  Package,
+  Scissors,
+  LogOut,
+} from "lucide-react"
+import { useAuth } from "@/lib/auth-context"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarSeparator,
+} from "@/components/ui/sidebar"
+
+const menuItems = [
+  { title: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
+  { title: "Bookings", href: "/admin/bookings", icon: CalendarDays },
+  { title: "Customers", href: "/admin/customers", icon: Users },
+  { title: "Products", href: "/admin/products", icon: Package },
+  { title: "Groomers", href: "/admin/groomers", icon: Scissors },
+]
+
+export function AdminSidebar() {
+  const pathname = usePathname()
+  const { user, logout } = useAuth()
+
+  return (
+    <Sidebar>
+      <SidebarHeader className="p-4">
+        <Link href="/admin/dashboard" className="flex items-center gap-2">
+          <Image
+            src="/images/pawship-navbar-logo.webp"
+            alt="PAWship"
+            width={100}
+            height={32}
+            className="h-8 w-auto"
+          />
+        </Link>
+      </SidebarHeader>
+      <SidebarSeparator />
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Management</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {menuItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)}>
+                    <Link href={item.href}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+      <SidebarSeparator />
+      <SidebarFooter className="p-4">
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-sidebar-foreground">{user?.name}</span>
+            <span className="text-xs text-muted-foreground">{user?.email}</span>
+          </div>
+          <button
+            onClick={logout}
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Logout</span>
+          </button>
+        </div>
+      </SidebarFooter>
+    </Sidebar>
+  )
+}
