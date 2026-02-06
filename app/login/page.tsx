@@ -40,8 +40,8 @@ export default function LoginPage() {
           <Image
             src="/images/pawship-square-logo.png"
             alt="PAWship Logo"
-            width={120}
-            height={120}
+            width={60}
+            height={60}
             style={{ width: "auto", height: "auto" }}
             className="mb-2"
           />
