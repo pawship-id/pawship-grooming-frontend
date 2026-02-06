@@ -47,7 +47,8 @@ export function AdminSidebar() {
             alt="PAWship"
             width={100}
             height={32}
-            className="h-8 w-auto"
+            style={{ width: "auto", height: "auto" }}
+            className="h-8"
           />
         </Link>
       </SidebarHeader>

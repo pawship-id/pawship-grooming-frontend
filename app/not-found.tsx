@@ -10,7 +10,8 @@ export default function NotFound() {
         alt="PAWship"
         width={100}
         height={100}
-        className="h-20 w-auto opacity-50"
+        style={{ width: "auto", height: "auto" }}
+        className="h-20 opacity-50"
       />
       <div>
         <h1 className="font-display text-4xl font-extrabold text-foreground">404</h1>

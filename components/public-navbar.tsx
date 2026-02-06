@@ -18,7 +18,8 @@ export function PublicNavbar() {
             alt="PAWship"
             width={110}
             height={36}
-            className="h-9 w-auto"
+            style={{ width: "auto", height: "auto" }}
+            className="h-9"
           />
         </Link>
 

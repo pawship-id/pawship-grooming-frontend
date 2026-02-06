@@ -12,7 +12,8 @@ export function HeroSection() {
           alt="PAWship Logo"
           width={160}
           height={160}
-          className="h-32 w-auto lg:h-40"
+          style={{ width: "auto", height: "auto" }}
+          className="h-32 lg:h-40"
           priority
         />
 

@@ -40,7 +40,8 @@ export default function GroomerLayout({ children }: { children: React.ReactNode 
               alt="PAWship"
               width={100}
               height={32}
-              className="h-8 w-auto"
+              style={{ width: "auto", height: "auto" }}
+              className="h-8"
             />
           </Link>
           <div className="flex items-center gap-4">
