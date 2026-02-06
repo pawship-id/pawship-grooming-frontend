@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { AdminSidebar } from "@/components/admin-sidebar"
@@ -11,16 +11,21 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated } = useAuth()
   const router = useRouter()
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (mounted && !isAuthenticated) {
       router.push("/login")
-    } else if (user?.role !== "admin") {
+    } else if (mounted && user?.role !== "admin") {
       router.push("/groomer/dashboard")
     }
-  }, [isAuthenticated, user, router])
+  }, [mounted, isAuthenticated, user, router])
 
-  if (!isAuthenticated || user?.role !== "admin") {
+  if (!mounted || !isAuthenticated || user?.role !== "admin") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-muted-foreground">Loading...</div>
