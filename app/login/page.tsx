@@ -42,6 +42,7 @@ export default function LoginPage() {
             alt="PAWship Logo"
             width={120}
             height={120}
+            style={{ width: "auto", height: "auto" }}
             className="mb-2"
           />
           <div className="text-center">
