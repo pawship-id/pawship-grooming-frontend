@@ -9,12 +9,12 @@ export function PublicFooter() {
         <div className="flex flex-col gap-10 md:flex-row md:justify-between">
           <div className="flex flex-col gap-4">
             <Image
-              src="/images/pawship-navbar-logo.webp"
+              src="/images/pawship-square-logo.png"
               alt="PAWship"
               width={120}
-              height={40}
+              height={120}
               style={{ width: "auto", height: "auto" }}
-              className="h-10"
+              className="h-16"
             />
             <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
               Professional pet grooming services for your beloved companions. We treat every pet like family.
