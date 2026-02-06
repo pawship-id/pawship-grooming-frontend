@@ -37,15 +37,15 @@ export function PublicFooter() {
             <h3 className="font-display text-sm font-bold text-foreground">Contact Us</h3>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Phone className="h-4 w-4 text-primary" />
-              <span>+62 812 3456 7890</span>
+              <span>+62 8158843760 / +62 81231351150</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Mail className="h-4 w-4 text-primary" />
-              <span>hello@pawship.com</span>
+              <span>pawship.id@gmail.com</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4 text-primary" />
-              <span>Jakarta, Indonesia</span>
+              <span>Surabaya, Indonesia</span>
             </div>
           </div>
         </div>
