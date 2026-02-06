@@ -36,14 +36,13 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md border-border/50 shadow-lg">
-        <CardHeader className="flex flex-col items-center gap-4 pb-2">
+        <CardHeader className="flex flex-col items-center gap-2 pb-2">
           <Image
             src="/images/pawship-square-logo.png"
             alt="PAWship Logo"
             width={60}
             height={60}
-            style={{ width: "auto", height: "auto" }}
-            className="mb-2"
+            className="w-16 object-contain"
           />
           <div className="text-center">
             <h1 className="font-display text-2xl font-bold text-foreground">Welcome Back</h1>
