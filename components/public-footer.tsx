@@ -13,7 +13,7 @@ export function PublicFooter() {
               alt="PAWship"
               width={80}
               height={80}
-              style={{ width: "auto", height: "32px", maxHeight: "32px" }}
+              className="w-24 object-contain"
             />
             <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
               Professional pet grooming services for your beloved companions. We treat every pet like family.

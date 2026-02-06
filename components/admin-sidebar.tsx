@@ -24,6 +24,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 const menuItems = [
@@ -37,20 +39,30 @@ const menuItems = [
 export function AdminSidebar() {
   const pathname = usePathname()
   const { user, logout } = useAuth()
+  const { isMobile, setOpenMobile } = useSidebar()
+
+  const handleMenuClick = () => {
+    if (isMobile) {
+      setOpenMobile(false)
+    }
+  }
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarHeader className="p-4">
-        <Link href="/admin/dashboard" className="flex items-center gap-2">
-          <Image
-            src="/images/pawship-navbar-logo.webp"
-            alt="PAWship"
-            width={100}
-            height={32}
-            style={{ width: "auto", height: "auto" }}
-            className="h-8"
-          />
-        </Link>
+        <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center">
+          <Link href="/admin/dashboard" className="flex items-center gap-2">
+            <Image
+              src="/images/pawship-navbar-logo.webp"
+              alt="PAWship"
+              width={100}
+              height={32}
+              style={{ width: "auto", height: "auto" }}
+              className="h-8 w-auto group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8"
+            />
+          </Link>
+          <SidebarTrigger />
+        </div>
       </SidebarHeader>
       <SidebarSeparator />
       <SidebarContent>
@@ -61,9 +73,15 @@ export function AdminSidebar() {
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)}>
-                    <Link href={item.href}>
+                    <Link
+                      href={item.href}
+                      className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center"
+                      onClick={handleMenuClick}
+                    >
                       <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
+                      <span className="group-data-[collapsible=icon]:hidden">
+                        {item.title}
+                      </span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -74,17 +92,17 @@ export function AdminSidebar() {
       </SidebarContent>
       <SidebarSeparator />
       <SidebarFooter className="p-4">
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-col">
+        <div className="flex flex-col gap-2 group-data-[collapsible=icon]:items-center">
+          <div className="flex flex-col group-data-[collapsible=icon]:hidden">
             <span className="text-sm font-medium text-sidebar-foreground">{user?.name}</span>
             <span className="text-xs text-muted-foreground">{user?.email}</span>
           </div>
           <button
             onClick={logout}
-            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
           >
             <LogOut className="h-4 w-4" />
-            <span>Logout</span>
+            <span className="group-data-[collapsible=icon]:hidden">Logout</span>
           </button>
         </div>
       </SidebarFooter>

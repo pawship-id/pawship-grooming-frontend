@@ -32,7 +32,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <SidebarProvider>
       <AdminSidebar />
       <SidebarInset>
-        <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b border-border/50 bg-card/80 px-6 backdrop-blur-md">
+        <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b border-border/50 bg-card/80 px-4 backdrop-blur-md md:hidden">
           <SidebarTrigger />
           <span className="text-sm font-medium text-muted-foreground">Admin Panel</span>
         </header>
