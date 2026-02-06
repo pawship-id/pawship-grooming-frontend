@@ -11,10 +11,9 @@ export function PublicFooter() {
             <Image
               src="/images/pawship-square-logo.png"
               alt="PAWship"
-              width={120}
-              height={120}
-              style={{ width: "auto", height: "auto" }}
-              className="h-8"
+              width={32}
+              height={32}
+              className="h-8 w-8"
             />
             <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
               Professional pet grooming services for your beloved companions. We treat every pet like family.
