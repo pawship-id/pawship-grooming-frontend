@@ -39,7 +39,7 @@ export default function LoginPage() {
         <CardHeader className="flex flex-col items-center gap-2 pb-2">
           <Image
             src="/images/pawship-square-logo.png"
-            alt="PAWship Logo"
+            alt="Pawship Logo"
             width={60}
             height={60}
             className="w-16 object-contain"
@@ -47,7 +47,7 @@ export default function LoginPage() {
           <div className="text-center">
             <h1 className="font-display text-2xl font-bold text-foreground">Welcome Back</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Sign in to your PAWship account
+              Sign in to your Pawship account
             </p>
           </div>
         </CardHeader>

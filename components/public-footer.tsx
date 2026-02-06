@@ -10,7 +10,7 @@ export function PublicFooter() {
           <div className="flex flex-col gap-4">
             <Image
               src="/images/pawship-square-logo.png"
-              alt="PAWship"
+              alt="Pawship"
               width={80}
               height={80}
               className="w-24 object-contain"
@@ -51,7 +51,7 @@ export function PublicFooter() {
         </div>
 
         <div className="mt-10 border-t border-border/50 pt-6 text-center text-xs text-muted-foreground">
-          2026 PAWship. All rights reserved.
+          2026 Pawship. All rights reserved.
         </div>
       </div>
     </footer>
