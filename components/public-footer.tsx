@@ -14,7 +14,7 @@ export function PublicFooter() {
               width={120}
               height={120}
               style={{ width: "auto", height: "auto" }}
-              className="h-12"
+              className="h-8"
             />
             <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
               Professional pet grooming services for your beloved companions. We treat every pet like family.
