@@ -54,7 +54,7 @@ export function AdminSidebar() {
           <Link href="/admin/dashboard" className="flex items-center gap-2">
             <Image
               src="/images/pawship-navbar-logo.webp"
-              alt="PAWship"
+              alt="Pawship"
               width={100}
               height={32}
               style={{ width: "auto", height: "auto" }}
