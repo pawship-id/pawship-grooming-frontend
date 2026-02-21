@@ -103,6 +103,7 @@ export default function LoginPage() {
               <div className="flex flex-col gap-1 text-xs text-muted-foreground">
                 <span>Admin: admin@pawship.com</span>
                 <span>Groomer: sarah@pawship.com</span>
+                <span>Customer: andi@email.com</span>
                 <span>Password: any text</span>
               </div>
             </div>

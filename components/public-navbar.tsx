@@ -34,7 +34,7 @@ export function PublicNavbar() {
             Contact
           </Link>
           <Button asChild size="sm">
-            <Link href="/login">Staff Login</Link>
+            <Link href="/login">Login</Link>
           </Button>
         </nav>
 

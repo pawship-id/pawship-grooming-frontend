@@ -21,7 +21,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (mounted && !isAuthenticated) {
       router.push("/login")
     } else if (mounted && user?.role !== "admin") {
-      router.push("/groomer/dashboard")
+      if (user?.role === "groomer") {
+        router.push("/groomer/dashboard")
+      } else {
+        router.push("/customer/tracking")
+      }
     }
   }, [mounted, isAuthenticated, user, router])
 

@@ -18,7 +18,11 @@ export default function GroomerLayout({ children }: { children: React.ReactNode 
     if (!isAuthenticated) {
       router.push("/login")
     } else if (user?.role !== "groomer") {
-      router.push("/admin/dashboard")
+      if (user?.role === "admin") {
+        router.push("/admin/dashboard")
+      } else {
+        router.push("/customer/tracking")
+      }
     }
   }, [isAuthenticated, user, router])
 
