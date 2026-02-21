@@ -33,6 +33,7 @@ export function BookingNowModal({
   buttonClassName,
 }: BookingNowModalProps) {
   const router = useRouter()
+  const defaultPetType = product.petTypes[0] ?? "dog"
   const [open, setOpen] = useState(false)
   const [phone, setPhone] = useState("")
   const [phoneChecked, setPhoneChecked] = useState(false)
@@ -42,7 +43,7 @@ export function BookingNowModal({
   const [petMode, setPetMode] = useState<"select" | "create">("select")
   const [selectedPetId, setSelectedPetId] = useState("")
   const [newPetName, setNewPetName] = useState("")
-  const [newPetType, setNewPetType] = useState<PetType>("dog")
+  const [newPetType, setNewPetType] = useState<PetType>(defaultPetType)
   const [newPetBreed, setNewPetBreed] = useState("")
   const [newPetSize, setNewPetSize] = useState("small")
   const [errorMessage, setErrorMessage] = useState("")
@@ -68,7 +69,7 @@ export function BookingNowModal({
     setPetMode("select")
     setSelectedPetId("")
     setNewPetName("")
-    setNewPetType("dog")
+    setNewPetType(defaultPetType)
     setNewPetBreed("")
     setNewPetSize("small")
     setErrorMessage("")
@@ -113,6 +114,10 @@ export function BookingNowModal({
       setSelectedPetId("")
       setUserName("")
       setEmail("")
+      setNewPetName("")
+      setNewPetType(defaultPetType)
+      setNewPetBreed("")
+      setNewPetSize("small")
     }
   }
 
@@ -130,12 +135,26 @@ export function BookingNowModal({
         return
       }
 
+      if (!newPetName.trim()) {
+        setErrorMessage("Nama pet wajib diisi untuk nomor baru.")
+        return
+      }
+
+      if (!newPetBreed) {
+        setErrorMessage("Breed pet wajib dipilih untuk nomor baru.")
+        return
+      }
+
       const params = new URLSearchParams({
         serviceId: product.id,
         phone,
         name: userName.trim(),
         email: email.trim(),
         customerType: "new",
+        newPetName: newPetName.trim(),
+        newPetType,
+        newPetBreed,
+        newPetSize,
       })
 
       setErrorMessage("")
@@ -247,6 +266,68 @@ export function BookingNowModal({
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                 />
+              </div>
+              <div className="space-y-2 rounded-md border border-border/60 p-4">
+                <p className="text-sm font-semibold text-foreground">Tambahkan Pet</p>
+                <div className="mt-3 space-y-2">
+                  <Label htmlFor="new-customer-pet-name">Nama Pet</Label>
+                  <Input
+                    id="new-customer-pet-name"
+                    placeholder="Contoh: Mochi"
+                    value={newPetName}
+                    onChange={(event) => setNewPetName(event.target.value)}
+                  />
+                </div>
+                <div className="mt-3 space-y-2">
+                  <Label>Tipe Pet</Label>
+                  <Select
+                    value={newPetType}
+                    onValueChange={(value) => {
+                      setNewPetType(value as PetType)
+                      setNewPetBreed("")
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih tipe pet" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {product.petTypes.map((petType) => (
+                        <SelectItem key={petType} value={petType}>
+                          {petType}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="mt-3 space-y-2">
+                  <Label>Breed</Label>
+                  <Select value={newPetBreed} onValueChange={setNewPetBreed}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih breed" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {breedOptions[newPetType].map((breed) => (
+                        <SelectItem key={breed} value={breed}>
+                          {breed}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="mt-3 space-y-2">
+                  <Label>Size</Label>
+                  <Select value={newPetSize} onValueChange={setNewPetSize}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih size" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="small">Small</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="large">Large</SelectItem>
+                      <SelectItem value="extra-large">Extra Large</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </>
           )}
