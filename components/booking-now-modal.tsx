@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import type { Product, PetType } from "@/lib/types"
 import { customers } from "@/lib/mock-data"
 import { Button, type ButtonProps } from "@/components/ui/button"
@@ -31,6 +32,7 @@ export function BookingNowModal({
   buttonSize = "default",
   buttonClassName,
 }: BookingNowModalProps) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [phone, setPhone] = useState("")
   const [phoneChecked, setPhoneChecked] = useState(false)
@@ -41,8 +43,16 @@ export function BookingNowModal({
   const [selectedPetId, setSelectedPetId] = useState("")
   const [newPetName, setNewPetName] = useState("")
   const [newPetType, setNewPetType] = useState<PetType>("dog")
+  const [newPetBreed, setNewPetBreed] = useState("")
+  const [newPetSize, setNewPetSize] = useState("small")
   const [errorMessage, setErrorMessage] = useState("")
   const [successMessage, setSuccessMessage] = useState("")
+
+  const breedOptions: Record<PetType, string[]> = {
+    dog: ["Golden Retriever", "Pomeranian", "Shih Tzu", "Poodle", "Beagle", "Mixed"],
+    cat: ["Persian", "Anggora", "Maine Coon", "British Shorthair", "Domestic", "Mixed"],
+    other: ["Rabbit", "Hamster", "Guinea Pig", "Bird", "Reptile", "Other"],
+  }
 
   const existingCustomer = existingCustomerId ? customers.find((customer) => customer.id === existingCustomerId) : null
   const availablePets = existingCustomer
@@ -59,6 +69,8 @@ export function BookingNowModal({
     setSelectedPetId("")
     setNewPetName("")
     setNewPetType("dog")
+    setNewPetBreed("")
+    setNewPetSize("small")
     setErrorMessage("")
     setSuccessMessage("")
   }
@@ -117,8 +129,20 @@ export function BookingNowModal({
         setErrorMessage("Nama user dan email wajib diisi untuk nomor baru.")
         return
       }
+
+      const params = new URLSearchParams({
+        serviceId: product.id,
+        phone,
+        name: userName.trim(),
+        email: email.trim(),
+        customerType: "new",
+      })
+
       setErrorMessage("")
-      setSuccessMessage(`Permintaan booking ${product.name} berhasil dibuat untuk ${userName}.`)
+      setSuccessMessage("")
+      setOpen(false)
+      resetForm()
+      router.push(`/booking?${params.toString()}`)
       return
     }
 
@@ -132,13 +156,39 @@ export function BookingNowModal({
       return
     }
 
+    if (petMode === "create" && !newPetBreed) {
+      setErrorMessage("Breed pet baru wajib dipilih.")
+      return
+    }
+
     setErrorMessage("")
     const petLabel =
       petMode === "select"
         ? existingCustomer.pets.find((pet) => pet.id === selectedPetId)?.name || "pet"
         : newPetName
 
-    setSuccessMessage(`Permintaan booking ${product.name} untuk ${petLabel} berhasil dibuat.`)
+    const params = new URLSearchParams({
+      serviceId: product.id,
+      phone,
+      customerType: "existing",
+      customerId: existingCustomer.id,
+      petMode,
+      petLabel,
+    })
+
+    if (petMode === "select") {
+      params.set("petId", selectedPetId)
+    } else {
+      params.set("newPetName", newPetName.trim())
+      params.set("newPetType", newPetType)
+      params.set("newPetBreed", newPetBreed)
+      params.set("newPetSize", newPetSize)
+    }
+
+    setSuccessMessage("")
+    setOpen(false)
+    resetForm()
+    router.push(`/booking?${params.toString()}`)
   }
 
   return (
@@ -258,7 +308,13 @@ export function BookingNowModal({
                   </div>
                   <div className="space-y-2">
                     <Label>Tipe Pet</Label>
-                    <Select value={newPetType} onValueChange={(value) => setNewPetType(value as PetType)}>
+                    <Select
+                      value={newPetType}
+                      onValueChange={(value) => {
+                        setNewPetType(value as PetType)
+                        setNewPetBreed("")
+                      }}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Pilih tipe pet" />
                       </SelectTrigger>
@@ -271,6 +327,35 @@ export function BookingNowModal({
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2">
+                    <Label>Breed</Label>
+                    <Select value={newPetBreed} onValueChange={setNewPetBreed}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih breed" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {breedOptions[newPetType].map((breed) => (
+                          <SelectItem key={breed} value={breed}>
+                            {breed}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Size</Label>
+                    <Select value={newPetSize} onValueChange={setNewPetSize}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih size" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="small">Small</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="large">Large</SelectItem>
+                        <SelectItem value="extra-large">Extra Large</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </>
               )}
             </div>
@@ -280,7 +365,7 @@ export function BookingNowModal({
           {successMessage && <p className="text-sm text-primary">{successMessage}</p>}
 
           <Button type="submit" className="w-full">
-            Submit Booking
+            Lanjut Booking
           </Button>
         </form>
       </DialogContent>
