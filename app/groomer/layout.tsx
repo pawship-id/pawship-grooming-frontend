@@ -41,7 +41,7 @@ export default function GroomerLayout({ children }: { children: React.ReactNode 
           <Link href="/groomer/dashboard" className="flex items-center gap-2">
             <Image
               src="/images/pawship-navbar-logo.webp"
-              alt="PAWship"
+              alt="Paswhip"
               width={100}
               height={32}
               style={{ width: "auto", height: "auto" }}

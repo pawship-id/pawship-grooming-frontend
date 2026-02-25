@@ -1,5 +1,5 @@
 // ==========================================
-// PAWship Pet Grooming - Type Definitions
+// Paswhip Pet Grooming - Type Definitions
 // ==========================================
 
 // --- Auth ---

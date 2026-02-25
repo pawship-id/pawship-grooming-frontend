@@ -15,7 +15,7 @@ export function PublicNavbar() {
         <Link href="/" className="flex items-center gap-2">
           <Image
             src="/images/pawship-navbar-logo.webp"
-            alt="PAWship"
+            alt="Paswhip"
             width={110}
             height={36}
             style={{ width: "auto", height: "auto" }}

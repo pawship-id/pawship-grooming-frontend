@@ -9,7 +9,7 @@ const nunito = Nunito({ subsets: ["latin"], variable: "--font-nunito" })
 const nunitoSans = Nunito_Sans({ subsets: ["latin"], variable: "--font-nunito-sans" })
 
 export const metadata: Metadata = {
-  title: "PAWship - Pet Grooming",
+  title: "Paswhip - Pet Grooming",
   description: "Professional pet grooming services for your beloved companions. In-store and home grooming available.",
 }
 

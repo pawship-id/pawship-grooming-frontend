@@ -8,7 +8,7 @@ import type {
 
 // --- Auth Users (for login) ---
 export const authUsers: AuthUser[] = [
-  { id: "admin-1", name: "Admin PAWship", email: "admin@pawship.com", role: "admin" },
+  { id: "admin-1", name: "Admin Paswhip", email: "admin@pawship.com", role: "admin" },
   { id: "groomer-1", name: "Sarah Miller", email: "sarah@pawship.com", role: "groomer" },
   { id: "groomer-2", name: "Jake Thompson", email: "jake@pawship.com", role: "groomer" },
   { id: "cust-1", name: "Andi Pratama", email: "andi@email.com", role: "customer" },

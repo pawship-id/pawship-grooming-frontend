@@ -9,7 +9,7 @@ export function HeroSection() {
       <div className="mx-auto flex max-w-7xl flex-col items-center gap-8 px-6 py-20 text-center lg:py-28">
         <Image
           src="/images/pawship-square-logo.png"
-          alt="PAWship Logo"
+          alt="Paswhip Logo"
           width={160}
           height={160}
           className="h-32 w-auto lg:h-40 lg:w-auto"

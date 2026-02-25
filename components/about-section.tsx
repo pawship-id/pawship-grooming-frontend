@@ -29,13 +29,13 @@ export function AboutSection() {
       <div className="mx-auto max-w-7xl px-6">
         <div className="mb-12 text-center">
           <span className="mb-2 inline-block rounded-full bg-secondary/60 px-3 py-1 text-xs font-semibold text-secondary-foreground">
-            Why PAWship
+            Why Paswhip
           </span>
           <h2 className="font-display text-3xl font-extrabold text-foreground lg:text-4xl">
             We Treat Your Pet Like Family
           </h2>
           <p className="mt-3 max-w-xl mx-auto text-muted-foreground">
-            With years of experience and a passion for animals, PAWship delivers grooming services that prioritize your pet's comfort and wellbeing.
+            With years of experience and a passion for animals, Paswhip delivers grooming services that prioritize your pet's comfort and wellbeing.
           </p>
         </div>
 

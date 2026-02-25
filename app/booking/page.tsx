@@ -13,17 +13,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const stores = [
   {
     id: "store-jakarta-selatan",
-    name: "PAWship Kemang",
+    name: "Paswhip Kemang",
     address: "Jl. Kemang Raya No. 88, Jakarta Selatan",
   },
   {
     id: "store-jakarta-pusat",
-    name: "PAWship Sudirman",
+    name: "Paswhip Sudirman",
     address: "Jl. Sudirman No. 45, Jakarta Pusat",
   },
   {
     id: "store-jakarta-barat",
-    name: "PAWship Puri",
+    name: "Paswhip Puri",
     address: "Jl. Puri Indah No. 12, Jakarta Barat",
   },
 ]
