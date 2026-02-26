@@ -6,6 +6,17 @@ export interface AuthTokensResponse {
   refresh_token: string
 }
 
+export interface RegisterPayload {
+  username: string
+  email: string
+  phone_number: string
+  password: string
+}
+
+export interface RegisterResponse {
+  message: string
+}
+
 export async function loginRequest(email: string, password: string): Promise<AuthTokensResponse> {
   const payload = await apiRequest<AuthTokensResponse>("/auth/login", {
     method: "POST",
@@ -30,4 +41,11 @@ export async function refreshTokenRequest(refreshToken: string): Promise<AuthTok
   }
 
   return payload
+}
+
+export async function registerRequest(payload: RegisterPayload): Promise<RegisterResponse> {
+  return apiRequest<RegisterResponse>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
 }

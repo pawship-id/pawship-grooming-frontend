@@ -1,5 +1,6 @@
 export { apiRequest, apiAuthRequest } from "./client"
-export { loginRequest, refreshTokenRequest } from "./auth"
+export { loginRequest, refreshTokenRequest, registerRequest } from "./auth"
+export type { RegisterPayload, RegisterResponse, AuthTokensResponse } from "./auth"
 export * from "./users"
 export * from "./options"
 export * from "./stores"

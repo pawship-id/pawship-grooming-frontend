@@ -4,23 +4,12 @@ import React, { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { apiRequest } from "@/lib/api/index"
+import { registerRequest, type RegisterPayload } from "@/lib/api/index"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Eye, EyeOff, Home, Check, X } from "lucide-react"
-
-interface RegisterPayload {
-  username: string
-  email: string
-  phone_number: string
-  password: string
-}
-
-interface RegisterResponse {
-  message: string
-}
 
 interface ApiValidationError {
   statusCode: number
@@ -78,10 +67,7 @@ export default function RegisterPage() {
     }
 
     try {
-      await apiRequest<RegisterResponse>("/auth/register", {
-        method: "POST",
-        body: JSON.stringify(form),
-      })
+      await registerRequest(form)
 
       setSuccessMessage("Akun berhasil dibuat! Silakan masuk.")
       setTimeout(() => router.push("/login"), 1500)
