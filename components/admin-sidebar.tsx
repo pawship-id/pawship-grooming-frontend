@@ -9,6 +9,7 @@ import {
   Users,
   Package,
   Tag,
+  Store,
   LogOut,
   Moon,
   Sun,
@@ -35,6 +36,7 @@ const menuItems = [
   { title: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Bookings", href: "/admin/bookings", icon: CalendarDays },
   { title: "Users", href: "/admin/users", icon: Users },
+  { title: "Stores", href: "/admin/stores", icon: Store },
   { title: "Options", href: "/admin/options", icon: Tag },
   { title: "Products", href: "/admin/products", icon: Package },
 ]
