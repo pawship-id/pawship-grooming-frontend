@@ -17,50 +17,23 @@ import { Switch } from "@/components/ui/switch"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { apiAuthRequest } from "@/lib/api/index"
+import {
+  type ApiRole,
+  type ApiUser,
+  type CreateUserPayload,
+  type UpdateUserPayload,
+  createUser,
+  deleteUser as deleteUserRequest,
+  getUsers,
+  toggleUserStatus,
+  updateUser,
+  updateUserPassword,
+} from "@/lib/api/users"
 import { toast } from "sonner"
 
-// ── Types ──────────────────────────────────────────────────────────────────
-type ApiRole = "admin" | "ops" | "groomer" | "customer"
-
-interface ApiUser {
-  _id: string
-  username: string
-  email: string
-  phone_number: string
-  role: ApiRole
-  is_active: boolean
-  createdAt: string
-  updatedAt: string
-}
-
-interface UsersResponse {
-  message: string
-  users: ApiUser[]
-  pagination: {
-    total: number
-    page: number
-    limit: number
-    totalPages: number
-  }
-}
-
 // ── Form types ─────────────────────────────────────────────────────────────
-interface CreateUserForm {
-  username: string
-  email: string
-  phone_number: string
-  password: string
-  role: ApiRole
-  is_active: boolean
-}
-
-interface EditUserForm {
-  username: string
-  email: string
-  phone_number: string
-  role: ApiRole
-}
+type CreateUserForm = CreateUserPayload
+type EditUserForm = UpdateUserPayload
 
 const ROLE_OPTIONS: ApiRole[] = ["admin", "ops", "groomer", "customer"]
 
@@ -144,7 +117,7 @@ export default function UsersPage() {
     if (!deleteUser) return
     setIsDeleting(true)
     try {
-      await apiAuthRequest(`/users/${deleteUser._id}`, { method: "DELETE" })
+      await deleteUserRequest(deleteUser._id)
       toast.success(`User ${deleteUser.username} berhasil dihapus`)
       setDeleteUser(null)
       fetchUsers()
@@ -164,10 +137,7 @@ export default function UsersPage() {
     e.preventDefault()
     setIsCreating(true)
     try {
-      await apiAuthRequest("/users", {
-        method: "POST",
-        body: JSON.stringify(createForm),
-      })
+      await createUser(createForm)
       toast.success("User berhasil dibuat")
       setAddOpen(false)
       setCreateForm(DEFAULT_CREATE)
@@ -184,10 +154,7 @@ export default function UsersPage() {
     if (!editUser) return
     setIsEditing(true)
     try {
-      await apiAuthRequest(`/users/${editUser._id}`, {
-        method: "PUT",
-        body: JSON.stringify(editForm),
-      })
+      await updateUser(editUser._id, editForm)
       toast.success("User berhasil diperbarui")
       setEditUser(null)
       fetchUsers()
@@ -207,10 +174,7 @@ export default function UsersPage() {
     }
     setIsUpdatingPassword(true)
     try {
-      await apiAuthRequest(`/users/update-password/${passwordUser._id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ password: newPassword }),
-      })
+      await updateUserPassword(passwordUser._id, newPassword)
       toast.success("Password berhasil diperbarui")
       setPasswordUser(null)
       setNewPassword("")
@@ -227,10 +191,7 @@ export default function UsersPage() {
     // Optimistic update
     setUsers((prev) => prev.map((u) => u._id === user._id ? { ...u, is_active: newStatus } : u))
     try {
-      await apiAuthRequest(`/users/toggle-status/${user._id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ is_active: newStatus }),
-      })
+      await toggleUserStatus(user._id, newStatus)
       toast.success(newStatus ? `${user.username} diaktifkan` : `${user.username} dinonaktifkan`)
     } catch (err) {
       // Revert on failure
@@ -259,14 +220,13 @@ export default function UsersPage() {
     setIsLoading(true)
     setError("")
     try {
-      const params = new URLSearchParams()
-      params.set("page", String(page))
-      params.set("limit", String(LIMIT))
-      if (debouncedSearch) params.set("search", debouncedSearch)
-      if (activeRole !== "all") params.set("role", activeRole)
-      if (isActiveFilter !== "all") params.set("is_active", isActiveFilter)
-
-      const data = await apiAuthRequest<UsersResponse>(`/users?${params.toString()}`)
+      const data = await getUsers({
+        page,
+        limit: LIMIT,
+        search: debouncedSearch || undefined,
+        role: activeRole === "all" ? undefined : activeRole,
+        is_active: isActiveFilter === "all" ? undefined : isActiveFilter,
+      })
       setUsers(data.users ?? [])
       setPagination(data.pagination)
     } catch (err) {
