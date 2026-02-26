@@ -19,18 +19,16 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setIsLoading(true)
 
-    setTimeout(() => {
-      const result = login(email, password)
-      if (!result.success) {
-        setError(result.error || "Login failed")
-      }
-      setIsLoading(false)
-    }, 500)
+    const result = await login(email, password)
+    if (!result.success) {
+      setError(result.error || "Login failed")
+    }
+    setIsLoading(false)
   }
 
   return (
@@ -98,7 +96,7 @@ export default function LoginPage() {
               {isLoading ? "Signing in..." : "Sign In"}
             </Button>
 
-            <div className="mt-2 rounded-lg bg-secondary/50 px-4 py-3">
+            {/* <div className="mt-2 rounded-lg bg-secondary/50 px-4 py-3">
               <p className="mb-2 text-xs font-medium text-muted-foreground">Demo Accounts</p>
               <div className="flex flex-col gap-1 text-xs text-muted-foreground">
                 <span>Admin: admin@pawship.com</span>
@@ -106,7 +104,7 @@ export default function LoginPage() {
                 <span>Customer: andi@email.com</span>
                 <span>Password: any text</span>
               </div>
-            </div>
+            </div> */}
           </form>
         </CardContent>
       </Card>
