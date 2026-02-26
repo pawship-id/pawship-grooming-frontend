@@ -92,6 +92,26 @@ const LIMIT = 12
 type IsActiveFilter = "all" | "true" | "false"
 type ViewMode = "card" | "list"
 
+// ── Highlight helper ──────────────────────────────────────────────────────
+function Highlight({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi")
+  const parts = text.split(regex)
+  return (
+    <>
+      {parts.map((part, i) =>
+        regex.test(part) ? (
+          <mark key={i} className="bg-yellow-200 text-yellow-900 rounded-[2px] px-[1px]">
+            {part}
+          </mark>
+        ) : (
+          part
+        )
+      )}
+    </>
+  )
+}
+
 // ── Component ──────────────────────────────────────────────────────────────
 export default function UsersPage() {
   const [activeRole, setActiveRole] = useState<ApiRole | "all">("all")
@@ -347,7 +367,7 @@ export default function UsersPage() {
                         </Avatar>
                         <div className="flex flex-col gap-1">
                           <h3 className="font-display font-bold text-foreground leading-tight">
-                            {user.username}
+                            <Highlight text={user.username} query={debouncedSearch} />
                           </h3>
                           <Badge variant="outline" className={`capitalize text-xs w-fit ${roleBadgeClass[user.role]}`}>
                             {user.role}
@@ -373,12 +393,12 @@ export default function UsersPage() {
                   <CardContent className="flex flex-col gap-2">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Mail className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{user.email}</span>
+                      <span className="truncate"><Highlight text={user.email} query={debouncedSearch} /></span>
                     </div>
                     {user.phone_number && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Phone className="h-3.5 w-3.5 shrink-0" />
-                        <span>{user.phone_number}</span>
+                        <span><Highlight text={user.phone_number} query={debouncedSearch} /></span>
                       </div>
                     )}
                     <p className="text-xs text-muted-foreground/70 mt-1">
@@ -438,11 +458,11 @@ export default function UsersPage() {
                                   {user.username.slice(0, 2).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
-                              <span className="font-medium">{user.username}</span>
+                              <span className="font-medium"><Highlight text={user.username} query={debouncedSearch} /></span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-muted-foreground">{user.email}</TableCell>
-                          <TableCell className="text-muted-foreground">{user.phone_number || "—"}</TableCell>
+                          <TableCell className="text-muted-foreground"><Highlight text={user.email} query={debouncedSearch} /></TableCell>
+                          <TableCell className="text-muted-foreground">{user.phone_number ? <Highlight text={user.phone_number} query={debouncedSearch} /> : "—"}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className={`capitalize text-xs ${roleBadgeClass[user.role]}`}>
                               {user.role}
