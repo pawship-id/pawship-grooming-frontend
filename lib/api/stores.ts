@@ -27,6 +27,45 @@ export interface StoreCapacity {
   overbooking_limit_minutes?: number | null
 }
 
+export interface ServicePrice {
+  size_id: string
+  name: string
+  price: number
+}
+
+export interface ServiceType {
+  _id: string
+  name: string
+}
+
+export interface SizeCategory {
+  _id: string
+  name: string
+}
+
+export interface PetType {
+  _id: string
+  name: string
+}
+
+export interface ApiService {
+  _id: string
+  code: string
+  name: string
+  description?: string
+  prices: ServicePrice[]
+  duration: number
+  available_for_unlimited: boolean
+  is_active: boolean
+  isDeleted: boolean
+  deletedAt: string | null
+  createdAt: string
+  updatedAt: string
+  service_type?: ServiceType
+  size_categories?: SizeCategory[]
+  pet_types?: PetType[]
+}
+
 export interface ApiStore {
   _id: string
   code: string
@@ -39,6 +78,7 @@ export interface ApiStore {
   is_active: boolean
   createdAt: string
   updatedAt: string
+  services?: ApiService[]
 }
 
 export interface StoresResponse {

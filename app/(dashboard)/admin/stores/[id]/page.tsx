@@ -3,11 +3,12 @@
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { ArrowLeft, MapPin, Phone, Mail, Clock, Building2, Hash, CalendarDays } from "lucide-react"
+import { ArrowLeft, MapPin, Phone, Mail, Clock, Building2, Hash, CalendarDays, Scissors } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Separator } from "@/components/ui/separator"
 import { getStoreById, type ApiStore } from "@/lib/api/stores"
 
 export default function StoreDetailPage() {
@@ -155,6 +156,80 @@ export default function StoreDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {store.services && store.services.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Scissors className="h-4 w-4" />
+              Layanan Tersedia
+              <Badge variant="secondary" className="ml-1 text-xs">{store.services.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {store.services.map((service) => (
+              <div
+                key={service._id}
+                className="flex flex-col gap-3 rounded-lg border p-4"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-col gap-1">
+                    <p className="font-medium leading-tight">{service.name}</p>
+                    <span className="font-mono text-xs text-muted-foreground">{service.code}</span>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={`shrink-0 text-xs ${service.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}
+                  >
+                    {service.is_active ? "Aktif" : "Nonaktif"}
+                  </Badge>
+                </div>
+
+                {service.description && (
+                  <p className="text-xs text-muted-foreground whitespace-pre-wrap">{service.description}</p>
+                )}
+
+                <Separator />
+
+                <div className="flex flex-col gap-2">
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="w-20 shrink-0 text-xs text-muted-foreground">Tipe</span>
+                    <Badge variant="outline" className="text-xs">{service.service_type?.name ?? "-"}</Badge>
+                  </div>
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="w-20 shrink-0 text-xs text-muted-foreground">Durasi</span>
+                    <span className="text-xs">{service.duration} menit</span>
+                  </div>
+                  {service.pet_types && service.pet_types.length > 0 && (
+                    <div className="flex justify-between flex-wrap items-center gap-2">
+                      <span className="w-20 shrink-0 text-xs text-muted-foreground">Hewan</span>
+                      <div className="flex flex-wrap items-center gap-1">
+                        {service.pet_types.map((pt) => (
+                          <Badge key={pt._id} variant="secondary" className="text-xs">{pt.name}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {service.prices.length > 0 && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col gap-1">
+                      {service.prices.map((p) => (
+                        <div key={p.size_id} className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">{p.name}</span>
+                          <span className="font-medium">Rp {p.price.toLocaleString("id-ID")}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="text-xs text-muted-foreground flex items-center gap-4">
         <span className="flex items-center gap-1"><CalendarDays className="h-3.5 w-3.5" />Dibuat: {new Date(store.createdAt).toLocaleString("id-ID")}</span>
