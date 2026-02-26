@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Search, Mail, Phone, ChevronLeft, ChevronRight, LayoutGrid, List } from "lucide-react"
+import { Search, Mail, Phone, ChevronLeft, ChevronRight, LayoutGrid, List, Plus, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -13,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { apiAuthRequest } from "@/lib/api"
 import { toast } from "sonner"
 
@@ -39,6 +41,34 @@ interface UsersResponse {
     limit: number
     totalPages: number
   }
+}
+
+// ── Form types ─────────────────────────────────────────────────────────────
+interface CreateUserForm {
+  username: string
+  email: string
+  phone_number: string
+  password: string
+  role: ApiRole
+  is_active: boolean
+}
+
+interface EditUserForm {
+  username: string
+  email: string
+  phone_number: string
+  role: ApiRole
+}
+
+const ROLE_OPTIONS: ApiRole[] = ["admin", "ops", "groomer", "customer"]
+
+const DEFAULT_CREATE: CreateUserForm = {
+  username: "",
+  email: "",
+  phone_number: "",
+  password: "",
+  role: "customer",
+  is_active: true,
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -75,6 +105,55 @@ export default function UsersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [createForm, setCreateForm] = useState<CreateUserForm>(DEFAULT_CREATE)
+  const [isCreating, setIsCreating] = useState(false)
+  const [editUser, setEditUser] = useState<ApiUser | null>(null)
+  const [editForm, setEditForm] = useState<EditUserForm>({ username: "", email: "", phone_number: "", role: "customer" })
+  const [isEditing, setIsEditing] = useState(false)
+
+  const openEdit = (user: ApiUser) => {
+    setEditUser(user)
+    setEditForm({ username: user.username, email: user.email, phone_number: user.phone_number, role: user.role })
+  }
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsCreating(true)
+    try {
+      await apiAuthRequest("/users", {
+        method: "POST",
+        body: JSON.stringify(createForm),
+      })
+      toast.success("User berhasil dibuat")
+      setAddOpen(false)
+      setCreateForm(DEFAULT_CREATE)
+      fetchUsers()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal membuat user.")
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editUser) return
+    setIsEditing(true)
+    try {
+      await apiAuthRequest(`/users/${editUser._id}`, {
+        method: "PUT",
+        body: JSON.stringify(editForm),
+      })
+      toast.success("User berhasil diperbarui")
+      setEditUser(null)
+      fetchUsers()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal memperbarui user.")
+    } finally {
+      setIsEditing(false)
+    }
+  }
 
   const toggleStatus = useCallback(async (user: ApiUser) => {
     setTogglingId(user._id)
@@ -137,13 +216,20 @@ export default function UsersPage() {
   }, [fetchUsers])
 
   return (
-    <div className="flex flex-col gap-6">
+    <>
       {/* Header */}
-      <div>
-        <h1 className="font-display text-2xl font-bold text-foreground">Users</h1>
-        <p className="text-sm text-muted-foreground">
-          Kelola semua pengguna berdasarkan peran mereka
-        </p>
+      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-foreground">Users</h1>
+          <p className="text-sm text-muted-foreground">
+            Kelola semua pengguna berdasarkan peran mereka
+          </p>
+        </div>
+        <Button onClick={() => setAddOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Tambah User
+        </Button>
       </div>
 
       {/* Tabs */}
@@ -250,12 +336,17 @@ export default function UsersPage() {
                           </Badge>
                         </div>
                       </div>
-                      <Switch
-                        checked={user.is_active}
-                        disabled={togglingId === user._id}
-                        onCheckedChange={() => toggleStatus(user)}
-                        aria-label={`Toggle status ${user.username}`}
-                      />
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(user)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Switch
+                          checked={user.is_active}
+                          disabled={togglingId === user._id}
+                          onCheckedChange={() => toggleStatus(user)}
+                          aria-label={`Toggle status ${user.username}`}
+                        />
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-2">
@@ -344,12 +435,17 @@ export default function UsersPage() {
                             })}
                           </TableCell>
                           <TableCell className="text-right">
-                            <Switch
-                              checked={user.is_active}
-                              disabled={togglingId === user._id}
-                              onCheckedChange={() => toggleStatus(user)}
-                              aria-label={`Toggle status ${user.username}`}
-                            />
+                            <div className="flex items-center justify-end gap-1">
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(user)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Switch
+                                checked={user.is_active}
+                                disabled={togglingId === user._id}
+                                onCheckedChange={() => toggleStatus(user)}
+                                aria-label={`Toggle status ${user.username}`}
+                              />
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -397,6 +493,89 @@ export default function UsersPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+
+      {/* Create User Dialog */}
+      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setCreateForm(DEFAULT_CREATE) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">Tambah User Baru</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreate} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="c-username">Username</Label>
+              <Input id="c-username" placeholder="johndoe" required value={createForm.username} onChange={(e) => setCreateForm((p) => ({ ...p, username: e.target.value }))} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="c-email">Email</Label>
+              <Input id="c-email" type="email" placeholder="user@pawship.com" required value={createForm.email} onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="c-phone">Nomor Telepon</Label>
+              <Input id="c-phone" placeholder="08xxxxxxxxxx" required value={createForm.phone_number} onChange={(e) => setCreateForm((p) => ({ ...p, phone_number: e.target.value }))} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="c-password">Password</Label>
+              <Input id="c-password" type="password" placeholder="Minimal 6 karakter" required minLength={6} value={createForm.password} onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="c-role">Role</Label>
+              <Select value={createForm.role} onValueChange={(v) => setCreateForm((p) => ({ ...p, role: v as ApiRole }))}>
+                <SelectTrigger id="c-role"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ROLE_OPTIONS.map((r) => (
+                    <SelectItem key={r} value={r} className="capitalize">{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch id="c-active" checked={createForm.is_active} onCheckedChange={(v) => setCreateForm((p) => ({ ...p, is_active: v }))} />
+              <Label htmlFor="c-active">Aktif</Label>
+            </div>
+            <Button type="submit" className="mt-2 w-full" disabled={isCreating}>
+              {isCreating ? "Menyimpan..." : "Tambah User"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={!!editUser} onOpenChange={(o) => { if (!o) setEditUser(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">Edit User</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEdit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="e-username">Username</Label>
+              <Input id="e-username" placeholder="johndoe" required value={editForm.username} onChange={(e) => setEditForm((p) => ({ ...p, username: e.target.value }))} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="e-email">Email</Label>
+              <Input id="e-email" type="email" placeholder="user@pawship.com" required value={editForm.email} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="e-phone">Nomor Telepon</Label>
+              <Input id="e-phone" placeholder="08xxxxxxxxxx" required value={editForm.phone_number} onChange={(e) => setEditForm((p) => ({ ...p, phone_number: e.target.value }))} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="e-role">Role</Label>
+              <Select value={editForm.role} onValueChange={(v) => setEditForm((p) => ({ ...p, role: v as ApiRole }))}>
+                <SelectTrigger id="e-role"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {ROLE_OPTIONS.map((r) => (
+                    <SelectItem key={r} value={r} className="capitalize">{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button type="submit" className="mt-2 w-full" disabled={isEditing}>
+              {isEditing ? "Menyimpan..." : "Simpan Perubahan"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
