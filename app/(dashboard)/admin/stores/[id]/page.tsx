@@ -3,13 +3,18 @@
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { ArrowLeft, MapPin, Phone, Mail, Clock, Building2, Hash, CalendarDays, Scissors } from "lucide-react"
+import { ArrowLeft, MapPin, Phone, Mail, Clock, Building2, Hash, CalendarDays, Scissors, Compass, MessageCircle, Globe, Timer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
 import { getStoreById, type ApiStore } from "@/lib/api/stores"
+
+const DAY_LABELS: Record<string, string> = {
+  Monday: "Sen", Tuesday: "Sel", Wednesday: "Rab",
+  Thursday: "Kam", Friday: "Jum", Saturday: "Sab", Sunday: "Min",
+}
 
 export default function StoreDetailPage() {
   const params = useParams<{ id: string }>()
@@ -84,7 +89,7 @@ export default function StoreDetailPage() {
           </Link>
           <div>
             <h1 className="font-display text-2xl font-bold text-foreground">{store.name}</h1>
-            <p className="text-sm text-muted-foreground">Detail store</p>
+            <p className="text-sm text-muted-foreground">{store.description || "Detail store"}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -98,61 +103,57 @@ export default function StoreDetailPage() {
         </div>
       </div>
 
-      {store.description && (
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
-          <CardContent className="pt-6 text-sm text-muted-foreground">{store.description}</CardContent>
-        </Card>
-      )}
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Lokasi</CardTitle>
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm">Lokasi</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <div className="flex items-start gap-2 text-muted-foreground">
-              <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+          <CardContent className="space-y-1.5 text-xs px-4 pb-4">
+            <div className="flex items-start gap-1.5 text-muted-foreground">
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <div>
                 <p>{store.location?.address || "-"}</p>
                 <p>{[store.location?.city, store.location?.province].filter(Boolean).join(", ") || "-"}</p>
                 <p>{store.location?.postal_code || "-"}</p>
               </div>
             </div>
-            <p className="text-muted-foreground">
-              Lat/Lng: {store.location?.latitude ?? "-"}, {store.location?.longitude ?? "-"}
+            <p className="flex items-center gap-1.5 text-muted-foreground">
+              <Compass className="h-3.5 w-3.5 shrink-0" />
+              <span className="font-medium text-foreground/60">Koordinat</span>
+              {store.location?.latitude ?? "-"}, {store.location?.longitude ?? "-"}
             </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Kontak</CardTitle>
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm">Kontak</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p className="flex items-center gap-2"><Phone className="h-4 w-4" />{store.contact?.phone_number || "-"}</p>
-            <p className="flex items-center gap-2"><Phone className="h-4 w-4" />WA: {store.contact?.whatsapp || "-"}</p>
-            <p className="flex items-center gap-2"><Mail className="h-4 w-4" />{store.contact?.email || "-"}</p>
+          <CardContent className="space-y-1.5 text-xs text-muted-foreground px-4 pb-4">
+            <p className="flex items-center gap-1.5"><Phone className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Telepon:</span>{store.contact?.phone_number || "-"}</p>
+            <p className="flex items-center gap-1.5"><MessageCircle className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">WhatsApp:</span>{store.contact?.whatsapp || "-"}</p>
+            <p className="flex items-center gap-1.5"><Mail className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Email:</span>{store.contact?.email || "-"}</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Operasional</CardTitle>
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm">Operasional</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p className="flex items-center gap-2"><Clock className="h-4 w-4" />{store.operational?.opening_time || "-"} - {store.operational?.closing_time || "-"}</p>
-            <p>Timezone: {store.operational?.timezone || "-"}</p>
-            <p>Hari: {store.operational?.operational_days?.length ? store.operational.operational_days.join(", ") : "-"}</p>
+          <CardContent className="space-y-1.5 text-xs text-muted-foreground px-4 pb-4">
+            <p className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Jam:</span>{store.operational?.opening_time || "-"} - {store.operational?.closing_time || "-"}</p>
+            <p className="flex items-center gap-1.5"><Globe className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Timezone:</span>{store.operational?.timezone || "-"}</p>
+            <p className="flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Hari:</span>{store.operational?.operational_days?.length ? store.operational.operational_days.map((d) => DAY_LABELS[d] ?? d).join(", ") : "-"}</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Kapasitas</CardTitle>
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm">Kapasitas</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p className="flex items-center gap-2"><Building2 className="h-4 w-4" />Default daily capacity: {store.capacity?.default_daily_capacity_minutes ?? "-"} menit</p>
-            <p>Overbooking limit: {store.capacity?.overbooking_limit_minutes ?? "-"} menit</p>
+          <CardContent className="space-y-1.5 text-xs text-muted-foreground px-4 pb-4">
+            <p className="flex items-center gap-1.5"><Building2 className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Kapasitas Harian:</span>{store.capacity?.default_daily_capacity_minutes ?? "-"} menit</p>
+            <p className="flex items-center gap-1.5"><Timer className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Batas Overbooking:</span>{store.capacity?.overbooking_limit_minutes ?? "-"} menit</p>
           </CardContent>
         </Card>
       </div>
