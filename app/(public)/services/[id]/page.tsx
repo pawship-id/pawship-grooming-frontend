@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ServiceCard } from "@/components/service-card"
+import { BookingNowModal } from "@/components/booking-now-modal"
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("id-ID", {
@@ -92,9 +93,17 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
                 </p>
               </div>
 
-              <Button asChild size="lg" className="w-fit font-display font-bold">
-                <Link href="/#contact">Contact Us to Book</Link>
-              </Button>
+              <div className="flex flex-wrap gap-3">
+                <BookingNowModal
+                  product={product}
+                  buttonLabel="Booking Now"
+                  buttonSize="lg"
+                  buttonClassName="font-display font-bold"
+                />
+                {/* <Button asChild size="lg" variant="outline" className="font-display font-bold">
+                  <Link href="/#contact">Contact Us</Link>
+                </Button> */}
+              </div>
             </CardContent>
           </Card>
         </div>

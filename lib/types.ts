@@ -1,9 +1,9 @@
 // ==========================================
-// PAWship Pet Grooming - Type Definitions
+// Paswhip Pet Grooming - Type Definitions
 // ==========================================
 
 // --- Auth ---
-export type UserRole = "admin" | "groomer"
+export type UserRole = "admin" | "groomer" | "customer"
 
 export interface AuthUser {
   id: string

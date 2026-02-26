@@ -18,7 +18,11 @@ export default function GroomerLayout({ children }: { children: React.ReactNode 
     if (!isAuthenticated) {
       router.push("/login")
     } else if (user?.role !== "groomer") {
-      router.push("/admin/dashboard")
+      if (user?.role === "admin") {
+        router.push("/admin/dashboard")
+      } else {
+        router.push("/customer/tracking")
+      }
     }
   }, [isAuthenticated, user, router])
 
@@ -37,7 +41,7 @@ export default function GroomerLayout({ children }: { children: React.ReactNode 
           <Link href="/groomer/dashboard" className="flex items-center gap-2">
             <Image
               src="/images/pawship-navbar-logo.webp"
-              alt="PAWship"
+              alt="Paswhip"
               width={100}
               height={32}
               style={{ width: "auto", height: "auto" }}

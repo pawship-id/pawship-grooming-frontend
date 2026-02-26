@@ -7,7 +7,7 @@ export default function NotFound() {
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4 text-center">
       <Image
         src="/images/pawship-square-logo.png"
-        alt="PAWship"
+        alt="Paswhip"
         width={100}
         height={100}
         style={{ width: "auto", height: "auto" }}
