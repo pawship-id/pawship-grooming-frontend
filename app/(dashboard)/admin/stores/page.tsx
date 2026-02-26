@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import dynamic from "next/dynamic"
 import { Search, Plus, Pencil, Trash2, MoreVertical, MapPin, Phone, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,6 +20,16 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { apiAuthRequest } from "@/lib/api"
 import { toast } from "sonner"
+
+const StoreLocationMap = dynamic(
+  () => import("./store-location-map").then((mod) => mod.StoreLocationMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[420px] w-full rounded-md border border-border bg-muted/40 animate-pulse" />
+    ),
+  }
+)
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface StoreLocation {
@@ -98,6 +109,11 @@ const DAY_LABELS: Record<string, string> = {
   Monday: "Sen", Tuesday: "Sel", Wednesday: "Rab",
   Thursday: "Kam", Friday: "Jum", Saturday: "Sab", Sunday: "Min",
 }
+const INDONESIA_TIMEZONES = [
+  { value: "Asia/Jakarta", label: "WIB (Asia/Jakarta)" },
+  { value: "Asia/Makassar", label: "WITA (Asia/Makassar)" },
+  { value: "Asia/Jayapura", label: "WIT (Asia/Jayapura)" },
+]
 const LIMIT = 10
 
 const DEFAULT_FORM: StoreForm = {
@@ -135,6 +151,34 @@ function StoreFormFields({
   form: StoreForm
   setForm: React.Dispatch<React.SetStateAction<StoreForm>>
 }) {
+  const [mapOpen, setMapOpen] = useState(false)
+  const [locationInputMode, setLocationInputMode] = useState<"manual" | "map">("manual")
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false)
+
+  useEffect(() => {
+    if (form.location.latitude != null && form.location.longitude != null) return
+    if (typeof navigator === "undefined" || !navigator.geolocation) return
+
+    setIsDetectingLocation(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setForm((p) => ({
+          ...p,
+          location: {
+            ...p.location,
+            latitude: Number(position.coords.latitude.toFixed(6)),
+            longitude: Number(position.coords.longitude.toFixed(6)),
+          },
+        }))
+        setIsDetectingLocation(false)
+      },
+      () => {
+        setIsDetectingLocation(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }, [form.location.latitude, form.location.longitude, setForm])
+
   const toggleDay = (day: string) => {
     setForm((p) => ({
       ...p,
@@ -224,20 +268,63 @@ function StoreFormFields({
             <Input id="f-province" placeholder="DKI Jakarta" value={form.location.province ?? ""} onChange={(e) => setForm((p) => ({ ...p, location: { ...p.location, province: e.target.value } }))} />
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="f-postal">Kode Pos</Label>
             <Input id="f-postal" placeholder="12345" value={form.location.postal_code ?? ""} onChange={(e) => setForm((p) => ({ ...p, location: { ...p.location, postal_code: e.target.value } }))} />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="f-lat">Latitude</Label>
-            <Input id="f-lat" type="number" step="any" placeholder="-6.208" value={form.location.latitude ?? ""} onChange={(e) => setForm((p) => ({ ...p, location: { ...p.location, latitude: e.target.value ? parseFloat(e.target.value) : null } }))} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="f-lng">Longitude</Label>
-            <Input id="f-lng" type="number" step="any" placeholder="106.845" value={form.location.longitude ?? ""} onChange={(e) => setForm((p) => ({ ...p, location: { ...p.location, longitude: e.target.value ? parseFloat(e.target.value) : null } }))} />
+            <Label>Mode Input Koordinat</Label>
+            <div className="flex rounded-md border border-border w-fit">
+              <Button
+                type="button"
+                size="sm"
+                variant={locationInputMode === "manual" ? "secondary" : "ghost"}
+                className="rounded-none rounded-l-md"
+                onClick={() => setLocationInputMode("manual")}
+              >
+                Manual
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={locationInputMode === "map" ? "secondary" : "ghost"}
+                className="rounded-none rounded-r-md border-l border-border"
+                onClick={() => setLocationInputMode("map")}
+              >
+                Dari Peta
+              </Button>
+            </div>
           </div>
         </div>
+
+        {locationInputMode === "manual" ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="f-lat">Latitude</Label>
+              <Input id="f-lat" type="number" step="any" placeholder="-6.208" value={form.location.latitude ?? ""} onChange={(e) => setForm((p) => ({ ...p, location: { ...p.location, latitude: e.target.value ? parseFloat(e.target.value) : null } }))} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="f-lng">Longitude</Label>
+              <Input id="f-lng" type="number" step="any" placeholder="106.845" value={form.location.longitude ?? ""} onChange={(e) => setForm((p) => ({ ...p, location: { ...p.location, longitude: e.target.value ? parseFloat(e.target.value) : null } }))} />
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <Button type="button" variant="outline" onClick={() => setMapOpen(true)}>
+              Pilih dari Peta
+            </Button>
+            {form.location.latitude != null && form.location.longitude != null && (
+              <p className="text-xs text-muted-foreground">
+                Koordinat terpilih: {form.location.latitude}, {form.location.longitude}
+              </p>
+            )}
+          </div>
+        )}
+
+        {isDetectingLocation && (
+          <p className="text-xs text-muted-foreground">Mendeteksi lokasi saat ini...</p>
+        )}
       </div>
 
       <Separator />
@@ -266,20 +353,6 @@ function StoreFormFields({
       {/* Operational */}
       <div className="flex flex-col gap-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Operasional</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="f-open">Jam Buka</Label>
-            <Input id="f-open" type="time" value={form.operational.opening_time} onChange={(e) => setForm((p) => ({ ...p, operational: { ...p.operational, opening_time: e.target.value } }))} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="f-close">Jam Tutup</Label>
-            <Input id="f-close" type="time" value={form.operational.closing_time} onChange={(e) => setForm((p) => ({ ...p, operational: { ...p.operational, closing_time: e.target.value } }))} />
-          </div>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="f-tz">Timezone</Label>
-          <Input id="f-tz" placeholder="Asia/Jakarta" value={form.operational.timezone} onChange={(e) => setForm((p) => ({ ...p, operational: { ...p.operational, timezone: e.target.value } }))} />
-        </div>
         <div className="flex flex-col gap-1.5">
           <Label>Hari Operasional</Label>
           <div className="flex flex-wrap gap-2 pt-1">
@@ -294,7 +367,67 @@ function StoreFormFields({
             ))}
           </div>
         </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="f-open">Jam Buka</Label>
+            <Input id="f-open" type="time" value={form.operational.opening_time} onChange={(e) => setForm((p) => ({ ...p, operational: { ...p.operational, opening_time: e.target.value } }))} />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="f-close">Jam Tutup</Label>
+            <Input id="f-close" type="time" value={form.operational.closing_time} onChange={(e) => setForm((p) => ({ ...p, operational: { ...p.operational, closing_time: e.target.value } }))} />
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="f-tz">Timezone</Label>
+          <Select
+            value={form.operational.timezone}
+            onValueChange={(value) => setForm((p) => ({ ...p, operational: { ...p.operational, timezone: value } }))}
+          >
+            <SelectTrigger id="f-tz">
+              <SelectValue placeholder="Pilih timezone" />
+            </SelectTrigger>
+            <SelectContent>
+              {INDONESIA_TIMEZONES.map((timezone) => (
+                <SelectItem key={timezone.value} value={timezone.value}>
+                  {timezone.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
+
+      <Dialog open={mapOpen} onOpenChange={setMapOpen}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="font-display">Pilih Lokasi di Peta</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Klik titik lokasi pada peta untuk mengisi latitude dan longitude otomatis.
+          </p>
+          {mapOpen && (
+            <StoreLocationMap
+              selectedLat={form.location.latitude}
+              selectedLng={form.location.longitude}
+              onSelect={(lat, lng) => {
+                setForm((p) => ({
+                  ...p,
+                  location: {
+                    ...p.location,
+                    latitude: lat,
+                    longitude: lng,
+                  },
+                }))
+              }}
+            />
+          )}
+          <div className="flex justify-end">
+            <Button type="button" onClick={() => setMapOpen(false)}>
+              Selesai
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
