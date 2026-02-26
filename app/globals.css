@@ -10,7 +10,7 @@
 
 @layer base {
   :root {
-    /* Pawship Color Palette */
+    /* Pawship Color Palette — Light Mode */
     /* ROSE WHITE: #FFF6EE */
     --background: 28 100% 96.5%;
     --foreground: 20 30% 18%;
@@ -23,7 +23,7 @@
     --popover-foreground: 20 30% 18%;
 
     /* DARK SALMON: #F79985 */
-    --primary: 9 89% 75%;
+    --primary: 9 89% 68%;
     --primary-foreground: 0 0% 100%;
 
     /* NEBULA: #CBE1D4 */
@@ -43,24 +43,75 @@
 
     --border: 28 30% 88%;
     --input: 28 30% 88%;
-    --ring: 9 89% 75%;
+    --ring: 9 89% 68%;
 
-    --chart-1: 9 89% 75%;
-    --chart-2: 145 30% 84%;
-    --chart-3: 30 96% 76%;
-    --chart-4: 20 30% 18%;
-    --chart-5: 28 100% 96.5%;
+    --chart-1: 9 89% 68%;
+    --chart-2: 145 30% 60%;
+    --chart-3: 30 96% 65%;
+    --chart-4: 20 30% 35%;
+    --chart-5: 28 60% 80%;
 
     --radius: 0.75rem;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 20 30% 18%;
-    --sidebar-primary: 9 89% 75%;
+    --sidebar-primary: 9 89% 68%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 28 100% 96.5%;
     --sidebar-accent-foreground: 20 30% 18%;
     --sidebar-border: 28 30% 88%;
-    --sidebar-ring: 9 89% 75%;
+    --sidebar-ring: 9 89% 68%;
+  }
+
+  .dark {
+    /* Pawship Color Palette — Dark Mode (Neutral) */
+    --background: 220 14% 10%;
+    --foreground: 220 10% 92%;
+
+    /* Card: slightly lighter than background */
+    --card: 220 13% 14%;
+    --card-foreground: 220 10% 92%;
+
+    --popover: 220 13% 14%;
+    --popover-foreground: 220 10% 92%;
+
+    /* DARK SALMON — bright enough for dark bg */
+    --primary: 9 85% 68%;
+    --primary-foreground: 0 0% 100%;
+
+    /* NEBULA — desaturated for neutral dark */
+    --secondary: 220 12% 20%;
+    --secondary-foreground: 220 10% 82%;
+
+    /* Muted neutral dark */
+    --muted: 220 12% 17%;
+    --muted-foreground: 220 8% 55%;
+
+    /* PEACH — subtle tint accent */
+    --accent: 220 12% 20%;
+    --accent-foreground: 30 80% 80%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 12% 20%;
+    --input: 220 12% 20%;
+    --ring: 9 85% 68%;
+
+    --chart-1: 9 85% 68%;
+    --chart-2: 145 35% 48%;
+    --chart-3: 30 75% 58%;
+    --chart-4: 220 10% 75%;
+    --chart-5: 220 14% 22%;
+
+    --sidebar-background: 220 14% 12%;
+    --sidebar-foreground: 220 10% 92%;
+    --sidebar-primary: 9 85% 68%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 12% 17%;
+    --sidebar-accent-foreground: 220 10% 92%;
+    --sidebar-border: 220 12% 20%;
+    --sidebar-ring: 9 85% 68%;
   }
 }
 

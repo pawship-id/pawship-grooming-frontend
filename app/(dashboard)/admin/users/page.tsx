@@ -150,7 +150,7 @@ export default function UsersPage() {
       <Tabs value={activeRole} onValueChange={(v) => setActiveRole(v as ApiRole | "all")}>
         <TabsList className="flex-wrap h-auto gap-1">
           {ROLES.map((r) => (
-            <TabsTrigger key={r.value} value={r.value} className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsTrigger key={r.value} value={r.value}>
               {r.label}
             </TabsTrigger>
           ))}
