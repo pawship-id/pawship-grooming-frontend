@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Users,
   Package,
+  Tag,
   LogOut,
   Moon,
   Sun,
@@ -34,6 +35,7 @@ const menuItems = [
   { title: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Bookings", href: "/admin/bookings", icon: CalendarDays },
   { title: "Users", href: "/admin/users", icon: Users },
+  { title: "Options", href: "/admin/options", icon: Tag },
   { title: "Products", href: "/admin/products", icon: Package },
 ]
 
