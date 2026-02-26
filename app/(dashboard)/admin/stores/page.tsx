@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import dynamic from "next/dynamic"
+import { useRouter } from "next/navigation"
 import { Search, Plus, Pencil, Trash2, MoreVertical, MapPin, Phone, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -500,6 +501,7 @@ function storeToForm(store: ApiStore): StoreForm {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function StoresPage() {
+  const router = useRouter()
   const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
   const [isActiveFilter, setIsActiveFilter] = useState<"all" | "true" | "false">("all")
@@ -693,10 +695,14 @@ export default function StoresPage() {
                         </TableRow>
                       ))
                     : stores.map((store) => (
-                        <TableRow key={store._id}>
+                        <TableRow
+                          key={store._id}
+                          className="cursor-pointer"
+                          onClick={() => router.push(`/admin/stores/${store._id}`)}
+                        >
                           <TableCell>
                             <div className="flex flex-col gap-0.5">
-                              <span className="font-medium">
+                              <span className="font-medium hover:underline">
                                 <Highlight text={store.name} query={debouncedSearch} />
                               </span>
                               {store.description && (
@@ -748,7 +754,11 @@ export default function StoresPage() {
                               {store.is_active ? "Aktif" : "Nonaktif"}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell
+                            className="text-right"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-7 w-7">
