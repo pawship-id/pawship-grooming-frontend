@@ -15,37 +15,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { apiAuthRequest } from "@/lib/api/index"
+import {
+  createOption,
+  deleteOption as deleteOptionRequest,
+  getOptions,
+  toggleOptionStatus,
+  type ApiOption,
+  type CategoryOption,
+  type OptionPayload,
+  updateOption,
+} from "@/lib/api/options"
 import { toast } from "sonner"
 
-// ── Types ──────────────────────────────────────────────────────────────────
-type CategoryOption =
-  | "feather category"
-  | "size category"
-  | "breed category"
-  | "member category"
-  | "customer category"
-  | "pet type"
-  | "service type"
-
-interface ApiOption {
-  _id: string
-  name: string
-  category_options: CategoryOption
-  is_active: boolean
-  createdAt: string
-}
-
-interface OptionsResponse {
-  message: string
-  options: ApiOption[]
-}
-
-interface OptionForm {
-  name: string
-  category_options: CategoryOption
-  is_active: boolean
-}
+type OptionForm = OptionPayload
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const CATEGORY_OPTIONS: CategoryOption[] = [
@@ -132,10 +114,7 @@ export default function OptionsPage() {
     setIsLoading(true)
     setError("")
     try {
-      const params = new URLSearchParams()
-      if (activeCategory !== "all") params.set("category", activeCategory)
-      const query = params.toString()
-      const data = await apiAuthRequest<OptionsResponse>(`/options${query ? `?${query}` : ""}`)
+      const data = await getOptions(activeCategory === "all" ? undefined : activeCategory)
       setOptions(data.options ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat data options.")
@@ -165,10 +144,7 @@ export default function OptionsPage() {
     e.preventDefault()
     setIsCreating(true)
     try {
-      await apiAuthRequest("/options", {
-        method: "POST",
-        body: JSON.stringify(createForm),
-      })
+      await createOption(createForm)
       toast.success("Option berhasil dibuat")
       setAddOpen(false)
       setCreateForm(DEFAULT_FORM)
@@ -190,10 +166,7 @@ export default function OptionsPage() {
     if (!editOption) return
     setIsEditing(true)
     try {
-      await apiAuthRequest(`/options/${editOption._id}`, {
-        method: "PUT",
-        body: JSON.stringify(editForm),
-      })
+      await updateOption(editOption._id, editForm)
       toast.success("Option berhasil diperbarui")
       setEditOption(null)
       fetchOptions()
@@ -209,10 +182,7 @@ export default function OptionsPage() {
     // Optimistic update
     setOptions((prev) => prev.map((o) => o._id === opt._id ? { ...o, is_active: newStatus } : o))
     try {
-      await apiAuthRequest(`/options/${opt._id}`, {
-        method: "PUT",
-        body: JSON.stringify({ is_active: newStatus }),
-      })
+      await toggleOptionStatus(opt._id, newStatus)
       toast.success(newStatus ? `"${opt.name}" diaktifkan` : `"${opt.name}" dinonaktifkan`)
     } catch (err) {
       // Revert
@@ -225,7 +195,7 @@ export default function OptionsPage() {
     if (!deleteOption) return
     setIsDeleting(true)
     try {
-      await apiAuthRequest(`/options/${deleteOption._id}`, { method: "DELETE" })
+      await deleteOptionRequest(deleteOption._id)
       toast.success(`"${deleteOption.name}" berhasil dihapus`)
       setDeleteOption(null)
       fetchOptions()
