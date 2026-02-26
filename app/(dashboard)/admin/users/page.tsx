@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Search, Mail, Phone, ChevronLeft, ChevronRight, LayoutGrid, List, Plus, Pencil, Trash2 } from "lucide-react"
+import { Search, Mail, Phone, ChevronLeft, ChevronRight, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, KeyRound, Eye, EyeOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { apiAuthRequest } from "@/lib/api"
@@ -134,6 +135,10 @@ export default function UsersPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [deleteUser, setDeleteUser] = useState<ApiUser | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [passwordUser, setPasswordUser] = useState<ApiUser | null>(null)
+  const [newPassword, setNewPassword] = useState("")
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
 
   const handleDelete = async () => {
     if (!deleteUser) return
@@ -190,6 +195,29 @@ export default function UsersPage() {
       toast.error(err instanceof Error ? err.message : "Gagal memperbarui user.")
     } finally {
       setIsEditing(false)
+    }
+  }
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!passwordUser) return
+    if (newPassword.length < 6) {
+      toast.error("Password minimal 6 karakter")
+      return
+    }
+    setIsUpdatingPassword(true)
+    try {
+      await apiAuthRequest(`/users/update-password/${passwordUser._id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ password: newPassword }),
+      })
+      toast.success("Password berhasil diperbarui")
+      setPasswordUser(null)
+      setNewPassword("")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal memperbarui password.")
+    } finally {
+      setIsUpdatingPassword(false)
     }
   }
 
@@ -369,25 +397,54 @@ export default function UsersPage() {
                           <h3 className="font-display font-bold text-foreground leading-tight">
                             <Highlight text={user.username} query={debouncedSearch} />
                           </h3>
-                          <Badge variant="outline" className={`capitalize text-xs w-fit ${roleBadgeClass[user.role]}`}>
-                            {user.role}
-                          </Badge>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <Badge variant="outline" className={`capitalize text-xs w-fit ${roleBadgeClass[user.role]}`}>
+                              {user.role}
+                            </Badge>
+                            <Badge variant="outline" className={`text-xs w-fit ${user.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                              {user.is_active ? "Aktif" : "Nonaktif"}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Switch
-                          checked={user.is_active}
-                          disabled={togglingId === user._id}
-                          onCheckedChange={() => toggleStatus(user)}
-                          aria-label={`Toggle status ${user.username}`}
-                        />
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(user)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteUser(user)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Aksi</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            disabled={togglingId === user._id}
+                            onClick={() => toggleStatus(user)}
+                          >
+                            <Switch
+                              checked={user.is_active}
+                              className="mr-2 scale-75 pointer-events-none"
+                              aria-hidden
+                            />
+                            {user.is_active ? "Nonaktifkan" : "Aktifkan"}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openEdit(user)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit User
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => { setPasswordUser(user); setNewPassword("") }}>
+                            <KeyRound className="mr-2 h-4 w-4" />
+                            Update Password
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setDeleteUser(user)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Hapus User
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-2">
@@ -434,6 +491,7 @@ export default function UsersPage() {
                     <TableHead>Telepon</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Bergabung</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -446,6 +504,7 @@ export default function UsersPage() {
                           <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                           <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                           <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-14" /></TableCell>
                           <TableCell><Skeleton className="h-5 w-10 ml-auto" /></TableCell>
                         </TableRow>
                       ))
@@ -475,27 +534,56 @@ export default function UsersPage() {
                               year: "numeric",
                             })}
                           </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-xs ${user.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                              {user.is_active ? "Aktif" : "Nonaktif"}
+                            </Badge>
+                          </TableCell>
                           <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <Switch
-                                checked={user.is_active}
-                                disabled={togglingId === user._id}
-                                onCheckedChange={() => toggleStatus(user)}
-                                aria-label={`Toggle status ${user.username}`}
-                              />
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(user)}>
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteUser(user)}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Aksi</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  disabled={togglingId === user._id}
+                                  onClick={() => toggleStatus(user)}
+                                >
+                                  <Switch
+                                    checked={user.is_active}
+                                    className="mr-2 scale-75 pointer-events-none"
+                                    aria-hidden
+                                  />
+                                  {user.is_active ? "Nonaktifkan" : "Aktifkan"}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openEdit(user)}>
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  Edit User
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { setPasswordUser(user); setNewPassword("") }}>
+                                  <KeyRound className="mr-2 h-4 w-4" />
+                                  Update Password
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => setDeleteUser(user)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Hapus User
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </TableCell>
                         </TableRow>
                       ))}
                   {!isLoading && users.length === 0 && !error && (
                     <TableRow>
-                      <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                      <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
                         Tidak ada pengguna ditemukan
                       </TableCell>
                     </TableRow>
@@ -616,6 +704,46 @@ export default function UsersPage() {
             </div>
             <Button type="submit" className="mt-2 w-full" disabled={isEditing}>
               {isEditing ? "Menyimpan..." : "Simpan Perubahan"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Update Password Dialog */}
+      <Dialog open={!!passwordUser} onOpenChange={(o) => { if (!o) { setPasswordUser(null); setNewPassword("") } }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display">Update Password</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Mengubah password untuk{" "}
+            <span className="font-semibold text-foreground">{passwordUser?.username}</span>
+          </p>
+          <form onSubmit={handleUpdatePassword} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="up-password">Password Baru</Label>
+              <div className="relative">
+                <Input
+                  id="up-password"
+                  type={showNewPassword ? "text" : "password"}
+                  placeholder="Minimal 6 karakter"
+                  required
+                  minLength={6}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  onClick={() => setShowNewPassword((v) => !v)}
+                >
+                  {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+            <Button type="submit" className="w-full" disabled={isUpdatingPassword}>
+              {isUpdatingPassword ? "Menyimpan..." : "Update Password"}
             </Button>
           </form>
         </DialogContent>
