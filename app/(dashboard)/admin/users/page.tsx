@@ -355,18 +355,18 @@ export default function UsersPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(user)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteUser(user)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
                         <Switch
                           checked={user.is_active}
                           disabled={togglingId === user._id}
                           onCheckedChange={() => toggleStatus(user)}
                           aria-label={`Toggle status ${user.username}`}
                         />
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(user)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteUser(user)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     </div>
                   </CardHeader>
@@ -414,7 +414,7 @@ export default function UsersPage() {
                     <TableHead>Telepon</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Bergabung</TableHead>
-                    <TableHead className="text-right">Status</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -457,18 +457,18 @@ export default function UsersPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(user)}>
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteUser(user)}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
                               <Switch
                                 checked={user.is_active}
                                 disabled={togglingId === user._id}
                                 onCheckedChange={() => toggleStatus(user)}
                                 aria-label={`Toggle status ${user.username}`}
                               />
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(user)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteUser(user)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
