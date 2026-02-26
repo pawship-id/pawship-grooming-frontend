@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 import { useRouter } from "next/navigation"
 import type { AuthUser } from "./types"
 import { authUsers } from "./mock-data"
-import { clearAuthToken, loginRequest, setAuthToken } from "./api"
+import { clearAuthTokens, loginRequest, setAuthTokens } from "./api/index"
 
 const AUTH_STORAGE_KEY = "pawship-auth"
 
@@ -86,11 +86,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string) => {
       try {
         const response = await loginRequest(email, password)
-        const authenticatedUser = mapUserFromToken(email, response.token)
+        const authenticatedUser = mapUserFromToken(email, response.access_token)
 
         setUser(authenticatedUser)
         localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authenticatedUser))
-        setAuthToken(response.token)
+        setAuthTokens(response.access_token, response.refresh_token)
 
         if (authenticatedUser.role === "admin") {
           router.push("/admin/dashboard")
@@ -114,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setUser(null)
     localStorage.removeItem(AUTH_STORAGE_KEY)
-    clearAuthToken()
+    clearAuthTokens()
     router.push("/login")
   }, [router])
 

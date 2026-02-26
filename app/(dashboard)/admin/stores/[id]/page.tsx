@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { apiAuthRequest } from "@/lib/api"
+import { apiAuthRequest } from "@/lib/api/index"
 
 type StoreLocation = {
   address?: string
