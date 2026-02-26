@@ -8,7 +8,6 @@ import {
   CalendarDays,
   Users,
   Package,
-  Scissors,
   LogOut,
 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
@@ -31,9 +30,8 @@ import {
 const menuItems = [
   { title: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Bookings", href: "/admin/bookings", icon: CalendarDays },
-  { title: "Customers", href: "/admin/customers", icon: Users },
+  { title: "Users", href: "/admin/users", icon: Users },
   { title: "Products", href: "/admin/products", icon: Package },
-  { title: "Groomers", href: "/admin/groomers", icon: Scissors },
 ]
 
 export function AdminSidebar() {
