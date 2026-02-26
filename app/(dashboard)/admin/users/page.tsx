@@ -12,7 +12,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Switch } from "@/components/ui/switch"
 import { apiAuthRequest } from "@/lib/api"
+import { toast } from "sonner"
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type ApiRole = "admin" | "ops" | "groomer" | "customer"
@@ -72,6 +74,27 @@ export default function UsersPage() {
   const [pagination, setPagination] = useState({ total: 0, page: 1, limit: LIMIT, totalPages: 1 })
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+
+  const toggleStatus = useCallback(async (user: ApiUser) => {
+    setTogglingId(user._id)
+    const newStatus = !user.is_active
+    // Optimistic update
+    setUsers((prev) => prev.map((u) => u._id === user._id ? { ...u, is_active: newStatus } : u))
+    try {
+      await apiAuthRequest(`/users/toggle-status/${user._id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ is_active: newStatus }),
+      })
+      toast.success(newStatus ? `${user.username} diaktifkan` : `${user.username} dinonaktifkan`)
+    } catch (err) {
+      // Revert on failure
+      setUsers((prev) => prev.map((u) => u._id === user._id ? { ...u, is_active: user.is_active } : u))
+      toast.error(err instanceof Error ? err.message : "Gagal mengubah status pengguna.")
+    } finally {
+      setTogglingId(null)
+    }
+  }, [])
 
   // Debounce search
   useEffect(() => {
@@ -222,19 +245,17 @@ export default function UsersPage() {
                           <h3 className="font-display font-bold text-foreground leading-tight">
                             {user.username}
                           </h3>
-                          <div className="flex items-center gap-1.5">
-                            <Badge variant="outline" className={`capitalize text-xs ${roleBadgeClass[user.role]}`}>
-                              {user.role}
-                            </Badge>
-                            <Badge
-                              variant={user.is_active ? "default" : "secondary"}
-                              className={`text-xs ${user.is_active ? "bg-emerald-500 hover:bg-emerald-500" : ""}`}
-                            >
-                              {user.is_active ? "Aktif" : "Nonaktif"}
-                            </Badge>
-                          </div>
+                          <Badge variant="outline" className={`capitalize text-xs w-fit ${roleBadgeClass[user.role]}`}>
+                            {user.role}
+                          </Badge>
                         </div>
                       </div>
+                      <Switch
+                        checked={user.is_active}
+                        disabled={togglingId === user._id}
+                        onCheckedChange={() => toggleStatus(user)}
+                        aria-label={`Toggle status ${user.username}`}
+                      />
                     </div>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-2">
@@ -280,8 +301,8 @@ export default function UsersPage() {
                     <TableHead>Email</TableHead>
                     <TableHead>Telepon</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead>Bergabung</TableHead>
+                    <TableHead className="text-right">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -292,8 +313,8 @@ export default function UsersPage() {
                           <TableCell><Skeleton className="h-4 w-40" /></TableCell>
                           <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                           <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                          <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                           <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-10 ml-auto" /></TableCell>
                         </TableRow>
                       ))
                     : users.map((user) => (
@@ -315,20 +336,20 @@ export default function UsersPage() {
                               {user.role}
                             </Badge>
                           </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={user.is_active ? "default" : "secondary"}
-                              className={`text-xs ${user.is_active ? "bg-emerald-500 hover:bg-emerald-500" : ""}`}
-                            >
-                              {user.is_active ? "Aktif" : "Nonaktif"}
-                            </Badge>
-                          </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
                             {new Date(user.createdAt).toLocaleDateString("id-ID", {
                               day: "numeric",
                               month: "short",
                               year: "numeric",
                             })}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Switch
+                              checked={user.is_active}
+                              disabled={togglingId === user._id}
+                              onCheckedChange={() => toggleStatus(user)}
+                              aria-label={`Toggle status ${user.username}`}
+                            />
                           </TableCell>
                         </TableRow>
                       ))}
