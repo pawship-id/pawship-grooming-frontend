@@ -2,6 +2,7 @@ export { apiRequest, apiAuthRequest } from "./client"
 export { loginRequest, refreshTokenRequest } from "./auth"
 export * from "./users"
 export * from "./options"
+export * from "./stores"
 export {
   ACCESS_TOKEN_STORAGE_KEY,
   REFRESH_TOKEN_STORAGE_KEY,

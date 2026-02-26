@@ -8,53 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { apiAuthRequest } from "@/lib/api/index"
-
-type StoreLocation = {
-  address?: string
-  city?: string
-  province?: string
-  postal_code?: string
-  latitude?: number | null
-  longitude?: number | null
-}
-
-type StoreContact = {
-  phone_number?: string
-  whatsapp?: string
-  email?: string
-}
-
-type StoreOperational = {
-  opening_time?: string
-  closing_time?: string
-  operational_days?: string[]
-  timezone?: string
-}
-
-type StoreCapacity = {
-  default_daily_capacity_minutes?: number | null
-  overbooking_limit_minutes?: number | null
-}
-
-type ApiStore = {
-  _id: string
-  code: string
-  name: string
-  description?: string
-  location?: StoreLocation
-  contact?: StoreContact
-  operational?: StoreOperational
-  capacity?: StoreCapacity
-  is_active: boolean
-  createdAt: string
-  updatedAt: string
-}
-
-type StoreDetailResponse = {
-  message: string
-  store: ApiStore
-}
+import { getStoreById, type ApiStore } from "@/lib/api/stores"
 
 export default function StoreDetailPage() {
   const params = useParams<{ id: string }>()
@@ -70,7 +24,7 @@ export default function StoreDetailPage() {
     setIsLoading(true)
     setError("")
     try {
-      const data = await apiAuthRequest<StoreDetailResponse>(`/stores/${storeId}`)
+      const data = await getStoreById(storeId)
       setStore(data.store)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat detail store.")

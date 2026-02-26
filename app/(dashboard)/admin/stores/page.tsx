@@ -19,7 +19,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { apiAuthRequest } from "@/lib/api/index"
+import {
+  createStore,
+  deleteStore as deleteStoreRequest,
+  getStores,
+  type ApiStore,
+  type StoreCapacity,
+  type StoreContact,
+  type StoreLocation,
+  type StoreOperational,
+  type StorePayload,
+  updateStore,
+  updateStoreStatus,
+} from "@/lib/api/stores"
 import { toast } from "sonner"
 
 const StoreLocationMap = dynamic(
@@ -33,58 +45,6 @@ const StoreLocationMap = dynamic(
 )
 
 // ── Types ──────────────────────────────────────────────────────────────────
-interface StoreLocation {
-  address?: string
-  city?: string
-  province?: string
-  postal_code?: string
-  latitude?: number | null
-  longitude?: number | null
-}
-
-interface StoreContact {
-  phone_number?: string
-  whatsapp?: string
-  email?: string
-}
-
-interface StoreOperational {
-  opening_time?: string
-  closing_time?: string
-  operational_days?: string[]
-  timezone?: string
-}
-
-interface StoreCapacity {
-  default_daily_capacity_minutes?: number | null
-  overbooking_limit_minutes?: number | null
-}
-
-interface ApiStore {
-  _id: string
-  code: string
-  name: string
-  description?: string
-  location?: StoreLocation
-  contact?: StoreContact
-  operational?: StoreOperational
-  capacity?: StoreCapacity
-  is_active: boolean
-  createdAt: string
-  updatedAt: string
-}
-
-interface StoresResponse {
-  message: string
-  stores: ApiStore[]
-  pagination: {
-    total: number
-    page: number
-    limit: number
-    totalPages: number
-  }
-}
-
 interface StoreForm {
   code: string
   name: string
@@ -463,7 +423,7 @@ function formToPayload(form: StoreForm) {
       default_daily_capacity_minutes: Number(form.capacity.default_daily_capacity_minutes),
       overbooking_limit_minutes: Number(form.capacity.overbooking_limit_minutes),
     },
-  }
+  } satisfies StorePayload
 }
 
 // ── Util: ApiStore → form ─────────────────────────────────────────────────
@@ -539,11 +499,12 @@ export default function StoresPage() {
     setError("")
     try {
       const params = new URLSearchParams()
-      params.set("page", String(page))
-      params.set("limit", String(LIMIT))
-      if (debouncedSearch) params.set("search", debouncedSearch)
-      if (isActiveFilter !== "all") params.set("is_active", isActiveFilter)
-      const data = await apiAuthRequest<StoresResponse>(`/stores?${params.toString()}`)
+      const data = await getStores({
+        page,
+        limit: LIMIT,
+        search: debouncedSearch || undefined,
+        is_active: isActiveFilter === "all" ? undefined : isActiveFilter,
+      })
       setStores(data.stores ?? [])
       setPagination(data.pagination)
     } catch (err) {
@@ -561,7 +522,7 @@ export default function StoresPage() {
     e.preventDefault()
     setIsCreating(true)
     try {
-      await apiAuthRequest("/stores", { method: "POST", body: JSON.stringify(formToPayload(createForm)) })
+      await createStore(formToPayload(createForm))
       toast.success("Store berhasil dibuat")
       setAddOpen(false)
       setCreateForm(DEFAULT_FORM)
@@ -583,7 +544,7 @@ export default function StoresPage() {
     if (!editStore) return
     setIsEditing(true)
     try {
-      await apiAuthRequest(`/stores/${editStore._id}`, { method: "PUT", body: JSON.stringify(formToPayload(editForm)) })
+      await updateStore(editStore._id, formToPayload(editForm))
       toast.success("Store berhasil diperbarui")
       setEditStore(null)
       fetchStores()
@@ -598,7 +559,7 @@ export default function StoresPage() {
     const newStatus = !store.is_active
     setStores((prev) => prev.map((s) => s._id === store._id ? { ...s, is_active: newStatus } : s))
     try {
-      await apiAuthRequest(`/stores/${store._id}`, { method: "PUT", body: JSON.stringify({ is_active: newStatus }) })
+      await updateStoreStatus(store._id, newStatus)
       toast.success(newStatus ? `${store.name} diaktifkan` : `${store.name} dinonaktifkan`)
     } catch (err) {
       setStores((prev) => prev.map((s) => s._id === store._id ? { ...s, is_active: store.is_active } : s))
@@ -610,7 +571,7 @@ export default function StoresPage() {
     if (!deleteStore) return
     setIsDeleting(true)
     try {
-      await apiAuthRequest(`/stores/${deleteStore._id}`, { method: "DELETE" })
+      await deleteStoreRequest(deleteStore._id)
       toast.success(`"${deleteStore.name}" berhasil dihapus`)
       setDeleteStore(null)
       fetchStores()
