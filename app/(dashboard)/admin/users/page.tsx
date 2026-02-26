@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Search, Mail, Phone, ChevronLeft, ChevronRight, LayoutGrid, List, Plus, Pencil } from "lucide-react"
+import { Search, Mail, Phone, ChevronLeft, ChevronRight, LayoutGrid, List, Plus, Pencil, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { apiAuthRequest } from "@/lib/api"
 import { toast } from "sonner"
 
@@ -111,6 +112,23 @@ export default function UsersPage() {
   const [editUser, setEditUser] = useState<ApiUser | null>(null)
   const [editForm, setEditForm] = useState<EditUserForm>({ username: "", email: "", phone_number: "", role: "customer" })
   const [isEditing, setIsEditing] = useState(false)
+  const [deleteUser, setDeleteUser] = useState<ApiUser | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    if (!deleteUser) return
+    setIsDeleting(true)
+    try {
+      await apiAuthRequest(`/users/${deleteUser._id}`, { method: "DELETE" })
+      toast.success(`User ${deleteUser.username} berhasil dihapus`)
+      setDeleteUser(null)
+      fetchUsers()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus user.")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   const openEdit = (user: ApiUser) => {
     setEditUser(user)
@@ -340,6 +358,9 @@ export default function UsersPage() {
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(user)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteUser(user)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                         <Switch
                           checked={user.is_active}
                           disabled={togglingId === user._id}
@@ -438,6 +459,9 @@ export default function UsersPage() {
                             <div className="flex items-center justify-end gap-1">
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(user)}>
                                 <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteUser(user)}>
+                                <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                               <Switch
                                 checked={user.is_active}
@@ -576,6 +600,30 @@ export default function UsersPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteUser} onOpenChange={(o) => { if (!o) setDeleteUser(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Apakah kamu yakin ingin menghapus user{" "}
+              <span className="font-semibold text-foreground">{deleteUser?.username}</span>?
+              Tindakan ini tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? "Menghapus..." : "Hapus"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }
