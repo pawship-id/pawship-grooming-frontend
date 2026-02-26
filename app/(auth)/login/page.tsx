@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, Home } from "lucide-react"
+import Link from "next/link"
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -33,15 +34,26 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md border-border/50 shadow-lg">
+      <div className="w-full max-w-md">
+        <div className="mb-4">
+          <Link href="/">
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
+              <Home className="h-4 w-4" />
+              Back to Home
+            </Button>
+          </Link>
+        </div>
+      <Card className="w-full border-border/50 shadow-lg">
         <CardHeader className="flex flex-col items-center gap-2 pb-2">
-          <Image
-            src="/images/pawship-square-logo.png"
-            alt="Pawship Logo"
-            width={60}
-            height={60}
-            className="w-16 object-contain"
-          />
+          <Link href="/">
+            <Image
+              src="/images/pawship-square-logo.png"
+              alt="Pawship Logo"
+              width={60}
+              height={60}
+              className="w-16 object-contain"
+            />
+          </Link>
           <div className="text-center">
             <h1 className="font-display text-2xl font-bold text-foreground">Welcome Back</h1>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -96,6 +108,13 @@ export default function LoginPage() {
               {isLoading ? "Signing in..." : "Sign In"}
             </Button>
 
+            <p className="text-center text-sm text-muted-foreground">
+              Belum punya akun?{" "}
+              <Link href="/register" className="font-medium text-primary hover:underline">
+                Daftar sekarang
+              </Link>
+            </p>
+
             {/* <div className="mt-2 rounded-lg bg-secondary/50 px-4 py-3">
               <p className="mb-2 text-xs font-medium text-muted-foreground">Demo Accounts</p>
               <div className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -108,6 +127,7 @@ export default function LoginPage() {
           </form>
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }
