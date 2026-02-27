@@ -2,8 +2,6 @@ import { notFound } from "next/navigation"
 import Link from "next/link"
 import { Clock, ArrowLeft, Tag, CheckCircle2, Hash, MapPin, MessageCircle, Store } from "lucide-react"
 import { products } from "@/lib/mock-data"
-import { PublicNavbar } from "@/components/public-navbar"
-import { PublicFooter } from "@/components/public-footer"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -48,9 +46,7 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
   const hasPrices = product.prices && product.prices.length > 0
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <PublicNavbar />
-      <main className="flex-1">
+    <main className="flex-1">
 
         {/* Hero Image */}
         {product.image && (
@@ -266,8 +262,6 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
             </div>
           </div>
         )}
-      </main>
-      <PublicFooter />
-    </div>
+    </main>
   )
 }
