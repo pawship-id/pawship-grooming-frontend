@@ -89,7 +89,7 @@ export function ServiceCard({ product }: { product: Product }) {
           </div>
 
           <div className="flex items-center justify-between gap-2">
-            <Button asChild variant="ghost" className="px-0 text-xs font-medium text-muted-foreground hover:text-primary">
+            <Button asChild variant="ghost" className="px-0 text-xs font-medium text-muted-foreground hover:text-primary hover:bg-transparent">
               <Link href={`/services/${product.id}`}>
                 Details <ArrowRight className="h-3 w-3" />
               </Link>
