@@ -658,7 +658,8 @@ function BookingContent() {
                   <div className="flex items-center gap-3 rounded-xl bg-primary/10 px-4 py-3">
                     <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />
                     <p className="text-sm font-medium text-primary">
-                      Booking berhasil dibuat! Tim kami akan menghubungi kamu segera.
+                      Yay! Booking kamu sudah kami terima ฅᨐฅ❤︎<br />
+                      Tim Pawship akan segera menghubungi kamu untuk konfirmasi dan detail selanjutnya ya.
                     </p>
                   </div>
                 )}
