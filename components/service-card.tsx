@@ -24,8 +24,8 @@ const categoryColors: Record<string, string> = {
 export function ServiceCard({ product }: { product: Product }) {
   return (
     <Card className="group flex h-full flex-col border-border/50 bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-md overflow-hidden">
-      {/* Service Image */}
-      {product.image && (
+      {/* Service Image — only shown for real (non-placeholder) images */}
+      {product.image && !product.image.startsWith("/placeholder") && (
         <div className="relative h-48 w-full overflow-hidden">
           <img
             src={product.image}
