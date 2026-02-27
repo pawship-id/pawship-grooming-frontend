@@ -40,11 +40,11 @@ function StoreCard({ store, selected, onSelect }: { store: AvailableStore; selec
         selected ? "border-primary bg-primary/5 shadow-md" : "border-border bg-card hover:border-primary/40 hover:shadow-sm"
       }`}
     >
-      {selected && (
-        <span className="absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full bg-primary">
-          <Check className="h-3.5 w-3.5 text-primary-foreground" />
-        </span>
-      )}
+      <span className={`absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors ${
+        selected ? "border-primary bg-primary" : "border-border"
+      }`}>
+        {selected && <Check className="h-3.5 w-3.5 text-primary-foreground" />}
+      </span>
       <p className={`font-display text-base font-bold ${selected ? "text-primary" : "text-foreground"}`}>{store.name}</p>
       <div className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
         <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -84,11 +84,11 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-            {selected && (
-              <span className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-primary shadow">
-                <Check className="h-4 w-4 text-primary-foreground" />
-              </span>
-            )}
+            <span className={`absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full border-2 shadow transition-colors ${
+              selected ? "border-primary bg-primary" : "border-white/70 bg-black/20"
+            }`}>
+              {selected && <Check className="h-4 w-4 text-primary-foreground" />}
+            </span>
           </div>
         )}
 
@@ -103,12 +103,12 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
               )}
               <p className={`font-display text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>{product.name}</p>
             </div>
-            {/* Mobile check indicator (no image shown) */}
-            {selected && (
-              <span className="sm:hidden flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary">
-                <Check className="h-3.5 w-3.5 text-primary-foreground" />
-              </span>
-            )}
+            {/* Mobile check indicator (image hidden on mobile) */}
+            <span className={`sm:hidden flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+              selected ? "border-primary bg-primary" : "border-border"
+            }`}>
+              {selected && <Check className="h-3.5 w-3.5 text-primary-foreground" />}
+            </span>
           </div>
 
           <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{product.description}</p>
