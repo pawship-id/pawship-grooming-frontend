@@ -1,25 +1,29 @@
-import { Heart, Home, Shield, Award } from "lucide-react"
+import { Heart, Home, Sparkles, Smile } from "lucide-react"
 
 const features = [
   {
     icon: Heart,
-    title: "Gentle Care",
-    description: "Every pet receives individual attention with gentle handling techniques suited to their temperament.",
+    title: "Gentle & Loving Care",
+    description:
+      "Every furbaby has their own personality — some are shy, some are playful, some just want extra cuddles. Our team adjusts with patience and softness, giving each pawfriend the attention and comfort they need to feel safe.",
   },
   {
     icon: Home,
-    title: "Home Grooming",
-    description: "Can't come to us? We come to you. Professional grooming in the comfort of your home.",
+    title: "Instore & Home Grooming",
+    description:
+      "Whether you visit our store or choose home grooming, we make sure the experience stays calm and familiar. We come fully prepared, so your pawfriend can relax wherever they feel most comfortable.",
   },
   {
-    icon: Shield,
-    title: "Safe Products",
-    description: "We use only vet-approved, hypoallergenic products to keep your pet safe and comfortable.",
+    icon: Sparkles,
+    title: "Safe & Premium Products",
+    description:
+      "Only gentle, skin-friendly products touch your pawfriend's coat. We use premium shampoos that keep their fur soft, fluffy, and beautifully fresh — without harsh ingredients.",
   },
   {
-    icon: Award,
-    title: "Certified Groomers",
-    description: "Our team is professionally trained and experienced with all breeds and pet types.",
+    icon: Smile,
+    title: "Stress-Free Grooming",
+    description:
+      "No rushing. No harsh handling. No drama. Just slow, patient care to keep your pawfriend relaxed, happy, and going home extra clean, extra fluffy, and extra loved.",
   },
 ]
 
@@ -29,13 +33,14 @@ export function AboutSection() {
       <div className="mx-auto max-w-7xl px-6">
         <div className="mb-12 text-center">
           <span className="mb-2 inline-block rounded-full bg-secondary/60 px-3 py-1 text-xs font-semibold text-secondary-foreground">
-            Why Paswhip
+            Why Pawship
           </span>
           <h2 className="font-display text-3xl font-extrabold text-foreground lg:text-4xl">
-            We Treat Your Pet Like Family
+            Because Every Pawfriend Deserves Gentle Care
           </h2>
           <p className="mt-3 max-w-xl mx-auto text-muted-foreground">
-            With years of experience and a passion for animals, Paswhip delivers grooming services that prioritize your pet's comfort and wellbeing.
+            At Pawship, we believe grooming should feel like a little self-care day — safe, cozy, and full of love. Never scary, never stressful.
+            Every pawfriend is treated with patience, gentle hands, and genuine care — just like they deserve.
           </p>
         </div>
 
