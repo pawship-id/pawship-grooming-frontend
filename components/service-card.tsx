@@ -1,8 +1,17 @@
+"use client"
+
+import { useState } from "react"
 import Link from "next/link"
-import { Clock, ArrowRight, CheckCircle2 } from "lucide-react"
+import { Clock, ArrowRight, CheckCircle2, Tag } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { BookingNowModal } from "@/components/booking-now-modal"
 import type { Product } from "@/lib/types"
 
@@ -22,8 +31,12 @@ const categoryColors: Record<string, string> = {
 }
 
 export function ServiceCard({ product }: { product: Product }) {
+  const [detailOpen, setDetailOpen] = useState(false)
+  const isAddon = product.category === "addon"
+
   return (
-    <Card className="group flex h-full flex-col border-border/50 bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-md overflow-hidden">
+    <>
+      <Card className="group flex h-full flex-col border-border/50 bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-md overflow-hidden">
       {/* Service Image — only shown for real (non-placeholder) images */}
       {product.image && !product.image.startsWith("/placeholder") && (
         <div className="relative h-48 w-full overflow-hidden">
@@ -89,16 +102,84 @@ export function ServiceCard({ product }: { product: Product }) {
           </div>
 
           <div className="flex items-center justify-between gap-2">
-            <Button asChild variant="ghost" className="px-0 text-xs font-medium text-muted-foreground hover:text-primary hover:bg-transparent">
-              <Link href={`/services/${product.id}`}>
-                Details <ArrowRight className="h-3 w-3" />
-              </Link>
-            </Button>
+              {isAddon ? (
+                <Button
+                  variant="ghost"
+                  className="px-0 text-xs font-medium text-muted-foreground hover:text-primary hover:bg-transparent"
+                  onClick={() => setDetailOpen(true)}
+                >
+                  Details <ArrowRight className="h-3 w-3" />
+                </Button>
+              ) : (
+                <Button asChild variant="ghost" className="px-0 text-xs font-medium text-muted-foreground hover:text-primary hover:bg-transparent">
+                  <Link href={`/services/${product.id}`}>
+                    Details <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </Button>
+              )}
             <BookingNowModal product={product} buttonSize="sm" />
           </div>
         </div>
       </CardContent>
     </Card>
+
+      {/* Add-on detail modal */}
+      {isAddon && (
+        <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <div className="flex items-center gap-2 mb-1">
+                <Badge variant="outline" className={categoryColors[product.category] || ""}>
+                  {product.category}
+                </Badge>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  {product.duration} min
+                </span>
+              </div>
+              <DialogTitle className="font-display text-xl font-bold">
+                {product.name}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="flex flex-col gap-4">
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {product.description}
+              </p>
+
+              <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3">
+                <span className="text-sm text-muted-foreground">Harga</span>
+                <span className="font-display text-xl font-extrabold text-primary">
+                  {formatPrice(product.price)}
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Untuk Hewan</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {product.petTypes.map((type) => (
+                    <div
+                      key={type}
+                      className="flex items-center gap-1 rounded-full bg-secondary/60 px-3 py-1 text-xs font-medium capitalize text-secondary-foreground"
+                    >
+                      <Tag className="h-3 w-3" />
+                      {type}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <BookingNowModal
+                product={product}
+                buttonLabel="Booking Sekarang"
+                buttonSize="default"
+                buttonClassName="w-full font-display font-bold"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   )
 }
 
