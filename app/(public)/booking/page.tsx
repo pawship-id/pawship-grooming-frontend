@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic"
 
 import { Suspense, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { MapPin, Clock, CheckCircle2, MessageCircle, Check, Plus, Minus, Hash, User, PawPrint } from "lucide-react"
+import { MapPin, Clock, CheckCircle2, MessageCircle, Check, Plus, Minus, Hash, User, PawPrint, ChevronDown, ArrowRight, Info } from "lucide-react"
 import { products, mockStores, customers } from "@/lib/mock-data"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import type { AvailableStore, Product, PetType } from "@/lib/types"
 
 function formatPrice(price: number) {
@@ -39,11 +40,11 @@ function StoreCard({ store, selected, onSelect }: { store: AvailableStore; selec
         selected ? "border-primary bg-primary/5 shadow-md" : "border-border bg-card hover:border-primary/40 hover:shadow-sm"
       }`}
     >
-      {selected && (
-        <span className="absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full bg-primary">
-          <Check className="h-3.5 w-3.5 text-primary-foreground" />
-        </span>
-      )}
+      <span className={`absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors ${
+        selected ? "border-primary bg-primary" : "border-border"
+      }`}>
+        {selected && <Check className="h-3.5 w-3.5 text-primary-foreground" />}
+      </span>
       <p className={`font-display text-base font-bold ${selected ? "text-primary" : "text-foreground"}`}>{store.name}</p>
       <div className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
         <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -61,49 +62,158 @@ function StoreCard({ store, selected, onSelect }: { store: AvailableStore; selec
 
 // ── Selectable Service Card ─────────────────────────────────────────────────
 function SelectableServiceCard({ product, selected, onSelect }: { product: Product; selected: boolean; onSelect: () => void }) {
+  const [includesOpen, setIncludesOpen] = useState(false)
+
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`group relative flex w-full flex-col overflow-hidden rounded-2xl border-2 text-left transition-all duration-200 ${
-        selected ? "border-primary shadow-md" : "border-border bg-card hover:border-primary/40 hover:shadow-sm"
-      }`}
-    >
-      {product.image && !product.image.startsWith("/placeholder") && (
-        <div className="relative h-36 w-full overflow-hidden">
-          <img
-            src={product.image}
-            alt={product.name}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-          {selected && (
-            <span className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-primary shadow">
-              <Check className="h-4 w-4 text-primary-foreground" />
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onSelect}
+        onKeyDown={(e) => e.key === "Enter" && onSelect()}
+        className={`group relative flex w-full flex-col overflow-hidden rounded-2xl border-2 text-left transition-all duration-200 cursor-pointer ${
+          selected ? "border-primary shadow-md" : "border-border bg-card hover:border-primary/40 hover:shadow-sm"
+        }`}
+      >
+        {/* Image — hidden on mobile */}
+        {product.image && !product.image.startsWith("/placeholder") && (
+          <div className="relative hidden sm:block h-36 w-full overflow-hidden">
+            <img
+              src={product.image}
+              alt={product.name}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+            <span className={`absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full border-2 shadow transition-colors ${
+              selected ? "border-primary bg-primary" : "border-white/70 bg-black/20"
+            }`}>
+              {selected && <Check className="h-4 w-4 text-primary-foreground" />}
             </span>
-          )}
-        </div>
-      )}
-      <div className="flex flex-1 flex-col gap-2 p-4">
-        {product.code && (
-          <span className="flex w-fit items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
-            <Hash className="h-2.5 w-2.5" />
-            {product.code}
-          </span>
+          </div>
         )}
-        <p className={`font-display text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>{product.name}</p>
-        <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{product.description}</p>
-        {product.includes && product.includes.length > 0 && (
-          <ul className="mt-1 flex flex-col gap-1">
-            {product.includes.map((item, i) => (
-              <li key={i} className="flex items-start gap-1.5 text-[11px] text-foreground/70">
-                <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
-                <span>{item}</span>
+
+        <div className="flex flex-1 flex-col gap-2 p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex flex-col gap-1.5">
+              {product.code && (
+                <span className="flex w-fit items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+                  <Hash className="h-2.5 w-2.5" />
+                  {product.code}
+                </span>
+              )}
+              <p className={`font-display text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>{product.name}</p>
+            </div>
+            {/* Mobile check indicator (image hidden on mobile) */}
+            <span className={`sm:hidden flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+              selected ? "border-primary bg-primary" : "border-border"
+            }`}>
+              {selected && <Check className="h-3.5 w-3.5 text-primary-foreground" />}
+            </span>
+          </div>
+
+          <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{product.description}</p>
+
+          {product.includes && product.includes.length > 0 && (
+            <>
+              {/* Desktop: inline list */}
+              <ul className="mt-1 hidden sm:flex flex-col gap-1">
+                {product.includes.map((item, i) => (
+                  <li key={i} className="flex items-start gap-1.5 text-[11px] text-foreground/70">
+                    <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              {/* Mobile: button opens modal */}
+              <div>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setIncludesOpen(true) }}
+                  className="sm:hidden flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span>Termasuk ({product.includes.length})</span>
+                  <ArrowRight className="h-3 w-3" />
+                </button>
+              </div>
+
+            </>
+          )}
+
+          <div className="mt-auto flex items-center justify-between pt-2">
+            <span className="font-display text-sm font-bold text-primary">{formatPrice(product.price)}</span>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              {product.duration} menit
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Includes modal (mobile) */}
+      <Dialog open={includesOpen} onOpenChange={setIncludesOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg font-bold">
+              Yang Termasuk dalam {product.name}
+            </DialogTitle>
+          </DialogHeader>
+          <ul className="flex flex-col gap-2.5">
+            {product.includes?.map((item, index) => (
+              <li key={index} className="flex items-start gap-3 text-sm text-foreground">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                <span className="leading-relaxed">{item}</span>
               </li>
             ))}
           </ul>
-        )}
-        <div className="mt-auto flex items-center justify-between pt-2">
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+// ── Selectable Add-on Card ──────────────────────────────────────────────────
+function SelectableAddonCard({ product, selected, onToggle }: { product: Product; selected: boolean; onToggle: () => void }) {
+  const [descOpen, setDescOpen] = useState(false)
+
+  return (
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(e) => e.key === "Enter" && onToggle()}
+        className={`group relative flex w-full flex-col rounded-2xl border-2 p-4 text-left transition-all duration-200 cursor-pointer ${
+          selected ? "border-primary bg-primary/5 shadow-md" : "border-border bg-card hover:border-primary/40 hover:shadow-sm"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <p className={`font-display text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>{product.name}</p>
+          <span
+            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+              selected ? "border-primary bg-primary" : "border-border"
+            }`}
+          >
+            {selected ? <Minus className="h-3 w-3 text-primary-foreground" /> : <Plus className="h-3 w-3 text-muted-foreground" />}
+          </span>
+        </div>
+
+        {/* Desktop: inline description */}
+        <p className="mt-1 hidden sm:block text-xs leading-relaxed text-muted-foreground">{product.description}</p>
+
+        {/* Mobile: button opens description modal */}
+        <div>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setDescOpen(true) }}
+            className="sm:hidden mt-1.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+          >
+            <Info className="h-3 w-3 shrink-0" />
+            <span>Lihat deskripsi</span>
+          </button>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between">
           <span className="font-display text-sm font-bold text-primary">{formatPrice(product.price)}</span>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />
@@ -111,39 +221,27 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
           </div>
         </div>
       </div>
-    </button>
-  )
-}
 
-// ── Selectable Add-on Card ──────────────────────────────────────────────────
-function SelectableAddonCard({ product, selected, onToggle }: { product: Product; selected: boolean; onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={`group relative flex w-full flex-col rounded-2xl border-2 p-4 text-left transition-all duration-200 ${
-        selected ? "border-primary bg-primary/5 shadow-md" : "border-border bg-card hover:border-primary/40 hover:shadow-sm"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <p className={`font-display text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>{product.name}</p>
-        <span
-          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-            selected ? "border-primary bg-primary" : "border-border"
-          }`}
-        >
-          {selected ? <Minus className="h-3 w-3 text-primary-foreground" /> : <Plus className="h-3 w-3 text-muted-foreground" />}
-        </span>
-      </div>
-      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{product.description}</p>
-      <div className="mt-3 flex items-center justify-between">
-        <span className="font-display text-sm font-bold text-primary">{formatPrice(product.price)}</span>
-        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Clock className="h-3 w-3" />
-          {product.duration} menit
-        </div>
-      </div>
-    </button>
+      {/* Description modal (mobile) */}
+      <Dialog open={descOpen} onOpenChange={setDescOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-display text-lg font-bold">{product.name}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <p className="text-sm leading-relaxed text-muted-foreground">{product.description}</p>
+            {/* <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3">
+              <span className="text-sm text-muted-foreground">Harga</span>
+              <span className="font-display text-lg font-extrabold text-primary">{formatPrice(product.price)}</span>
+            </div>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="h-3.5 w-3.5" />
+              {product.duration} menit
+            </div> */}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
@@ -176,6 +274,7 @@ function BookingContent() {
   const [selectedStoreId, setSelectedStoreId] = useState("")
   const [selectedServiceId, setSelectedServiceId] = useState(initialService?.id ?? "")
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([])
+  const [showAddons, setShowAddons] = useState(false)
 
   // Step 4 state — user & pet info
   const [phone, setPhone] = useState("")
@@ -291,7 +390,49 @@ function BookingContent() {
         {/* ── Step 1: Store ── */}
         <section className="flex flex-col gap-4">
           <StepHeader step={1} title="Pilih Store" done={!!selectedStore} />
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+
+          {/* Mobile: dropdown */}
+          <div className="sm:hidden">
+            <Select
+              value={selectedStoreId}
+              onValueChange={(id) => {
+                setSelectedStoreId(id)
+                setSelectedServiceId("")
+                setSelectedAddonIds([])
+                resetUserInfo()
+              }}
+            >
+              <SelectTrigger className="w-full h-12">
+                <SelectValue placeholder="Pilih store..." />
+              </SelectTrigger>
+              <SelectContent>
+                {mockStores.map((store) => (
+                  <SelectItem key={store.id} value={store.id}>
+                    <div className="flex flex-col text-left">
+                      <span className="font-semibold">{store.name}</span>
+                      <span className="text-xs text-muted-foreground">{store.address}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedStore && (
+              <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                {/* <MapPin className="h-3.5 w-3.5 shrink-0" />
+                <span>{selectedStore.address}</span> */}
+                {selectedStore.whatsapp && (
+                  <>
+                    {/* <span className="mx-1">·</span> */}
+                    <MessageCircle className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                    <span className="text-emerald-600">WhatsApp tersedia</span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Desktop: card grid */}
+          <div className="hidden sm:grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {mockStores.map((store) => (
               <StoreCard
                 key={store.id}
@@ -321,6 +462,7 @@ function BookingContent() {
                   onSelect={() => {
                     setSelectedServiceId(svc.id)
                     setSelectedAddonIds([])
+                    setShowAddons(false)
                     resetUserInfo()
                   }}
                 />
@@ -333,16 +475,48 @@ function BookingContent() {
         {selectedService && (
           <section className="flex flex-col gap-4">
             <StepHeader step={3} title="Tambah Add-On (opsional)" done={selectedAddonIds.length > 0} />
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {addOns.map((addon) => (
-                <SelectableAddonCard
-                  key={addon.id}
-                  product={addon}
-                  selected={selectedAddonIds.includes(addon.id)}
-                  onToggle={() => toggleAddon(addon.id)}
-                />
-              ))}
-            </div>
+
+            {/* Toggle button */}
+            <button
+              type="button"
+              onClick={() => {
+                const next = !showAddons
+                setShowAddons(next)
+                if (!next) {
+                  setSelectedAddonIds([])
+                  setUserInfoConfirmed(false)
+                  setBookingCreated(false)
+                }
+              }}
+              className={`flex items-center gap-3 rounded-2xl border-2 p-4 text-left transition-all duration-200 ${
+                showAddons ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/40 hover:shadow-sm"
+              }`}
+            >
+              <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                showAddons ? "border-primary bg-primary" : "border-border"
+              }`}>
+                {showAddons ? <Check className="h-3.5 w-3.5 text-primary-foreground" /> : <Plus className="h-3 w-3 text-muted-foreground" />}
+              </span>
+              <div>
+                <p className={`text-sm font-semibold ${showAddons ? "text-primary" : "text-foreground"}`}>
+                  Ingin menambahkan add-on?
+                </p>
+                <p className="text-xs text-muted-foreground">Layanan tambahan seperti spa, perawatan ekstra, dll.</p>
+              </div>
+            </button>
+
+            {showAddons && (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {addOns.map((addon) => (
+                  <SelectableAddonCard
+                    key={addon.id}
+                    product={addon}
+                    selected={selectedAddonIds.includes(addon.id)}
+                    onToggle={() => toggleAddon(addon.id)}
+                  />
+                ))}
+              </div>
+            )}
           </section>
         )}
 
@@ -655,26 +829,27 @@ function BookingContent() {
                     Konfirmasi Booking
                   </Button>
                 ) : (
-                  <div className="flex items-center gap-3 rounded-xl bg-primary/10 px-4 py-3">
-                    <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />
-                    <p className="text-sm font-medium text-primary">
-                      Yay! Booking kamu sudah kami terima ฅᨐฅ❤︎<br />
-                      Tim Pawship akan segera menghubungi kamu untuk konfirmasi dan detail selanjutnya ya.
-                    </p>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-3 rounded-xl bg-primary/10 px-4 py-3">
+                      <CheckCircle2 className="h-5 w-5 shrink-0 text-primary" />
+                      <p className="text-sm font-medium text-primary">
+                        Yay! Booking kamu sudah kami terima ฅᨐฅ❤︎<br />
+                        Tim Pawship akan segera menghubungi kamu untuk konfirmasi dan detail selanjutnya ya.
+                      </p>
+                    </div>
+                    {selectedStore.whatsapp && (
+                      <a
+                        href={`https://wa.me/${selectedStore.whatsapp}?text=Halo! Saya ${existingCustomer ? existingCustomer.name : userName} ingin booking ${selectedService.name} di ${selectedStore.name} untuk anabul saya (${petLabel}).`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Button variant="outline" size="lg" className="w-full gap-2 font-display font-bold">
+                          <MessageCircle className="h-4 w-4" />
+                          Tanyakan via WhatsApp
+                        </Button>
+                      </a>
+                    )}
                   </div>
-                )}
-
-                {selectedStore.whatsapp && (
-                  <a
-                    href={`https://wa.me/${selectedStore.whatsapp}?text=Halo! Saya ${existingCustomer ? existingCustomer.name : userName} ingin booking ${selectedService.name} di ${selectedStore.name} untuk anabul saya (${petLabel}).`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <Button variant="outline" size="lg" className="w-full gap-2 font-display font-bold">
-                      <MessageCircle className="h-4 w-4" />
-                      Chat via WhatsApp
-                    </Button>
-                  </a>
                 )}
               </CardContent>
             </Card>
