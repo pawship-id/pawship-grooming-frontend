@@ -1,7 +1,7 @@
 import { apiAuthRequest } from "./client"
 
 export type CategoryOption =
-  | "feather category"
+  | "hair category"
   | "size category"
   | "breed category"
   | "member category"

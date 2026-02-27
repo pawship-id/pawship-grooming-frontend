@@ -34,13 +34,13 @@ const TABS: { value: CategoryOption; label: string }[] = [
   { value: "pet type", label: "Pet Type" },
   { value: "breed category", label: "Breed" },
   { value: "size category", label: "Size" },
-  { value: "feather category", label: "Feather" },
+  { value: "hair category", label: "Hair" },
   { value: "member category", label: "Member" },
   { value: "customer category", label: "Customer" },
 ]
 
 const categoryBadgeClass: Record<CategoryOption, string> = {
-  "feather category": "bg-yellow-100 text-yellow-700 border-yellow-200",
+  "hair category": "bg-yellow-100 text-yellow-700 border-yellow-200",
   "size category": "bg-blue-100 text-blue-700 border-blue-200",
   "breed category": "bg-violet-100 text-violet-700 border-violet-200",
   "member category": "bg-pink-100 text-pink-700 border-pink-200",
