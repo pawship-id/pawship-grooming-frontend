@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = "force-dynamic"
+
 import { Suspense, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { MapPin, Clock, CheckCircle2, MessageCircle, Check, Plus, Minus, Hash, User, PawPrint } from "lucide-react"
