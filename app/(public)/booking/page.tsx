@@ -839,7 +839,7 @@ function BookingContent() {
                     </div>
                     {selectedStore.whatsapp && (
                       <a
-                        href={`https://wa.me/${selectedStore.whatsapp}?text=Halo! Saya ${existingCustomer ? existingCustomer.name : userName} ingin booking ${selectedService.name} di ${selectedStore.name} untuk anabul saya (${petLabel}).`}
+                        href={`https://wa.me/${selectedStore.whatsapp}?text=Halo! Saya ${existingCustomer ? existingCustomer.name : userName} sudah booking ${selectedService.name} di ${selectedStore.name} untuk anabul saya (${petLabel}) melaui website Pawship.`}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
