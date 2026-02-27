@@ -6,7 +6,7 @@ import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
-import { History, LocateFixed, LogOut } from "lucide-react"
+import { ClipboardList, LogOut } from "lucide-react"
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, logout } = useAuth()
@@ -37,7 +37,7 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
     <div className="flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-50 border-b border-border/50 bg-card/80 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <Link href="/customer/tracking" className="flex items-center gap-2">
+          <Link href="/customer/order" className="flex items-center gap-2">
             <Image
               src="/images/pawship-navbar-logo.webp"
               alt="Paswhip"
@@ -49,16 +49,10 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
           </Link>
 
           <div className="flex items-center gap-2">
-            <Button asChild variant={pathname === "/customer/tracking" ? "default" : "ghost"} size="sm">
-              <Link href="/customer/tracking">
-                <LocateFixed className="h-4 w-4" />
-                Tracking
-              </Link>
-            </Button>
-            <Button asChild variant={pathname === "/customer/history" ? "default" : "ghost"} size="sm">
-              <Link href="/customer/history">
-                <History className="h-4 w-4" />
-                History
+            <Button asChild variant={pathname === "/customer/order" ? "default" : "ghost"} size="sm">
+              <Link href="/customer/order">
+                <ClipboardList className="h-4 w-4" />
+                Order
               </Link>
             </Button>
             <Button variant="ghost" size="sm" onClick={logout}>
