@@ -3,11 +3,13 @@
 import Link from "next/link"
 import Image from "next/image"
 import { useState } from "react"
-import { Menu, X } from "lucide-react"
+import { Menu, Moon, Sun, X } from "lucide-react"
+import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
 
 export function PublicNavbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { theme, setTheme } = useTheme()
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/50 bg-card/80 backdrop-blur-md">
@@ -33,6 +35,13 @@ export function PublicNavbar() {
           <Link href="/#contact" className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary">
             Contact
           </Link>
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="rounded-md p-2 text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Toggle dark mode"
+          >
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
           <Button asChild size="sm">
             <Link href="/login">Login</Link>
           </Button>
@@ -70,6 +79,14 @@ export function PublicNavbar() {
           >
             Contact
           </Link>
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="flex items-center gap-2 text-sm font-medium text-foreground/70 transition-colors hover:text-foreground"
+            aria-label="Toggle dark mode"
+          >
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {theme === "dark" ? "Light Mode" : "Dark Mode"}
+          </button>
           <Button asChild size="sm" className="w-fit">
             <Link href="/login">Staff Login</Link>
           </Button>

@@ -18,19 +18,20 @@ export function HeroSection() {
 
         <div className="flex max-w-2xl flex-col gap-4">
           <h1 className="text-balance font-display text-4xl font-extrabold tracking-tight text-foreground lg:text-6xl">
-            Premium Pet Grooming, Made with Love
+            Your Pawfriends Deserve the Best
           </h1>
           <p className="text-pretty text-lg leading-relaxed text-muted-foreground lg:text-xl">
-            From refreshing baths to full grooming transformations, we keep your furry friends looking and feeling their best. Available in-store and at your home.
+            A happy place for pawfriends to be pampered with love. In-store or at home, always handled with care.
+            Fresh, fluffy, and beautifully groomed — with transparent pricing you can trust.
           </p>
         </div>
 
         <div className="flex items-center gap-4">
           <Button asChild size="lg" className="font-display font-bold">
-            <Link href="/#services">Explore Services</Link>
+            <Link href="/booking">Book Services</Link>
           </Button>
           <Button asChild variant="outline" size="lg" className="font-display font-bold bg-transparent">
-            <Link href="/#contact">Get in Touch</Link>
+            <Link href="/#contact">Contact Us</Link>
           </Button>
         </div>
 
