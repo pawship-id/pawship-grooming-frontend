@@ -97,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else if (authenticatedUser.role === "groomer") {
           router.push("/groomer/dashboard")
         } else {
-          router.push("/customer/tracking")
+          router.push("/customer")
         }
 
         return { success: true }

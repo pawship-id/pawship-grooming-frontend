@@ -5,8 +5,6 @@ export const dynamic = "force-dynamic"
 import { Suspense, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { MapPin, Clock, CheckCircle2, MessageCircle, Check, Plus, Minus, Hash, User, PawPrint } from "lucide-react"
-import { PublicNavbar } from "@/components/public-navbar"
-import { PublicFooter } from "@/components/public-footer"
 import { products, mockStores, customers } from "@/lib/mock-data"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -689,13 +687,9 @@ function BookingContent() {
 
 export default function BookingPage() {
   return (
-    <div className="flex min-h-screen flex-col">
-      <PublicNavbar />
-      <Suspense fallback={<main className="flex-1 bg-muted/20 py-12" />}>
-        <BookingContent />
-      </Suspense>
-      <PublicFooter />
-    </div>
+    <Suspense fallback={<main className="flex-1 bg-muted/20 py-12" />}>
+      <BookingContent />
+    </Suspense>
   )
 }
 
