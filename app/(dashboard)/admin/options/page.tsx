@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -30,25 +29,14 @@ import { toast } from "sonner"
 type OptionForm = OptionPayload
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const CATEGORY_OPTIONS: CategoryOption[] = [
-  "feather category",
-  "size category",
-  "breed category",
-  "member category",
-  "customer category",
-  "pet type",
-  "service type",
-]
-
-const TABS: { value: CategoryOption | "all"; label: string }[] = [
-  { value: "all", label: "Semua" },
-  { value: "feather category", label: "Feather" },
-  { value: "size category", label: "Size" },
+const TABS: { value: CategoryOption; label: string }[] = [
+  { value: "service type", label: "Service Type" },
+  { value: "pet type", label: "Pet Type" },
   { value: "breed category", label: "Breed" },
+  { value: "size category", label: "Size" },
+  { value: "feather category", label: "Feather" },
   { value: "member category", label: "Member" },
   { value: "customer category", label: "Customer" },
-  { value: "pet type", label: "Pet Type" },
-  { value: "service type", label: "Service Type" },
 ]
 
 const categoryBadgeClass: Record<CategoryOption, string> = {
@@ -89,7 +77,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function OptionsPage() {
-  const [activeCategory, setActiveCategory] = useState<CategoryOption | "all">("all")
+  const [activeCategory, setActiveCategory] = useState<CategoryOption>("service type")
   const [search, setSearch] = useState("")
   const [options, setOptions] = useState<ApiOption[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -114,7 +102,7 @@ export default function OptionsPage() {
     setIsLoading(true)
     setError("")
     try {
-      const data = await getOptions(activeCategory === "all" ? undefined : activeCategory)
+      const data = await getOptions(activeCategory)
       setOptions(data.options ?? [])
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memuat data options.")
@@ -158,7 +146,7 @@ export default function OptionsPage() {
 
   const openEdit = (opt: ApiOption) => {
     setEditOption(opt)
-    setEditForm({ name: opt.name, category_options: opt.category_options, is_active: opt.is_active })
+    setEditForm({ name: opt.name, category_options: activeCategory, is_active: opt.is_active })
   }
 
   const handleEdit = async (e: React.FormEvent) => {
@@ -218,14 +206,14 @@ export default function OptionsPage() {
               Kelola master data kategori seperti tipe hewan, ukuran, ras, dan lainnya
             </p>
           </div>
-          <Button onClick={() => { setCreateForm(DEFAULT_FORM); setAddOpen(true) }}>
+          <Button onClick={() => { setCreateForm({ ...DEFAULT_FORM, category_options: activeCategory }); setAddOpen(true) }}>
             <Plus className="mr-2 h-4 w-4" />
             Tambah Option
           </Button>
         </div>
 
         {/* Tabs */}
-        <Tabs value={activeCategory} onValueChange={(v) => setActiveCategory(v as CategoryOption | "all")}>
+        <Tabs value={activeCategory} onValueChange={(v) => setActiveCategory(v as CategoryOption)}>
           <TabsList className="flex-wrap h-auto gap-1">
             {TABS.map((t) => (
               <TabsTrigger key={t.value} value={t.value}>
@@ -380,20 +368,6 @@ export default function OptionsPage() {
                 onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
               />
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="c-category">Kategori</Label>
-              <Select
-                value={createForm.category_options}
-                onValueChange={(v) => setCreateForm((p) => ({ ...p, category_options: v as CategoryOption }))}
-              >
-                <SelectTrigger id="c-category"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CATEGORY_OPTIONS.map((c) => (
-                    <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="flex items-center gap-3">
               <Switch
                 id="c-active"
@@ -425,20 +399,6 @@ export default function OptionsPage() {
                 value={editForm.name}
                 onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
               />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="e-category">Kategori</Label>
-              <Select
-                value={editForm.category_options}
-                onValueChange={(v) => setEditForm((p) => ({ ...p, category_options: v as CategoryOption }))}
-              >
-                <SelectTrigger id="e-category"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CATEGORY_OPTIONS.map((c) => (
-                    <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
             <div className="flex items-center gap-3">
               <Switch
