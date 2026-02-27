@@ -61,6 +61,7 @@ export interface Product {
   petTypes: PetType[]
   isActive: boolean
   image: string
+  includes?: string[]
 }
 
 // --- Groomer ---
