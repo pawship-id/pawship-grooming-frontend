@@ -125,15 +125,18 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
                 ))}
               </ul>
               {/* Mobile: button opens modal */}
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setIncludesOpen(true) }}
-                className="sm:hidden flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-primary transition-colors"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                <span>Termasuk ({product.includes.length})</span>
-                <ArrowRight className="h-3 w-3" />
-              </button>
+              <div>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setIncludesOpen(true) }}
+                  className="sm:hidden flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  <span>Termasuk ({product.includes.length})</span>
+                  <ArrowRight className="h-3 w-3" />
+                </button>
+              </div>
+
             </>
           )}
 
@@ -199,14 +202,16 @@ function SelectableAddonCard({ product, selected, onToggle }: { product: Product
         <p className="mt-1 hidden sm:block text-xs leading-relaxed text-muted-foreground">{product.description}</p>
 
         {/* Mobile: button opens description modal */}
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); setDescOpen(true) }}
-          className="sm:hidden mt-1.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-        >
-          <Info className="h-3 w-3 shrink-0" />
-          <span>Lihat deskripsi</span>
-        </button>
+        <div>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setDescOpen(true) }}
+            className="sm:hidden mt-1.5 flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+          >
+            <Info className="h-3 w-3 shrink-0" />
+            <span>Lihat deskripsi</span>
+          </button>
+        </div>
 
         <div className="mt-3 flex items-center justify-between">
           <span className="font-display text-sm font-bold text-primary">{formatPrice(product.price)}</span>
