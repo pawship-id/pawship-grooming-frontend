@@ -23,7 +23,7 @@ const categoryColors: Record<string, string> = {
 
 export function ServiceCard({ product }: { product: Product }) {
   return (
-    <Card className="group h-full border-border/50 bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-md overflow-hidden">
+    <Card className="group flex h-full flex-col border-border/50 bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-md overflow-hidden">
       {/* Service Image */}
       {product.image && (
         <div className="relative h-48 w-full overflow-hidden">
@@ -36,7 +36,7 @@ export function ServiceCard({ product }: { product: Product }) {
         </div>
       )}
 
-      <CardContent className="flex h-full flex-col gap-4 p-6">
+      <CardContent className="flex flex-1 flex-col gap-4 p-6">
         <div className="flex items-start justify-between gap-2">
           <Badge variant="outline" className={categoryColors[product.category] || ""}>
             {product.category}
@@ -71,7 +71,7 @@ export function ServiceCard({ product }: { product: Product }) {
           </div>
         )}
 
-        {/* <div className="mt-auto flex flex-col gap-3 pt-2 border-t border-border/50">
+        <div className="mt-auto flex flex-col gap-3 pt-2 border-t border-border/50">
           <div className="flex items-center justify-between">
             <span className="font-display text-lg font-bold text-primary">
               {formatPrice(product.price)}
@@ -96,7 +96,7 @@ export function ServiceCard({ product }: { product: Product }) {
             </Button>
             <BookingNowModal product={product} buttonSize="sm" />
           </div>
-        </div> */}
+        </div>
       </CardContent>
     </Card>
   )

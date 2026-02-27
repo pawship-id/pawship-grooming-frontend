@@ -51,17 +51,35 @@ export interface Pet {
 }
 
 // --- Product / Service ---
+export interface ServiceSizePrice {
+  sizeId: string
+  sizeName: string
+  price: number
+}
+
+export interface AvailableStore {
+  id: string
+  name: string
+  city: string
+  address: string
+  whatsapp?: string
+}
+
 export interface Product {
   id: string
+  code?: string
   name: string
   description: string
   category: "grooming" | "addon" | "spa" | "medical"
   price: number
+  prices?: ServiceSizePrice[]
   duration: number // in minutes
   petTypes: PetType[]
+  sizeCategories?: SizeCategory[]
   isActive: boolean
   image: string
   includes?: string[]
+  availableStores?: AvailableStore[]
 }
 
 // --- Groomer ---

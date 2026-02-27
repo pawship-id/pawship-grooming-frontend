@@ -4,6 +4,7 @@ import type {
   Product,
   Groomer,
   Booking,
+  AvailableStore,
 } from "./types"
 
 // --- Auth Users (for login) ---
@@ -15,16 +16,49 @@ export const authUsers: AuthUser[] = [
   { id: "cust-2", name: "Siti Rahayu", email: "siti@email.com", role: "customer" },
 ]
 
+// --- Stores ---
+export const mockStores: AvailableStore[] = [
+  {
+    id: "store-jakarta-selatan",
+    name: "Pawship Kemang",
+    city: "Jakarta Selatan",
+    address: "Jl. Kemang Raya No. 88, Jakarta Selatan",
+    whatsapp: "6281234560001",
+  },
+  {
+    id: "store-jakarta-pusat",
+    name: "Pawship Sudirman",
+    city: "Jakarta Pusat",
+    address: "Jl. Sudirman No. 45, Jakarta Pusat",
+    whatsapp: "6281234560002",
+  },
+  {
+    id: "store-jakarta-barat",
+    name: "Pawship Puri",
+    city: "Jakarta Barat",
+    address: "Jl. Puri Indah No. 12, Jakarta Barat",
+    whatsapp: "6281234560003",
+  },
+]
+
 // --- Products / Services ---
 export const products: Product[] = [
   {
     id: "svc-1",
+    code: "GRM-BASIC",
     name: "Basic Grooming",
     description: "Perawatan dasar yang bikin pawfriends bersih, wangi, dan nyaman lagi. Cocok untuk rutin supaya tetap fresh dan sehat.",
     category: "grooming",
     price: 120000,
+    prices: [
+      { sizeId: "size-small", sizeName: "Small (< 5 kg)", price: 120000 },
+      { sizeId: "size-medium", sizeName: "Medium (5–10 kg)", price: 150000 },
+      { sizeId: "size-large", sizeName: "Large (10–20 kg)", price: 200000 },
+      { sizeId: "size-xlarge", sizeName: "Extra Large (> 20 kg)", price: 250000 },
+    ],
     duration: 60,
     petTypes: ["dog", "cat"],
+    sizeCategories: ["small", "medium", "large", "extra-large"],
     isActive: true,
     image: "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=600&h=400&fit=crop&auto=format",
     includes: [
@@ -35,15 +69,24 @@ export const products: Product[] = [
       "Cukur area paw (bawah kaki)",
       "Parfum pet friendly",
     ],
+    availableStores: mockStores,
   },
   {
     id: "svc-2",
+    code: "GRM-FULL",
     name: "Full Grooming",
     description: "Buat pawfriends yang mau total glow up. Bersihnya dapet, rapinya dapet, tampilannya juga makin pawfect.",
     category: "grooming",
     price: 200000,
+    prices: [
+      { sizeId: "size-small", sizeName: "Small (< 5 kg)", price: 200000 },
+      { sizeId: "size-medium", sizeName: "Medium (5–10 kg)", price: 240000 },
+      { sizeId: "size-large", sizeName: "Large (10–20 kg)", price: 300000 },
+      { sizeId: "size-xlarge", sizeName: "Extra Large (> 20 kg)", price: 370000 },
+    ],
     duration: 90,
     petTypes: ["dog", "cat"],
+    sizeCategories: ["small", "medium", "large", "extra-large"],
     isActive: true,
     image: "https://images.unsplash.com/photo-1512100354651-bf2e09b5c1b9?w=600&h=400&fit=crop&auto=format",
     includes: [
@@ -54,15 +97,24 @@ export const products: Product[] = [
       "Trimming / styling bulu sesuai request pawrents",
       "Parfum pet friendly",
     ],
+    availableStores: mockStores,
   },
   {
     id: "svc-3",
+    code: "HOME-BASIC",
     name: "Home Grooming – Basic",
     description: "Buat pawfriends yang lebih nyaman grooming di rumah. Kami datang dengan peralatan lengkap, jadi anabul tetap tenang di lingkungan yang familiar.",
     category: "grooming",
     price: 180000,
+    prices: [
+      { sizeId: "size-small", sizeName: "Small (< 5 kg)", price: 180000 },
+      { sizeId: "size-medium", sizeName: "Medium (5–10 kg)", price: 220000 },
+      { sizeId: "size-large", sizeName: "Large (10–20 kg)", price: 280000 },
+      { sizeId: "size-xlarge", sizeName: "Extra Large (> 20 kg)", price: 340000 },
+    ],
     duration: 75,
     petTypes: ["dog", "cat"],
+    sizeCategories: ["small", "medium", "large", "extra-large"],
     isActive: true,
     image: "https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?w=600&h=400&fit=crop&auto=format",
     includes: [
@@ -73,15 +125,24 @@ export const products: Product[] = [
       "Cukur area paw (bawah kaki)",
       "Parfum pet friendly",
     ],
+    availableStores: mockStores,
   },
   {
     id: "svc-4",
+    code: "HOME-FULL",
     name: "Home Grooming – Full Service",
     description: "Glow up lengkap tanpa perlu pergi ke mana-mana. Cocok buat pawfriends yang butuh rapih total tapi tetap mau di rumah.",
     category: "grooming",
     price: 280000,
+    prices: [
+      { sizeId: "size-small", sizeName: "Small (< 5 kg)", price: 280000 },
+      { sizeId: "size-medium", sizeName: "Medium (5–10 kg)", price: 330000 },
+      { sizeId: "size-large", sizeName: "Large (10–20 kg)", price: 400000 },
+      { sizeId: "size-xlarge", sizeName: "Extra Large (> 20 kg)", price: 480000 },
+    ],
     duration: 120,
     petTypes: ["dog", "cat"],
+    sizeCategories: ["small", "medium", "large", "extra-large"],
     isActive: true,
     image: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=600&h=400&fit=crop&auto=format",
     includes: [
@@ -92,6 +153,7 @@ export const products: Product[] = [
       "Trimming / styling bulu sesuai request pawrents",
       "Parfum pet friendly",
     ],
+    availableStores: mockStores,
   },
   {
     id: "svc-6",
