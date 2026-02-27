@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Clock, ArrowRight, CheckCircle2, Tag } from "lucide-react"
+import { Clock, ArrowRight, CheckCircle2, Tag, ChevronDown } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -32,6 +32,7 @@ const categoryColors: Record<string, string> = {
 
 export function ServiceCard({ product }: { product: Product }) {
   const [detailOpen, setDetailOpen] = useState(false)
+  const [includesModalOpen, setIncludesModalOpen] = useState(false)
   const isAddon = product.category === "addon"
 
   return (
@@ -72,15 +73,14 @@ export function ServiceCard({ product }: { product: Product }) {
           {/* Includes List */}
           {product.includes && product.includes.length > 0 && (
             <div className="flex flex-col gap-1.5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Termasuk:</p>
-              <ul className="flex flex-col gap-1">
-                {product.includes.map((item, index) => (
-                  <li key={index} className="flex items-start gap-2 text-xs text-foreground/80">
-                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
+              <button
+                onClick={() => setIncludesModalOpen(true)}
+                className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-primary transition-colors text-left group/btn"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                <span>Termasuk ({product.includes.length})</span>
+                <ArrowRight className="h-3 w-3 transition-transform group-hover/btn:translate-x-0.5" />
+              </button>
             </div>
           )}
 
@@ -125,6 +125,27 @@ export function ServiceCard({ product }: { product: Product }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Includes modal */}
+      <Dialog open={includesModalOpen} onOpenChange={setIncludesModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl font-bold">
+              Yang Termasuk dalam {product.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <ul className="flex flex-col gap-2.5">
+              {product.includes?.map((item, index) => (
+                <li key={index} className="flex items-start gap-3 text-sm text-foreground">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                  <span className="leading-relaxed">{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add-on detail modal */}
       {isAddon && (
