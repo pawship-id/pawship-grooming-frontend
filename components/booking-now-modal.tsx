@@ -27,7 +27,7 @@ interface BookingNowModalProps {
 
 export function BookingNowModal({
   product,
-  buttonLabel = "Booking Now",
+  buttonLabel = "Booking Sekarang",
   buttonVariant = "default",
   buttonSize = "default",
   buttonClassName,
@@ -219,7 +219,7 @@ export function BookingNowModal({
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Booking Now</DialogTitle>
+          <DialogTitle>Booking Sekarang</DialogTitle>
           <DialogDescription>
             Isi data singkat untuk booking layanan {product.name}.
           </DialogDescription>
