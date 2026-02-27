@@ -16,7 +16,7 @@ export function PublicFooter() {
               className="w-24 object-contain"
             />
             <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
-              Professional pet grooming services for your beloved companions. We treat every pet like family.
+              Pawship is a gentle space for your beloved pawfriends to be cared for with comfort and love. Always designed to keep tails wagging and pawrents worry-free.
             </p>
           </div>
 
@@ -37,7 +37,7 @@ export function PublicFooter() {
             <h3 className="font-display text-sm font-bold text-foreground">Contact Us</h3>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Phone className="h-4 w-4 text-primary" />
-              <span>+62 8158843760 / +62 81231351150</span>
+              <span>+62 81231351150</span>
             </div>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Mail className="h-4 w-4 text-primary" />
