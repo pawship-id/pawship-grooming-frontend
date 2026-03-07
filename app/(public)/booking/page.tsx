@@ -5,9 +5,22 @@ export const dynamic = "force-dynamic"
 import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { MapPin, Clock, CheckCircle2, MessageCircle, Check, Plus, Minus, Hash, User, PawPrint, ArrowRight, Info, Loader2 } from "lucide-react"
-import { customers } from "@/lib/mock-data"
-import { getPublicStores, getPublicServices } from "@/lib/api/stores"
-import type { PublicStore, PublicServiceType, PublicService } from "@/lib/api/stores"
+import {
+  getPublicStores,
+  getPublicServices,
+  checkUserByPhone,
+  getPublicOptions,
+  registerPublicUser,
+  addPublicPet,
+} from "@/lib/api/stores"
+import type {
+  PublicStore,
+  PublicServiceType,
+  PublicService,
+  PublicUser,
+  PublicUserPet,
+  PublicOption,
+} from "@/lib/api/stores"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -16,7 +29,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { PetType } from "@/lib/types"
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("id-ID", {
@@ -26,11 +38,6 @@ function formatPrice(price: number) {
   }).format(price)
 }
 
-const breedOptions: Record<PetType, string[]> = {
-  dog: ["Golden Retriever", "Pomeranian", "Shih Tzu", "Poodle", "Beagle", "Mixed"],
-  cat: ["Persian", "Anggora", "Maine Coon", "British Shorthair", "Domestic", "Mixed"],
-  other: ["Rabbit", "Hamster", "Guinea Pig", "Bird", "Reptile", "Other"],
-}
 
 // ── Service Type Card ───────────────────────────────────────────────────────
 function ServiceTypeCard({ serviceType, selected, onSelect }: { serviceType: PublicServiceType; selected: boolean; onSelect: () => void }) {
@@ -237,6 +244,7 @@ function SelectableServiceCard({ service, selected, onSelect }: { service: Publi
 function SelectableAddonCard({ service, selected, onToggle }: { service: PublicService; selected: boolean; onToggle: () => void }) {
   const [descOpen, setDescOpen] = useState(false)
   const minPrice = getMinPrice(service)
+  const hasMultiplePrices = service.prices && service.prices.length > 1
 
   return (
     <>
@@ -276,7 +284,10 @@ function SelectableAddonCard({ service, selected, onToggle }: { service: PublicS
         </div>
 
         <div className="mt-3 flex items-center justify-between">
-          <span className="font-display text-sm font-bold text-primary">{formatPrice(minPrice)}</span>
+          <div className="flex flex-col">
+            {hasMultiplePrices && <span className="text-[10px] text-muted-foreground">Mulai dari</span>}
+            <span className="font-display text-sm font-bold text-primary">{formatPrice(minPrice)}</span>
+          </div>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />
             {service.duration} menit
@@ -385,20 +396,44 @@ function BookingContent() {
       .finally(() => setAddOnsLoading(false))
   }, [selectedStoreId, selectedServiceTypeId, stores])
 
-  // Step 4 state — user & pet info
+  // Options from API (pet types, breeds, sizes)
+  const [petTypes, setPetTypes] = useState<PublicOption[]>([])
+  const [breedCategories, setBreedCategories] = useState<PublicOption[]>([])
+  const [sizeCategories, setSizeCategories] = useState<PublicOption[]>([])
+  const [optionsLoading, setOptionsLoading] = useState(false)
+  useEffect(() => {
+    setOptionsLoading(true)
+    Promise.all([
+      getPublicOptions("pet type"),
+      getPublicOptions("breed category"),
+      getPublicOptions("size category"),
+    ])
+      .then(([typesRes, breedsRes, sizesRes]) => {
+        setPetTypes(typesRes.options.filter((o) => o.is_active))
+        setBreedCategories(breedsRes.options.filter((o) => o.is_active))
+        setSizeCategories(sizesRes.options.filter((o) => o.is_active))
+      })
+      .catch(() => {})
+      .finally(() => setOptionsLoading(false))
+  }, [])
+
+  // User & pet info state
   const [phone, setPhone] = useState("")
+  const [checkingPhone, setCheckingPhone] = useState(false)
   const [phoneChecked, setPhoneChecked] = useState(false)
-  const [existingCustomerId, setExistingCustomerId] = useState<string | null>(null)
+  const [existingUser, setExistingUser] = useState<PublicUser | null>(null)
+  const [existingPets, setExistingPets] = useState<PublicUserPet[]>([])
   const [userName, setUserName] = useState("")
   const [email, setEmail] = useState("")
   const [petMode, setPetMode] = useState<"select" | "create">("select")
   const [selectedPetId, setSelectedPetId] = useState("")
   const [newPetName, setNewPetName] = useState("")
-  const [newPetType, setNewPetType] = useState<PetType>("dog")
-  const [newPetBreed, setNewPetBreed] = useState("")
-  const [newPetSize, setNewPetSize] = useState("small")
+  const [newPetTypeId, setNewPetTypeId] = useState("")
+  const [newBreedId, setNewBreedId] = useState("")
+  const [newSizeId, setNewSizeId] = useState("")
   const [phoneError, setPhoneError] = useState("")
   const [formError, setFormError] = useState("")
+  const [submittingUserInfo, setSubmittingUserInfo] = useState(false)
   const [userInfoConfirmed, setUserInfoConfirmed] = useState(false)
 
   // Step 5 state
@@ -408,8 +443,7 @@ function BookingContent() {
   const selectedServiceType = selectedStore?.serviceTypes.find((t) => t._id === selectedServiceTypeId)
   const selectedService = services.find((s) => s._id === selectedServiceId)
   const selectedAddons = addOnServices.filter((a) => selectedAddonIds.includes(a._id))
-  const existingCustomer = existingCustomerId ? customers.find((c) => c.id === existingCustomerId) : null
-  const availablePets = existingCustomer ? existingCustomer.pets : []
+  const availablePets = existingPets
 
   // Dynamic step numbers — add-ons step is skipped when no add-on services exist
   const hasAddons = addOnServices.length > 0
@@ -421,9 +455,9 @@ function BookingContent() {
     + selectedAddons.reduce((sum, a) => sum + getMinPrice(a), 0)
 
   // Derived pet label for summary
-  const petLabel = existingCustomer
+  const petLabel = existingUser
     ? petMode === "select"
-      ? existingCustomer.pets.find((p) => p.id === selectedPetId)?.name ?? ""
+      ? existingPets.find((p) => p._id === selectedPetId)?.name ?? ""
       : newPetName
     : newPetName
 
@@ -446,62 +480,105 @@ function BookingContent() {
   function resetUserInfo() {
     setPhone("")
     setPhoneChecked(false)
-    setExistingCustomerId(null)
+    setExistingUser(null)
+    setExistingPets([])
     setUserName("")
     setEmail("")
     setPetMode("select")
     setSelectedPetId("")
     setNewPetName("")
-    setNewPetType("dog")
-    setNewPetBreed("")
-    setNewPetSize("small")
+    setNewPetTypeId("")
+    setNewBreedId("")
+    setNewSizeId("")
     setPhoneError("")
     setFormError("")
+    setSubmittingUserInfo(false)
     setUserInfoConfirmed(false)
     setBookingCreated(false)
   }
 
-  function handleCheckPhone() {
+  async function handleCheckPhone() {
     const normalized = phone.replace(/\D/g, "")
     if (!normalized) {
       setPhoneError("Nomor HP wajib diisi.")
       return
     }
-    const customer = customers.find((c) => c.phone.replace(/\D/g, "") === normalized)
-    setPhoneChecked(true)
-    setExistingCustomerId(customer?.id ?? null)
+    setCheckingPhone(true)
     setPhoneError("")
-    setUserInfoConfirmed(false)
-    setBookingCreated(false)
-
-    if (customer) {
-      const pets = customer.pets
-      setPetMode(pets.length > 0 ? "select" : "create")
-      setSelectedPetId(pets[0]?.id ?? "")
-      setUserName(customer.name)
-      setEmail(customer.email)
-    } else {
-      setPetMode("select")
-      setSelectedPetId("")
-      setUserName("")
-      setEmail("")
-      setNewPetName("")
-      setNewPetType("dog")
-      setNewPetBreed("")
-      setNewPetSize("small")
+    try {
+      const res = await checkUserByPhone(normalized)
+      setPhoneChecked(true)
+      setUserInfoConfirmed(false)
+      setBookingCreated(false)
+      if (res.exists && res.user) {
+        setExistingUser(res.user)
+        setExistingPets(res.pets)
+        setPetMode(res.pets.length > 0 ? "select" : "create")
+        setSelectedPetId(res.pets[0]?._id ?? "")
+        setUserName(res.user.username)
+        setEmail(res.user.email)
+      } else {
+        setExistingUser(null)
+        setExistingPets([])
+        setPetMode("select")
+        setSelectedPetId("")
+        setUserName("")
+        setEmail("")
+        setNewPetName("")
+        setNewPetTypeId("")
+        setNewBreedId("")
+        setNewSizeId("")
+      }
+    } catch {
+      setPhoneError("Gagal memeriksa nomor HP. Silakan coba lagi.")
+    } finally {
+      setCheckingPhone(false)
     }
   }
 
-  function handleConfirmUserInfo() {
+  async function handleConfirmUserInfo() {
     if (!phoneChecked) { setFormError("Silakan cek nomor HP terlebih dahulu."); return }
-    if (!existingCustomer && (!userName.trim() || !email.trim())) { setFormError("Nama dan email wajib diisi."); return }
-    if (!existingCustomer && !newPetName.trim()) { setFormError("Nama pet wajib diisi."); return }
-    if (!existingCustomer && !newPetBreed) { setFormError("Breed pet wajib dipilih."); return }
-    if (existingCustomer && petMode === "select" && !selectedPetId) { setFormError("Silakan pilih pet."); return }
-    if (existingCustomer && petMode === "create" && !newPetName.trim()) { setFormError("Nama pet baru wajib diisi."); return }
-    if (existingCustomer && petMode === "create" && !newPetBreed) { setFormError("Breed pet baru wajib dipilih."); return }
+    if (!existingUser && (!userName.trim() || !email.trim())) { setFormError("Nama dan email wajib diisi."); return }
+    if (!existingUser && !newPetName.trim()) { setFormError("Nama pet wajib diisi."); return }
+    if (!existingUser && !newPetTypeId) { setFormError("Tipe pet wajib dipilih."); return }
+    if (!existingUser && !newBreedId) { setFormError("Breed pet wajib dipilih."); return }
+    if (!existingUser && !newSizeId) { setFormError("Ukuran pet wajib dipilih."); return }
+    if (existingUser && petMode === "select" && !selectedPetId) { setFormError("Silakan pilih pet."); return }
+    if (existingUser && petMode === "create" && !newPetName.trim()) { setFormError("Nama pet baru wajib diisi."); return }
+    if (existingUser && petMode === "create" && !newPetTypeId) { setFormError("Tipe pet baru wajib dipilih."); return }
+    if (existingUser && petMode === "create" && !newBreedId) { setFormError("Breed pet baru wajib dipilih."); return }
+    if (existingUser && petMode === "create" && !newSizeId) { setFormError("Ukuran pet baru wajib dipilih."); return }
     setFormError("")
-    setUserInfoConfirmed(true)
+    setSubmittingUserInfo(true)
+    try {
+      const normalizedPhone = phone.replace(/\D/g, "")
+      if (!existingUser) {
+        await registerPublicUser({
+          username: userName.trim(),
+          email: email.trim(),
+          phone_number: normalizedPhone,
+          pet: {
+            name: newPetName.trim(),
+            pet_type_id: newPetTypeId,
+            breed_category_id: newBreedId,
+            size_category_id: newSizeId,
+          },
+        })
+      } else if (petMode === "create") {
+        await addPublicPet({
+          phone_number: normalizedPhone,
+          pet_name: newPetName.trim(),
+          pet_type_id: newPetTypeId,
+          breed_category_id: newBreedId,
+          size_category_id: newSizeId,
+        })
+      }
+      setUserInfoConfirmed(true)
+    } catch {
+      setFormError("Gagal menyimpan data. Silakan coba lagi.")
+    } finally {
+      setSubmittingUserInfo(false)
+    }
   }
 
   return (
@@ -708,25 +785,26 @@ function BookingContent() {
                       onChange={(e) => {
                         setPhone(e.target.value)
                         setPhoneChecked(false)
-                        setExistingCustomerId(null)
+                        setExistingUser(null)
+                        setExistingPets([])
                         setUserInfoConfirmed(false)
                         setBookingCreated(false)
                       }}
                     />
-                    <Button type="button" variant="outline" disabled={userInfoConfirmed} onClick={handleCheckPhone}>
-                      Cek
+                    <Button type="button" variant="outline" disabled={userInfoConfirmed || checkingPhone} onClick={handleCheckPhone}>
+                      {checkingPhone ? <Loader2 className="h-4 w-4 animate-spin" /> : "Cek"}
                     </Button>
                   </div>
                   {phoneError && <p className="text-xs text-destructive">{phoneError}</p>}
                 </div>
 
                 {/* Existing customer */}
-                {phoneChecked && existingCustomer && (
+                {phoneChecked && existingUser && (
                   <>
                     <div className="flex items-center gap-2 rounded-lg bg-primary/5 px-4 py-3">
                       <User className="h-4 w-4 shrink-0 text-primary" />
                       <p className="text-sm text-foreground">
-                        Halo, <span className="font-semibold">{existingCustomer.name}</span>! Nomor kamu sudah terdaftar.
+                        Halo, <span className="font-semibold">{existingUser.username}</span>! Nomor kamu sudah terdaftar.
                       </p>
                     </div>
 
@@ -763,8 +841,8 @@ function BookingContent() {
                             <SelectTrigger><SelectValue placeholder="Pilih anabul" /></SelectTrigger>
                             <SelectContent>
                               {availablePets.map((pet) => (
-                                <SelectItem key={pet.id} value={pet.id}>
-                                  {pet.name} ({pet.type}, {pet.sizeCategory})
+                                <SelectItem key={pet._id} value={pet._id}>
+                                  {pet.name} ({pet.pet_type.name}, {pet.size.name})
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -783,33 +861,28 @@ function BookingContent() {
                           </div>
                           <div className="flex flex-col gap-1.5">
                             <Label>Tipe</Label>
-                            <Select value={newPetType} disabled={userInfoConfirmed} onValueChange={(v) => { setNewPetType(v as PetType); setNewPetBreed("") }}>
-                              <SelectTrigger><SelectValue /></SelectTrigger>
+                            <Select value={newPetTypeId} disabled={userInfoConfirmed || optionsLoading} onValueChange={(v) => { setNewPetTypeId(v); setNewBreedId("") }}>
+                              <SelectTrigger><SelectValue placeholder="Pilih tipe" /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="dog">Dog</SelectItem>
-                                <SelectItem value="cat">Cat</SelectItem>
-                                <SelectItem value="other">Other</SelectItem>
+                                {petTypes.map((t) => <SelectItem key={t._id} value={t._id}>{t.name}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="flex flex-col gap-1.5">
                             <Label>Breed</Label>
-                            <Select value={newPetBreed} disabled={userInfoConfirmed} onValueChange={setNewPetBreed}>
+                            <Select value={newBreedId} disabled={userInfoConfirmed || optionsLoading} onValueChange={setNewBreedId}>
                               <SelectTrigger><SelectValue placeholder="Pilih breed" /></SelectTrigger>
                               <SelectContent>
-                                {breedOptions[newPetType].map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                                {breedCategories.map((b) => <SelectItem key={b._id} value={b._id}>{b.name}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="flex flex-col gap-1.5">
                             <Label>Ukuran</Label>
-                            <Select value={newPetSize} disabled={userInfoConfirmed} onValueChange={setNewPetSize}>
-                              <SelectTrigger><SelectValue /></SelectTrigger>
+                            <Select value={newSizeId} disabled={userInfoConfirmed || optionsLoading} onValueChange={setNewSizeId}>
+                              <SelectTrigger><SelectValue placeholder="Pilih ukuran" /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="small">Small (&lt; 5 kg)</SelectItem>
-                                <SelectItem value="medium">Medium (5–10 kg)</SelectItem>
-                                <SelectItem value="large">Large (10–20 kg)</SelectItem>
-                                <SelectItem value="extra-large">Extra Large (&gt; 20 kg)</SelectItem>
+                                {sizeCategories.map((s) => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           </div>
@@ -820,7 +893,7 @@ function BookingContent() {
                 )}
 
                 {/* New customer */}
-                {phoneChecked && !existingCustomer && (
+                {phoneChecked && !existingUser && (
                   <>
                     <div className="flex items-center gap-2 rounded-lg bg-muted/60 px-4 py-3">
                       <User className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -852,33 +925,28 @@ function BookingContent() {
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <Label>Tipe</Label>
-                        <Select value={newPetType} disabled={userInfoConfirmed} onValueChange={(v) => { setNewPetType(v as PetType); setNewPetBreed("") }}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                        <Select value={newPetTypeId} disabled={userInfoConfirmed || optionsLoading} onValueChange={(v) => { setNewPetTypeId(v); setNewBreedId("") }}>
+                          <SelectTrigger><SelectValue placeholder="Pilih tipe" /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="dog">Dog</SelectItem>
-                            <SelectItem value="cat">Cat</SelectItem>
-                            <SelectItem value="other">Other</SelectItem>
+                            {petTypes.map((t) => <SelectItem key={t._id} value={t._id}>{t.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <Label>Breed</Label>
-                        <Select value={newPetBreed} disabled={userInfoConfirmed} onValueChange={setNewPetBreed}>
+                        <Select value={newBreedId} disabled={userInfoConfirmed || optionsLoading} onValueChange={setNewBreedId}>
                           <SelectTrigger><SelectValue placeholder="Pilih breed" /></SelectTrigger>
                           <SelectContent>
-                            {breedOptions[newPetType].map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                            {breedCategories.map((b) => <SelectItem key={b._id} value={b._id}>{b.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <Label>Ukuran</Label>
-                        <Select value={newPetSize} disabled={userInfoConfirmed} onValueChange={setNewPetSize}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                        <Select value={newSizeId} disabled={userInfoConfirmed || optionsLoading} onValueChange={setNewSizeId}>
+                          <SelectTrigger><SelectValue placeholder="Pilih ukuran" /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="small">Small (&lt; 5 kg)</SelectItem>
-                            <SelectItem value="medium">Medium (5–10 kg)</SelectItem>
-                            <SelectItem value="large">Large (10–20 kg)</SelectItem>
-                            <SelectItem value="extra-large">Extra Large (&gt; 20 kg)</SelectItem>
+                            {sizeCategories.map((s) => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -889,15 +957,15 @@ function BookingContent() {
                 {formError && <p className="text-sm text-destructive">{formError}</p>}
 
                 {!userInfoConfirmed ? (
-                  <Button className="w-full font-display font-bold" onClick={handleConfirmUserInfo} disabled={!phoneChecked}>
-                    Konfirmasi Informasi
+                  <Button className="w-full font-display font-bold" onClick={handleConfirmUserInfo} disabled={!phoneChecked || submittingUserInfo}>
+                    {submittingUserInfo ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyimpan...</> : "Konfirmasi Informasi"}
                   </Button>
                 ) : (
                   <div className="flex items-center justify-between gap-3 rounded-xl bg-primary/10 px-4 py-3">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
                       <p className="text-sm font-medium text-primary">
-                        {existingCustomer ? existingCustomer.name : userName} · {petLabel}
+                        {existingUser ? existingUser.username : userName} · {petLabel}
                       </p>
                     </div>
                     <button
@@ -939,7 +1007,7 @@ function BookingContent() {
                   <User className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   <div>
                     <p className="text-xs text-muted-foreground">Pemilik</p>
-                    <p className="text-sm font-semibold text-foreground">{existingCustomer ? existingCustomer.name : userName}</p>
+                    <p className="text-sm font-semibold text-foreground">{existingUser ? existingUser.username : userName}</p>
                     <p className="text-xs text-muted-foreground">{phone}</p>
                   </div>
                   <div className="ml-auto flex items-start gap-3 text-right">
@@ -981,7 +1049,12 @@ function BookingContent() {
                             </Badge>
                             <span className="text-sm text-foreground">{addon.name}</span>
                           </div>
-                          <span className="text-sm font-medium text-primary">{formatPrice(getMinPrice(addon))}</span>
+                          <div className="flex flex-col items-end">
+                            {addon.prices.length > 1 && (
+                              <span className="text-[10px] text-muted-foreground">Mulai dari</span>
+                            )}
+                            <span className="text-sm font-medium text-primary">{formatPrice(getMinPrice(addon))}</span>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1011,7 +1084,7 @@ function BookingContent() {
                     </div>
                     {selectedStore.contact?.whatsapp && (
                       <a
-                        href={`https://wa.me/${selectedStore.contact.whatsapp}?text=Halo! Saya ${existingCustomer ? existingCustomer.name : userName} sudah booking ${selectedService.name} di ${selectedStore.name} untuk anabul saya (${petLabel}) melaui website Pawship.`}
+                        href={`https://wa.me/${selectedStore.contact.whatsapp}?text=Halo! Saya ${existingUser ? existingUser.username : userName} sudah booking ${selectedService.name} di ${selectedStore.name} untuk anabul saya (${petLabel}) melaui website Pawship.`}
                         target="_blank"
                         rel="noopener noreferrer"
                       >

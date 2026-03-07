@@ -269,3 +269,87 @@ export async function getPublicServices(storeId: string, serviceTypeId: string) 
     `/bookings/public/services?store_id=${encodeURIComponent(storeId)}&service_type_id=${encodeURIComponent(serviceTypeId)}`
   )
 }
+
+// ── Public user & pet endpoints ──────────────────────────────────────────────
+
+export interface PublicUserPetRef {
+  _id: string
+  name: string
+}
+
+export interface PublicUserPet {
+  _id: string
+  name: string
+  pet_type: PublicUserPetRef
+  size: PublicUserPetRef
+  breed: PublicUserPetRef
+}
+
+export interface PublicUser {
+  _id: string
+  username: string
+  email: string
+  phone_number: string
+  role: string
+}
+
+export interface CheckUserResponse {
+  message: string
+  exists: boolean
+  user: PublicUser | null
+  pets: PublicUserPet[]
+}
+
+export interface PublicOption {
+  _id: string
+  name: string
+  category_options: string
+  is_active: boolean
+}
+
+export interface PublicOptionsResponse {
+  message: string
+  options: PublicOption[]
+}
+
+export interface RegisterPublicPayload {
+  username: string
+  email: string
+  phone_number: string
+  pet: {
+    name: string
+    pet_type_id: string
+    breed_category_id: string
+    size_category_id: string
+  }
+}
+
+export interface AddPublicPetPayload {
+  phone_number: string
+  pet_name: string
+  pet_type_id: string
+  breed_category_id: string
+  size_category_id: string
+}
+
+export async function checkUserByPhone(phone: string) {
+  return apiRequest<CheckUserResponse>(`/bookings/public/check-user/phone/${encodeURIComponent(phone)}`)
+}
+
+export async function getPublicOptions(category: string) {
+  return apiRequest<PublicOptionsResponse>(`/bookings/public/options?category=${encodeURIComponent(category)}`)
+}
+
+export async function registerPublicUser(payload: RegisterPublicPayload) {
+  return apiRequest<{ message: string }>("/bookings/public/register", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function addPublicPet(payload: AddPublicPetPayload) {
+  return apiRequest<{ message: string }>("/bookings/public/pets", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
