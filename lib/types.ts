@@ -50,6 +50,14 @@ export interface Pet {
   membershipEnd: string
 }
 
+// --- Service Type (category of services) ---
+export interface ServiceType {
+  id: string
+  title: string
+  description: string
+  imageUrl: string
+}
+
 // --- Product / Service ---
 export interface ServiceSizePrice {
   sizeId: string
@@ -71,6 +79,7 @@ export interface Product {
   name: string
   description: string
   category: "grooming" | "addon" | "spa" | "medical"
+  serviceTypeId?: string
   price: number
   prices?: ServiceSizePrice[]
   duration: number // in minutes

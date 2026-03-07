@@ -30,7 +30,6 @@ type OptionForm = OptionPayload
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const TABS: { value: CategoryOption; label: string }[] = [
-  { value: "service type", label: "Service Type" },
   { value: "pet type", label: "Pet Type" },
   { value: "breed category", label: "Breed" },
   { value: "size category", label: "Size" },
@@ -46,7 +45,6 @@ const categoryBadgeClass: Record<CategoryOption, string> = {
   "member category": "bg-pink-100 text-pink-700 border-pink-200",
   "customer category": "bg-green-100 text-green-700 border-green-200",
   "pet type": "bg-orange-100 text-orange-700 border-orange-200",
-  "service type": "bg-cyan-100 text-cyan-700 border-cyan-200",
 }
 
 const DEFAULT_FORM: OptionForm = {
@@ -77,7 +75,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function OptionsPage() {
-  const [activeCategory, setActiveCategory] = useState<CategoryOption>("service type")
+  const [activeCategory, setActiveCategory] = useState<CategoryOption>(TABS[0].value)
   const [search, setSearch] = useState("")
   const [options, setOptions] = useState<ApiOption[]>([])
   const [isLoading, setIsLoading] = useState(true)

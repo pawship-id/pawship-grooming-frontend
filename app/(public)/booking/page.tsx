@@ -2,10 +2,25 @@
 
 export const dynamic = "force-dynamic"
 
-import { Suspense, useMemo, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { MapPin, Clock, CheckCircle2, MessageCircle, Check, Plus, Minus, Hash, User, PawPrint, ChevronDown, ArrowRight, Info } from "lucide-react"
-import { products, mockStores, customers } from "@/lib/mock-data"
+import { MapPin, Clock, CheckCircle2, MessageCircle, Check, Plus, Minus, Hash, User, PawPrint, ArrowRight, Info, Loader2 } from "lucide-react"
+import {
+  getPublicStores,
+  getPublicServices,
+  checkUserByPhone,
+  getPublicOptions,
+  registerPublicUser,
+  addPublicPet,
+} from "@/lib/api/stores"
+import type {
+  PublicStore,
+  PublicServiceType,
+  PublicService,
+  PublicUser,
+  PublicUserPet,
+  PublicOption,
+} from "@/lib/api/stores"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,7 +29,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { AvailableStore, Product, PetType } from "@/lib/types"
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("id-ID", {
@@ -24,14 +38,57 @@ function formatPrice(price: number) {
   }).format(price)
 }
 
-const breedOptions: Record<PetType, string[]> = {
-  dog: ["Golden Retriever", "Pomeranian", "Shih Tzu", "Poodle", "Beagle", "Mixed"],
-  cat: ["Persian", "Anggora", "Maine Coon", "British Shorthair", "Domestic", "Mixed"],
-  other: ["Rabbit", "Hamster", "Guinea Pig", "Bird", "Reptile", "Other"],
+
+// ── Service Type Card ───────────────────────────────────────────────────────
+function ServiceTypeCard({ serviceType, selected, onSelect }: { serviceType: PublicServiceType; selected: boolean; onSelect: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`group relative flex w-full flex-col overflow-hidden rounded-2xl border-2 text-left transition-all duration-200 cursor-pointer ${
+        selected ? "border-primary shadow-md" : "border-border bg-card hover:border-primary/40 hover:shadow-sm"
+      }`}
+    >
+      {/* Image — hidden on mobile */}
+      <div className="relative hidden sm:block h-36 w-full overflow-hidden">
+        <img
+          src={serviceType.image_url}
+          alt={serviceType.title}
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+        <span
+          className={`absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full border-2 shadow transition-colors ${
+            selected ? "border-primary bg-primary" : "border-white/70 bg-black/20"
+          }`}
+        >
+          {selected && <Check className="h-4 w-4 text-primary-foreground" />}
+        </span>
+        <p className={`absolute bottom-3 left-3 font-display text-base font-bold text-white drop-shadow`}>
+          {serviceType.title}
+        </p>
+      </div>
+      {/* Description */}
+      <div className="flex flex-1 flex-col gap-1 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <p className={`sm:hidden font-display text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>
+            {serviceType.title}
+          </p>
+          {/* Mobile check indicator */}
+          <span className={`sm:hidden flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+            selected ? "border-primary bg-primary" : "border-border"
+          }`}>
+            {selected && <Check className="h-3.5 w-3.5 text-primary-foreground" />}
+          </span>
+        </div>
+        <p className="text-xs leading-relaxed text-muted-foreground line-clamp-3">{serviceType.description}</p>
+      </div>
+    </button>
+  )
 }
 
 // ── Store Card ──────────────────────────────────────────────────────────────
-function StoreCard({ store, selected, onSelect }: { store: AvailableStore; selected: boolean; onSelect: () => void }) {
+function StoreCard({ store, selected, onSelect }: { store: PublicStore; selected: boolean; onSelect: () => void }) {
   return (
     <button
       type="button"
@@ -46,11 +103,13 @@ function StoreCard({ store, selected, onSelect }: { store: AvailableStore; selec
         {selected && <Check className="h-3.5 w-3.5 text-primary-foreground" />}
       </span>
       <p className={`font-display text-base font-bold ${selected ? "text-primary" : "text-foreground"}`}>{store.name}</p>
-      <div className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
-        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <span>{store.address}</span>
-      </div>
-      {store.whatsapp && (
+      {store.location?.address && (
+        <div className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{store.location.address}{store.location.city ? `, ${store.location.city}` : ""}</span>
+        </div>
+      )}
+      {store.contact?.whatsapp && (
         <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-emerald-600">
           <MessageCircle className="h-3.5 w-3.5" />
           <span>WhatsApp tersedia</span>
@@ -60,9 +119,16 @@ function StoreCard({ store, selected, onSelect }: { store: AvailableStore; selec
   )
 }
 
+function getMinPrice(service: PublicService): number {
+  if (!service.prices || service.prices.length === 0) return 0
+  return Math.min(...service.prices.map((p) => p.price))
+}
+
 // ── Selectable Service Card ─────────────────────────────────────────────────
-function SelectableServiceCard({ product, selected, onSelect }: { product: Product; selected: boolean; onSelect: () => void }) {
+function SelectableServiceCard({ service, selected, onSelect }: { service: PublicService; selected: boolean; onSelect: () => void }) {
   const [includesOpen, setIncludesOpen] = useState(false)
+  const minPrice = getMinPrice(service)
+  const hasMultiplePrices = service.prices && service.prices.length > 1
 
   return (
     <>
@@ -76,11 +142,11 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
         }`}
       >
         {/* Image — hidden on mobile */}
-        {product.image && !product.image.startsWith("/placeholder") && (
+        {service.image_url && (
           <div className="relative hidden sm:block h-36 w-full overflow-hidden">
             <img
-              src={product.image}
-              alt={product.name}
+              src={service.image_url}
+              alt={service.name}
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
@@ -95,13 +161,13 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
         <div className="flex flex-1 flex-col gap-2 p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="flex flex-col gap-1.5">
-              {product.code && (
+              {service.code && (
                 <span className="flex w-fit items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
                   <Hash className="h-2.5 w-2.5" />
-                  {product.code}
+                  {service.code}
                 </span>
               )}
-              <p className={`font-display text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>{product.name}</p>
+              <p className={`font-display text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>{service.name}</p>
             </div>
             {/* Mobile check indicator (image hidden on mobile) */}
             <span className={`sm:hidden flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
@@ -111,13 +177,13 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
             </span>
           </div>
 
-          <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{product.description}</p>
+          <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{service.description}</p>
 
-          {product.includes && product.includes.length > 0 && (
+          {service.include && service.include.length > 0 && (
             <>
               {/* Desktop: inline list */}
               <ul className="mt-1 hidden sm:flex flex-col gap-1">
-                {product.includes.map((item, i) => (
+                {service.include.map((item: string, i: number) => (
                   <li key={i} className="flex items-start gap-1.5 text-[11px] text-foreground/70">
                     <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
                     <span>{item}</span>
@@ -132,19 +198,21 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
                   className="sm:hidden flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-primary transition-colors"
                 >
                   <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                  <span>Termasuk ({product.includes.length})</span>
+                  <span>Termasuk ({service.include.length})</span>
                   <ArrowRight className="h-3 w-3" />
                 </button>
               </div>
-
             </>
           )}
 
           <div className="mt-auto flex items-center justify-between pt-2">
-            <span className="font-display text-sm font-bold text-primary">{formatPrice(product.price)}</span>
+            <div className="flex flex-col">
+              {hasMultiplePrices && <span className="text-[10px] text-muted-foreground">Mulai dari</span>}
+              <span className="font-display text-sm font-bold text-primary">{formatPrice(minPrice)}</span>
+            </div>
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="h-3 w-3" />
-              {product.duration} menit
+              {service.duration} menit
             </div>
           </div>
         </div>
@@ -155,11 +223,11 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="font-display text-lg font-bold">
-              Yang Termasuk dalam {product.name}
+              Yang Termasuk dalam {service.name}
             </DialogTitle>
           </DialogHeader>
           <ul className="flex flex-col gap-2.5">
-            {product.includes?.map((item, index) => (
+            {service.include?.map((item: string, index: number) => (
               <li key={index} className="flex items-start gap-3 text-sm text-foreground">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                 <span className="leading-relaxed">{item}</span>
@@ -173,8 +241,10 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
 }
 
 // ── Selectable Add-on Card ──────────────────────────────────────────────────
-function SelectableAddonCard({ product, selected, onToggle }: { product: Product; selected: boolean; onToggle: () => void }) {
+function SelectableAddonCard({ service, selected, onToggle }: { service: PublicService; selected: boolean; onToggle: () => void }) {
   const [descOpen, setDescOpen] = useState(false)
+  const minPrice = getMinPrice(service)
+  const hasMultiplePrices = service.prices && service.prices.length > 1
 
   return (
     <>
@@ -188,7 +258,7 @@ function SelectableAddonCard({ product, selected, onToggle }: { product: Product
         }`}
       >
         <div className="flex items-start justify-between gap-2">
-          <p className={`font-display text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>{product.name}</p>
+          <p className={`font-display text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>{service.name}</p>
           <span
             className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
               selected ? "border-primary bg-primary" : "border-border"
@@ -199,7 +269,7 @@ function SelectableAddonCard({ product, selected, onToggle }: { product: Product
         </div>
 
         {/* Desktop: inline description */}
-        <p className="mt-1 hidden sm:block text-xs leading-relaxed text-muted-foreground">{product.description}</p>
+        <p className="mt-1 hidden sm:block text-xs leading-relaxed text-muted-foreground">{service.description}</p>
 
         {/* Mobile: button opens description modal */}
         <div>
@@ -214,10 +284,13 @@ function SelectableAddonCard({ product, selected, onToggle }: { product: Product
         </div>
 
         <div className="mt-3 flex items-center justify-between">
-          <span className="font-display text-sm font-bold text-primary">{formatPrice(product.price)}</span>
+          <div className="flex flex-col">
+            {hasMultiplePrices && <span className="text-[10px] text-muted-foreground">Mulai dari</span>}
+            <span className="font-display text-sm font-bold text-primary">{formatPrice(minPrice)}</span>
+          </div>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />
-            {product.duration} menit
+            {service.duration} menit
           </div>
         </div>
       </div>
@@ -226,18 +299,10 @@ function SelectableAddonCard({ product, selected, onToggle }: { product: Product
       <Dialog open={descOpen} onOpenChange={setDescOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="font-display text-lg font-bold">{product.name}</DialogTitle>
+            <DialogTitle className="font-display text-lg font-bold">{service.name}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3">
-            <p className="text-sm leading-relaxed text-muted-foreground">{product.description}</p>
-            {/* <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3">
-              <span className="text-sm text-muted-foreground">Harga</span>
-              <span className="font-display text-lg font-extrabold text-primary">{formatPrice(product.price)}</span>
-            </div>
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock className="h-3.5 w-3.5" />
-              {product.duration} menit
-            </div> */}
+            <p className="text-sm leading-relaxed text-muted-foreground">{service.description}</p>
           </div>
         </DialogContent>
       </Dialog>
@@ -266,49 +331,133 @@ function BookingContent() {
   const searchParams = useSearchParams()
   const serviceIdFromQuery = searchParams.get("serviceId")
 
-  const mainServices = useMemo(() => products.filter((p) => p.isActive && p.category !== "addon"), [])
-  const addOns = useMemo(() => products.filter((p) => p.isActive && p.category === "addon"), [])
-  const initialService = mainServices.find((p) => p.id === serviceIdFromQuery)
+  // Stores from API
+  const [stores, setStores] = useState<PublicStore[]>([])
+  const [storesLoading, setStoresLoading] = useState(true)
+  const [storesError, setStoresError] = useState("")
 
-  // Step 1–3 state
+  useEffect(() => {
+    getPublicStores()
+      .then((res) => setStores(res.stores.filter((s) => s.is_active)))
+      .catch(() => setStoresError("Gagal memuat daftar store. Silakan coba lagi."))
+      .finally(() => setStoresLoading(false))
+  }, [])
+
+  // Step 1–2 state
   const [selectedStoreId, setSelectedStoreId] = useState("")
-  const [selectedServiceId, setSelectedServiceId] = useState(initialService?.id ?? "")
+  const [selectedServiceTypeId, setSelectedServiceTypeId] = useState("")
+
+  // Step 3: Services from API
+  const [services, setServices] = useState<PublicService[]>([])
+  const [servicesLoading, setServicesLoading] = useState(false)
+  const [servicesError, setServicesError] = useState("")
+
+  // Step 4: Add-on services from API
+  const [addOnServices, setAddOnServices] = useState<PublicService[]>([])
+  const [addOnsLoading, setAddOnsLoading] = useState(false)
+
+  // Step 3 & 4 state
+  const [selectedServiceId, setSelectedServiceId] = useState(serviceIdFromQuery ?? "")
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([])
   const [showAddons, setShowAddons] = useState(false)
 
-  // Step 4 state — user & pet info
+  // Fetch services when store + service type are selected
+  useEffect(() => {
+    if (!selectedStoreId || !selectedServiceTypeId) {
+      setServices([])
+      return
+    }
+    setServicesLoading(true)
+    setServicesError("")
+    setSelectedServiceId("")
+    setSelectedAddonIds([])
+    setShowAddons(false)
+    getPublicServices(selectedStoreId, selectedServiceTypeId)
+      .then((res) => setServices(res.services.filter((s) => s.is_active)))
+      .catch(() => setServicesError("Gagal memuat layanan. Silakan coba lagi."))
+      .finally(() => setServicesLoading(false))
+  }, [selectedStoreId, selectedServiceTypeId])
+
+  // Fetch add-on services when store is selected and current type is NOT "Addons"
+  useEffect(() => {
+    if (!selectedStoreId) { setAddOnServices([]); return }
+    const currentStore = stores.find((s) => s._id === selectedStoreId)
+    if (!currentStore) { setAddOnServices([]); return }
+    const isAddonsType = currentStore.serviceTypes
+      .find((t) => t._id === selectedServiceTypeId)?.title.toLowerCase() === "addons"
+    if (isAddonsType) { setAddOnServices([]); return }
+    const addonsTypeId = currentStore.serviceTypes
+      .find((t) => t.title.toLowerCase() === "addons")?._id
+    if (!addonsTypeId) { setAddOnServices([]); return }
+    setAddOnsLoading(true)
+    getPublicServices(selectedStoreId, addonsTypeId)
+      .then((res) => setAddOnServices(res.services.filter((s) => s.is_active)))
+      .catch(() => setAddOnServices([]))
+      .finally(() => setAddOnsLoading(false))
+  }, [selectedStoreId, selectedServiceTypeId, stores])
+
+  // Options from API (pet types, breeds, sizes)
+  const [petTypes, setPetTypes] = useState<PublicOption[]>([])
+  const [breedCategories, setBreedCategories] = useState<PublicOption[]>([])
+  const [sizeCategories, setSizeCategories] = useState<PublicOption[]>([])
+  const [optionsLoading, setOptionsLoading] = useState(false)
+  useEffect(() => {
+    setOptionsLoading(true)
+    Promise.all([
+      getPublicOptions("pet type"),
+      getPublicOptions("breed category"),
+      getPublicOptions("size category"),
+    ])
+      .then(([typesRes, breedsRes, sizesRes]) => {
+        setPetTypes(typesRes.options.filter((o) => o.is_active))
+        setBreedCategories(breedsRes.options.filter((o) => o.is_active))
+        setSizeCategories(sizesRes.options.filter((o) => o.is_active))
+      })
+      .catch(() => {})
+      .finally(() => setOptionsLoading(false))
+  }, [])
+
+  // User & pet info state
   const [phone, setPhone] = useState("")
+  const [checkingPhone, setCheckingPhone] = useState(false)
   const [phoneChecked, setPhoneChecked] = useState(false)
-  const [existingCustomerId, setExistingCustomerId] = useState<string | null>(null)
+  const [existingUser, setExistingUser] = useState<PublicUser | null>(null)
+  const [existingPets, setExistingPets] = useState<PublicUserPet[]>([])
   const [userName, setUserName] = useState("")
   const [email, setEmail] = useState("")
   const [petMode, setPetMode] = useState<"select" | "create">("select")
   const [selectedPetId, setSelectedPetId] = useState("")
   const [newPetName, setNewPetName] = useState("")
-  const [newPetType, setNewPetType] = useState<PetType>("dog")
-  const [newPetBreed, setNewPetBreed] = useState("")
-  const [newPetSize, setNewPetSize] = useState("small")
+  const [newPetTypeId, setNewPetTypeId] = useState("")
+  const [newBreedId, setNewBreedId] = useState("")
+  const [newSizeId, setNewSizeId] = useState("")
   const [phoneError, setPhoneError] = useState("")
   const [formError, setFormError] = useState("")
+  const [submittingUserInfo, setSubmittingUserInfo] = useState(false)
   const [userInfoConfirmed, setUserInfoConfirmed] = useState(false)
 
   // Step 5 state
   const [bookingCreated, setBookingCreated] = useState(false)
 
-  const selectedStore = mockStores.find((s) => s.id === selectedStoreId)
-  const selectedService = mainServices.find((s) => s.id === selectedServiceId)
-  const selectedAddons = addOns.filter((a) => selectedAddonIds.includes(a.id))
-  const existingCustomer = existingCustomerId ? customers.find((c) => c.id === existingCustomerId) : null
-  const availablePets = existingCustomer
-    ? existingCustomer.pets.filter((p) => selectedService?.petTypes.includes(p.type))
-    : []
+  const selectedStore = stores.find((s) => s._id === selectedStoreId)
+  const selectedServiceType = selectedStore?.serviceTypes.find((t) => t._id === selectedServiceTypeId)
+  const selectedService = services.find((s) => s._id === selectedServiceId)
+  const selectedAddons = addOnServices.filter((a) => selectedAddonIds.includes(a._id))
+  const availablePets = existingPets
 
-  const totalPrice = (selectedService?.price ?? 0) + selectedAddons.reduce((sum, a) => sum + a.price, 0)
+  // Dynamic step numbers — add-ons step is skipped when no add-on services exist
+  const hasAddons = addOnServices.length > 0
+  const stepAddOns = 4
+  const stepUserInfo = hasAddons ? 5 : 4
+  const stepSummary = hasAddons ? 6 : 5
+
+  const totalPrice = getMinPrice(selectedService ?? { _id: "", code: "", name: "", prices: [], duration: 0, is_active: true })
+    + selectedAddons.reduce((sum, a) => sum + getMinPrice(a), 0)
 
   // Derived pet label for summary
-  const petLabel = existingCustomer
+  const petLabel = existingUser
     ? petMode === "select"
-      ? existingCustomer.pets.find((p) => p.id === selectedPetId)?.name ?? ""
+      ? existingPets.find((p) => p._id === selectedPetId)?.name ?? ""
       : newPetName
     : newPetName
 
@@ -318,65 +467,118 @@ function BookingContent() {
     setBookingCreated(false)
   }
 
+  function resetServiceType() {
+    setSelectedServiceTypeId("")
+    setSelectedServiceId("")
+    setServices([])
+    setAddOnServices([])
+    setSelectedAddonIds([])
+    setShowAddons(false)
+    resetUserInfo()
+  }
+
   function resetUserInfo() {
     setPhone("")
     setPhoneChecked(false)
-    setExistingCustomerId(null)
+    setExistingUser(null)
+    setExistingPets([])
     setUserName("")
     setEmail("")
     setPetMode("select")
     setSelectedPetId("")
     setNewPetName("")
-    setNewPetType("dog")
-    setNewPetBreed("")
-    setNewPetSize("small")
+    setNewPetTypeId("")
+    setNewBreedId("")
+    setNewSizeId("")
     setPhoneError("")
     setFormError("")
+    setSubmittingUserInfo(false)
     setUserInfoConfirmed(false)
     setBookingCreated(false)
   }
 
-  function handleCheckPhone() {
+  async function handleCheckPhone() {
     const normalized = phone.replace(/\D/g, "")
     if (!normalized) {
       setPhoneError("Nomor HP wajib diisi.")
       return
     }
-    const customer = customers.find((c) => c.phone.replace(/\D/g, "") === normalized)
-    setPhoneChecked(true)
-    setExistingCustomerId(customer?.id ?? null)
+    setCheckingPhone(true)
     setPhoneError("")
-    setUserInfoConfirmed(false)
-    setBookingCreated(false)
-
-    if (customer) {
-      const pets = customer.pets.filter((p) => selectedService?.petTypes.includes(p.type))
-      setPetMode(pets.length > 0 ? "select" : "create")
-      setSelectedPetId(pets[0]?.id ?? "")
-      setUserName(customer.name)
-      setEmail(customer.email)
-    } else {
-      setPetMode("select")
-      setSelectedPetId("")
-      setUserName("")
-      setEmail("")
-      setNewPetName("")
-      setNewPetType(selectedService?.petTypes[0] ?? "dog")
-      setNewPetBreed("")
-      setNewPetSize("small")
+    try {
+      const res = await checkUserByPhone(normalized)
+      setPhoneChecked(true)
+      setUserInfoConfirmed(false)
+      setBookingCreated(false)
+      if (res.exists && res.user) {
+        setExistingUser(res.user)
+        setExistingPets(res.pets)
+        setPetMode(res.pets.length > 0 ? "select" : "create")
+        setSelectedPetId(res.pets[0]?._id ?? "")
+        setUserName(res.user.username)
+        setEmail(res.user.email)
+      } else {
+        setExistingUser(null)
+        setExistingPets([])
+        setPetMode("select")
+        setSelectedPetId("")
+        setUserName("")
+        setEmail("")
+        setNewPetName("")
+        setNewPetTypeId("")
+        setNewBreedId("")
+        setNewSizeId("")
+      }
+    } catch {
+      setPhoneError("Gagal memeriksa nomor HP. Silakan coba lagi.")
+    } finally {
+      setCheckingPhone(false)
     }
   }
 
-  function handleConfirmUserInfo() {
+  async function handleConfirmUserInfo() {
     if (!phoneChecked) { setFormError("Silakan cek nomor HP terlebih dahulu."); return }
-    if (!existingCustomer && (!userName.trim() || !email.trim())) { setFormError("Nama dan email wajib diisi."); return }
-    if (!existingCustomer && !newPetName.trim()) { setFormError("Nama pet wajib diisi."); return }
-    if (!existingCustomer && !newPetBreed) { setFormError("Breed pet wajib dipilih."); return }
-    if (existingCustomer && petMode === "select" && !selectedPetId) { setFormError("Silakan pilih pet."); return }
-    if (existingCustomer && petMode === "create" && !newPetName.trim()) { setFormError("Nama pet baru wajib diisi."); return }
-    if (existingCustomer && petMode === "create" && !newPetBreed) { setFormError("Breed pet baru wajib dipilih."); return }
+    if (!existingUser && (!userName.trim() || !email.trim())) { setFormError("Nama dan email wajib diisi."); return }
+    if (!existingUser && !newPetName.trim()) { setFormError("Nama pet wajib diisi."); return }
+    if (!existingUser && !newPetTypeId) { setFormError("Tipe pet wajib dipilih."); return }
+    if (!existingUser && !newBreedId) { setFormError("Breed pet wajib dipilih."); return }
+    if (!existingUser && !newSizeId) { setFormError("Ukuran pet wajib dipilih."); return }
+    if (existingUser && petMode === "select" && !selectedPetId) { setFormError("Silakan pilih pet."); return }
+    if (existingUser && petMode === "create" && !newPetName.trim()) { setFormError("Nama pet baru wajib diisi."); return }
+    if (existingUser && petMode === "create" && !newPetTypeId) { setFormError("Tipe pet baru wajib dipilih."); return }
+    if (existingUser && petMode === "create" && !newBreedId) { setFormError("Breed pet baru wajib dipilih."); return }
+    if (existingUser && petMode === "create" && !newSizeId) { setFormError("Ukuran pet baru wajib dipilih."); return }
     setFormError("")
-    setUserInfoConfirmed(true)
+    setSubmittingUserInfo(true)
+    try {
+      const normalizedPhone = phone.replace(/\D/g, "")
+      if (!existingUser) {
+        await registerPublicUser({
+          username: userName.trim(),
+          email: email.trim(),
+          phone_number: normalizedPhone,
+          pet: {
+            name: newPetName.trim(),
+            pet_type_id: newPetTypeId,
+            breed_category_id: newBreedId,
+            size_category_id: newSizeId,
+          },
+        })
+      } else if (petMode === "create") {
+        await addPublicPet({
+          phone_number: normalizedPhone,
+          pet_name: newPetName.trim(),
+          pet_type_id: newPetTypeId,
+          breed_category_id: newBreedId,
+          size_category_id: newSizeId,
+        })
+      }
+      setUserInfoConfirmed(true)
+    } catch {
+      setFormError("Gagal menyimpan data. Silakan coba lagi.")
+    } finally {
+      setSubmittingUserInfo(false)
+    }
   }
 
   return (
@@ -384,83 +586,86 @@ function BookingContent() {
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-10 px-6">
         <div>
           <h1 className="font-display text-3xl font-extrabold text-foreground">Book a Service</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Pilih store, layanan, add-on, lalu isi informasi kamu.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Pilih store, jenis layanan, layanan, lalu isi informasi kamu.</p>
         </div>
 
         {/* ── Step 1: Store ── */}
         <section className="flex flex-col gap-4">
           <StepHeader step={1} title="Pilih Store" done={!!selectedStore} />
 
-          {/* Mobile: dropdown */}
-          <div className="sm:hidden">
-            <Select
-              value={selectedStoreId}
-              onValueChange={(id) => {
-                setSelectedStoreId(id)
-                setSelectedServiceId("")
-                setSelectedAddonIds([])
-                resetUserInfo()
-              }}
-            >
-              <SelectTrigger className="w-full h-12">
-                <SelectValue placeholder="Pilih store..." />
-              </SelectTrigger>
-              <SelectContent>
-                {mockStores.map((store) => (
-                  <SelectItem key={store.id} value={store.id}>
-                    <div className="flex flex-col text-left">
-                      <span className="font-semibold">{store.name}</span>
-                      <span className="text-xs text-muted-foreground">{store.address}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedStore && (
-              <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-                {/* <MapPin className="h-3.5 w-3.5 shrink-0" />
-                <span>{selectedStore.address}</span> */}
-                {selectedStore.whatsapp && (
-                  <>
-                    {/* <span className="mx-1">·</span> */}
+          {storesLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Memuat store...
+            </div>
+          ) : storesError ? (
+            <p className="text-sm text-destructive">{storesError}</p>
+          ) : (
+            <>
+              {/* Mobile: dropdown */}
+              <div className="sm:hidden">
+                <Select
+                  value={selectedStoreId}
+                  onValueChange={(id) => {
+                    setSelectedStoreId(id)
+                    resetServiceType()
+                  }}
+                >
+                  <SelectTrigger className="w-full h-12">
+                    <SelectValue placeholder="Pilih store..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stores.map((store) => (
+                      <SelectItem key={store._id} value={store._id}>
+                        <div className="flex flex-col text-left">
+                          <span className="font-semibold">{store.name}</span>
+                          {store.location?.city && (
+                            <span className="text-xs text-muted-foreground">{store.location.city}</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedStore?.contact?.whatsapp && (
+                  <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
                     <MessageCircle className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                     <span className="text-emerald-600">WhatsApp tersedia</span>
-                  </>
+                  </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* Desktop: card grid */}
-          <div className="hidden sm:grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {mockStores.map((store) => (
-              <StoreCard
-                key={store.id}
-                store={store}
-                selected={selectedStoreId === store.id}
-                onSelect={() => {
-                  setSelectedStoreId(store.id)
-                  setSelectedServiceId("")
-                  setSelectedAddonIds([])
-                  resetUserInfo()
-                }}
-              />
-            ))}
-          </div>
+              {/* Desktop: card grid */}
+              <div className="hidden sm:grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {stores.map((store) => (
+                  <StoreCard
+                    key={store._id}
+                    store={store}
+                    selected={selectedStoreId === store._id}
+                    onSelect={() => {
+                      setSelectedStoreId(store._id)
+                      resetServiceType()
+                    }}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </section>
 
-        {/* ── Step 2: Service ── */}
+        {/* ── Step 2: Service Type ── */}
         {selectedStore && (
           <section className="flex flex-col gap-4">
-            <StepHeader step={2} title="Pilih Layanan Grooming" done={!!selectedService} />
+            <StepHeader step={2} title="Pilih Jenis Layanan" done={!!selectedServiceType} />
             <div className="grid gap-4 sm:grid-cols-2">
-              {mainServices.map((svc) => (
-                <SelectableServiceCard
-                  key={svc.id}
-                  product={svc}
-                  selected={selectedServiceId === svc.id}
+              {selectedStore.serviceTypes.map((type) => (
+                <ServiceTypeCard
+                  key={type._id}
+                  serviceType={type}
+                  selected={selectedServiceTypeId === type._id}
                   onSelect={() => {
-                    setSelectedServiceId(svc.id)
+                    setSelectedServiceTypeId(type._id)
+                    setSelectedServiceId("")
                     setSelectedAddonIds([])
                     setShowAddons(false)
                     resetUserInfo()
@@ -471,10 +676,44 @@ function BookingContent() {
           </section>
         )}
 
-        {/* ── Step 3: Add-ons ── */}
-        {selectedService && (
+        {/* ── Step 3: Service ── */}
+        {selectedServiceType && (
           <section className="flex flex-col gap-4">
-            <StepHeader step={3} title="Tambah Add-On (opsional)" done={selectedAddonIds.length > 0} />
+            <StepHeader step={3} title="Pilih Layanan" done={!!selectedService} />
+
+            {servicesLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Memuat layanan...
+              </div>
+            ) : servicesError ? (
+              <p className="text-sm text-destructive">{servicesError}</p>
+            ) : services.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Tidak ada layanan tersedia untuk jenis ini.</p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {services.map((svc) => (
+                  <SelectableServiceCard
+                    key={svc._id}
+                    service={svc}
+                    selected={selectedServiceId === svc._id}
+                    onSelect={() => {
+                      setSelectedServiceId(svc._id)
+                      setSelectedAddonIds([])
+                      setShowAddons(false)
+                      resetUserInfo()
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ── Step 4: Add-ons ── */}
+        {selectedService && selectedServiceType?.title.toLowerCase() !== "addons" && addOnServices.length > 0 && (
+          <section className="flex flex-col gap-4">
+            <StepHeader step={stepAddOns} title="Tambah Add-On (opsional)" done={selectedAddonIds.length > 0} />
 
             {/* Toggle button */}
             <button
@@ -506,24 +745,31 @@ function BookingContent() {
             </button>
 
             {showAddons && (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {addOns.map((addon) => (
-                  <SelectableAddonCard
-                    key={addon.id}
-                    product={addon}
-                    selected={selectedAddonIds.includes(addon.id)}
-                    onToggle={() => toggleAddon(addon.id)}
-                  />
-                ))}
-              </div>
+              addOnsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Memuat add-on...
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {addOnServices.map((addon) => (
+                    <SelectableAddonCard
+                      key={addon._id}
+                      service={addon}
+                      selected={selectedAddonIds.includes(addon._id)}
+                      onToggle={() => toggleAddon(addon._id)}
+                    />
+                  ))}
+                </div>
+              )
             )}
           </section>
         )}
 
-        {/* ── Step 4: User & Pet Info ── */}
+        {/* ── Step 5: User & Pet Info ── */}
         {selectedService && (
           <section className="flex flex-col gap-4">
-            <StepHeader step={4} title="Informasi Kamu & Anabul" done={userInfoConfirmed} />
+            <StepHeader step={stepUserInfo} title="Informasi Kamu & Anabul" done={userInfoConfirmed} />
             <Card className="border-border/60">
               <CardContent className="flex flex-col gap-5 p-6">
 
@@ -539,25 +785,26 @@ function BookingContent() {
                       onChange={(e) => {
                         setPhone(e.target.value)
                         setPhoneChecked(false)
-                        setExistingCustomerId(null)
+                        setExistingUser(null)
+                        setExistingPets([])
                         setUserInfoConfirmed(false)
                         setBookingCreated(false)
                       }}
                     />
-                    <Button type="button" variant="outline" disabled={userInfoConfirmed} onClick={handleCheckPhone}>
-                      Cek
+                    <Button type="button" variant="outline" disabled={userInfoConfirmed || checkingPhone} onClick={handleCheckPhone}>
+                      {checkingPhone ? <Loader2 className="h-4 w-4 animate-spin" /> : "Cek"}
                     </Button>
                   </div>
                   {phoneError && <p className="text-xs text-destructive">{phoneError}</p>}
                 </div>
 
                 {/* Existing customer */}
-                {phoneChecked && existingCustomer && (
+                {phoneChecked && existingUser && (
                   <>
                     <div className="flex items-center gap-2 rounded-lg bg-primary/5 px-4 py-3">
                       <User className="h-4 w-4 shrink-0 text-primary" />
                       <p className="text-sm text-foreground">
-                        Halo, <span className="font-semibold">{existingCustomer.name}</span>! Nomor kamu sudah terdaftar.
+                        Halo, <span className="font-semibold">{existingUser.username}</span>! Nomor kamu sudah terdaftar.
                       </p>
                     </div>
 
@@ -594,8 +841,8 @@ function BookingContent() {
                             <SelectTrigger><SelectValue placeholder="Pilih anabul" /></SelectTrigger>
                             <SelectContent>
                               {availablePets.map((pet) => (
-                                <SelectItem key={pet.id} value={pet.id}>
-                                  {pet.name} ({pet.type}, {pet.sizeCategory})
+                                <SelectItem key={pet._id} value={pet._id}>
+                                  {pet.name} ({pet.pet_type.name}, {pet.size.name})
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -614,33 +861,28 @@ function BookingContent() {
                           </div>
                           <div className="flex flex-col gap-1.5">
                             <Label>Tipe</Label>
-                            <Select value={newPetType} disabled={userInfoConfirmed} onValueChange={(v) => { setNewPetType(v as PetType); setNewPetBreed("") }}>
-                              <SelectTrigger><SelectValue /></SelectTrigger>
+                            <Select value={newPetTypeId} disabled={userInfoConfirmed || optionsLoading} onValueChange={(v) => { setNewPetTypeId(v); setNewBreedId("") }}>
+                              <SelectTrigger><SelectValue placeholder="Pilih tipe" /></SelectTrigger>
                               <SelectContent>
-                                {(selectedService.petTypes as PetType[]).map((t) => (
-                                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                                ))}
+                                {petTypes.map((t) => <SelectItem key={t._id} value={t._id}>{t.name}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="flex flex-col gap-1.5">
                             <Label>Breed</Label>
-                            <Select value={newPetBreed} disabled={userInfoConfirmed} onValueChange={setNewPetBreed}>
+                            <Select value={newBreedId} disabled={userInfoConfirmed || optionsLoading} onValueChange={setNewBreedId}>
                               <SelectTrigger><SelectValue placeholder="Pilih breed" /></SelectTrigger>
                               <SelectContent>
-                                {breedOptions[newPetType].map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                                {breedCategories.map((b) => <SelectItem key={b._id} value={b._id}>{b.name}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="flex flex-col gap-1.5">
                             <Label>Ukuran</Label>
-                            <Select value={newPetSize} disabled={userInfoConfirmed} onValueChange={setNewPetSize}>
-                              <SelectTrigger><SelectValue /></SelectTrigger>
+                            <Select value={newSizeId} disabled={userInfoConfirmed || optionsLoading} onValueChange={setNewSizeId}>
+                              <SelectTrigger><SelectValue placeholder="Pilih ukuran" /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="small">Small (&lt; 5 kg)</SelectItem>
-                                <SelectItem value="medium">Medium (5–10 kg)</SelectItem>
-                                <SelectItem value="large">Large (10–20 kg)</SelectItem>
-                                <SelectItem value="extra-large">Extra Large (&gt; 20 kg)</SelectItem>
+                                {sizeCategories.map((s) => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           </div>
@@ -651,7 +893,7 @@ function BookingContent() {
                 )}
 
                 {/* New customer */}
-                {phoneChecked && !existingCustomer && (
+                {phoneChecked && !existingUser && (
                   <>
                     <div className="flex items-center gap-2 rounded-lg bg-muted/60 px-4 py-3">
                       <User className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -683,33 +925,28 @@ function BookingContent() {
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <Label>Tipe</Label>
-                        <Select value={newPetType} disabled={userInfoConfirmed} onValueChange={(v) => { setNewPetType(v as PetType); setNewPetBreed("") }}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                        <Select value={newPetTypeId} disabled={userInfoConfirmed || optionsLoading} onValueChange={(v) => { setNewPetTypeId(v); setNewBreedId("") }}>
+                          <SelectTrigger><SelectValue placeholder="Pilih tipe" /></SelectTrigger>
                           <SelectContent>
-                            {(selectedService.petTypes as PetType[]).map((t) => (
-                              <SelectItem key={t} value={t}>{t}</SelectItem>
-                            ))}
+                            {petTypes.map((t) => <SelectItem key={t._id} value={t._id}>{t.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <Label>Breed</Label>
-                        <Select value={newPetBreed} disabled={userInfoConfirmed} onValueChange={setNewPetBreed}>
+                        <Select value={newBreedId} disabled={userInfoConfirmed || optionsLoading} onValueChange={setNewBreedId}>
                           <SelectTrigger><SelectValue placeholder="Pilih breed" /></SelectTrigger>
                           <SelectContent>
-                            {breedOptions[newPetType].map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                            {breedCategories.map((b) => <SelectItem key={b._id} value={b._id}>{b.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <Label>Ukuran</Label>
-                        <Select value={newPetSize} disabled={userInfoConfirmed} onValueChange={setNewPetSize}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                        <Select value={newSizeId} disabled={userInfoConfirmed || optionsLoading} onValueChange={setNewSizeId}>
+                          <SelectTrigger><SelectValue placeholder="Pilih ukuran" /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="small">Small (&lt; 5 kg)</SelectItem>
-                            <SelectItem value="medium">Medium (5–10 kg)</SelectItem>
-                            <SelectItem value="large">Large (10–20 kg)</SelectItem>
-                            <SelectItem value="extra-large">Extra Large (&gt; 20 kg)</SelectItem>
+                            {sizeCategories.map((s) => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -720,15 +957,15 @@ function BookingContent() {
                 {formError && <p className="text-sm text-destructive">{formError}</p>}
 
                 {!userInfoConfirmed ? (
-                  <Button className="w-full font-display font-bold" onClick={handleConfirmUserInfo} disabled={!phoneChecked}>
-                    Konfirmasi Informasi
+                  <Button className="w-full font-display font-bold" onClick={handleConfirmUserInfo} disabled={!phoneChecked || submittingUserInfo}>
+                    {submittingUserInfo ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyimpan...</> : "Konfirmasi Informasi"}
                   </Button>
                 ) : (
                   <div className="flex items-center justify-between gap-3 rounded-xl bg-primary/10 px-4 py-3">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
                       <p className="text-sm font-medium text-primary">
-                        {existingCustomer ? existingCustomer.name : userName} · {petLabel}
+                        {existingUser ? existingUser.username : userName} · {petLabel}
                       </p>
                     </div>
                     <button
@@ -745,10 +982,10 @@ function BookingContent() {
           </section>
         )}
 
-        {/* ── Step 5: Summary & Confirm ── */}
+        {/* ── Step 6: Summary & Confirm ── */}
         {userInfoConfirmed && selectedService && selectedStore && (
           <section className="flex flex-col gap-4">
-            <StepHeader step={5} title="Ringkasan Booking" done={bookingCreated} />
+            <StepHeader step={stepSummary} title="Ringkasan Booking" done={bookingCreated} />
             <Card className="border-border/60">
               <CardContent className="flex flex-col gap-4 p-6">
                 {/* Store */}
@@ -757,7 +994,9 @@ function BookingContent() {
                   <div>
                     <p className="text-xs text-muted-foreground">Store</p>
                     <p className="text-sm font-semibold text-foreground">{selectedStore.name}</p>
-                    <p className="text-xs text-muted-foreground">{selectedStore.address}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {[selectedStore.location?.address, selectedStore.location?.city].filter(Boolean).join(", ")}
+                    </p>
                   </div>
                 </div>
 
@@ -768,7 +1007,7 @@ function BookingContent() {
                   <User className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   <div>
                     <p className="text-xs text-muted-foreground">Pemilik</p>
-                    <p className="text-sm font-semibold text-foreground">{existingCustomer ? existingCustomer.name : userName}</p>
+                    <p className="text-sm font-semibold text-foreground">{existingUser ? existingUser.username : userName}</p>
                     <p className="text-xs text-muted-foreground">{phone}</p>
                   </div>
                   <div className="ml-auto flex items-start gap-3 text-right">
@@ -785,14 +1024,15 @@ function BookingContent() {
                 {/* Service */}
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <p className="text-xs text-muted-foreground">Layanan</p>
-                    <p className="text-sm font-semibold text-foreground">{selectedService.name}</p>
+                    <p className="text-xs text-muted-foreground">Jenis Layanan</p>
+                    <p className="text-xs font-medium text-primary">{selectedServiceType?.title}</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{selectedService.name}</p>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       {selectedService.duration} menit
                     </div>
                   </div>
-                  <span className="font-display text-sm font-bold text-primary">{formatPrice(selectedService.price)}</span>
+                  <span className="font-display text-sm font-bold text-primary">{selectedService ? formatPrice(getMinPrice(selectedService)) : ""}</span>
                 </div>
 
                 {/* Add-ons */}
@@ -802,14 +1042,19 @@ function BookingContent() {
                     <div className="flex flex-col gap-2">
                       <p className="text-xs text-muted-foreground">Add-On ({selectedAddons.length})</p>
                       {selectedAddons.map((addon) => (
-                        <div key={addon.id} className="flex items-center justify-between gap-2">
+                        <div key={addon._id} className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5">
                             <Badge variant="outline" className="bg-accent/20 text-accent-foreground border-accent/30 text-[10px]">
                               add-on
                             </Badge>
                             <span className="text-sm text-foreground">{addon.name}</span>
                           </div>
-                          <span className="text-sm font-medium text-primary">{formatPrice(addon.price)}</span>
+                          <div className="flex flex-col items-end">
+                            {addon.prices.length > 1 && (
+                              <span className="text-[10px] text-muted-foreground">Mulai dari</span>
+                            )}
+                            <span className="text-sm font-medium text-primary">{formatPrice(getMinPrice(addon))}</span>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -837,9 +1082,9 @@ function BookingContent() {
                         Tim Pawship akan segera menghubungi kamu untuk konfirmasi dan detail selanjutnya ya.
                       </p>
                     </div>
-                    {selectedStore.whatsapp && (
+                    {selectedStore.contact?.whatsapp && (
                       <a
-                        href={`https://wa.me/${selectedStore.whatsapp}?text=Halo! Saya ${existingCustomer ? existingCustomer.name : userName} sudah booking ${selectedService.name} di ${selectedStore.name} untuk anabul saya (${petLabel}) melaui website Pawship.`}
+                        href={`https://wa.me/${selectedStore.contact.whatsapp}?text=Halo! Saya ${existingUser ? existingUser.username : userName} sudah booking ${selectedService.name} di ${selectedStore.name} untuk anabul saya (${petLabel}) melaui website Pawship.`}
                         target="_blank"
                         rel="noopener noreferrer"
                       >

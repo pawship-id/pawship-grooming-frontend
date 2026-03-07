@@ -33,12 +33,12 @@ import {
 } from "@/components/ui/sidebar"
 
 const menuItems = [
-  { title: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
-  { title: "Bookings", href: "/admin/bookings", icon: CalendarDays },
+  { title: "Dashboard (Dummy)", href: "/admin/dashboard", icon: LayoutDashboard },
+  { title: "Bookings (Dummy)", href: "/admin/bookings", icon: CalendarDays },
   { title: "Users", href: "/admin/users", icon: Users },
   { title: "Stores", href: "/admin/stores", icon: Store },
   { title: "Options", href: "/admin/options", icon: Tag },
-  { title: "Products", href: "/admin/products", icon: Package },
+  { title: "Products (Dummy)", href: "/admin/products", icon: Package },
 ]
 
 export function AdminSidebar() {
@@ -85,7 +85,7 @@ export function AdminSidebar() {
                   <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)}>
                     <Link
                       href={item.href}
-                      className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center"
+                      className={`flex items-center gap-2 group-data-[collapsible=icon]:justify-center ${item.title.includes("Dummy") ? "text-red-500" : ""}`}
                       onClick={handleMenuClick}
                     >
                       <item.icon className="h-4 w-4" />

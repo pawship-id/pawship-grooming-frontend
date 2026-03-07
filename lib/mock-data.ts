@@ -5,6 +5,7 @@ import type {
   Groomer,
   Booking,
   AvailableStore,
+  ServiceType,
 } from "./types"
 
 // --- Auth Users (for login) ---
@@ -14,6 +15,22 @@ export const authUsers: AuthUser[] = [
   { id: "groomer-2", name: "Jake Thompson", email: "jake@pawship.com", role: "groomer" },
   { id: "cust-1", name: "Andi Pratama", email: "andi@email.com", role: "customer" },
   { id: "cust-2", name: "Siti Rahayu", email: "siti@email.com", role: "customer" },
+]
+
+// --- Service Types ---
+export const serviceTypes: ServiceType[] = [
+  {
+    id: "svc-type-1",
+    title: "Grooming",
+    description: "Perawatan lengkap untuk hewan peliharaan meliputi mandi, potong bulu, potong kuku, dan pembersihan telinga agar tetap bersih, sehat, dan nyaman.",
+    imageUrl: "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=600&h=300&fit=crop&auto=format",
+  },
+  {
+    id: "svc-type-2",
+    title: "Add-Ons",
+    description: "Layanan tambahan yang dapat dipilih untuk melengkapi layanan utama, seperti detangling, flea treatment, spa, dan perawatan ekstra lainnya.",
+    imageUrl: "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?w=600&h=300&fit=crop&auto=format",
+  },
 ]
 
 // --- Stores ---
@@ -49,6 +66,7 @@ export const products: Product[] = [
     name: "Basic Grooming",
     description: "Perawatan dasar yang bikin pawfriends bersih, wangi, dan nyaman lagi. Cocok untuk rutin supaya tetap fresh dan sehat.",
     category: "grooming",
+    serviceTypeId: "svc-type-1",
     price: 120000,
     prices: [
       { sizeId: "size-small", sizeName: "Small (< 5 kg)", price: 120000 },
@@ -77,6 +95,7 @@ export const products: Product[] = [
     name: "Full Grooming",
     description: "Buat pawfriends yang mau total glow up. Bersihnya dapet, rapinya dapet, tampilannya juga makin pawfect.",
     category: "grooming",
+    serviceTypeId: "svc-type-1",
     price: 200000,
     prices: [
       { sizeId: "size-small", sizeName: "Small (< 5 kg)", price: 200000 },
@@ -105,6 +124,7 @@ export const products: Product[] = [
     name: "Home Grooming – Basic",
     description: "Buat pawfriends yang lebih nyaman grooming di rumah. Kami datang dengan peralatan lengkap, jadi anabul tetap tenang di lingkungan yang familiar.",
     category: "grooming",
+    serviceTypeId: "svc-type-1",
     price: 180000,
     prices: [
       { sizeId: "size-small", sizeName: "Small (< 5 kg)", price: 180000 },
@@ -133,6 +153,7 @@ export const products: Product[] = [
     name: "Home Grooming – Full Service",
     description: "Glow up lengkap tanpa perlu pergi ke mana-mana. Cocok buat pawfriends yang butuh rapih total tapi tetap mau di rumah.",
     category: "grooming",
+    serviceTypeId: "svc-type-1",
     price: 280000,
     prices: [
       { sizeId: "size-small", sizeName: "Small (< 5 kg)", price: 280000 },
@@ -161,6 +182,7 @@ export const products: Product[] = [
     name: "3 Spots Detangling",
     description: "Buka kusut di 3 area tertentu (biasanya ketiak, belakang telinga, atau ekor) biar bulu balik halus & nggak ketarik sakit.",
     category: "addon",
+    serviceTypeId: "svc-type-2",
     price: 35000,
     duration: 15,
     petTypes: ["dog", "cat"],
@@ -173,6 +195,7 @@ export const products: Product[] = [
     name: "Full Body Detangling",
     description: "Untuk anabul yang kusutnya parah se-badan. Kita urai pelan-pelan dengan teknik gentle supaya tetap nyaman.",
     category: "addon",
+    serviceTypeId: "svc-type-2",
     price: 75000,
     duration: 30,
     petTypes: ["dog", "cat"],
@@ -185,6 +208,7 @@ export const products: Product[] = [
     name: "Flea & Tick Shampoo",
     description: "Shampoo khusus bantu bersihin kutu & caplak, bikin kulit lebih sehat dan lega.",
     category: "addon",
+    serviceTypeId: "svc-type-2",
     price: 50000,
     duration: 10,
     petTypes: ["dog", "cat"],
@@ -197,6 +221,7 @@ export const products: Product[] = [
     name: "Fungal Shampoo Treatment",
     description: "Perawatan dengan shampoo anti-jamur untuk bantu redakan masalah kulit.",
     category: "addon",
+    serviceTypeId: "svc-type-2",
     price: 60000,
     duration: 15,
     petTypes: ["dog", "cat"],
@@ -209,6 +234,7 @@ export const products: Product[] = [
     name: "Whitening Shampoo",
     description: "Bikin bulu lebih cerah & bersih, cocok buat yang warna bulunya putih atau terang.",
     category: "addon",
+    serviceTypeId: "svc-type-2",
     price: 45000,
     duration: 10,
     petTypes: ["dog", "cat"],
@@ -221,6 +247,7 @@ export const products: Product[] = [
     name: "Shaving Gundul",
     description: "Cukur rapi. Fresh, clean, dan anti gerah.",
     category: "addon",
+    serviceTypeId: "svc-type-2",
     price: 80000,
     duration: 30,
     petTypes: ["dog", "cat"],
@@ -233,6 +260,7 @@ export const products: Product[] = [
     name: "Basic Care Upgrade",
     description: "Upgrade ke shampoo premium + conditioner biar bulu lebih fluffy, lembut, dan wangi tahan lama.",
     category: "addon",
+    serviceTypeId: "svc-type-2",
     price: 40000,
     duration: 10,
     petTypes: ["dog", "cat"],
@@ -245,6 +273,7 @@ export const products: Product[] = [
     name: "Face & Eye Trimming",
     description: "Rapihin area wajah & sekitar mata supaya lebih bersih dan nggak ganggu penglihatan.",
     category: "addon",
+    serviceTypeId: "svc-type-2",
     price: 35000,
     duration: 15,
     petTypes: ["dog", "cat"],
@@ -257,6 +286,7 @@ export const products: Product[] = [
     name: "Full Body Trimming",
     description: "Rapihin seluruh badan tanpa potong model, hasilnya neat & comfy.",
     category: "addon",
+    serviceTypeId: "svc-type-2",
     price: 90000,
     duration: 30,
     petTypes: ["dog", "cat"],
@@ -269,6 +299,7 @@ export const products: Product[] = [
     name: "Paw Balm Treatment",
     description: "Oles balm di telapak kaki biar nggak kering & tetap lembut.",
     category: "addon",
+    serviceTypeId: "svc-type-2",
     price: 30000,
     duration: 10,
     petTypes: ["dog", "cat"],
@@ -281,6 +312,7 @@ export const products: Product[] = [
     name: "Flea Tick Spray",
     description: "Semprot perlindungan tambahan anti kutu setelah grooming.",
     category: "addon",
+    serviceTypeId: "svc-type-2",
     price: 25000,
     duration: 5,
     petTypes: ["dog", "cat"],
@@ -293,6 +325,7 @@ export const products: Product[] = [
     name: "Extra Handling",
     description: "Untuk anabul yang super aktif atau butuh perhatian ekstra selama grooming.",
     category: "addon",
+    serviceTypeId: "svc-type-2",
     price: 50000,
     duration: 15,
     petTypes: ["dog", "cat"],
