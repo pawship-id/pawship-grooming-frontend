@@ -10,6 +10,7 @@ import {
   Package,
   Tag,
   Store,
+  Scissors,
   LogOut,
   Moon,
   Sun,
@@ -37,6 +38,7 @@ const menuItems = [
   { title: "Bookings (Dummy)", href: "/admin/bookings", icon: CalendarDays },
   { title: "Users", href: "/admin/users", icon: Users },
   { title: "Stores", href: "/admin/stores", icon: Store },
+  { title: "Services", href: "/admin/services", icon: Scissors },
   { title: "Options", href: "/admin/options", icon: Tag },
   { title: "Products (Dummy)", href: "/admin/products", icon: Package },
 ]
