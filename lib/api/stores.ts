@@ -75,6 +75,7 @@ export interface ApiStore {
   contact?: StoreContact
   operational?: StoreOperational
   capacity?: StoreCapacity
+  sessions?: string[]
   is_active: boolean
   createdAt: string
   updatedAt: string
@@ -110,7 +111,6 @@ export type StorePayload = {
   code: string
   name: string
   description?: string
-  is_active: boolean
   location: {
     address?: string
     city?: string
@@ -134,6 +134,8 @@ export type StorePayload = {
     default_daily_capacity_minutes: number
     overbooking_limit_minutes: number
   }
+  sessions?: string[]
+  is_active?: boolean
 }
 
 export async function getStores(params: GetStoresParams) {

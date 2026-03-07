@@ -49,7 +49,6 @@ interface StoreForm {
   code: string
   name: string
   description: string
-  is_active: boolean
   location: Required<StoreLocation>
   contact: Required<StoreContact>
   operational: {
@@ -62,6 +61,8 @@ interface StoreForm {
     default_daily_capacity_minutes: string
     overbooking_limit_minutes: string
   }
+  sessions: string[]
+  is_active: boolean
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -81,11 +82,12 @@ const DEFAULT_FORM: StoreForm = {
   code: "",
   name: "",
   description: "",
-  is_active: true,
   location: { address: "", city: "", province: "", postal_code: "", latitude: null, longitude: null },
   contact: { phone_number: "", whatsapp: "", email: "" },
   operational: { opening_time: "09:00", closing_time: "18:00", operational_days: ["Monday","Tuesday","Wednesday","Thursday","Friday"], timezone: "Asia/Jakarta" },
   capacity: { default_daily_capacity_minutes: "", overbooking_limit_minutes: "" },
+  sessions: [],
+  is_active: true,
 }
 
 // ── Highlight helper ──────────────────────────────────────────────────────
@@ -171,43 +173,6 @@ function StoreFormFields({
           <Label htmlFor="f-desc">Deskripsi</Label>
           <Textarea id="f-desc" placeholder="Deskripsi singkat toko..." rows={2} value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
         </div>
-        <div className="flex items-center gap-3">
-          <Switch id="f-active" checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} />
-          <Label htmlFor="f-active">Aktif</Label>
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Capacity */}
-      <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Kapasitas</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="f-default-capacity">Kapasitas Harian Default (menit) *</Label>
-            <Input
-              id="f-default-capacity"
-              type="number"
-              min={1}
-              required
-              placeholder="600"
-              value={form.capacity.default_daily_capacity_minutes}
-              onChange={(e) => setForm((p) => ({ ...p, capacity: { ...p.capacity, default_daily_capacity_minutes: e.target.value } }))}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="f-overbooking-limit">Batas Overbooking (menit) *</Label>
-            <Input
-              id="f-overbooking-limit"
-              type="number"
-              min={0}
-              required
-              placeholder="120"
-              value={form.capacity.overbooking_limit_minutes}
-              onChange={(e) => setForm((p) => ({ ...p, capacity: { ...p.capacity, overbooking_limit_minutes: e.target.value } }))}
-            />
-          </div>
-        </div>
       </div>
 
       <Separator />
@@ -290,6 +255,39 @@ function StoreFormFields({
 
       <Separator />
 
+      {/* Capacity */}
+      <div className="flex flex-col gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Kapasitas</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="f-default-capacity">Kapasitas Harian Default (menit) *</Label>
+            <Input
+              id="f-default-capacity"
+              type="number"
+              min={1}
+              required
+              placeholder="600"
+              value={form.capacity.default_daily_capacity_minutes}
+              onChange={(e) => setForm((p) => ({ ...p, capacity: { ...p.capacity, default_daily_capacity_minutes: e.target.value } }))}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="f-overbooking-limit">Batas Overbooking (menit) *</Label>
+            <Input
+              id="f-overbooking-limit"
+              type="number"
+              min={0}
+              required
+              placeholder="120"
+              value={form.capacity.overbooking_limit_minutes}
+              onChange={(e) => setForm((p) => ({ ...p, capacity: { ...p.capacity, overbooking_limit_minutes: e.target.value } }))}
+            />
+          </div>
+        </div>
+      </div>
+
+      <Separator />
+
       {/* Contact */}
       <div className="flex flex-col gap-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Kontak</p>
@@ -358,6 +356,76 @@ function StoreFormFields({
         </div>
       </div>
 
+      <Separator />
+
+      {/* Sessions */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sesi</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setForm((p) => ({ ...p, sessions: [...p.sessions, p.sessions.length === 0 ? "09:00 - 12:00" : "13:00 - 17:00"] }))}
+          >
+            + Tambah Sesi
+          </Button>
+        </div>
+        {form.sessions.length === 0 && (
+          <p className="text-sm text-muted-foreground">Belum ada sesi. Klik "Tambah Sesi" untuk menambahkan.</p>
+        )}
+        {form.sessions.map((session, idx) => {
+          const parts = session.split(" - ")
+          const start = parts[0] ?? ""
+          const end = parts[1] ?? ""
+          return (
+            <div key={idx} className="flex items-center gap-2">
+              <Input
+                type="time"
+                value={start}
+                onChange={(e) => {
+                  const next = [...form.sessions]
+                  next[idx] = `${e.target.value} - ${end}`
+                  setForm((p) => ({ ...p, sessions: next }))
+                }}
+                className="flex-1"
+              />
+              <span className="text-muted-foreground text-sm shrink-0">–</span>
+              <Input
+                type="time"
+                value={end}
+                onChange={(e) => {
+                  const next = [...form.sessions]
+                  next[idx] = `${start} - ${e.target.value}`
+                  setForm((p) => ({ ...p, sessions: next }))
+                }}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => setForm((p) => ({ ...p, sessions: p.sessions.filter((_, i) => i !== idx) }))}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          )
+        })}
+      </div>
+
+      <Separator />
+
+      {/* Status */}
+      <div className="flex flex-col gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</p>
+        <div className="flex items-center gap-3">
+          <Switch id="f-active" checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} />
+          <Label htmlFor="f-active">Aktif</Label>
+        </div>
+      </div>
+
       <Dialog open={mapOpen} onOpenChange={setMapOpen}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
@@ -399,7 +467,6 @@ function formToPayload(form: StoreForm) {
     code: form.code,
     name: form.name,
     description: form.description || undefined,
-    is_active: form.is_active,
     location: {
       address: form.location.address || undefined,
       city: form.location.city || undefined,
@@ -423,6 +490,8 @@ function formToPayload(form: StoreForm) {
       default_daily_capacity_minutes: Number(form.capacity.default_daily_capacity_minutes),
       overbooking_limit_minutes: Number(form.capacity.overbooking_limit_minutes),
     },
+    sessions: form.sessions.filter((s) => s.trim()).map((s) => s.replace(/:/g, ".")),
+    is_active: form.is_active,
   } satisfies StorePayload
 }
 
@@ -432,7 +501,6 @@ function storeToForm(store: ApiStore): StoreForm {
     code: store.code,
     name: store.name,
     description: store.description ?? "",
-    is_active: store.is_active,
     location: {
       address: store.location?.address ?? "",
       city: store.location?.city ?? "",
@@ -456,6 +524,8 @@ function storeToForm(store: ApiStore): StoreForm {
       default_daily_capacity_minutes: store.capacity?.default_daily_capacity_minutes != null ? String(store.capacity.default_daily_capacity_minutes) : "",
       overbooking_limit_minutes: store.capacity?.overbooking_limit_minutes != null ? String(store.capacity.overbooking_limit_minutes) : "",
     },
+    sessions: (store.sessions ?? []).map((s) => s.replace(/\./g, ":")),
+    is_active: store.is_active,
   }
 }
 
