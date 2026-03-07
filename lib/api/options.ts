@@ -7,7 +7,6 @@ export type CategoryOption =
   | "member category"
   | "customer category"
   | "pet type"
-  | "service type"
 
 export interface ApiOption {
   _id: string
