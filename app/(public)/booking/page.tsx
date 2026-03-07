@@ -2,12 +2,12 @@
 
 export const dynamic = "force-dynamic"
 
-import { Suspense, useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { MapPin, Clock, CheckCircle2, MessageCircle, Check, Plus, Minus, Hash, User, PawPrint, ArrowRight, Info, Loader2 } from "lucide-react"
-import { products, customers } from "@/lib/mock-data"
-import { getPublicStores } from "@/lib/api/stores"
-import type { PublicStore, PublicServiceType } from "@/lib/api/stores"
+import { customers } from "@/lib/mock-data"
+import { getPublicStores, getPublicServices } from "@/lib/api/stores"
+import type { PublicStore, PublicServiceType, PublicService } from "@/lib/api/stores"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { Product, PetType } from "@/lib/types"
+import type { PetType } from "@/lib/types"
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("id-ID", {
@@ -112,9 +112,16 @@ function StoreCard({ store, selected, onSelect }: { store: PublicStore; selected
   )
 }
 
+function getMinPrice(service: PublicService): number {
+  if (!service.prices || service.prices.length === 0) return 0
+  return Math.min(...service.prices.map((p) => p.price))
+}
+
 // ── Selectable Service Card ─────────────────────────────────────────────────
-function SelectableServiceCard({ product, selected, onSelect }: { product: Product; selected: boolean; onSelect: () => void }) {
+function SelectableServiceCard({ service, selected, onSelect }: { service: PublicService; selected: boolean; onSelect: () => void }) {
   const [includesOpen, setIncludesOpen] = useState(false)
+  const minPrice = getMinPrice(service)
+  const hasMultiplePrices = service.prices && service.prices.length > 1
 
   return (
     <>
@@ -128,11 +135,11 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
         }`}
       >
         {/* Image — hidden on mobile */}
-        {product.image && !product.image.startsWith("/placeholder") && (
+        {service.image_url && (
           <div className="relative hidden sm:block h-36 w-full overflow-hidden">
             <img
-              src={product.image}
-              alt={product.name}
+              src={service.image_url}
+              alt={service.name}
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
@@ -147,13 +154,13 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
         <div className="flex flex-1 flex-col gap-2 p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="flex flex-col gap-1.5">
-              {product.code && (
+              {service.code && (
                 <span className="flex w-fit items-center gap-1 rounded-full border border-border/60 bg-muted/50 px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
                   <Hash className="h-2.5 w-2.5" />
-                  {product.code}
+                  {service.code}
                 </span>
               )}
-              <p className={`font-display text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>{product.name}</p>
+              <p className={`font-display text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>{service.name}</p>
             </div>
             {/* Mobile check indicator (image hidden on mobile) */}
             <span className={`sm:hidden flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
@@ -163,13 +170,13 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
             </span>
           </div>
 
-          <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{product.description}</p>
+          <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{service.description}</p>
 
-          {product.includes && product.includes.length > 0 && (
+          {service.include && service.include.length > 0 && (
             <>
               {/* Desktop: inline list */}
               <ul className="mt-1 hidden sm:flex flex-col gap-1">
-                {product.includes.map((item, i) => (
+                {service.include.map((item: string, i: number) => (
                   <li key={i} className="flex items-start gap-1.5 text-[11px] text-foreground/70">
                     <CheckCircle2 className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
                     <span>{item}</span>
@@ -184,19 +191,21 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
                   className="sm:hidden flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-primary transition-colors"
                 >
                   <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                  <span>Termasuk ({product.includes.length})</span>
+                  <span>Termasuk ({service.include.length})</span>
                   <ArrowRight className="h-3 w-3" />
                 </button>
               </div>
-
             </>
           )}
 
           <div className="mt-auto flex items-center justify-between pt-2">
-            <span className="font-display text-sm font-bold text-primary">{formatPrice(product.price)}</span>
+            <div className="flex flex-col">
+              {hasMultiplePrices && <span className="text-[10px] text-muted-foreground">Mulai dari</span>}
+              <span className="font-display text-sm font-bold text-primary">{formatPrice(minPrice)}</span>
+            </div>
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="h-3 w-3" />
-              {product.duration} menit
+              {service.duration} menit
             </div>
           </div>
         </div>
@@ -207,11 +216,11 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="font-display text-lg font-bold">
-              Yang Termasuk dalam {product.name}
+              Yang Termasuk dalam {service.name}
             </DialogTitle>
           </DialogHeader>
           <ul className="flex flex-col gap-2.5">
-            {product.includes?.map((item, index) => (
+            {service.include?.map((item: string, index: number) => (
               <li key={index} className="flex items-start gap-3 text-sm text-foreground">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                 <span className="leading-relaxed">{item}</span>
@@ -225,8 +234,9 @@ function SelectableServiceCard({ product, selected, onSelect }: { product: Produ
 }
 
 // ── Selectable Add-on Card ──────────────────────────────────────────────────
-function SelectableAddonCard({ product, selected, onToggle }: { product: Product; selected: boolean; onToggle: () => void }) {
+function SelectableAddonCard({ service, selected, onToggle }: { service: PublicService; selected: boolean; onToggle: () => void }) {
   const [descOpen, setDescOpen] = useState(false)
+  const minPrice = getMinPrice(service)
 
   return (
     <>
@@ -240,7 +250,7 @@ function SelectableAddonCard({ product, selected, onToggle }: { product: Product
         }`}
       >
         <div className="flex items-start justify-between gap-2">
-          <p className={`font-display text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>{product.name}</p>
+          <p className={`font-display text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>{service.name}</p>
           <span
             className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
               selected ? "border-primary bg-primary" : "border-border"
@@ -251,7 +261,7 @@ function SelectableAddonCard({ product, selected, onToggle }: { product: Product
         </div>
 
         {/* Desktop: inline description */}
-        <p className="mt-1 hidden sm:block text-xs leading-relaxed text-muted-foreground">{product.description}</p>
+        <p className="mt-1 hidden sm:block text-xs leading-relaxed text-muted-foreground">{service.description}</p>
 
         {/* Mobile: button opens description modal */}
         <div>
@@ -266,10 +276,10 @@ function SelectableAddonCard({ product, selected, onToggle }: { product: Product
         </div>
 
         <div className="mt-3 flex items-center justify-between">
-          <span className="font-display text-sm font-bold text-primary">{formatPrice(product.price)}</span>
+          <span className="font-display text-sm font-bold text-primary">{formatPrice(minPrice)}</span>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />
-            {product.duration} menit
+            {service.duration} menit
           </div>
         </div>
       </div>
@@ -278,18 +288,10 @@ function SelectableAddonCard({ product, selected, onToggle }: { product: Product
       <Dialog open={descOpen} onOpenChange={setDescOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="font-display text-lg font-bold">{product.name}</DialogTitle>
+            <DialogTitle className="font-display text-lg font-bold">{service.name}</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3">
-            <p className="text-sm leading-relaxed text-muted-foreground">{product.description}</p>
-            {/* <div className="flex items-center justify-between rounded-lg bg-muted/50 px-4 py-3">
-              <span className="text-sm text-muted-foreground">Harga</span>
-              <span className="font-display text-lg font-extrabold text-primary">{formatPrice(product.price)}</span>
-            </div>
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Clock className="h-3.5 w-3.5" />
-              {product.duration} menit
-            </div> */}
+            <p className="text-sm leading-relaxed text-muted-foreground">{service.description}</p>
           </div>
         </DialogContent>
       </Dialog>
@@ -318,12 +320,6 @@ function BookingContent() {
   const searchParams = useSearchParams()
   const serviceIdFromQuery = searchParams.get("serviceId")
 
-  // Resolve initial service from query param
-  const initialProductFromQuery = serviceIdFromQuery
-    ? products.find((p) => p.id === serviceIdFromQuery && p.isActive)
-    : undefined
-  const initialServiceId = initialProductFromQuery?.id ?? ""
-
   // Stores from API
   const [stores, setStores] = useState<PublicStore[]>([])
   const [storesLoading, setStoresLoading] = useState(true)
@@ -336,34 +332,58 @@ function BookingContent() {
       .finally(() => setStoresLoading(false))
   }, [])
 
-  // Step 1–3 state
+  // Step 1–2 state
   const [selectedStoreId, setSelectedStoreId] = useState("")
   const [selectedServiceTypeId, setSelectedServiceTypeId] = useState("")
-  const [selectedServiceId, setSelectedServiceId] = useState(initialServiceId)
+
+  // Step 3: Services from API
+  const [services, setServices] = useState<PublicService[]>([])
+  const [servicesLoading, setServicesLoading] = useState(false)
+  const [servicesError, setServicesError] = useState("")
+
+  // Step 4: Add-on services from API
+  const [addOnServices, setAddOnServices] = useState<PublicService[]>([])
+  const [addOnsLoading, setAddOnsLoading] = useState(false)
+
+  // Step 3 & 4 state
+  const [selectedServiceId, setSelectedServiceId] = useState(serviceIdFromQuery ?? "")
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([])
   const [showAddons, setShowAddons] = useState(false)
 
-  const mainServices = useMemo(() => {
-    if (!selectedServiceTypeId) return []
-    const selectedType = stores
-      .find((s) => s._id === selectedStoreId)
-      ?.serviceTypes.find((t) => t._id === selectedServiceTypeId)
-    if (!selectedType) return []
-    // "Addons" service type: show addon products directly
-    if (selectedType.title.toLowerCase() === "addons") {
-      return products.filter((p) => p.isActive && p.category === "addon")
+  // Fetch services when store + service type are selected
+  useEffect(() => {
+    if (!selectedStoreId || !selectedServiceTypeId) {
+      setServices([])
+      return
     }
-    return products.filter((p) => p.isActive && p.serviceTypeId === selectedServiceTypeId)
-  }, [selectedServiceTypeId, selectedStoreId, stores])
+    setServicesLoading(true)
+    setServicesError("")
+    setSelectedServiceId("")
+    setSelectedAddonIds([])
+    setShowAddons(false)
+    getPublicServices(selectedStoreId, selectedServiceTypeId)
+      .then((res) => setServices(res.services.filter((s) => s.is_active)))
+      .catch(() => setServicesError("Gagal memuat layanan. Silakan coba lagi."))
+      .finally(() => setServicesLoading(false))
+  }, [selectedStoreId, selectedServiceTypeId])
 
-  const addOns = useMemo(() => {
-    const selectedType = stores
-      .find((s) => s._id === selectedStoreId)
-      ?.serviceTypes.find((t) => t._id === selectedServiceTypeId)
-    // When the selected service type IS add-ons, addons are already in the service step
-    if (selectedType?.title.toLowerCase() === "addons") return []
-    return products.filter((p) => p.isActive && p.category === "addon")
-  }, [selectedServiceTypeId, selectedStoreId, stores])
+  // Fetch add-on services when store is selected and current type is NOT "Addons"
+  useEffect(() => {
+    if (!selectedStoreId) { setAddOnServices([]); return }
+    const currentStore = stores.find((s) => s._id === selectedStoreId)
+    if (!currentStore) { setAddOnServices([]); return }
+    const isAddonsType = currentStore.serviceTypes
+      .find((t) => t._id === selectedServiceTypeId)?.title.toLowerCase() === "addons"
+    if (isAddonsType) { setAddOnServices([]); return }
+    const addonsTypeId = currentStore.serviceTypes
+      .find((t) => t.title.toLowerCase() === "addons")?._id
+    if (!addonsTypeId) { setAddOnServices([]); return }
+    setAddOnsLoading(true)
+    getPublicServices(selectedStoreId, addonsTypeId)
+      .then((res) => setAddOnServices(res.services.filter((s) => s.is_active)))
+      .catch(() => setAddOnServices([]))
+      .finally(() => setAddOnsLoading(false))
+  }, [selectedStoreId, selectedServiceTypeId, stores])
 
   // Step 4 state — user & pet info
   const [phone, setPhone] = useState("")
@@ -386,14 +406,19 @@ function BookingContent() {
 
   const selectedStore = stores.find((s) => s._id === selectedStoreId)
   const selectedServiceType = selectedStore?.serviceTypes.find((t) => t._id === selectedServiceTypeId)
-  const selectedService = mainServices.find((s) => s.id === selectedServiceId)
-  const selectedAddons = addOns.filter((a) => selectedAddonIds.includes(a.id))
+  const selectedService = services.find((s) => s._id === selectedServiceId)
+  const selectedAddons = addOnServices.filter((a) => selectedAddonIds.includes(a._id))
   const existingCustomer = existingCustomerId ? customers.find((c) => c.id === existingCustomerId) : null
-  const availablePets = existingCustomer
-    ? existingCustomer.pets.filter((p) => selectedService?.petTypes.includes(p.type))
-    : []
+  const availablePets = existingCustomer ? existingCustomer.pets : []
 
-  const totalPrice = (selectedService?.price ?? 0) + selectedAddons.reduce((sum, a) => sum + a.price, 0)
+  // Dynamic step numbers — add-ons step is skipped when no add-on services exist
+  const hasAddons = addOnServices.length > 0
+  const stepAddOns = 4
+  const stepUserInfo = hasAddons ? 5 : 4
+  const stepSummary = hasAddons ? 6 : 5
+
+  const totalPrice = getMinPrice(selectedService ?? { _id: "", code: "", name: "", prices: [], duration: 0, is_active: true })
+    + selectedAddons.reduce((sum, a) => sum + getMinPrice(a), 0)
 
   // Derived pet label for summary
   const petLabel = existingCustomer
@@ -411,6 +436,8 @@ function BookingContent() {
   function resetServiceType() {
     setSelectedServiceTypeId("")
     setSelectedServiceId("")
+    setServices([])
+    setAddOnServices([])
     setSelectedAddonIds([])
     setShowAddons(false)
     resetUserInfo()
@@ -448,7 +475,7 @@ function BookingContent() {
     setBookingCreated(false)
 
     if (customer) {
-      const pets = customer.pets.filter((p) => selectedService?.petTypes.includes(p.type))
+      const pets = customer.pets
       setPetMode(pets.length > 0 ? "select" : "create")
       setSelectedPetId(pets[0]?.id ?? "")
       setUserName(customer.name)
@@ -459,7 +486,7 @@ function BookingContent() {
       setUserName("")
       setEmail("")
       setNewPetName("")
-      setNewPetType(selectedService?.petTypes[0] ?? "dog")
+      setNewPetType("dog")
       setNewPetBreed("")
       setNewPetSize("small")
     }
@@ -576,28 +603,40 @@ function BookingContent() {
         {selectedServiceType && (
           <section className="flex flex-col gap-4">
             <StepHeader step={3} title="Pilih Layanan" done={!!selectedService} />
-            <div className="grid gap-4 sm:grid-cols-2">
-              {mainServices.map((svc) => (
-                <SelectableServiceCard
-                  key={svc.id}
-                  product={svc}
-                  selected={selectedServiceId === svc.id}
-                  onSelect={() => {
-                    setSelectedServiceId(svc.id)
-                    setSelectedAddonIds([])
-                    setShowAddons(false)
-                    resetUserInfo()
-                  }}
-                />
-              ))}
-            </div>
+
+            {servicesLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Memuat layanan...
+              </div>
+            ) : servicesError ? (
+              <p className="text-sm text-destructive">{servicesError}</p>
+            ) : services.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Tidak ada layanan tersedia untuk jenis ini.</p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {services.map((svc) => (
+                  <SelectableServiceCard
+                    key={svc._id}
+                    service={svc}
+                    selected={selectedServiceId === svc._id}
+                    onSelect={() => {
+                      setSelectedServiceId(svc._id)
+                      setSelectedAddonIds([])
+                      setShowAddons(false)
+                      resetUserInfo()
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </section>
         )}
 
         {/* ── Step 4: Add-ons ── */}
-        {selectedService && selectedServiceType?.title.toLowerCase() !== "addons" && (
+        {selectedService && selectedServiceType?.title.toLowerCase() !== "addons" && addOnServices.length > 0 && (
           <section className="flex flex-col gap-4">
-            <StepHeader step={4} title="Tambah Add-On (opsional)" done={selectedAddonIds.length > 0} />
+            <StepHeader step={stepAddOns} title="Tambah Add-On (opsional)" done={selectedAddonIds.length > 0} />
 
             {/* Toggle button */}
             <button
@@ -629,16 +668,23 @@ function BookingContent() {
             </button>
 
             {showAddons && (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {addOns.map((addon) => (
-                  <SelectableAddonCard
-                    key={addon.id}
-                    product={addon}
-                    selected={selectedAddonIds.includes(addon.id)}
-                    onToggle={() => toggleAddon(addon.id)}
-                  />
-                ))}
-              </div>
+              addOnsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Memuat add-on...
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {addOnServices.map((addon) => (
+                    <SelectableAddonCard
+                      key={addon._id}
+                      service={addon}
+                      selected={selectedAddonIds.includes(addon._id)}
+                      onToggle={() => toggleAddon(addon._id)}
+                    />
+                  ))}
+                </div>
+              )
             )}
           </section>
         )}
@@ -646,7 +692,7 @@ function BookingContent() {
         {/* ── Step 5: User & Pet Info ── */}
         {selectedService && (
           <section className="flex flex-col gap-4">
-            <StepHeader step={5} title="Informasi Kamu & Anabul" done={userInfoConfirmed} />
+            <StepHeader step={stepUserInfo} title="Informasi Kamu & Anabul" done={userInfoConfirmed} />
             <Card className="border-border/60">
               <CardContent className="flex flex-col gap-5 p-6">
 
@@ -740,9 +786,9 @@ function BookingContent() {
                             <Select value={newPetType} disabled={userInfoConfirmed} onValueChange={(v) => { setNewPetType(v as PetType); setNewPetBreed("") }}>
                               <SelectTrigger><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                {(selectedService.petTypes as PetType[]).map((t) => (
-                                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                                ))}
+                                <SelectItem value="dog">Dog</SelectItem>
+                                <SelectItem value="cat">Cat</SelectItem>
+                                <SelectItem value="other">Other</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -809,9 +855,9 @@ function BookingContent() {
                         <Select value={newPetType} disabled={userInfoConfirmed} onValueChange={(v) => { setNewPetType(v as PetType); setNewPetBreed("") }}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {(selectedService.petTypes as PetType[]).map((t) => (
-                              <SelectItem key={t} value={t}>{t}</SelectItem>
-                            ))}
+                            <SelectItem value="dog">Dog</SelectItem>
+                            <SelectItem value="cat">Cat</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -871,7 +917,7 @@ function BookingContent() {
         {/* ── Step 6: Summary & Confirm ── */}
         {userInfoConfirmed && selectedService && selectedStore && (
           <section className="flex flex-col gap-4">
-            <StepHeader step={6} title="Ringkasan Booking" done={bookingCreated} />
+            <StepHeader step={stepSummary} title="Ringkasan Booking" done={bookingCreated} />
             <Card className="border-border/60">
               <CardContent className="flex flex-col gap-4 p-6">
                 {/* Store */}
@@ -918,7 +964,7 @@ function BookingContent() {
                       {selectedService.duration} menit
                     </div>
                   </div>
-                  <span className="font-display text-sm font-bold text-primary">{formatPrice(selectedService.price)}</span>
+                  <span className="font-display text-sm font-bold text-primary">{selectedService ? formatPrice(getMinPrice(selectedService)) : ""}</span>
                 </div>
 
                 {/* Add-ons */}
@@ -928,14 +974,14 @@ function BookingContent() {
                     <div className="flex flex-col gap-2">
                       <p className="text-xs text-muted-foreground">Add-On ({selectedAddons.length})</p>
                       {selectedAddons.map((addon) => (
-                        <div key={addon.id} className="flex items-center justify-between gap-2">
+                        <div key={addon._id} className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5">
                             <Badge variant="outline" className="bg-accent/20 text-accent-foreground border-accent/30 text-[10px]">
                               add-on
                             </Badge>
                             <span className="text-sm text-foreground">{addon.name}</span>
                           </div>
-                          <span className="text-sm font-medium text-primary">{formatPrice(addon.price)}</span>
+                          <span className="text-sm font-medium text-primary">{formatPrice(getMinPrice(addon))}</span>
                         </div>
                       ))}
                     </div>

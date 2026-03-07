@@ -231,3 +231,41 @@ export interface PublicStoresResponse {
 export async function getPublicStores() {
   return apiRequest<PublicStoresResponse>("/bookings/public/stores")
 }
+
+// ── Public services ──────────────────────────────────────────────────────────
+
+export interface PublicServicePrice {
+  pet_type_id: string
+  pet_name: string
+  size_id: string
+  size_name: string
+  hair_id?: string
+  hair_name?: string
+  price: number
+}
+
+export interface PublicService {
+  _id: string
+  code: string
+  name: string
+  description?: string
+  image_url?: string
+  prices: PublicServicePrice[]
+  duration: number
+  include?: string[]
+  available_for_unlimited?: boolean
+  show_in_homepage?: boolean
+  is_active: boolean
+  service_type?: { _id: string; title: string }
+}
+
+export interface PublicServicesResponse {
+  message: string
+  services: PublicService[]
+}
+
+export async function getPublicServices(storeId: string, serviceTypeId: string) {
+  return apiRequest<PublicServicesResponse>(
+    `/bookings/public/services?store_id=${encodeURIComponent(storeId)}&service_type_id=${encodeURIComponent(serviceTypeId)}`
+  )
+}
