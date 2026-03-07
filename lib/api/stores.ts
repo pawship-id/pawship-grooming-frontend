@@ -1,4 +1,4 @@
-import { apiAuthRequest } from "./client"
+import { apiRequest, apiAuthRequest } from "./client"
 
 export interface StoreLocation {
   address?: string
@@ -177,4 +177,57 @@ export async function updateStoreStatus(storeId: string, isActive: boolean) {
     method: "PUT",
     body: JSON.stringify({ is_active: isActive }),
   })
+}
+
+// ── Public (no-auth) store endpoints ────────────────────────────────────────
+
+export interface PublicServiceType {
+  _id: string
+  title: string
+  description: string
+  image_url: string
+}
+
+export interface PublicStoreLocation {
+  address?: string
+  city?: string
+  province?: string
+  postal_code?: string
+  latitude?: number
+  longitude?: number
+}
+
+export interface PublicStoreContact {
+  phone_number?: string
+  whatsapp?: string
+  email?: string
+}
+
+export interface PublicStoreOperational {
+  opening_time?: string
+  closing_time?: string
+  operational_days?: string[]
+  timezone?: string
+}
+
+export interface PublicStore {
+  _id: string
+  code: string
+  name: string
+  description?: string
+  location?: PublicStoreLocation
+  contact?: PublicStoreContact
+  operational?: PublicStoreOperational
+  sessions?: string[]
+  is_active: boolean
+  serviceTypes: PublicServiceType[]
+}
+
+export interface PublicStoresResponse {
+  message: string
+  stores: PublicStore[]
+}
+
+export async function getPublicStores() {
+  return apiRequest<PublicStoresResponse>("/bookings/public/stores")
 }

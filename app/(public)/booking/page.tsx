@@ -2,10 +2,12 @@
 
 export const dynamic = "force-dynamic"
 
-import { Suspense, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { MapPin, Clock, CheckCircle2, MessageCircle, Check, Plus, Minus, Hash, User, PawPrint, ArrowRight, Info, Layers } from "lucide-react"
-import { products, mockStores, customers, serviceTypes } from "@/lib/mock-data"
+import { MapPin, Clock, CheckCircle2, MessageCircle, Check, Plus, Minus, Hash, User, PawPrint, ArrowRight, Info, Loader2 } from "lucide-react"
+import { products, customers } from "@/lib/mock-data"
+import { getPublicStores } from "@/lib/api/stores"
+import type { PublicStore, PublicServiceType } from "@/lib/api/stores"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,7 +16,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import type { AvailableStore, Product, PetType, ServiceType } from "@/lib/types"
+import type { Product, PetType } from "@/lib/types"
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("id-ID", {
@@ -31,7 +33,7 @@ const breedOptions: Record<PetType, string[]> = {
 }
 
 // ── Service Type Card ───────────────────────────────────────────────────────
-function ServiceTypeCard({ serviceType, selected, onSelect }: { serviceType: ServiceType; selected: boolean; onSelect: () => void }) {
+function ServiceTypeCard({ serviceType, selected, onSelect }: { serviceType: PublicServiceType; selected: boolean; onSelect: () => void }) {
   return (
     <button
       type="button"
@@ -40,10 +42,10 @@ function ServiceTypeCard({ serviceType, selected, onSelect }: { serviceType: Ser
         selected ? "border-primary shadow-md" : "border-border bg-card hover:border-primary/40 hover:shadow-sm"
       }`}
     >
-      {/* Image */}
-      <div className="relative h-36 w-full overflow-hidden">
+      {/* Image — hidden on mobile */}
+      <div className="relative hidden sm:block h-36 w-full overflow-hidden">
         <img
-          src={serviceType.imageUrl}
+          src={serviceType.image_url}
           alt={serviceType.title}
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
@@ -61,6 +63,17 @@ function ServiceTypeCard({ serviceType, selected, onSelect }: { serviceType: Ser
       </div>
       {/* Description */}
       <div className="flex flex-1 flex-col gap-1 p-4">
+        <div className="flex items-start justify-between gap-2">
+          <p className={`sm:hidden font-display text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>
+            {serviceType.title}
+          </p>
+          {/* Mobile check indicator */}
+          <span className={`sm:hidden flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+            selected ? "border-primary bg-primary" : "border-border"
+          }`}>
+            {selected && <Check className="h-3.5 w-3.5 text-primary-foreground" />}
+          </span>
+        </div>
         <p className="text-xs leading-relaxed text-muted-foreground line-clamp-3">{serviceType.description}</p>
       </div>
     </button>
@@ -68,7 +81,7 @@ function ServiceTypeCard({ serviceType, selected, onSelect }: { serviceType: Ser
 }
 
 // ── Store Card ──────────────────────────────────────────────────────────────
-function StoreCard({ store, selected, onSelect }: { store: AvailableStore; selected: boolean; onSelect: () => void }) {
+function StoreCard({ store, selected, onSelect }: { store: PublicStore; selected: boolean; onSelect: () => void }) {
   return (
     <button
       type="button"
@@ -83,11 +96,13 @@ function StoreCard({ store, selected, onSelect }: { store: AvailableStore; selec
         {selected && <Check className="h-3.5 w-3.5 text-primary-foreground" />}
       </span>
       <p className={`font-display text-base font-bold ${selected ? "text-primary" : "text-foreground"}`}>{store.name}</p>
-      <div className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
-        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <span>{store.address}</span>
-      </div>
-      {store.whatsapp && (
+      {store.location?.address && (
+        <div className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{store.location.address}{store.location.city ? `, ${store.location.city}` : ""}</span>
+        </div>
+      )}
+      {store.contact?.whatsapp && (
         <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-emerald-600">
           <MessageCircle className="h-3.5 w-3.5" />
           <span>WhatsApp tersedia</span>
@@ -303,36 +318,52 @@ function BookingContent() {
   const searchParams = useSearchParams()
   const serviceIdFromQuery = searchParams.get("serviceId")
 
-  // Resolve initial service + type from query param (across all products)
+  // Resolve initial service from query param
   const initialProductFromQuery = serviceIdFromQuery
     ? products.find((p) => p.id === serviceIdFromQuery && p.isActive)
     : undefined
-  const initialServiceTypeId = initialProductFromQuery?.serviceTypeId ?? ""
   const initialServiceId = initialProductFromQuery?.id ?? ""
+
+  // Stores from API
+  const [stores, setStores] = useState<PublicStore[]>([])
+  const [storesLoading, setStoresLoading] = useState(true)
+  const [storesError, setStoresError] = useState("")
+
+  useEffect(() => {
+    getPublicStores()
+      .then((res) => setStores(res.stores.filter((s) => s.is_active)))
+      .catch(() => setStoresError("Gagal memuat daftar store. Silakan coba lagi."))
+      .finally(() => setStoresLoading(false))
+  }, [])
 
   // Step 1–3 state
   const [selectedStoreId, setSelectedStoreId] = useState("")
-  const [selectedServiceTypeId, setSelectedServiceTypeId] = useState(initialServiceTypeId)
+  const [selectedServiceTypeId, setSelectedServiceTypeId] = useState("")
   const [selectedServiceId, setSelectedServiceId] = useState(initialServiceId)
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([])
   const [showAddons, setShowAddons] = useState(false)
 
   const mainServices = useMemo(() => {
     if (!selectedServiceTypeId) return []
-    const selectedType = serviceTypes.find((t) => t.id === selectedServiceTypeId)
+    const selectedType = stores
+      .find((s) => s._id === selectedStoreId)
+      ?.serviceTypes.find((t) => t._id === selectedServiceTypeId)
     if (!selectedType) return []
-    // "Add-Ons" type: expose addon products as selectable services
-    if (selectedServiceTypeId === "svc-type-2") {
+    // "Addons" service type: show addon products directly
+    if (selectedType.title.toLowerCase() === "addons") {
       return products.filter((p) => p.isActive && p.category === "addon")
     }
     return products.filter((p) => p.isActive && p.serviceTypeId === selectedServiceTypeId)
-  }, [selectedServiceTypeId])
+  }, [selectedServiceTypeId, selectedStoreId, stores])
 
   const addOns = useMemo(() => {
+    const selectedType = stores
+      .find((s) => s._id === selectedStoreId)
+      ?.serviceTypes.find((t) => t._id === selectedServiceTypeId)
     // When the selected service type IS add-ons, addons are already in the service step
-    if (selectedServiceTypeId === "svc-type-2") return []
+    if (selectedType?.title.toLowerCase() === "addons") return []
     return products.filter((p) => p.isActive && p.category === "addon")
-  }, [selectedServiceTypeId])
+  }, [selectedServiceTypeId, selectedStoreId, stores])
 
   // Step 4 state — user & pet info
   const [phone, setPhone] = useState("")
@@ -353,8 +384,8 @@ function BookingContent() {
   // Step 5 state
   const [bookingCreated, setBookingCreated] = useState(false)
 
-  const selectedStore = mockStores.find((s) => s.id === selectedStoreId)
-  const selectedServiceType = serviceTypes.find((t) => t.id === selectedServiceTypeId)
+  const selectedStore = stores.find((s) => s._id === selectedStoreId)
+  const selectedServiceType = selectedStore?.serviceTypes.find((t) => t._id === selectedServiceTypeId)
   const selectedService = mainServices.find((s) => s.id === selectedServiceId)
   const selectedAddons = addOns.filter((a) => selectedAddonIds.includes(a.id))
   const existingCustomer = existingCustomerId ? customers.find((c) => c.id === existingCustomerId) : null
@@ -458,55 +489,64 @@ function BookingContent() {
         <section className="flex flex-col gap-4">
           <StepHeader step={1} title="Pilih Store" done={!!selectedStore} />
 
-          {/* Mobile: dropdown */}
-          <div className="sm:hidden">
-            <Select
-              value={selectedStoreId}
-              onValueChange={(id) => {
-                setSelectedStoreId(id)
-                resetServiceType()
-              }}
-            >
-              <SelectTrigger className="w-full h-12">
-                <SelectValue placeholder="Pilih store..." />
-              </SelectTrigger>
-              <SelectContent>
-                {mockStores.map((store) => (
-                  <SelectItem key={store.id} value={store.id}>
-                    <div className="flex flex-col text-left">
-                      <span className="font-semibold">{store.name}</span>
-                      <span className="text-xs text-muted-foreground">{store.address}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedStore && (
-              <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-                {selectedStore.whatsapp && (
-                  <>
+          {storesLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Memuat store...
+            </div>
+          ) : storesError ? (
+            <p className="text-sm text-destructive">{storesError}</p>
+          ) : (
+            <>
+              {/* Mobile: dropdown */}
+              <div className="sm:hidden">
+                <Select
+                  value={selectedStoreId}
+                  onValueChange={(id) => {
+                    setSelectedStoreId(id)
+                    resetServiceType()
+                  }}
+                >
+                  <SelectTrigger className="w-full h-12">
+                    <SelectValue placeholder="Pilih store..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {stores.map((store) => (
+                      <SelectItem key={store._id} value={store._id}>
+                        <div className="flex flex-col text-left">
+                          <span className="font-semibold">{store.name}</span>
+                          {store.location?.city && (
+                            <span className="text-xs text-muted-foreground">{store.location.city}</span>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedStore?.contact?.whatsapp && (
+                  <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
                     <MessageCircle className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
                     <span className="text-emerald-600">WhatsApp tersedia</span>
-                  </>
+                  </div>
                 )}
               </div>
-            )}
-          </div>
 
-          {/* Desktop: card grid */}
-          <div className="hidden sm:grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {mockStores.map((store) => (
-              <StoreCard
-                key={store.id}
-                store={store}
-                selected={selectedStoreId === store.id}
-                onSelect={() => {
-                  setSelectedStoreId(store.id)
-                  resetServiceType()
-                }}
-              />
-            ))}
-          </div>
+              {/* Desktop: card grid */}
+              <div className="hidden sm:grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {stores.map((store) => (
+                  <StoreCard
+                    key={store._id}
+                    store={store}
+                    selected={selectedStoreId === store._id}
+                    onSelect={() => {
+                      setSelectedStoreId(store._id)
+                      resetServiceType()
+                    }}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </section>
 
         {/* ── Step 2: Service Type ── */}
@@ -514,13 +554,13 @@ function BookingContent() {
           <section className="flex flex-col gap-4">
             <StepHeader step={2} title="Pilih Jenis Layanan" done={!!selectedServiceType} />
             <div className="grid gap-4 sm:grid-cols-2">
-              {serviceTypes.map((type) => (
+              {selectedStore.serviceTypes.map((type) => (
                 <ServiceTypeCard
-                  key={type.id}
+                  key={type._id}
                   serviceType={type}
-                  selected={selectedServiceTypeId === type.id}
+                  selected={selectedServiceTypeId === type._id}
                   onSelect={() => {
-                    setSelectedServiceTypeId(type.id)
+                    setSelectedServiceTypeId(type._id)
                     setSelectedServiceId("")
                     setSelectedAddonIds([])
                     setShowAddons(false)
@@ -555,7 +595,7 @@ function BookingContent() {
         )}
 
         {/* ── Step 4: Add-ons ── */}
-        {selectedService && selectedServiceTypeId !== "svc-type-2" && (
+        {selectedService && selectedServiceType?.title.toLowerCase() !== "addons" && (
           <section className="flex flex-col gap-4">
             <StepHeader step={4} title="Tambah Add-On (opsional)" done={selectedAddonIds.length > 0} />
 
@@ -840,7 +880,9 @@ function BookingContent() {
                   <div>
                     <p className="text-xs text-muted-foreground">Store</p>
                     <p className="text-sm font-semibold text-foreground">{selectedStore.name}</p>
-                    <p className="text-xs text-muted-foreground">{selectedStore.address}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {[selectedStore.location?.address, selectedStore.location?.city].filter(Boolean).join(", ")}
+                    </p>
                   </div>
                 </div>
 
@@ -921,9 +963,9 @@ function BookingContent() {
                         Tim Pawship akan segera menghubungi kamu untuk konfirmasi dan detail selanjutnya ya.
                       </p>
                     </div>
-                    {selectedStore.whatsapp && (
+                    {selectedStore.contact?.whatsapp && (
                       <a
-                        href={`https://wa.me/${selectedStore.whatsapp}?text=Halo! Saya ${existingCustomer ? existingCustomer.name : userName} sudah booking ${selectedService.name} di ${selectedStore.name} untuk anabul saya (${petLabel}) melaui website Pawship.`}
+                        href={`https://wa.me/${selectedStore.contact.whatsapp}?text=Halo! Saya ${existingCustomer ? existingCustomer.name : userName} sudah booking ${selectedService.name} di ${selectedStore.name} untuk anabul saya (${petLabel}) melaui website Pawship.`}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
