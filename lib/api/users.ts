@@ -30,6 +30,12 @@ export interface ApiPetMembership {
 export interface ApiPet {
   _id: string
   name: string
+  description?: string
+  internal_note?: string
+  profile_image?: {
+    secure_url: string
+    public_id: string
+  }
   tags: string[]
   memberships: ApiPetMembership[]
   is_active: boolean
@@ -37,12 +43,15 @@ export interface ApiPet {
   deletedAt: string | null
   createdAt: string
   updatedAt: string
-  weight: number
+  weight?: number
+  birthday?: string
   pet_type: ApiPetType | null
   hair: ApiPetType | null
   size: ApiPetType | null
   breed: ApiPetType | null
   member_category: ApiPetType | null
+  last_grooming_at?: string
+  last_visit_at?: string
 }
 
 export interface ApiCurrentUser extends ApiUser {
@@ -137,4 +146,13 @@ export async function updateUserPassword(userId: string, password: string) {
 
 export async function getCurrentUser() {
   return apiAuthRequest<MeResponse>("/users/me")
+}
+
+export interface UserDetailResponse {
+  message: string
+  user: ApiCurrentUser
+}
+
+export async function getUser(userId: string) {
+  return apiAuthRequest<UserDetailResponse>(`/users/${userId}`)
 }
