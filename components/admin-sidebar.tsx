@@ -42,7 +42,6 @@ const menuItems = [
   { title: "Stores", href: "/admin/stores", icon: Store },
   { title: "Services", href: "/admin/services", icon: Scissors },
   { title: "Options", href: "/admin/options", icon: Tag },
-  { title: "Products (Dummy)", href: "/admin/products", icon: Package },
   { title: "Banners", href: "/admin/banners", icon: ImageIcon },
 ]
 
