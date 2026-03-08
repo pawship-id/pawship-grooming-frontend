@@ -144,6 +144,15 @@ export default function StoreDetailPage() {
             <p className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Jam:</span>{store.operational?.opening_time || "-"} - {store.operational?.closing_time || "-"}</p>
             <p className="flex items-center gap-1.5"><Globe className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Timezone:</span>{store.operational?.timezone || "-"}</p>
             <p className="flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Hari:</span>{store.operational?.operational_days?.length ? store.operational.operational_days.map((d) => DAY_LABELS[d] ?? d).join(", ") : "-"}</p>
+            <div className="flex items-start gap-1.5">
+              <Timer className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <div className="flex flex-col gap-1">
+                <span className="font-medium text-foreground/60">Sesi:</span>
+                {store.sessions?.length ? store.sessions.map((s, i) => (
+                  <span key={i}>{s}</span>
+                )) : <span>-</span>}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
