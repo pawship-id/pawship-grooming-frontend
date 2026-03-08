@@ -1159,12 +1159,7 @@ export default function ServicesPage() {
                                           <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
                                         </div>
                                       )}
-                                      <div className="flex flex-col gap-0.5">
                                         <span className="font-medium text-sm">{svc.name}</span>
-                                        {svc.description && (
-                                          <span className="text-xs text-muted-foreground line-clamp-1">{svc.description}</span>
-                                        )}
-                                      </div>
                                     </div>
                                   </TableCell>
                                   <TableCell>
