@@ -78,6 +78,8 @@ interface ServiceForm {
   pet_type_ids: string[]
   size_category_ids: string[]
   hair_category_ids: string[]
+  price_type: "single" | "multiple"
+  price: string
   prices: PriceRow[]
   available_store_ids: string[]
   addon_ids: string[]
@@ -113,6 +115,8 @@ const DEFAULT_SERVICE_FORM: ServiceForm = {
   pet_type_ids: [],
   size_category_ids: [],
   hair_category_ids: [],
+  price_type: "multiple",
+  price: "",
   prices: [],
   available_store_ids: [],
   addon_ids: [],
@@ -379,9 +383,12 @@ function ServiceFormFields({
     setForm((p) => ({ ...p, imageFile: null, imagePreview: null, image_url: null, public_id: null }))
   }
 
-  // Auto-generate price rows when ALL three dimensions are selected
+  // Auto-generate price rows when ALL three dimensions are selected (multiple only)
   useEffect(() => {
     setForm((p) => {
+      if (p.price_type !== "multiple") {
+        return { ...p, prices: [] }
+      }
       if (!p.pet_type_ids.length || !p.size_category_ids.length || !p.hair_category_ids.length) {
         return { ...p, prices: [] }
       }
@@ -399,7 +406,7 @@ function ServiceFormFields({
       return { ...p, prices: combinations }
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.pet_type_ids, form.size_category_ids, form.hair_category_ids])
+  }, [form.pet_type_ids, form.size_category_ids, form.hair_category_ids, form.price_type])
 
   const updatePriceRow = (idx: number, value: string) => {
     setForm((p) => {
@@ -492,46 +499,84 @@ function ServiceFormFields({
       {/* Prices */}
       <div className="flex flex-col gap-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Harga</p>
-        {!form.pet_type_ids.length || !form.size_category_ids.length || !form.hair_category_ids.length ? (
-          <p className="text-sm text-muted-foreground">Pilih minimal satu hewan, ukuran, <em>dan</em> bulu untuk mengisi harga.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-md border border-border">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/50">
-                  {form.pet_type_ids.length > 0 && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Hewan</th>}
-                  {form.size_category_ids.length > 0 && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Ukuran</th>}
-                  {form.hair_category_ids.length > 0 && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Bulu</th>}
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Harga (Rp)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {form.prices.map((row, idx) => (
-                  <tr key={idx} className="border-b border-border last:border-0 hover:bg-muted/30">
-                    {form.pet_type_ids.length > 0 && (
-                      <td className="px-3 py-2 text-xs">{petTypes.find((p) => p._id === row.pet_type_id)?.name ?? "—"}</td>
-                    )}
-                    {form.size_category_ids.length > 0 && (
-                      <td className="px-3 py-2 text-xs">{sizeCategories.find((s) => s._id === row.size_id)?.name ?? "—"}</td>
-                    )}
-                    {form.hair_category_ids.length > 0 && (
-                      <td className="px-3 py-2 text-xs">{hairCategories.find((h) => h._id === row.hair_id)?.name ?? "—"}</td>
-                    )}
-                    <td className="px-3 py-2">
-                      <Input
-                        className="h-7 text-xs w-32"
-                        type="number"
-                        min={0}
-                        placeholder="Input harga"
-                        value={row.price}
-                        onChange={(e) => updatePriceRow(idx, e.target.value)}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Price Type Toggle */}
+        <div className="flex flex-col gap-1.5">
+          <Label>Tipe Harga</Label>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={form.price_type === "multiple" ? "default" : "outline"}
+              onClick={() => setForm((p) => ({ ...p, price_type: "multiple" }))}
+            >
+              Multiple (Per Kombinasi)
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={form.price_type === "single" ? "default" : "outline"}
+              onClick={() => setForm((p) => ({ ...p, price_type: "single" }))}
+            >
+              Single (Harga Tetap)
+            </Button>
           </div>
+        </div>
+        {form.price_type === "single" ? (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="sv-price">Harga (Rp) *</Label>
+            <Input
+              id="sv-price"
+              type="number"
+              min={0}
+              placeholder="100000"
+              value={form.price}
+              onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))}
+            />
+          </div>
+        ) : (
+          <>
+            {!form.pet_type_ids.length || !form.size_category_ids.length || !form.hair_category_ids.length ? (
+              <p className="text-sm text-muted-foreground">Pilih minimal satu hewan, ukuran, <em>dan</em> bulu untuk mengisi harga.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-md border border-border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/50">
+                      {form.pet_type_ids.length > 0 && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Hewan</th>}
+                      {form.size_category_ids.length > 0 && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Ukuran</th>}
+                      {form.hair_category_ids.length > 0 && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Bulu</th>}
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Harga (Rp)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {form.prices.map((row, idx) => (
+                      <tr key={idx} className="border-b border-border last:border-0 hover:bg-muted/30">
+                        {form.pet_type_ids.length > 0 && (
+                          <td className="px-3 py-2 text-xs">{petTypes.find((p) => p._id === row.pet_type_id)?.name ?? "—"}</td>
+                        )}
+                        {form.size_category_ids.length > 0 && (
+                          <td className="px-3 py-2 text-xs">{sizeCategories.find((s) => s._id === row.size_id)?.name ?? "—"}</td>
+                        )}
+                        {form.hair_category_ids.length > 0 && (
+                          <td className="px-3 py-2 text-xs">{hairCategories.find((h) => h._id === row.hair_id)?.name ?? "—"}</td>
+                        )}
+                        <td className="px-3 py-2">
+                          <Input
+                            className="h-7 text-xs w-32"
+                            type="number"
+                            min={0}
+                            placeholder="Input harga"
+                            value={row.price}
+                            onChange={(e) => updatePriceRow(idx, e.target.value)}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -804,14 +849,19 @@ export default function ServicesPage() {
     pet_type_ids: form.pet_type_ids,
     size_category_ids: form.size_category_ids,
     hair_category_ids: form.hair_category_ids,
-    prices: form.prices
-      .filter((r) => r.price !== "" && r.pet_type_id && r.size_id && r.hair_id)
-      .map((r) => ({
-        pet_type_id: r.pet_type_id,
-        size_id: r.size_id,
-        hair_id: r.hair_id,
-        price: Number(r.price),
-      })),
+    price_type: form.price_type,
+    ...(form.price_type === "single"
+      ? { price: Number(form.price) }
+      : {
+          prices: form.prices
+            .filter((r) => r.price !== "" && r.pet_type_id && r.size_id && r.hair_id)
+            .map((r) => ({
+              pet_id: r.pet_type_id,
+              size_id: r.size_id,
+              hair_id: r.hair_id,
+              price: Number(r.price),
+            })),
+        }),
     duration: Number(form.duration),
     available_for_unlimited: form.available_for_unlimited,
     available_store_ids: form.available_store_ids.length ? form.available_store_ids : undefined,
@@ -881,6 +931,8 @@ export default function ServicesPage() {
       pet_type_ids: petIds,
       size_category_ids: sizeIds,
       hair_category_ids: hairIds,
+      price_type: svc.price_type ?? "multiple",
+      price: String(svc.price ?? ""),
       prices,
       available_store_ids: svc.avaiable_store?.map((s) => s._id) ?? [],
       addon_ids: svc.addons?.map((a) => a._id) ?? [],
@@ -1170,7 +1222,9 @@ export default function ServicesPage() {
                                   </TableCell>
                                   <TableCell>
                                     <span className="text-sm text-muted-foreground">
-                                      {(svc.prices?.length ?? 0) > 0
+                                      {svc.price_type === "single" && svc.price != null
+                                        ? formatRupiah(svc.price)
+                                        : (svc.prices?.length ?? 0) > 0
                                         ? `${svc.prices!.length} varian`
                                         : "—"}
                                     </span>
@@ -1409,6 +1463,10 @@ export default function ServicesPage() {
                   <span>{viewService.duration} menit</span>
                   <span className="text-muted-foreground">Lokasi</span>
                   <span className="capitalize">{viewService.service_location_type ?? "—"}</span>
+                  <span className="text-muted-foreground">Tipe Harga</span>
+                  <Badge variant="outline" className="w-fit text-xs">
+                    {viewService.price_type === "single" ? "Single" : "Multiple"}
+                  </Badge>
                   <span className="text-muted-foreground">Status</span>
                   <Badge variant="outline" className={`w-fit text-xs ${viewService.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
                     {viewService.is_active ? "Aktif" : "Nonaktif"}
@@ -1451,7 +1509,18 @@ export default function ServicesPage() {
               </div>
 
               {/* Prices */}
-              {(viewService.prices?.length ?? 0) > 0 && (
+              {viewService.price_type === "single" ? (
+                <>
+                  <Separator />
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Harga</p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                      <span className="text-muted-foreground">Harga</span>
+                      <span className="font-medium">{formatRupiah(viewService.price ?? 0)}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (viewService.prices?.length ?? 0) > 0 ? (
                 <>
                   <Separator />
                   <div className="flex flex-col gap-2">
@@ -1482,7 +1551,7 @@ export default function ServicesPage() {
                     </div>
                   </div>
                 </>
-              )}
+              ) : null}
 
               {/* Stores */}
               {(viewService.avaiable_store?.length ?? 0) > 0 && (
