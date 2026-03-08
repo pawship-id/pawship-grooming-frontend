@@ -91,3 +91,37 @@ export async function deleteBanner(id: string): Promise<{ message: string }> {
     method: "DELETE",
   })
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Public (unauthenticated)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PublicBannerCta {
+  label: string
+  link: string
+  background_color?: string
+  text_color?: string
+  vertical_position?: "top" | "center" | "bottom"
+  horizontal_position?: "left" | "center" | "right"
+}
+
+export interface PublicBanner {
+  _id: string
+  image_url: string
+  title?: string
+  subtitle?: string
+  text_align?: "left" | "center" | "right"
+  text_color?: string
+  cta?: PublicBannerCta | null
+  order: number
+}
+
+export interface PublicBannersResponse {
+  message: string
+  banners: PublicBanner[]
+}
+
+export async function getPublicBanners(): Promise<PublicBannersResponse> {
+  const { apiRequest } = await import("./client")
+  return apiRequest<PublicBannersResponse>("/banners/public")
+}
