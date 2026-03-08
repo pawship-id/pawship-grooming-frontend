@@ -81,7 +81,7 @@ export type ServicePayload = {
   hair_category_ids?: string[]
   price_type?: "single" | "multiple"
   price?: number
-  prices?: { pet_id: string; size_id: string; hair_id: string; price: number }[]
+  prices?: { pet_type_id: string; size_id: string; hair_id: string; price: number }[]
   duration?: number
   available_for_unlimited?: boolean
   available_store_ids?: string[]

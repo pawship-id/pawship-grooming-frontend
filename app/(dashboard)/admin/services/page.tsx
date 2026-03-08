@@ -138,6 +138,18 @@ function formatRupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n)
 }
 
+// Format raw digit string with thousand-separator dots for display (e.g. "20000" → "20.000")
+function formatThousands(val: string): string {
+  const digits = val.replace(/\D/g, "")
+  if (!digits) return ""
+  return Number(digits).toLocaleString("id-ID")
+}
+
+// Strip thousand-separator dots so only raw digits remain (e.g. "20.000" → "20000")
+function parseThousands(val: string): string {
+  return val.replace(/\./g, "").replace(/\D/g, "")
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Image picker sub-component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -524,14 +536,18 @@ function ServiceFormFields({
         {form.price_type === "single" ? (
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="sv-price">Harga (Rp) *</Label>
-            <Input
-              id="sv-price"
-              type="number"
-              min={0}
-              placeholder="100000"
-              value={form.price}
-              onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))}
-            />
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Rp</span>
+              <Input
+                id="sv-price"
+                type="text"
+                inputMode="numeric"
+                placeholder="0"
+                className="pl-9"
+                value={formatThousands(form.price)}
+                onChange={(e) => setForm((p) => ({ ...p, price: parseThousands(e.target.value) }))}
+              />
+            </div>
           </div>
         ) : (
           <>
@@ -562,12 +578,12 @@ function ServiceFormFields({
                         )}
                         <td className="px-3 py-2">
                           <Input
-                            className="h-7 text-xs w-32"
-                            type="number"
-                            min={0}
-                            placeholder="Input harga"
-                            value={row.price}
-                            onChange={(e) => updatePriceRow(idx, e.target.value)}
+                            className="h-7 text-xs w-36"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="0"
+                            value={formatThousands(row.price)}
+                            onChange={(e) => updatePriceRow(idx, parseThousands(e.target.value))}
                           />
                         </td>
                       </tr>
@@ -856,7 +872,7 @@ export default function ServicesPage() {
           prices: form.prices
             .filter((r) => r.price !== "" && r.pet_type_id && r.size_id && r.hair_id)
             .map((r) => ({
-              pet_id: r.pet_type_id,
+              pet_type_id: r.pet_type_id,
               size_id: r.size_id,
               hair_id: r.hair_id,
               price: Number(r.price),
