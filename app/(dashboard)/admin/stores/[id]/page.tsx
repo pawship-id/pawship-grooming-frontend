@@ -210,28 +210,32 @@ export default function StoreDetailPage() {
                     <span className="w-20 shrink-0 text-xs text-muted-foreground">Durasi</span>
                     <span className="text-xs">{service.duration} menit</span>
                   </div>
-                  {service.pet_types && service.pet_types.length > 0 && (
-                    <div className="flex justify-between flex-wrap items-center gap-2">
-                      <span className="w-20 shrink-0 text-xs text-muted-foreground">Hewan</span>
-                      <div className="flex flex-wrap items-center gap-1">
-                        {service.pet_types.map((pt) => (
-                          <Badge key={pt._id} variant="secondary" className="text-xs">{pt.name}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {service.prices.length > 0 && (
                   <>
                     <Separator />
-                    <div className="flex flex-col gap-1">
-                      {service.prices.map((p) => (
-                        <div key={p.size_id} className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">{p.name}</span>
-                          <span className="font-medium">Rp {p.price.toLocaleString("id-ID")}</span>
-                        </div>
-                      ))}
+                    <div className="w-full overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-muted-foreground">
+                            <th className="pb-1 text-left font-medium">Hewan</th>
+                            <th className="pb-1 text-left font-medium">Ukuran</th>
+                            <th className="pb-1 text-left font-medium">Bulu</th>
+                            <th className="pb-1 text-right font-medium">Harga</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {service.prices.map((p, i) => (
+                            <tr key={p.size_id ?? i} className="border-t border-border/40">
+                              <td className="py-1 pr-2 text-muted-foreground">{p.pet_name ?? "-"}</td>
+                              <td className="py-1 pr-2 text-muted-foreground">{p.size_name ?? p.name ?? "-"}</td>
+                              <td className="py-1 pr-2 text-muted-foreground">{p.hair_name ?? "-"}</td>
+                              <td className="py-1 text-right font-medium">Rp {p.price.toLocaleString("id-ID")}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </>
                 )}

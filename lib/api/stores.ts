@@ -28,8 +28,13 @@ export interface StoreCapacity {
 }
 
 export interface ServicePrice {
-  size_id: string
-  name: string
+  pet_id?: string
+  pet_name?: string
+  size_id?: string
+  size_name?: string
+  hair_id?: string
+  hair_name?: string
+  name?: string
   price: number
 }
 
