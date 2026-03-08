@@ -104,7 +104,7 @@ export default function StoreDetailPage() {
       </div>
 
       {/* Row 1: Lokasi, Kontak, Kapasitas */}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 lg:grid-cols-3">
         <Card>
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm">Lokasi</CardTitle>
@@ -149,7 +149,7 @@ export default function StoreDetailPage() {
       </div>
 
       {/* Row 2: Operasional + Zona */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 lg:grid-cols-2">
         <Card>
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm">Operasional</CardTitle>
