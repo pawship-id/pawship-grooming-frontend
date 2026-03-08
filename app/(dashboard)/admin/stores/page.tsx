@@ -45,6 +45,14 @@ const StoreLocationMap = dynamic(
 )
 
 // ── Types ──────────────────────────────────────────────────────────────────
+interface ZoneForm {
+  area_name: string
+  min_radius_km: string
+  max_radius_km: string
+  travel_time_minutes: string
+  travel_fee: string
+}
+
 interface StoreForm {
   code: string
   name: string
@@ -62,6 +70,7 @@ interface StoreForm {
     overbooking_limit_minutes: string
   }
   sessions: string[]
+  zones: ZoneForm[]
   is_active: boolean
 }
 
@@ -78,6 +87,14 @@ const INDONESIA_TIMEZONES = [
 ]
 const LIMIT = 10
 
+const DEFAULT_ZONE: ZoneForm = {
+  area_name: "",
+  min_radius_km: "",
+  max_radius_km: "",
+  travel_time_minutes: "",
+  travel_fee: "",
+}
+
 const DEFAULT_FORM: StoreForm = {
   code: "",
   name: "",
@@ -87,6 +104,7 @@ const DEFAULT_FORM: StoreForm = {
   operational: { opening_time: "09:00", closing_time: "18:00", operational_days: ["Monday","Tuesday","Wednesday","Thursday","Friday"], timezone: "Asia/Jakarta" },
   capacity: { default_daily_capacity_minutes: "", overbooking_limit_minutes: "" },
   sessions: [],
+  zones: [],
   is_active: true,
 }
 
@@ -417,6 +435,116 @@ function StoreFormFields({
 
       <Separator />
 
+      {/* Zones */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Zona</p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setForm((p) => ({ ...p, zones: [...p.zones, { ...DEFAULT_ZONE }] }))}
+          >
+            + Tambah Zona
+          </Button>
+        </div>
+        {form.zones.length === 0 && (
+          <p className="text-sm text-muted-foreground">Belum ada zona. Klik "Tambah Zona" untuk menambahkan.</p>
+        )}
+        {form.zones.map((zone, idx) => (
+          <div key={idx} className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">Zona {idx + 1}</span>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => setForm((p) => ({ ...p, zones: p.zones.filter((_, i) => i !== idx) }))}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Nama Area *</Label>
+              <Input
+                placeholder="contoh: Area A"
+                value={zone.area_name}
+                onChange={(e) => {
+                  const next = [...form.zones]
+                  next[idx] = { ...next[idx], area_name: e.target.value }
+                  setForm((p) => ({ ...p, zones: next }))
+                }}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-1.5">
+                <Label>Min Radius (km) *</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="any"
+                  placeholder="0"
+                  value={zone.min_radius_km}
+                  onChange={(e) => {
+                    const next = [...form.zones]
+                    next[idx] = { ...next[idx], min_radius_km: e.target.value }
+                    setForm((p) => ({ ...p, zones: next }))
+                  }}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>Max Radius (km) *</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="any"
+                  placeholder="5"
+                  value={zone.max_radius_km}
+                  onChange={(e) => {
+                    const next = [...form.zones]
+                    next[idx] = { ...next[idx], max_radius_km: e.target.value }
+                    setForm((p) => ({ ...p, zones: next }))
+                  }}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-1.5">
+                <Label>Waktu Perjalanan (menit) *</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="15"
+                  value={zone.travel_time_minutes}
+                  onChange={(e) => {
+                    const next = [...form.zones]
+                    next[idx] = { ...next[idx], travel_time_minutes: e.target.value }
+                    setForm((p) => ({ ...p, zones: next }))
+                  }}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>Biaya Perjalanan (Rp) *</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="25000"
+                  value={zone.travel_fee}
+                  onChange={(e) => {
+                    const next = [...form.zones]
+                    next[idx] = { ...next[idx], travel_fee: e.target.value }
+                    setForm((p) => ({ ...p, zones: next }))
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Separator />
+
       {/* Status */}
       <div className="flex flex-col gap-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</p>
@@ -491,6 +619,15 @@ function formToPayload(form: StoreForm) {
       overbooking_limit_minutes: Number(form.capacity.overbooking_limit_minutes),
     },
     sessions: form.sessions.filter((s) => s.trim()).map((s) => s.replace(/:/g, ".")),
+    zones: form.zones.filter((z) => z.area_name.trim()).length > 0
+      ? form.zones.filter((z) => z.area_name.trim()).map((z) => ({
+          area_name: z.area_name,
+          min_radius_km: Number(z.min_radius_km),
+          max_radius_km: Number(z.max_radius_km),
+          travel_time_minutes: Number(z.travel_time_minutes),
+          travel_fee: Number(z.travel_fee),
+        }))
+      : undefined,
     is_active: form.is_active,
   } satisfies StorePayload
 }
@@ -525,6 +662,13 @@ function storeToForm(store: ApiStore): StoreForm {
       overbooking_limit_minutes: store.capacity?.overbooking_limit_minutes != null ? String(store.capacity.overbooking_limit_minutes) : "",
     },
     sessions: (store.sessions ?? []).map((s) => s.replace(/\./g, ":")),
+    zones: (store.zones ?? []).map((z) => ({
+      area_name: z.area_name,
+      min_radius_km: String(z.min_radius_km),
+      max_radius_km: String(z.max_radius_km),
+      travel_time_minutes: String(z.travel_time_minutes),
+      travel_fee: String(z.travel_fee),
+    })),
     is_active: store.is_active,
   }
 }
@@ -708,6 +852,7 @@ export default function StoresPage() {
                     <TableHead>Lokasi</TableHead>
                     <TableHead>Kontak</TableHead>
                     <TableHead>Operasional</TableHead>
+                    <TableHead>Zona</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
@@ -721,6 +866,7 @@ export default function StoresPage() {
                           <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                           <TableCell><Skeleton className="h-4 w-28" /></TableCell>
                           <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                          <TableCell><Skeleton className="h-5 w-10" /></TableCell>
                           <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                           <TableCell><Skeleton className="h-7 w-7 ml-auto rounded-md" /></TableCell>
                         </TableRow>
@@ -781,6 +927,15 @@ export default function StoresPage() {
                             )}
                           </TableCell>
                           <TableCell>
+                            {store.zones && store.zones.length > 0 ? (
+                              <Badge variant="secondary" className="text-xs">
+                                {store.zones.length} zona
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground/50 text-sm">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
                             <Badge variant="outline" className={`text-xs ${store.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
                               {store.is_active ? "Aktif" : "Nonaktif"}
                             </Badge>
@@ -819,7 +974,7 @@ export default function StoresPage() {
                       ))}
                   {!isLoading && stores.length === 0 && !error && (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
                         Tidak ada store ditemukan
                       </TableCell>
                     </TableRow>
