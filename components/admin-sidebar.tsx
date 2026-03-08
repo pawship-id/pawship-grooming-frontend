@@ -11,6 +11,7 @@ import {
   Tag,
   Store,
   Scissors,
+  ImageIcon,
   LogOut,
   Moon,
   Sun,
@@ -42,6 +43,7 @@ const menuItems = [
   { title: "Services", href: "/admin/services", icon: Scissors },
   { title: "Options", href: "/admin/options", icon: Tag },
   { title: "Products (Dummy)", href: "/admin/products", icon: Package },
+  { title: "Banners", href: "/admin/banners", icon: ImageIcon },
 ]
 
 export function AdminSidebar() {
