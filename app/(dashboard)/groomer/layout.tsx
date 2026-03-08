@@ -3,16 +3,23 @@
 import React from "react"
 
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { useAuth } from "@/lib/auth-context"
 import { LogOut, Scissors } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
+const NAV_ITEMS = [
+  { label: "My Jobs", href: "/groomer/dashboard", dummy: false },
+  { label: "Open Jobs", href: "/groomer/open-jobs", dummy: true },
+  { label: "My Profile", href: "/groomer/profile", dummy: false },
+]
+
 export default function GroomerLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, logout } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -59,6 +66,27 @@ export default function GroomerLayout({ children }: { children: React.ReactNode 
             </Button>
           </div>
         </div>
+        <nav className="mx-auto flex max-w-4xl gap-1 px-4 pb-0" aria-label="Groomer navigation">
+          {NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`relative px-3 py-2 text-sm font-medium transition-colors border-b-2 ${
+                  isActive
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                } ${item.dummy ? "text-red-400 hover:text-red-500" : ""}`}
+              >
+                {item.label}
+                {item.dummy && (
+                  <span className="ml-1 text-[10px] text-red-400">(dummy)</span>
+                )}
+              </Link>
+            )
+          })}
+        </nav>
       </header>
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-6">
         {children}

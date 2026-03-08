@@ -14,6 +14,7 @@ import {
   LogOut,
   Moon,
   Sun,
+  UserCircle,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/lib/auth-context"
@@ -123,6 +124,14 @@ export function AdminSidebar() {
               {theme === "dark" ? "Light Mode" : "Dark Mode"}
             </span>
           </button>
+          <Link
+            href="/admin/profile"
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
+            title="My Profile"
+          >
+            <UserCircle className="h-4 w-4" />
+            <span className="group-data-[collapsible=icon]:hidden">My Profile</span>
+          </Link>
           <button
             onClick={logout}
             className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
