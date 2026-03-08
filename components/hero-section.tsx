@@ -245,10 +245,10 @@ export function HeroSection() {
   const hasBanners = loaded && banners.length > 0
 
   return (
-    <section className="relative overflow-hidden bg-background">
+    <section className="relative flex flex-col overflow-hidden bg-background h-[calc(100vh-61px)]">
       {/* Carousel or static hero */}
       {hasBanners ? (
-        <div className="h-[360px] w-full sm:h-[440px] lg:h-[520px]">
+        <div className="flex-1 min-h-0 w-full">
           <BannerCarousel banners={banners} />
         </div>
       ) : (
@@ -256,7 +256,9 @@ export function HeroSection() {
           {/* Decorative elements shown only in static mode */}
           <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-secondary/30" aria-hidden="true" />
           <div className="absolute -bottom-16 -right-16 h-48 w-48 rounded-full bg-accent/20" aria-hidden="true" />
-          <StaticHero />
+          <div className="flex-1 flex items-center justify-center">
+            <StaticHero />
+          </div>
         </>
       )}
 
