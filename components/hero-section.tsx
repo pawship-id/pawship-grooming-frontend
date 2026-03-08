@@ -261,7 +261,7 @@ export function HeroSection() {
       )}
 
       {/* Scroll hint */}
-      <div className="flex justify-center pb-6 pt-4">
+      {/* <div className="flex justify-center pb-6 pt-4">
         <Link
           href="/#services"
           className="flex flex-col items-center gap-1 text-muted-foreground transition-colors hover:text-primary"
@@ -270,7 +270,7 @@ export function HeroSection() {
           <span className="text-xs font-medium">Our Services</span>
           <ArrowDown className="h-4 w-4 animate-bounce" />
         </Link>
-      </div>
+      </div> */}
     </section>
   )
 }
