@@ -1,22 +1,23 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Plus, Search, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { bookings } from "@/lib/mock-data"
-import type { BookingStatus } from "@/lib/types"
+import { Skeleton } from "@/components/ui/skeleton"
+import { getAdminBookings } from "@/lib/api/bookings"
+import type { AdminBooking } from "@/lib/api/bookings"
 
 const statusColors: Record<string, string> = {
+  requested: "bg-accent/20 text-accent-foreground",
   confirmed: "bg-secondary/60 text-secondary-foreground",
-  "not-confirmed": "bg-accent/20 text-accent-foreground",
   cancelled: "bg-destructive/10 text-destructive",
-  "in-progress": "bg-primary/10 text-primary",
+  "in progress": "bg-primary/10 text-primary",
   completed: "bg-secondary/60 text-secondary-foreground",
 }
 
@@ -28,16 +29,33 @@ function formatPrice(price: number) {
   }).format(price)
 }
 
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  })
+}
+
 export default function BookingsPage() {
+  const [bookings, setBookings] = useState<AdminBooking[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
 
+  useEffect(() => {
+    getAdminBookings()
+      .then((res) => setBookings(res.bookings))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
   const filtered = bookings.filter((b) => {
     const matchesSearch =
-      b.customerName.toLowerCase().includes(search.toLowerCase()) ||
-      b.petName.toLowerCase().includes(search.toLowerCase()) ||
-      b.serviceName.toLowerCase().includes(search.toLowerCase())
-    const matchesStatus = statusFilter === "all" || b.status === statusFilter
+      (b.customer?.username ?? "").toLowerCase().includes(search.toLowerCase()) ||
+      b.pet_snapshot.name.toLowerCase().includes(search.toLowerCase()) ||
+      b.service_snapshot.name.toLowerCase().includes(search.toLowerCase())
+    const matchesStatus = statusFilter === "all" || b.booking_status === statusFilter
     return matchesSearch && matchesStatus
   })
 
@@ -76,9 +94,9 @@ export default function BookingsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="requested">Requested</SelectItem>
                   <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="not-confirmed">Not Confirmed</SelectItem>
-                  <SelectItem value="in-progress">In Progress</SelectItem>
+                  <SelectItem value="in progress">In Progress</SelectItem>
                   <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
@@ -97,69 +115,82 @@ export default function BookingsPage() {
                   <TableHead>Pet</TableHead>
                   <TableHead>Service</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Groomer</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Travel Fee</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((booking) => (
-                  <TableRow key={booking.id} className="cursor-pointer hover:bg-muted/50">
-                    <TableCell>
-                      <Link href={`/admin/bookings/${booking.id}`} className="block">
-                        {booking.date}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/admin/bookings/${booking.id}`} className="block">
-                        {booking.timeStart} - {booking.timeEnd}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/admin/bookings/${booking.id}`} className="block font-medium">
-                        {booking.customerName}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/admin/bookings/${booking.id}`} className="block">
-                        {booking.petName}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/admin/bookings/${booking.id}`} className="block">
-                        {booking.serviceName}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/admin/bookings/${booking.id}`} className="block">
-                        <Badge variant="outline" className="capitalize">{booking.type}</Badge>
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/admin/bookings/${booking.id}`} className="block">
-                        {booking.groomerName}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <Link href={`/admin/bookings/${booking.id}`} className="block">
-                        <Badge className={statusColors[booking.status]}>
-                          {booking.status.replace("-", " ")}
-                        </Badge>
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Link href={`/admin/bookings/${booking.id}`} className="block">
-                        {booking.travelFee > 0 ? formatPrice(booking.travelFee) : "-"}
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filtered.length === 0 && (
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      {Array.from({ length: 8 }).map((__, j) => (
+                        <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                       No bookings found
                     </TableCell>
                   </TableRow>
+                ) : (
+                  filtered.map((booking) => (
+                    <TableRow key={booking._id} className="cursor-pointer hover:bg-muted/50">
+                      <TableCell>
+                        <Link href={`/admin/bookings/${booking._id}`} className="block">
+                          {formatDate(booking.date)}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/admin/bookings/${booking._id}`} className="block">
+                          {booking.time_range}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/admin/bookings/${booking._id}`} className="block font-medium">
+                          {booking.customer?.username ?? "-"}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/admin/bookings/${booking._id}`} className="block">
+                          {booking.pet_snapshot.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/admin/bookings/${booking._id}`} className="block">
+                          {booking.service_snapshot.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/admin/bookings/${booking._id}`} className="block">
+                          <Badge variant="outline" className="capitalize">{booking.type}</Badge>
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <Link href={`/admin/bookings/${booking._id}`} className="block">
+                            <Badge className={statusColors[booking.booking_status] ?? "bg-muted text-muted-foreground"}>
+                              <span className="capitalize">{booking.booking_status}</span>
+                            </Badge>
+                          </Link>
+                          {(!booking.assigned_groomers || booking.assigned_groomers.length === 0) && (
+                            <Link
+                              href={`/admin/bookings/${booking._id}#assign-groomer`}
+                              className="text-xs text-primary hover:underline"
+                            >
+                              Assign Groomer
+                            </Link>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Link href={`/admin/bookings/${booking._id}`} className="block">
+                          {booking.travel_fee > 0 ? formatPrice(booking.travel_fee) : "-"}
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))
                 )}
               </TableBody>
             </Table>

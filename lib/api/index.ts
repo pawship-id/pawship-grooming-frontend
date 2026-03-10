@@ -4,6 +4,7 @@ export type { RegisterPayload, RegisterResponse, AuthTokensResponse } from "./au
 export * from "./users"
 export * from "./options"
 export * from "./stores"
+export * from "./bookings"
 export {
   ACCESS_TOKEN_STORAGE_KEY,
   REFRESH_TOKEN_STORAGE_KEY,
