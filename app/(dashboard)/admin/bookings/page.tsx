@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Plus, Search, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -40,6 +41,7 @@ function formatDate(iso: string) {
 }
 
 export default function BookingsPage() {
+  const router = useRouter()
   const [bookings, setBookings] = useState<AdminBooking[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -140,48 +142,22 @@ export default function BookingsPage() {
                   </TableRow>
                 ) : (
                   filtered.map((booking) => (
-                    <TableRow key={booking._id} className="cursor-pointer hover:bg-muted/50">
+                    <TableRow key={booking._id} className="cursor-pointer hover:bg-muted/50" onClick={() => router.push(`/admin/bookings/${booking._id}`)}>
+                      <TableCell>{formatDate(booking.date)}</TableCell>
+                      <TableCell>{booking.time_range}</TableCell>
+                      <TableCell className="font-medium">{booking.customer?.username ?? "-"}</TableCell>
+                      <TableCell>{booking.pet_snapshot.name}</TableCell>
+                      <TableCell>{booking.service_snapshot.name}</TableCell>
                       <TableCell>
-                        <Link href={`/admin/bookings/${booking._id}`} className="block">
-                          {formatDate(booking.date)}
-                        </Link>
+                        <Badge variant="outline" className="capitalize">{booking.type}</Badge>
                       </TableCell>
                       <TableCell>
-                        <Link href={`/admin/bookings/${booking._id}`} className="block">
-                          {booking.time_range}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link href={`/admin/bookings/${booking._id}`} className="block font-medium">
-                          {booking.customer?.username ?? "-"}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link href={`/admin/bookings/${booking._id}`} className="block">
-                          {booking.pet_snapshot.name}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link href={`/admin/bookings/${booking._id}`} className="block">
-                          {booking.service_snapshot.name}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link href={`/admin/bookings/${booking._id}`} className="block">
-                          <Badge variant="outline" className="capitalize">{booking.type}</Badge>
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link href={`/admin/bookings/${booking._id}`} className="block">
-                          <Badge className={statusColors[booking.booking_status] ?? "bg-muted text-muted-foreground"}>
-                            <span className="capitalize">{booking.booking_status}</span>
-                          </Badge>
-                        </Link>
+                        <Badge className={statusColors[booking.booking_status] ?? "bg-muted text-muted-foreground"}>
+                          <span className="capitalize">{booking.booking_status}</span>
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Link href={`/admin/bookings/${booking._id}`} className="block">
-                          {booking.travel_fee > 0 ? formatPrice(booking.travel_fee) : "-"}
-                        </Link>
+                        {booking.travel_fee > 0 ? formatPrice(booking.travel_fee) : "-"}
                       </TableCell>
                     </TableRow>
                   ))

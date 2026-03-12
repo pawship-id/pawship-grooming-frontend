@@ -46,6 +46,7 @@ export default function NewBookingPage() {
   const [form, setForm] = useState(DEFAULT_FORM)
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [customPaymentMethod, setCustomPaymentMethod] = useState("")
 
   const [stores, setStores] = useState<ApiStore[]>([])
   const [serviceTypes, setServiceTypes] = useState<ApiServiceType[]>([])
@@ -166,7 +167,9 @@ export default function NewBookingPage() {
         service_addon_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
         travel_fee: form.travel_fee ? Number(form.travel_fee) : undefined,
         referal_code: form.referal_code || undefined,
-        payment_method: form.payment_method || undefined,
+        payment_method: form.payment_method === "other"
+          ? (customPaymentMethod.trim() || undefined)
+          : (form.payment_method || undefined),
         note: form.note || undefined,
         sessions: sessionRows.filter((r) => r.type && r.groomer_id).map((r, i) => ({ type: r.type, groomer_id: r.groomer_id, order: i })),
       })
@@ -387,8 +390,16 @@ export default function NewBookingPage() {
                   <SelectItem value="transfer">Transfer</SelectItem>
                   <SelectItem value="qris">QRIS</SelectItem>
                   <SelectItem value="card">Kartu Debit/Kredit</SelectItem>
+                  <SelectItem value="other">Lainnya</SelectItem>
                 </SelectContent>
               </Select>
+              {form.payment_method === "other" && (
+                <Input
+                  placeholder="Tulis metode pembayaran..."
+                  value={customPaymentMethod}
+                  onChange={(e) => setCustomPaymentMethod(e.target.value)}
+                />
+              )}
             </div>
 
             <div className="flex flex-col gap-2">
