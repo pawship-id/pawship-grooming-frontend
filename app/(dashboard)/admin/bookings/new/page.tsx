@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -50,9 +50,11 @@ export default function NewBookingPage() {
   const [stores, setStores] = useState<ApiStore[]>([])
   const [serviceTypes, setServiceTypes] = useState<ApiServiceType[]>([])
   const [customers, setCustomers] = useState<ApiUser[]>([])
+  const [groomers, setGroomers] = useState<ApiUser[]>([])
   const [sessions, setSessions] = useState<string[]>([])
   const [services, setServices] = useState<AdminService[]>([])
   const [pets, setPets] = useState<PetOption[]>([])
+  const [sessionRows, setSessionRows] = useState<Array<{ type: string; groomer_id: string }>>([])
 
   const [loadingInit, setLoadingInit] = useState(true)
   const [loadingStore, setLoadingStore] = useState(false)
@@ -64,11 +66,13 @@ export default function NewBookingPage() {
       getStores({ page: 1, limit: 100, is_active: "true" }),
       getServiceTypes({ is_active: "true" }),
       getUsers({ page: 1, limit: 200, role: "customer" }),
+      getUsers({ page: 1, limit: 200, role: "groomer" }),
     ])
-      .then(([storesRes, typesRes, usersRes]) => {
+      .then(([storesRes, typesRes, usersRes, groomersRes]) => {
         setStores(storesRes.stores)
         setServiceTypes(typesRes.serviceTypes)
         setCustomers(usersRes.users)
+        setGroomers(groomersRes.users)
       })
       .catch(() => toast.error("Gagal memuat data awal"))
       .finally(() => setLoadingInit(false))
@@ -164,6 +168,7 @@ export default function NewBookingPage() {
         referal_code: form.referal_code || undefined,
         payment_method: form.payment_method || undefined,
         note: form.note || undefined,
+        sessions: sessionRows.filter((r) => r.type && r.groomer_id).map((r, i) => ({ type: r.type, groomer_id: r.groomer_id, order: i })),
       })
       toast.success("Booking berhasil dibuat")
       router.push("/admin/bookings")
@@ -395,6 +400,65 @@ export default function NewBookingPage() {
                 onChange={(e) => setForm((p) => ({ ...p, referal_code: e.target.value }))}
               />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Sesi Grooming */}
+        <Card className="border-border/50 lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="font-display text-lg">Sesi Grooming (opsional)</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            {sessionRows.length === 0 && (
+              <p className="text-sm text-muted-foreground">Belum ada sesi. Tambahkan sesi grooming jika diperlukan.</p>
+            )}
+            {sessionRows.map((row, idx) => (
+              <div key={idx} className="flex flex-col gap-3 rounded-lg border border-border/50 bg-muted/30 p-3 sm:flex-row sm:items-end">
+                <div className="flex flex-1 flex-col gap-1">
+                  <Label className="text-xs">Tipe Sesi</Label>
+                  <Input
+                    placeholder="washing, drying, cutting..."
+                    value={row.type}
+                    onChange={(e) => setSessionRows((prev) => prev.map((r, i) => i === idx ? { ...r, type: e.target.value } : r))}
+                  />
+                </div>
+                <div className="flex flex-1 flex-col gap-1">
+                  <Label className="text-xs">Groomer</Label>
+                  <Select
+                    value={row.groomer_id}
+                    onValueChange={(v) => setSessionRows((prev) => prev.map((r, i) => i === idx ? { ...r, groomer_id: v } : r))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih groomer" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groomers.map((g) => (
+                        <SelectItem key={g._id} value={g._id}>{g.username}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 text-destructive hover:text-destructive"
+                  onClick={() => setSessionRows((prev) => prev.filter((_, i) => i !== idx))}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              onClick={() => setSessionRows((prev) => [...prev, { type: "", groomer_id: "" }])}
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Tambah Sesi
+            </Button>
           </CardContent>
         </Card>
 

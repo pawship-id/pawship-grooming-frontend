@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { use } from "react"
 import Link from "next/link"
-import { ArrowLeft, User, Calendar, Clock, ClipboardList, UserCheck, Plus, Trash2 } from "lucide-react"
+import { ArrowLeft, User, Calendar, Clock, ClipboardList, Plus, Trash2, Play, CheckCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,8 +12,25 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
-import { getAdminBookingById, updateBookingStatus, assignGroomerToBooking } from "@/lib/api/bookings"
-import type { AdminBooking, AssignGroomerItem } from "@/lib/api/bookings"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
+  getAdminBookingById,
+  updateBookingStatus,
+  createBookingSession,
+  startBookingSession,
+  finishBookingSession,
+  deleteBookingSession,
+} from "@/lib/api/bookings"
+import type { AdminBooking } from "@/lib/api/bookings"
 import { getStoreById } from "@/lib/api/stores"
 import { getUsers } from "@/lib/api/users"
 import type { ApiUser } from "@/lib/api/users"
@@ -22,8 +39,8 @@ const statusColors: Record<string, string> = {
   requested: "bg-accent/20 text-accent-foreground",
   confirmed: "bg-secondary/60 text-secondary-foreground",
   arrived: "bg-primary/10 text-primary",
-  "grooming in progress": "bg-primary/10 text-primary",
-  "grooming finished": "bg-secondary/60 text-secondary-foreground",
+  "in progress": "bg-primary/10 text-primary",
+  "completed": "bg-secondary/60 text-secondary-foreground",
   rescheduled: "bg-accent/20 text-accent-foreground",
   cancelled: "bg-destructive/10 text-destructive",
 }
@@ -32,8 +49,8 @@ const ALL_STATUSES = [
   "requested",
   "confirmed",
   "arrived",
-  "grooming in progress",
-  "grooming finished",
+  "in progress",
+  "completed",
   "rescheduled",
   "cancelled",
 ]
@@ -77,10 +94,12 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [storeSessions, setStoreSessions] = useState<string[]>([])
   const [updatingStatus, setUpdatingStatus] = useState(false)
 
-  // Assign groomer state
+  // Session management state
   const [groomers, setGroomers] = useState<ApiUser[]>([])
-  const [assignedGroomers, setAssignedGroomers] = useState<AssignGroomerItem[]>([])
-  const [assigningGroomer, setAssigningGroomer] = useState(false)
+  const [newSessionType, setNewSessionType] = useState("")
+  const [newSessionGroomerId, setNewSessionGroomerId] = useState("")
+  const [addingSession, setAddingSession] = useState(false)
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -91,9 +110,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         const b = bookingRes.booking
         setBooking(b)
         setSelectedStatus(b.booking_status)
-        setAssignedGroomers(b.assigned_groomers ?? [])
         setGroomers(groomersRes.users)
-        // Load store sessions for rescheduled dropdown
         if (b.store_id) {
           getStoreById(b.store_id)
             .then((storeRes) => setStoreSessions(storeRes.store.sessions ?? []))
@@ -103,6 +120,12 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false))
   }, [id])
+
+  const refreshBooking = async () => {
+    const res = await getAdminBookingById(id)
+    setBooking(res.booking)
+    setSelectedStatus(res.booking.booking_status)
+  }
 
   const statusChanged = !!booking && selectedStatus !== booking.booking_status
   const isRescheduled = selectedStatus === "rescheduled"
@@ -119,9 +142,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         status: selectedStatus,
         ...(isRescheduled ? { date: rescheduledDate, time_range: rescheduledTimeRange } : {}),
       })
-      const refreshed = await getAdminBookingById(id)
-      setBooking(refreshed.booking)
-      setSelectedStatus(refreshed.booking.booking_status)
+      await refreshBooking()
       setRescheduledDate("")
       setRescheduledTimeRange("")
       toast.success(`Status diperbarui: ${selectedStatus}`)
@@ -132,35 +153,52 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  const handleAddGroomerRow = () =>
-    setAssignedGroomers((prev) => [...prev, { task: "", groomer_id: "" }])
-
-  const handleRemoveGroomerRow = (idx: number) =>
-    setAssignedGroomers((prev) => prev.filter((_, i) => i !== idx))
-
-  const handleGroomerRowChange = (idx: number, field: keyof AssignGroomerItem, value: string) =>
-    setAssignedGroomers((prev) =>
-      prev.map((row, i) => (i === idx ? { ...row, [field]: value } : row)),
-    )
-
-  const handleSaveGroomers = async () => {
-    for (const row of assignedGroomers) {
-      if (!row.task.trim() || !row.groomer_id) {
-        toast.error("Isi task dan pilih groomer untuk setiap baris")
-        return
-      }
+  const handleAddSession = async () => {
+    if (!newSessionType.trim() || !newSessionGroomerId) {
+      toast.error("Isi tipe sesi dan pilih groomer")
+      return
     }
-    setAssigningGroomer(true)
+    setAddingSession(true)
     try {
-      await assignGroomerToBooking(id, { assigned_groomers: assignedGroomers })
-      const refreshed = await getAdminBookingById(id)
-      setBooking(refreshed.booking)
-      setAssignedGroomers(refreshed.booking.assigned_groomers ?? [])
-      toast.success("Groomer berhasil di-assign")
+      await createBookingSession(id, { type: newSessionType.trim(), groomer_id: newSessionGroomerId })
+      await refreshBooking()
+      setNewSessionType("")
+      setNewSessionGroomerId("")
+      toast.success("Sesi berhasil ditambahkan")
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal assign groomer")
+      toast.error(err instanceof Error ? err.message : "Gagal menambah sesi")
     } finally {
-      setAssigningGroomer(false)
+      setAddingSession(false)
+    }
+  }
+
+  const handleStartSession = async (sessionId: string) => {
+    try {
+      await startBookingSession(id, sessionId)
+      await refreshBooking()
+      toast.success("Sesi dimulai")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal memulai sesi")
+    }
+  }
+
+  const handleFinishSession = async (sessionId: string) => {
+    try {
+      await finishBookingSession(id, sessionId, {})
+      await refreshBooking()
+      toast.success("Sesi selesai")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menyelesaikan sesi")
+    }
+  }
+
+  const handleDeleteSession = async (sessionId: string) => {
+    try {
+      await deleteBookingSession(id, sessionId)
+      await refreshBooking()
+      toast.success("Sesi dihapus")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus sesi")
     }
   }
 
@@ -189,7 +227,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <>
+      <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
           <Link
@@ -222,7 +261,6 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               {booking.booking_status}
             </Badge>
           </div>
-          {/* Rescheduled inline fields */}
           {isRescheduled && (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
               <div className="flex flex-col gap-1">
@@ -382,66 +420,6 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
           </CardContent>
         </Card>
 
-        {/* Assign Groomer */}
-        <Card id="assign-groomer" className="border-border/50 lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 font-display text-lg">
-              <UserCheck className="h-5 w-5 text-primary" />
-              Assign Groomer
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {assignedGroomers.length === 0 && (
-              <p className="text-sm text-muted-foreground">Belum ada groomer yang di-assign.</p>
-            )}
-            {assignedGroomers.map((row, idx) => (
-              <div key={idx} className="flex flex-col gap-3 rounded-lg border border-border/50 bg-muted/30 p-3 sm:flex-row sm:items-end">
-                <div className="flex flex-1 flex-col gap-1">
-                  <Label className="text-xs">Task</Label>
-                  <Input
-                    placeholder="washing, drying, cutting..."
-                    value={row.task}
-                    onChange={(e) => handleGroomerRowChange(idx, "task", e.target.value)}
-                  />
-                </div>
-                <div className="flex flex-1 flex-col gap-1">
-                  <Label className="text-xs">Groomer</Label>
-                  <Select value={row.groomer_id} onValueChange={(v) => handleGroomerRowChange(idx, "groomer_id", v)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih groomer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {groomers.map((g) => (
-                        <SelectItem key={g._id} value={g._id}>{g.username}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 text-destructive hover:text-destructive"
-                  onClick={() => handleRemoveGroomerRow(idx)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={handleAddGroomerRow}>
-                <Plus className="mr-1.5 h-3.5 w-3.5" />
-                Tambah Groomer
-              </Button>
-              {assignedGroomers.length > 0 && (
-                <Button type="button" size="sm" onClick={handleSaveGroomers} disabled={assigningGroomer}>
-                  {assigningGroomer ? "Menyimpan..." : "Simpan Groomer"}
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Status Logs */}
         <Card className="border-border/50">
           <CardHeader>
@@ -480,54 +458,150 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
         </Card>
 
         {/* Grooming Sessions */}
-        {booking.sessions.length > 0 && (
-          <Card className="border-border/50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 font-display text-lg">
-                <Clock className="h-5 w-5 text-primary" />
-                Sesi Grooming
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col gap-3">
-                {booking.sessions.map((session) => (
-                  <div key={session._id} className="rounded-lg border border-border/50 bg-muted/30 p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium capitalize text-foreground">{session.type}</span>
-                      <Badge
-                        className={`text-xs capitalize ${
-                          session.status === "finished"
-                            ? "bg-secondary/60 text-secondary-foreground"
-                            : session.status === "in progress"
-                            ? "bg-primary/10 text-primary"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {session.status}
-                      </Badge>
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-1 text-xs text-muted-foreground">
-                      {session.started_at && (
-                        <>
-                          <span>Mulai</span>
-                          <span>{formatDateTime(session.started_at)}</span>
-                        </>
-                      )}
-                      {session.finished_at && (
-                        <>
-                          <span>Selesai</span>
-                          <span>{formatDateTime(session.finished_at)}</span>
-                        </>
-                      )}
-                    </div>
-                    {session.notes && <p className="mt-2 text-xs text-foreground">{session.notes}</p>}
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 font-display text-lg">
+              <Clock className="h-5 w-5 text-primary" />
+              Sesi Grooming
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {booking.sessions.length === 0 && (
+              <p className="text-sm text-muted-foreground">Belum ada sesi grooming.</p>
+            )}
+            {booking.sessions.map((session, idx) => (
+              <div
+                key={session._id ?? idx}
+                className="flex flex-col gap-3 rounded-lg border border-border/50 bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium capitalize text-foreground">{session.type}</span>
+                    <Badge
+                      className={`text-xs capitalize ${
+                        session.status === "finished"
+                          ? "bg-secondary/60 text-secondary-foreground"
+                          : session.status === "in progress"
+                          ? "bg-primary/10 text-primary"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {session.status}
+                    </Badge>
                   </div>
-                ))}
+                  {session.groomer_detail && (
+                    <span className="text-xs text-muted-foreground">
+                      Groomer: {session.groomer_detail.username}
+                    </span>
+                  )}
+                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                    {session.started_at && <span>Mulai: {formatDateTime(session.started_at)}</span>}
+                    {session.finished_at && <span>Selesai: {formatDateTime(session.finished_at)}</span>}
+                  </div>
+                  {session.notes && <p className="text-xs text-foreground">{session.notes}</p>}
+                </div>
+                {session._id && (
+                  <div className="flex shrink-0 gap-2">
+                    {session.status === "not started" && (
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleStartSession(session._id!)}
+                        >
+                          <Play className="mr-1.5 h-3.5 w-3.5" />
+                          Mulai
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setDeletingSessionId(session._id!)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
+                    {session.status === "in progress" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleFinishSession(session._id!)}
+                      >
+                        <CheckCircle className="mr-1.5 h-3.5 w-3.5" />
+                        Selesai
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
-            </CardContent>
-          </Card>
-        )}
+            ))}
+
+            {/* Add session form */}
+            <div className="flex flex-col gap-3 rounded-lg border border-dashed border-border/50 p-3 sm:flex-row sm:items-end">
+              <div className="flex flex-1 flex-col gap-1">
+                <Label className="text-xs">Tipe sesi</Label>
+                <Input
+                  placeholder="bathing, drying, styling..."
+                  value={newSessionType}
+                  onChange={(e) => setNewSessionType(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-1 flex-col gap-1">
+                <Label className="text-xs">Groomer</Label>
+                <Select value={newSessionGroomerId} onValueChange={setNewSessionGroomerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih groomer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {groomers.map((g) => (
+                      <SelectItem key={g._id} value={g._id}>{g.username}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleAddSession}
+                disabled={addingSession}
+                className="shrink-0"
+              >
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                {addingSession ? "Menyimpan..." : "Tambah Sesi"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
+
+      <AlertDialog open={!!deletingSessionId} onOpenChange={(open) => { if (!open) setDeletingSessionId(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Sesi?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sesi ini akan dihapus secara permanen dan tidak dapat dikembalikan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deletingSessionId) handleDeleteSession(deletingSessionId)
+                setDeletingSessionId(null)
+              }}
+            >
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
+

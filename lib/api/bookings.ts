@@ -48,17 +48,13 @@ export interface StatusLog {
   note: string
 }
 
-// ── Grooming Sessions ────────────────────────────────────────────────────────
-
-export interface AssignedGroomer {
-  task: string
-  groomer_id: string
-}
+// ── Sessions ─────────────────────────────────────────────────────────────────
 
 export interface BookingSession {
-  _id: string
+  _id?: string
   type: string
-  groomer_id: string
+  groomer_id?: string
+  groomer_detail?: BookingCustomer
   status: string
   started_at: string | null
   finished_at: string | null
@@ -66,6 +62,12 @@ export interface BookingSession {
   internal_note: string | null
   order: number
   media: string[]
+}
+
+export interface SessionInput {
+  type: string
+  groomer_id: string
+  order?: number
 }
 
 export interface GroomingSession {
@@ -113,7 +115,6 @@ export interface AdminBooking {
   sub_total_service: number
   total_price: number
   discount_ids: string[]
-  assigned_groomers: AssignedGroomer[]
   sessions: BookingSession[]
   grooming_session?: GroomingSession
   referal_code?: string
@@ -152,6 +153,7 @@ export interface CreateBookingPayload {
   service_addon_ids?: string[]
   travel_fee?: number
   discount_ids?: string[]
+  sessions?: SessionInput[]
   referal_code?: string
   note?: string
   payment_method?: string
@@ -163,13 +165,13 @@ export type UpdateBookingPayload = Partial<
   booking_status?: string
 }
 
-export interface AssignGroomerItem {
-  task: string
-  groomer_id: string
+export interface UpdateSessionPayload {
+  notes?: string
+  internal_note?: string
 }
 
-export interface AssignGroomerPayload {
-  assigned_groomers: AssignGroomerItem[]
+export interface FinishSessionPayload {
+  notes?: string
 }
 
 export interface UpdateBookingStatusPayload {
@@ -210,9 +212,41 @@ export async function updateBookingStatus(id: string, payload: UpdateBookingStat
   })
 }
 
-export async function assignGroomerToBooking(id: string, payload: AssignGroomerPayload) {
-  return apiAuthRequest<{ message: string }>(`/bookings/assign-groomer/${id}`, {
+export async function deleteAdminBooking(id: string) {
+  return apiAuthRequest<{ message: string }>(`/bookings/${id}`, {
+    method: "DELETE",
+  })
+}
+
+export async function createBookingSession(bookingId: string, payload: SessionInput) {
+  return apiAuthRequest<{ message: string }>(`/bookings/${bookingId}/session`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateBookingSession(bookingId: string, sessionId: string, payload: UpdateSessionPayload) {
+  return apiAuthRequest<{ message: string }>(`/bookings/${bookingId}/session/${sessionId}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
+  })
+}
+
+export async function startBookingSession(bookingId: string, sessionId: string) {
+  return apiAuthRequest<{ message: string }>(`/bookings/${bookingId}/session/${sessionId}/start`, {
+    method: "PATCH",
+  })
+}
+
+export async function finishBookingSession(bookingId: string, sessionId: string, payload: FinishSessionPayload) {
+  return apiAuthRequest<{ message: string }>(`/bookings/${bookingId}/session/${sessionId}/finish`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteBookingSession(bookingId: string, sessionId: string) {
+  return apiAuthRequest<{ message: string }>(`/bookings/${bookingId}/session/${sessionId}`, {
+    method: "DELETE",
   })
 }

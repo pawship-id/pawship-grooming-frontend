@@ -16,9 +16,11 @@ import type { AdminBooking } from "@/lib/api/bookings"
 const statusColors: Record<string, string> = {
   requested: "bg-accent/20 text-accent-foreground",
   confirmed: "bg-secondary/60 text-secondary-foreground",
+  arrived: "bg-primary/10 text-primary",
+  "grooming in progress": "bg-primary/10 text-primary",
+  "grooming finished": "bg-secondary/60 text-secondary-foreground",
+  rescheduled: "bg-accent/20 text-accent-foreground",
   cancelled: "bg-destructive/10 text-destructive",
-  "in progress": "bg-primary/10 text-primary",
-  completed: "bg-secondary/60 text-secondary-foreground",
 }
 
 function formatPrice(price: number) {
@@ -96,8 +98,10 @@ export default function BookingsPage() {
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="requested">Requested</SelectItem>
                   <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="in progress">In Progress</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="arrived">Arrived</SelectItem>
+                  <SelectItem value="grooming in progress">Grooming In Progress</SelectItem>
+                  <SelectItem value="grooming finished">Grooming Finished</SelectItem>
+                  <SelectItem value="rescheduled">Rescheduled</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
               </Select>
@@ -168,21 +172,11 @@ export default function BookingsPage() {
                         </Link>
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <Link href={`/admin/bookings/${booking._id}`} className="block">
-                            <Badge className={statusColors[booking.booking_status] ?? "bg-muted text-muted-foreground"}>
-                              <span className="capitalize">{booking.booking_status}</span>
-                            </Badge>
-                          </Link>
-                          {(!booking.assigned_groomers || booking.assigned_groomers.length === 0) && (
-                            <Link
-                              href={`/admin/bookings/${booking._id}#assign-groomer`}
-                              className="text-xs text-primary hover:underline"
-                            >
-                              Assign Groomer
-                            </Link>
-                          )}
-                        </div>
+                        <Link href={`/admin/bookings/${booking._id}`} className="block">
+                          <Badge className={statusColors[booking.booking_status] ?? "bg-muted text-muted-foreground"}>
+                            <span className="capitalize">{booking.booking_status}</span>
+                          </Badge>
+                        </Link>
                       </TableCell>
                       <TableCell className="text-right">
                         <Link href={`/admin/bookings/${booking._id}`} className="block">
