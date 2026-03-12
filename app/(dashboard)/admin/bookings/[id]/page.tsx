@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { use } from "react"
 import Link from "next/link"
-import { ArrowLeft, User, Calendar, Clock, ClipboardList, Plus, Trash2, Play, CheckCircle } from "lucide-react"
+import { ArrowLeft, User, Calendar, Clock, ClipboardList, Plus, Trash2, Play, CheckCircle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -55,6 +55,18 @@ const ALL_STATUSES = [
   "cancelled",
 ]
 
+const MAIN_FLOW = ["requested", "confirmed", "arrived", "in progress", "completed"]
+
+const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  requested:    ["confirmed", "rescheduled", "cancelled"],
+  rescheduled:  ["confirmed", "rescheduled", "cancelled"],
+  confirmed:    ["arrived", "rescheduled", "cancelled"],
+  arrived:      ["in progress", "rescheduled", "cancelled"],
+  "in progress": ["completed", "cancelled"],
+  completed:    [],
+  cancelled:    [],
+}
+
 function formatPrice(price: number) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -100,6 +112,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [newSessionGroomerId, setNewSessionGroomerId] = useState("")
   const [addingSession, setAddingSession] = useState(false)
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
+  const [confirmingStatus, setConfirmingStatus] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -109,7 +122,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
       .then(([bookingRes, groomersRes]) => {
         const b = bookingRes.booking
         setBooking(b)
-        setSelectedStatus(b.booking_status)
+        setSelectedStatus("")
         setGroomers(groomersRes.users)
         if (b.store_id) {
           getStoreById(b.store_id)
@@ -124,10 +137,10 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const refreshBooking = async () => {
     const res = await getAdminBookingById(id)
     setBooking(res.booking)
-    setSelectedStatus(res.booking.booking_status)
+    setSelectedStatus("")
   }
 
-  const statusChanged = !!booking && selectedStatus !== booking.booking_status
+  const statusChanged = selectedStatus !== ""
   const isRescheduled = selectedStatus === "rescheduled"
 
   const handleSaveStatus = async () => {
@@ -226,10 +239,16 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     )
   }
 
+  const allowedNextStatuses = ALLOWED_TRANSITIONS[booking.booking_status] ?? []
+  const hasInProgressSession = booking.sessions.some((s) => s.status === "in progress")
+  const allSessionsFinished =
+    booking.sessions.length === 0 || booking.sessions.every((s) => s.status === "finished")
+  const canComplete = selectedStatus !== "completed" || allSessionsFinished
+
   return (
     <>
       <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Link
             href="/admin/bookings"
@@ -244,58 +263,121 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             <p className="text-sm text-muted-foreground">Dibuat {formatDateTime(booking.createdAt)}</p>
           </div>
         </div>
-        {/* Status update controls */}
-        <div className="flex flex-col gap-2 sm:items-end">
-          <div className="flex items-center gap-3">
-            <Select value={selectedStatus} onValueChange={setSelectedStatus} disabled={updatingStatus}>
-              <SelectTrigger className="w-[210px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ALL_STATUSES.map((s) => (
-                  <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Badge className={`${statusColors[booking.booking_status] ?? "bg-muted text-muted-foreground"} text-sm capitalize`}>
-              {booking.booking_status}
-            </Badge>
-          </div>
-          {isRescheduled && (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Tanggal baru</Label>
-                <Input
-                  type="date"
-                  className="h-8 text-xs"
-                  value={rescheduledDate}
-                  onChange={(e) => setRescheduledDate(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Sesi baru</Label>
-                <Select value={rescheduledTimeRange} onValueChange={setRescheduledTimeRange} disabled={storeSessions.length === 0}>
-                  <SelectTrigger className="h-8 w-[160px] text-xs">
-                    <SelectValue placeholder="Pilih sesi" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {storeSessions.map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-          {statusChanged && (
-            <Button size="sm" onClick={handleSaveStatus} disabled={updatingStatus} className="self-end">
-              {updatingStatus ? "Menyimpan..." : "Simpan Status"}
-            </Button>
-          )}
-        </div>
+        <Badge className={`${statusColors[booking.booking_status] ?? "bg-muted text-muted-foreground"} px-3 py-1.5 text-sm capitalize`}>
+          {booking.booking_status}
+        </Badge>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Status Booking */}
+        <Card className="border-border/50 lg:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 font-display text-lg">
+              <ClipboardList className="h-5 w-5 text-primary" />
+              Status Booking
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-5">
+            {/* Status stepper */}
+            <div className="flex items-center overflow-x-auto p-1">
+              {MAIN_FLOW.map((status, idx) => {
+                const currentMainIdx = MAIN_FLOW.indexOf(booking.booking_status)
+                const isReached = currentMainIdx >= idx
+                return (
+                  <div key={status} className="flex items-center">
+                    <div
+                      className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium capitalize
+                        ${isReached ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground"}
+                      `}
+                    >
+                      {isReached && (
+                        booking.booking_status === "in progress" && status === "in progress"
+                          ? <Loader2 className="h-3 w-3 animate-spin" />
+                          : <CheckCircle className="h-3 w-3" />
+                      )}
+                      {status}
+                    </div>
+                    {idx < MAIN_FLOW.length - 1 && (
+                      <div className={`mx-1.5 h-px w-6 shrink-0 ${isReached && currentMainIdx > idx ? "bg-primary" : "bg-border/50"}`} />
+                    )}
+                  </div>
+                )
+              })}
+              {(booking.booking_status === "cancelled" || booking.booking_status === "rescheduled") && (
+                <>
+                  <div className="mx-2 h-px w-4 shrink-0 bg-border/50" />
+                  <div
+                    className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium capitalize ring-1
+                      ${booking.booking_status === "cancelled" ? "bg-destructive/10 text-destructive ring-destructive/30" : "bg-accent/20 text-accent-foreground ring-accent/30"}
+                    `}
+                  >
+                    {booking.booking_status}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Update status form */}
+            <div className="flex flex-col gap-3 rounded-lg border border-border/50 bg-muted/30 p-4">
+              <p className="text-sm font-medium text-foreground">Ubah Status</p>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label className="text-xs text-muted-foreground">Status baru</Label>
+                  <Select
+                    value={selectedStatus}
+                    onValueChange={setSelectedStatus}
+                    disabled={updatingStatus || allowedNextStatuses.length === 0}
+                  >
+                    <SelectTrigger className="w-[220px]">
+                      <SelectValue placeholder="Pilih status baru..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allowedNextStatuses.map((s) => (
+                        <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {allowedNextStatuses.length === 0 && (
+                    <p className="text-xs text-muted-foreground">Status tidak dapat diubah lagi.</p>
+                  )}
+                </div>
+                {isRescheduled && (
+                  <>
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs text-muted-foreground">Tanggal baru</Label>
+                      <Input
+                        type="date"
+                        className="h-9 w-[160px] text-sm"
+                        value={rescheduledDate}
+                        onChange={(e) => setRescheduledDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs text-muted-foreground">Sesi baru</Label>
+                      <Select value={rescheduledTimeRange} onValueChange={setRescheduledTimeRange} disabled={storeSessions.length === 0}>
+                        <SelectTrigger className="h-9 w-[160px] text-sm">
+                          <SelectValue placeholder="Pilih sesi" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {storeSessions.map((s) => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+                <Button onClick={() => setConfirmingStatus(true)} disabled={updatingStatus || !statusChanged || !canComplete} size="sm">
+                  Simpan Status
+                </Button>
+              </div>
+              {selectedStatus === "completed" && !allSessionsFinished && (
+                <p className="text-xs text-destructive">Semua sesi grooming harus selesai sebelum status dapat diubah menjadi completed.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Appointment Details */}
         <Card className="border-border/50">
           <CardHeader>
@@ -466,6 +548,16 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
+            {booking.booking_status !== "in progress" && booking.sessions.some((s) => s.status === "not started") && (
+              <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                Sesi grooming hanya dapat dimulai saat status booking berubah menjadi <span className="font-medium text-foreground">in progress</span>.
+              </p>
+            )}
+            {hasInProgressSession && booking.sessions.some((s) => s.status === "not started") && (
+              <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                Selesaikan sesi yang sedang berjalan sebelum memulai sesi berikutnya.
+              </p>
+            )}
             {booking.sessions.length === 0 && (
               <p className="text-sm text-muted-foreground">Belum ada sesi grooming.</p>
             )}
@@ -509,6 +601,11 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                           size="sm"
                           variant="outline"
                           onClick={() => handleStartSession(session._id!)}
+                          disabled={
+                            booking.booking_status !== "in progress" ||
+                            hasInProgressSession ||
+                            booking.sessions.slice(0, idx).some((s) => s.status !== "finished")
+                          }
                         >
                           <Play className="mr-1.5 h-3.5 w-3.5" />
                           Mulai
@@ -541,6 +638,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             ))}
 
             {/* Add session form */}
+            {booking.booking_status !== "completed" && booking.booking_status !== "cancelled" && (
             <div className="flex flex-col gap-3 rounded-lg border border-dashed border-border/50 p-3 sm:flex-row sm:items-end">
               <div className="flex flex-1 flex-col gap-1">
                 <Label className="text-xs">Tipe sesi</Label>
@@ -574,10 +672,35 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 {addingSession ? "Menyimpan..." : "Tambah Sesi"}
               </Button>
             </div>
+            )}
           </CardContent>
         </Card>
       </div>
     </div>
+
+      <AlertDialog open={confirmingStatus} onOpenChange={setConfirmingStatus}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ubah Status?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Status booking akan diubah menjadi{" "}
+              <span className="font-semibold capitalize text-foreground">{selectedStatus}</span>.
+              Tindakan ini tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmingStatus(false)
+                handleSaveStatus()
+              }}
+            >
+              Ya, Ubah Status
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deletingSessionId} onOpenChange={(open) => { if (!open) setDeletingSessionId(null) }}>
         <AlertDialogContent>

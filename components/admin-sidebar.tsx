@@ -37,7 +37,7 @@ import {
 
 const menuItems = [
   { title: "Dashboard (Dummy)", href: "/admin/dashboard", icon: LayoutDashboard },
-  { title: "Bookings (Dummy)", href: "/admin/bookings", icon: CalendarDays },
+  { title: "Bookings", href: "/admin/bookings", icon: CalendarDays },
   { title: "Users", href: "/admin/users", icon: Users },
   { title: "Stores", href: "/admin/stores", icon: Store },
   { title: "Services", href: "/admin/services", icon: Scissors },
