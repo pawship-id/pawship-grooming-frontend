@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useCallback, useEffect, useState } from "react"
 import { useParams } from "next/navigation"
-import { ArrowLeft, MapPin, Phone, Mail, Clock, Building2, Hash, CalendarDays, Scissors, Compass, MessageCircle, Globe, Timer } from "lucide-react"
+import { ArrowLeft, MapPin, Phone, Mail, Clock, Building2, Hash, CalendarDays, Scissors, Compass, MessageCircle, Globe, Timer, Layers } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -103,7 +103,8 @@ export default function StoreDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Row 1: Lokasi, Kontak, Kapasitas */}
+      <div className="grid gap-3 lg:grid-cols-3">
         <Card>
           <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm">Lokasi</CardTitle>
@@ -138,22 +139,81 @@ export default function StoreDetailPage() {
 
         <Card>
           <CardHeader className="pb-2 pt-4 px-4">
-            <CardTitle className="text-sm">Operasional</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1.5 text-xs text-muted-foreground px-4 pb-4">
-            <p className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Jam:</span>{store.operational?.opening_time || "-"} - {store.operational?.closing_time || "-"}</p>
-            <p className="flex items-center gap-1.5"><Globe className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Timezone:</span>{store.operational?.timezone || "-"}</p>
-            <p className="flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Hari:</span>{store.operational?.operational_days?.length ? store.operational.operational_days.map((d) => DAY_LABELS[d] ?? d).join(", ") : "-"}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2 pt-4 px-4">
             <CardTitle className="text-sm">Kapasitas</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1.5 text-xs text-muted-foreground px-4 pb-4">
             <p className="flex items-center gap-1.5"><Building2 className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Kapasitas Harian:</span>{store.capacity?.default_daily_capacity_minutes ?? "-"} menit</p>
             <p className="flex items-center gap-1.5"><Timer className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Batas Overbooking:</span>{store.capacity?.overbooking_limit_minutes ?? "-"} menit</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Row 2: Operasional + Zona */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="text-sm">Operasional</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1.5 text-xs text-muted-foreground px-4 pb-4">
+            <div className="flex justify-between">
+              <div className="flex flex-col gap-1.5 flex-1">
+                <p className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Jam:</span>{store.operational?.opening_time || "-"} - {store.operational?.closing_time || "-"}</p>
+                <p className="flex items-center gap-1.5"><Globe className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Timezone:</span>{store.operational?.timezone || "-"}</p>
+                <p className="flex items-center gap-1.5"><CalendarDays className="h-3.5 w-3.5 shrink-0" /><span className="font-medium text-foreground/60">Hari:</span>{store.operational?.operational_days?.length ? store.operational.operational_days.map((d) => DAY_LABELS[d] ?? d).join(", ") : "-"}</p>
+
+              </div>
+              <div className="flex items-start gap-1.5 flex-1">
+                <Timer className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <div className="flex flex-col gap-1">
+                  <span className="font-medium text-foreground/60">Sesi:</span>
+                  {store.sessions?.length ? store.sessions.map((s, i) => (
+                    <span key={i}>{s}</span>
+                  )) : <span>-</span>}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2 pt-4 px-4">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Layers className="h-3.5 w-3.5" />
+              Zona
+              {store.zones && store.zones.length > 0 && (
+                <Badge variant="secondary" className="ml-1 text-xs">{store.zones.length}</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            {store.zones && store.zones.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-muted-foreground border-b border-border/50">
+                      <th className="pb-2 pr-3 text-left font-medium">Nama Area</th>
+                      <th className="pb-2 pr-3 text-right font-medium">Min (km)</th>
+                      <th className="pb-2 pr-3 text-right font-medium">Max (km)</th>
+                      <th className="pb-2 pr-3 text-right font-medium">Waktu</th>
+                      <th className="pb-2 text-right font-medium">Biaya</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {store.zones.map((zone, i) => (
+                      <tr key={i} className="border-b border-border/30 last:border-0">
+                        <td className="py-1.5 pr-3 font-medium">{zone.area_name}</td>
+                        <td className="py-1.5 pr-3 text-right text-muted-foreground">{zone.min_radius_km}</td>
+                        <td className="py-1.5 pr-3 text-right text-muted-foreground">{zone.max_radius_km}</td>
+                        <td className="py-1.5 pr-3 text-right text-muted-foreground">{zone.travel_time_minutes} mnt</td>
+                        <td className="py-1.5 text-right font-medium">Rp {zone.travel_fee.toLocaleString("id-ID")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Belum ada zona yang dikonfigurasi.</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -201,28 +261,32 @@ export default function StoreDetailPage() {
                     <span className="w-20 shrink-0 text-xs text-muted-foreground">Durasi</span>
                     <span className="text-xs">{service.duration} menit</span>
                   </div>
-                  {service.pet_types && service.pet_types.length > 0 && (
-                    <div className="flex justify-between flex-wrap items-center gap-2">
-                      <span className="w-20 shrink-0 text-xs text-muted-foreground">Hewan</span>
-                      <div className="flex flex-wrap items-center gap-1">
-                        {service.pet_types.map((pt) => (
-                          <Badge key={pt._id} variant="secondary" className="text-xs">{pt.name}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {service.prices.length > 0 && (
                   <>
                     <Separator />
-                    <div className="flex flex-col gap-1">
-                      {service.prices.map((p) => (
-                        <div key={p.size_id} className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">{p.name}</span>
-                          <span className="font-medium">Rp {p.price.toLocaleString("id-ID")}</span>
-                        </div>
-                      ))}
+                    <div className="w-full overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-muted-foreground">
+                            <th className="pb-1 text-left font-medium">Hewan</th>
+                            <th className="pb-1 text-left font-medium">Ukuran</th>
+                            <th className="pb-1 text-left font-medium">Bulu</th>
+                            <th className="pb-1 text-right font-medium">Harga</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {service.prices.map((p, i) => (
+                            <tr key={p.size_id ?? i} className="border-t border-border/40">
+                              <td className="py-1 pr-2 text-muted-foreground">{p.pet_name ?? "-"}</td>
+                              <td className="py-1 pr-2 text-muted-foreground">{p.size_name ?? p.name ?? "-"}</td>
+                              <td className="py-1 pr-2 text-muted-foreground">{p.hair_name ?? "-"}</td>
+                              <td className="py-1 text-right font-medium">Rp {p.price.toLocaleString("id-ID")}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </>
                 )}

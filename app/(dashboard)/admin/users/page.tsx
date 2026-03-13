@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Search, Mail, Phone, ChevronLeft, ChevronRight, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, KeyRound, Eye, EyeOff } from "lucide-react"
+import Link from "next/link"
+import { Search, Mail, Phone, ChevronLeft, ChevronRight, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, KeyRound, Eye, EyeOff, PawPrint } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -426,6 +427,14 @@ export default function UsersPage() {
                         year: "numeric",
                       })}
                     </p>
+                    {user.role === "customer" && (
+                      <Button variant="outline" size="sm" className="w-full mt-2" asChild>
+                        <Link href={`/admin/users/${user._id}/pets`}>
+                          <PawPrint className="mr-2 h-4 w-4" />
+                          Lihat Pet
+                        </Link>
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -452,6 +461,7 @@ export default function UsersPage() {
                     <TableHead>Role</TableHead>
                     <TableHead>Bergabung</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead></TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -465,6 +475,7 @@ export default function UsersPage() {
                           <TableCell><Skeleton className="h-4 w-16" /></TableCell>
                           <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                           <TableCell><Skeleton className="h-5 w-14" /></TableCell>
+                          <TableCell></TableCell>
                           <TableCell><Skeleton className="h-5 w-10 ml-auto" /></TableCell>
                         </TableRow>
                       ))
@@ -498,6 +509,16 @@ export default function UsersPage() {
                             <Badge variant="outline" className={`text-xs ${user.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
                               {user.is_active ? "Aktif" : "Nonaktif"}
                             </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {user.role === "customer" && (
+                              <Button variant="outline" size="sm" asChild>
+                                <Link href={`/admin/users/${user._id}/pets`}>
+                                  <PawPrint className="mr-1.5 h-3.5 w-3.5" />
+                                  Lihat Pet
+                                </Link>
+                              </Button>
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
@@ -543,7 +564,7 @@ export default function UsersPage() {
                       ))}
                   {!isLoading && users.length === 0 && !error && (
                     <TableRow>
-                      <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
                         Tidak ada pengguna ditemukan
                       </TableCell>
                     </TableRow>

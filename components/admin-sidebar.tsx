@@ -11,9 +11,11 @@ import {
   Tag,
   Store,
   Scissors,
+  ImageIcon,
   LogOut,
   Moon,
   Sun,
+  UserCircle,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/lib/auth-context"
@@ -35,12 +37,12 @@ import {
 
 const menuItems = [
   { title: "Dashboard (Dummy)", href: "/admin/dashboard", icon: LayoutDashboard },
-  { title: "Bookings (Dummy)", href: "/admin/bookings", icon: CalendarDays },
+  { title: "Bookings", href: "/admin/bookings", icon: CalendarDays },
   { title: "Users", href: "/admin/users", icon: Users },
   { title: "Stores", href: "/admin/stores", icon: Store },
   { title: "Services", href: "/admin/services", icon: Scissors },
   { title: "Options", href: "/admin/options", icon: Tag },
-  { title: "Products (Dummy)", href: "/admin/products", icon: Package },
+  { title: "Banners", href: "/admin/banners", icon: ImageIcon },
 ]
 
 export function AdminSidebar() {
@@ -123,6 +125,14 @@ export function AdminSidebar() {
               {theme === "dark" ? "Light Mode" : "Dark Mode"}
             </span>
           </button>
+          <Link
+            href="/admin/profile"
+            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"
+            title="My Profile"
+          >
+            <UserCircle className="h-4 w-4" />
+            <span className="group-data-[collapsible=icon]:hidden">My Profile</span>
+          </Link>
           <button
             onClick={logout}
             className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:justify-center"

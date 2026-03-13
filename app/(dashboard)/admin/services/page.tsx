@@ -78,6 +78,8 @@ interface ServiceForm {
   pet_type_ids: string[]
   size_category_ids: string[]
   hair_category_ids: string[]
+  price_type: "single" | "multiple"
+  price: string
   prices: PriceRow[]
   available_store_ids: string[]
   addon_ids: string[]
@@ -113,6 +115,8 @@ const DEFAULT_SERVICE_FORM: ServiceForm = {
   pet_type_ids: [],
   size_category_ids: [],
   hair_category_ids: [],
+  price_type: "multiple",
+  price: "",
   prices: [],
   available_store_ids: [],
   addon_ids: [],
@@ -132,6 +136,18 @@ const DEFAULT_SERVICE_FORM: ServiceForm = {
 // ─────────────────────────────────────────────────────────────────────────────
 function formatRupiah(n: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n)
+}
+
+// Format raw digit string with thousand-separator dots for display (e.g. "20000" → "20.000")
+function formatThousands(val: string): string {
+  const digits = val.replace(/\D/g, "")
+  if (!digits) return ""
+  return Number(digits).toLocaleString("id-ID")
+}
+
+// Strip thousand-separator dots so only raw digits remain (e.g. "20.000" → "20000")
+function parseThousands(val: string): string {
+  return val.replace(/\./g, "").replace(/\D/g, "")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -379,9 +395,12 @@ function ServiceFormFields({
     setForm((p) => ({ ...p, imageFile: null, imagePreview: null, image_url: null, public_id: null }))
   }
 
-  // Auto-generate price rows when ALL three dimensions are selected
+  // Auto-generate price rows when ALL three dimensions are selected (multiple only)
   useEffect(() => {
     setForm((p) => {
+      if (p.price_type !== "multiple") {
+        return { ...p, prices: [] }
+      }
       if (!p.pet_type_ids.length || !p.size_category_ids.length || !p.hair_category_ids.length) {
         return { ...p, prices: [] }
       }
@@ -399,7 +418,7 @@ function ServiceFormFields({
       return { ...p, prices: combinations }
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.pet_type_ids, form.size_category_ids, form.hair_category_ids])
+  }, [form.pet_type_ids, form.size_category_ids, form.hair_category_ids, form.price_type])
 
   const updatePriceRow = (idx: number, value: string) => {
     setForm((p) => {
@@ -492,46 +511,88 @@ function ServiceFormFields({
       {/* Prices */}
       <div className="flex flex-col gap-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Harga</p>
-        {!form.pet_type_ids.length || !form.size_category_ids.length || !form.hair_category_ids.length ? (
-          <p className="text-sm text-muted-foreground">Pilih minimal satu hewan, ukuran, <em>dan</em> bulu untuk mengisi harga.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-md border border-border">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/50">
-                  {form.pet_type_ids.length > 0 && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Hewan</th>}
-                  {form.size_category_ids.length > 0 && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Ukuran</th>}
-                  {form.hair_category_ids.length > 0 && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Bulu</th>}
-                  <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Harga (Rp)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {form.prices.map((row, idx) => (
-                  <tr key={idx} className="border-b border-border last:border-0 hover:bg-muted/30">
-                    {form.pet_type_ids.length > 0 && (
-                      <td className="px-3 py-2 text-xs">{petTypes.find((p) => p._id === row.pet_type_id)?.name ?? "—"}</td>
-                    )}
-                    {form.size_category_ids.length > 0 && (
-                      <td className="px-3 py-2 text-xs">{sizeCategories.find((s) => s._id === row.size_id)?.name ?? "—"}</td>
-                    )}
-                    {form.hair_category_ids.length > 0 && (
-                      <td className="px-3 py-2 text-xs">{hairCategories.find((h) => h._id === row.hair_id)?.name ?? "—"}</td>
-                    )}
-                    <td className="px-3 py-2">
-                      <Input
-                        className="h-7 text-xs w-32"
-                        type="number"
-                        min={0}
-                        placeholder="Input harga"
-                        value={row.price}
-                        onChange={(e) => updatePriceRow(idx, e.target.value)}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Price Type Toggle */}
+        <div className="flex flex-col gap-1.5">
+          <Label>Tipe Harga</Label>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={form.price_type === "multiple" ? "default" : "outline"}
+              onClick={() => setForm((p) => ({ ...p, price_type: "multiple" }))}
+            >
+              Multiple (Per Kombinasi)
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={form.price_type === "single" ? "default" : "outline"}
+              onClick={() => setForm((p) => ({ ...p, price_type: "single" }))}
+            >
+              Single (Harga Tetap)
+            </Button>
           </div>
+        </div>
+        {form.price_type === "single" ? (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="sv-price">Harga (Rp) *</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Rp</span>
+              <Input
+                id="sv-price"
+                type="text"
+                inputMode="numeric"
+                placeholder="0"
+                className="pl-9"
+                value={formatThousands(form.price)}
+                onChange={(e) => setForm((p) => ({ ...p, price: parseThousands(e.target.value) }))}
+              />
+            </div>
+          </div>
+        ) : (
+          <>
+            {!form.pet_type_ids.length || !form.size_category_ids.length || !form.hair_category_ids.length ? (
+              <p className="text-sm text-muted-foreground">Pilih minimal satu hewan, ukuran, <em>dan</em> bulu untuk mengisi harga.</p>
+            ) : (
+              <div className="overflow-x-auto rounded-md border border-border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/50">
+                      {form.pet_type_ids.length > 0 && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Hewan</th>}
+                      {form.size_category_ids.length > 0 && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Ukuran</th>}
+                      {form.hair_category_ids.length > 0 && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Bulu</th>}
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Harga (Rp)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {form.prices.map((row, idx) => (
+                      <tr key={idx} className="border-b border-border last:border-0 hover:bg-muted/30">
+                        {form.pet_type_ids.length > 0 && (
+                          <td className="px-3 py-2 text-xs">{petTypes.find((p) => p._id === row.pet_type_id)?.name ?? "—"}</td>
+                        )}
+                        {form.size_category_ids.length > 0 && (
+                          <td className="px-3 py-2 text-xs">{sizeCategories.find((s) => s._id === row.size_id)?.name ?? "—"}</td>
+                        )}
+                        {form.hair_category_ids.length > 0 && (
+                          <td className="px-3 py-2 text-xs">{hairCategories.find((h) => h._id === row.hair_id)?.name ?? "—"}</td>
+                        )}
+                        <td className="px-3 py-2">
+                          <Input
+                            className="h-7 text-xs w-36"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="0"
+                            value={formatThousands(row.price)}
+                            onChange={(e) => updatePriceRow(idx, parseThousands(e.target.value))}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -804,14 +865,19 @@ export default function ServicesPage() {
     pet_type_ids: form.pet_type_ids,
     size_category_ids: form.size_category_ids,
     hair_category_ids: form.hair_category_ids,
-    prices: form.prices
-      .filter((r) => r.price !== "" && r.pet_type_id && r.size_id && r.hair_id)
-      .map((r) => ({
-        pet_type_id: r.pet_type_id,
-        size_id: r.size_id,
-        hair_id: r.hair_id,
-        price: Number(r.price),
-      })),
+    price_type: form.price_type,
+    ...(form.price_type === "single"
+      ? { price: Number(form.price) }
+      : {
+          prices: form.prices
+            .filter((r) => r.price !== "" && r.pet_type_id && r.size_id && r.hair_id)
+            .map((r) => ({
+              pet_type_id: r.pet_type_id,
+              size_id: r.size_id,
+              hair_id: r.hair_id,
+              price: Number(r.price),
+            })),
+        }),
     duration: Number(form.duration),
     available_for_unlimited: form.available_for_unlimited,
     available_store_ids: form.available_store_ids.length ? form.available_store_ids : undefined,
@@ -881,6 +947,8 @@ export default function ServicesPage() {
       pet_type_ids: petIds,
       size_category_ids: sizeIds,
       hair_category_ids: hairIds,
+      price_type: svc.price_type ?? "multiple",
+      price: String(svc.price ?? ""),
       prices,
       available_store_ids: svc.avaiable_store?.map((s) => s._id) ?? [],
       addon_ids: svc.addons?.map((a) => a._id) ?? [],
@@ -980,55 +1048,89 @@ export default function ServicesPage() {
                 ? Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-md" />)
                 : filteredTypes.length === 0
                 ? <p className="text-sm text-muted-foreground text-center py-6">Tidak ada tipe layanan</p>
-                : filteredTypes.map((st) => (
-                    <div
-                      key={st._id}
-                      className={`group flex items-center justify-between gap-2 rounded-md border px-3 py-2.5 cursor-pointer transition-colors ${
-                        selectedTypeId === st._id
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:bg-muted/50"
-                      }`}
-                      onClick={() => setSelectedTypeId(st._id)}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        {/* thumbnail */}
-                        {st.image_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={st.image_url} alt={st.title} className="h-8 w-8 rounded object-cover shrink-0" />
-                        ) : (
-                          <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
-                            <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                : filteredTypes.map((st) => {
+                    const isActive = selectedTypeId === st._id
+                    return (
+                      <div
+                        key={st._id}
+                        className={`group rounded-md border transition-colors ${
+                          isActive
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:bg-muted/50"
+                        }`}
+                      >
+                        {/* ── Row ── */}
+                        <div
+                          className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer"
+                          onClick={() => setSelectedTypeId(st._id)}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            {/* thumbnail */}
+                            {st.image_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={st.image_url} alt={st.title} className="h-8 w-8 rounded object-cover shrink-0" />
+                            ) : (
+                              <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
+                                <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            )}
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-sm font-medium truncate">{st.title}</span>
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] w-fit px-1.5 py-0 ${st.is_active ? "text-emerald-700 border-emerald-300 bg-emerald-50" : "text-gray-500 border-gray-300 bg-gray-50"}`}
+                              >
+                                {st.is_active ? "Aktif" : "Nonaktif"}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                className="p-1 rounded hover:bg-muted"
+                                onClick={(e) => { e.stopPropagation(); openEditStype(st) }}
+                              >
+                                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                              </button>
+                              <button
+                                type="button"
+                                className="p-1 rounded hover:bg-destructive/10"
+                                onClick={(e) => { e.stopPropagation(); setDeleteStype(st) }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                              </button>
+                            </div>
+                            <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${isActive ? "rotate-90 text-primary" : "text-muted-foreground/40"}`} />
+                          </div>
+                        </div>
+
+                        {/* ── Expanded detail ── */}
+                        {isActive && (
+                          <div className="border-t border-primary/20 px-3 py-2.5 flex flex-col gap-2">
+                            {st.description && (
+                              <p className="text-xs text-muted-foreground leading-relaxed">{st.description}</p>
+                            )}
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                              <span className={st.show_in_homepage ? "text-primary font-medium" : ""}>
+                                {st.show_in_homepage ? "✓ Tampil di homepage" : "Tidak di homepage"}
+                              </span>
+                            </div>
+                            {(st.stores?.length ?? 0) > 0 && (
+                              <div className="flex flex-col gap-1">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Toko</p>
+                                <div className="flex flex-col gap-0.5">
+                                  {st.stores!.map((s) => (
+                                    <span key={s._id} className="text-xs text-foreground/80 truncate">• {s.name}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-sm font-medium truncate">{st.title}</span>
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] w-fit px-1.5 py-0 ${st.is_active ? "text-emerald-700 border-emerald-300 bg-emerald-50" : "text-gray-500 border-gray-300 bg-gray-50"}`}
-                          >
-                            {st.is_active ? "Aktif" : "Nonaktif"}
-                          </Badge>
-                        </div>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          type="button"
-                          className="p-1 rounded hover:bg-muted"
-                          onClick={(e) => { e.stopPropagation(); openEditStype(st) }}
-                        >
-                          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                        </button>
-                        <button
-                          type="button"
-                          className="p-1 rounded hover:bg-destructive/10"
-                          onClick={(e) => { e.stopPropagation(); setDeleteStype(st) }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </button>
-                      </div>
-                      {selectedTypeId === st._id && <ChevronRight className="h-3.5 w-3.5 text-primary shrink-0" />}
-                    </div>
-                  ))
+                    )
+                  })
               }
             </div>
           </div>
@@ -1125,12 +1227,7 @@ export default function ServicesPage() {
                                           <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
                                         </div>
                                       )}
-                                      <div className="flex flex-col gap-0.5">
                                         <span className="font-medium text-sm">{svc.name}</span>
-                                        {svc.description && (
-                                          <span className="text-xs text-muted-foreground line-clamp-1">{svc.description}</span>
-                                        )}
-                                      </div>
                                     </div>
                                   </TableCell>
                                   <TableCell>
@@ -1141,7 +1238,9 @@ export default function ServicesPage() {
                                   </TableCell>
                                   <TableCell>
                                     <span className="text-sm text-muted-foreground">
-                                      {(svc.prices?.length ?? 0) > 0
+                                      {svc.price_type === "single" && svc.price != null
+                                        ? formatRupiah(svc.price)
+                                        : (svc.prices?.length ?? 0) > 0
                                         ? `${svc.prices!.length} varian`
                                         : "—"}
                                     </span>
@@ -1380,6 +1479,10 @@ export default function ServicesPage() {
                   <span>{viewService.duration} menit</span>
                   <span className="text-muted-foreground">Lokasi</span>
                   <span className="capitalize">{viewService.service_location_type ?? "—"}</span>
+                  <span className="text-muted-foreground">Tipe Harga</span>
+                  <Badge variant="outline" className="w-fit text-xs">
+                    {viewService.price_type === "single" ? "Single" : "Multiple"}
+                  </Badge>
                   <span className="text-muted-foreground">Status</span>
                   <Badge variant="outline" className={`w-fit text-xs ${viewService.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
                     {viewService.is_active ? "Aktif" : "Nonaktif"}
@@ -1422,7 +1525,18 @@ export default function ServicesPage() {
               </div>
 
               {/* Prices */}
-              {(viewService.prices?.length ?? 0) > 0 && (
+              {viewService.price_type === "single" ? (
+                <>
+                  <Separator />
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Harga</p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                      <span className="text-muted-foreground">Harga</span>
+                      <span className="font-medium">{formatRupiah(viewService.price ?? 0)}</span>
+                    </div>
+                  </div>
+                </>
+              ) : (viewService.prices?.length ?? 0) > 0 ? (
                 <>
                   <Separator />
                   <div className="flex flex-col gap-2">
@@ -1453,7 +1567,7 @@ export default function ServicesPage() {
                     </div>
                   </div>
                 </>
-              )}
+              ) : null}
 
               {/* Stores */}
               {(viewService.avaiable_store?.length ?? 0) > 0 && (

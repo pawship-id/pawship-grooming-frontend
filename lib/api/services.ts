@@ -36,6 +36,8 @@ export interface AdminService {
   pet_types?: AdminServiceRef[]
   size_categories?: AdminServiceRef[]
   hair_categories?: AdminServiceRef[]
+  price_type?: "single" | "multiple"
+  price?: number
   prices?: AdminServicePrice[]
   duration: number
   available_for_unlimited: boolean
@@ -77,6 +79,8 @@ export type ServicePayload = {
   pet_type_ids?: string[]
   size_category_ids?: string[]
   hair_category_ids?: string[]
+  price_type?: "single" | "multiple"
+  price?: number
   prices?: { pet_type_id: string; size_id: string; hair_id: string; price: number }[]
   duration?: number
   available_for_unlimited?: boolean

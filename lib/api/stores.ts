@@ -27,9 +27,22 @@ export interface StoreCapacity {
   overbooking_limit_minutes?: number | null
 }
 
+export interface StoreZone {
+  area_name: string
+  min_radius_km: number
+  max_radius_km: number
+  travel_time_minutes: number
+  travel_fee: number
+}
+
 export interface ServicePrice {
-  size_id: string
-  name: string
+  pet_id?: string
+  pet_name?: string
+  size_id?: string
+  size_name?: string
+  hair_id?: string
+  hair_name?: string
+  name?: string
   price: number
 }
 
@@ -76,6 +89,7 @@ export interface ApiStore {
   operational?: StoreOperational
   capacity?: StoreCapacity
   sessions?: string[]
+  zones?: StoreZone[]
   is_active: boolean
   createdAt: string
   updatedAt: string
@@ -135,6 +149,13 @@ export type StorePayload = {
     overbooking_limit_minutes: number
   }
   sessions?: string[]
+  zones?: {
+    area_name: string
+    min_radius_km: number
+    max_radius_km: number
+    travel_time_minutes: number
+    travel_fee: number
+  }[]
   is_active?: boolean
 }
 

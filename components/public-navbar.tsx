@@ -20,7 +20,10 @@ import { useAuth } from "@/lib/auth-context"
 const ROLE_MENU: Record<string, { label: string; href: string }[]> = {
   admin: [{ label: "Dashboard", href: "/admin/dashboard" }],
   groomer: [{ label: "Jobs", href: "/groomer/dashboard" }],
-  customer: [{ label: "My Order", href: "/customer/order" }],
+  customer: [
+    { label: "My Profile", href: "/customer/profile" },
+    { label: "My Order", href: "/customer/order" },
+  ],
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -69,7 +72,10 @@ export function PublicNavbar() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-                  <span className="text-sm font-medium text-foreground/80 hidden lg:block">{user.name}</span>
+                  <div className="flex flex-col text-left">
+                    <span className="text-sm font-medium text-foreground">{user.name}</span>
+                    <span className="text-xs text-muted-foreground">{ROLE_LABEL[user.role] ?? user.role}</span>
+                  </div>
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={undefined} alt={user.name} />
                     <AvatarFallback className="bg-primary text-primary-foreground text-xs">
@@ -84,11 +90,6 @@ export function PublicNavbar() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuLabel className="flex flex-col gap-0.5">
-                  <span className="font-medium">{user.name}</span>
-                  <span className="text-xs font-normal text-muted-foreground">{ROLE_LABEL[user.role] ?? user.role}</span>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
                 {(ROLE_MENU[user.role] ?? []).map((item) => (
                   <DropdownMenuItem key={item.href} asChild>
                     <Link href={item.href}>{item.label}</Link>

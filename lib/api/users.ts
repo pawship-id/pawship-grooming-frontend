@@ -13,6 +13,57 @@ export interface ApiUser {
   updatedAt: string
 }
 
+export interface ApiPetType {
+  _id: string
+  name: string
+}
+
+export interface ApiPetMembership {
+  membership_id: string
+  start_date: string
+  end_date: string
+  status: "active" | "inactive" | "expired"
+  usage_count: number
+  max_usage: number
+}
+
+export interface ApiPet {
+  _id: string
+  name: string
+  description?: string
+  internal_note?: string
+  profile_image?: {
+    secure_url: string
+    public_id: string
+  }
+  tags: string[]
+  memberships: ApiPetMembership[]
+  is_active: boolean
+  isDeleted: boolean
+  deletedAt: string | null
+  createdAt: string
+  updatedAt: string
+  weight?: number
+  birthday?: string
+  pet_type: ApiPetType | null
+  hair: ApiPetType | null
+  size: ApiPetType | null
+  breed: ApiPetType | null
+  member_category: ApiPetType | null
+  last_grooming_at?: string
+  last_visit_at?: string
+}
+
+export interface ApiCurrentUser extends ApiUser {
+  isDeleted: boolean
+  pets?: ApiPet[]
+}
+
+export interface MeResponse {
+  message: string
+  user: ApiCurrentUser
+}
+
 export interface UsersResponse {
   message: string
   users: ApiUser[]
@@ -91,4 +142,17 @@ export async function updateUserPassword(userId: string, password: string) {
     method: "PATCH",
     body: JSON.stringify({ password }),
   })
+}
+
+export async function getCurrentUser() {
+  return apiAuthRequest<MeResponse>("/users/me")
+}
+
+export interface UserDetailResponse {
+  message: string
+  user: ApiCurrentUser
+}
+
+export async function getUser(userId: string) {
+  return apiAuthRequest<UserDetailResponse>(`/users/${userId}`)
 }
