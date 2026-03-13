@@ -50,6 +50,15 @@ export interface StatusLog {
 
 // ── Sessions ─────────────────────────────────────────────────────────────────
 
+export interface SessionMedia {
+  _id?: string
+  url?: string
+  secure_url?: string
+  public_id?: string
+  type: "before" | "after"
+  note?: string
+}
+
 export interface BookingSession {
   _id?: string
   type: string
@@ -61,7 +70,7 @@ export interface BookingSession {
   notes: string | null
   internal_note: string | null
   order: number
-  media: string[]
+  media: SessionMedia[]
 }
 
 export interface SessionInput {
@@ -248,5 +257,22 @@ export async function finishBookingSession(bookingId: string, sessionId: string,
 export async function deleteBookingSession(bookingId: string, sessionId: string) {
   return apiAuthRequest<{ message: string }>(`/bookings/${bookingId}/session/${sessionId}`, {
     method: "DELETE",
+  })
+}
+
+export async function uploadSessionMedia(
+  bookingId: string,
+  sessionId: string,
+  file: File,
+  type: "before" | "after",
+  note?: string,
+) {
+  const formData = new FormData()
+  formData.append("image", file)
+  formData.append("type", type)
+  if (note) formData.append("note", note)
+  return apiAuthRequest<{ message: string }>(`/bookings/${bookingId}/session/${sessionId}/media`, {
+    method: "POST",
+    body: formData,
   })
 }

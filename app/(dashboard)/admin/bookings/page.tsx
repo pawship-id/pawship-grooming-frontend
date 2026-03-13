@@ -18,8 +18,8 @@ const statusColors: Record<string, string> = {
   requested: "bg-accent/20 text-accent-foreground",
   confirmed: "bg-secondary/60 text-secondary-foreground",
   arrived: "bg-primary/10 text-primary",
-  "grooming in progress": "bg-primary/10 text-primary",
-  "grooming finished": "bg-secondary/60 text-secondary-foreground",
+  "in progress": "bg-primary/10 text-primary",
+  completed: "bg-secondary/60 text-secondary-foreground",
   rescheduled: "bg-accent/20 text-accent-foreground",
   cancelled: "bg-destructive/10 text-destructive",
 }
@@ -101,8 +101,8 @@ export default function BookingsPage() {
                   <SelectItem value="requested">Requested</SelectItem>
                   <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="arrived">Arrived</SelectItem>
-                  <SelectItem value="grooming in progress">Grooming In Progress</SelectItem>
-                  <SelectItem value="grooming finished">Grooming Finished</SelectItem>
+                  <SelectItem value="in progress">In Progress</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
                   <SelectItem value="rescheduled">Rescheduled</SelectItem>
                   <SelectItem value="cancelled">Cancelled</SelectItem>
                 </SelectContent>
