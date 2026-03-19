@@ -2,8 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 
 const BACKEND_API_BASE_URL =
   process.env.BACKEND_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  "https://api-pawship-grooming.zullstack.dev"
+  process.env.NEXT_PUBLIC_API_BASE_URL
 
 function buildTargetUrl(pathSegments: string[], request: NextRequest) {
   const normalizedPath = pathSegments.join("/")

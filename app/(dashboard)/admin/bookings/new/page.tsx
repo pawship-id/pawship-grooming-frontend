@@ -3,29 +3,30 @@
 import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Plus, Trash2 } from "lucide-react"
+import {
+  ArrowLeft, AlertTriangle, Check, Lock, Plus, Trash2,
+  Mail, Phone, Clock, MapPin, CalendarDays, Tag, Weight, Cake,
+  Scissors, Info, Star,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
 import { getStores, getStoreById } from "@/lib/api/stores"
 import type { ApiStore } from "@/lib/api/stores"
 import { getUsers, getUser } from "@/lib/api/users"
-import type { ApiUser } from "@/lib/api/users"
+import type { ApiUser, ApiPet } from "@/lib/api/users"
 import { getAdminServices } from "@/lib/api/services"
-import type { AdminService } from "@/lib/api/services"
+import type { AdminService, AdminServicePrice } from "@/lib/api/services"
 import { getServiceTypes } from "@/lib/api/service-types"
 import type { ApiServiceType } from "@/lib/api/service-types"
 import { createAdminBooking } from "@/lib/api/bookings"
-
-interface PetOption {
-  _id: string
-  name: string
-}
 
 const DEFAULT_FORM = {
   store_id: "",
@@ -41,6 +42,58 @@ const DEFAULT_FORM = {
   note: "",
 }
 
+function formatPrice(price: number) {
+  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(price)
+}
+
+/** Cek apakah baris harga cocok dengan pet yang dipilih (semua ID yang diset harus match) */
+function isPriceMatchingPet(price: AdminServicePrice, pet: ApiPet): boolean {
+  const petTypeMatch = !price.pet_type_id || price.pet_type_id === pet.pet_type?._id
+  const sizeMatch    = !price.size_id    || price.size_id    === pet.size?._id
+  const hairMatch    = !price.hair_id    || price.hair_id    === pet.hair?._id
+  return petTypeMatch && sizeMatch && hairMatch
+}
+
+function DetailRow({ icon, label, value }: { icon?: React.ReactNode; label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2 text-sm">
+      {icon && <span className="mt-0.5 shrink-0 text-muted-foreground">{icon}</span>}
+      <span className="shrink-0 text-muted-foreground">{label}:</span>
+      <span className="font-medium text-foreground">{value}</span>
+    </div>
+  )
+}
+
+function StepHeader({ step, title, done }: { step: number; title: string; done: boolean }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+        done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+      }`}>
+        {done ? <Check className="h-4 w-4" /> : step}
+      </span>
+      <h2 className="font-display text-lg font-bold text-foreground">{title}</h2>
+    </div>
+  )
+}
+
+function LockedSection({ step, title }: { step: number; title: string }) {
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="flex items-center gap-3 opacity-40 select-none">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-bold text-muted-foreground">
+          {step}
+        </span>
+        <h2 className="font-display text-lg font-bold text-foreground">{title}</h2>
+      </div>
+      <div className="flex items-center justify-center gap-2 rounded-xl border border-dashed border-border/40 bg-muted/20 py-5">
+        <Lock className="h-3.5 w-3.5 text-muted-foreground/50" />
+        <p className="text-sm text-muted-foreground/60">Selesaikan langkah sebelumnya untuk melanjutkan</p>
+      </div>
+    </section>
+  )
+}
+
 export default function NewBookingPage() {
   const router = useRouter()
   const [form, setForm] = useState(DEFAULT_FORM)
@@ -54,8 +107,10 @@ export default function NewBookingPage() {
   const [groomers, setGroomers] = useState<ApiUser[]>([])
   const [sessions, setSessions] = useState<string[]>([])
   const [services, setServices] = useState<AdminService[]>([])
-  const [pets, setPets] = useState<PetOption[]>([])
+  const [pets, setPets] = useState<ApiPet[]>([])
   const [sessionRows, setSessionRows] = useState<Array<{ type: string; groomer_id: string }>>([])
+  /** Semua service aktif di store yang dipilih — dipakai untuk lookup harga addon */
+  const [allStoreServices, setAllStoreServices] = useState<AdminService[]>([])
 
   const [loadingInit, setLoadingInit] = useState(true)
   const [loadingStore, setLoadingStore] = useState(false)
@@ -82,12 +137,7 @@ export default function NewBookingPage() {
   const fetchServices = async (storeId: string, typeId: string) => {
     setLoadingServices(true)
     try {
-      const res = await getAdminServices({
-        store_id: storeId,
-        service_type_id: typeId,
-        is_active: "true",
-        limit: 100,
-      })
+      const res = await getAdminServices({ store_id: storeId, service_type_id: typeId, is_active: "true", limit: 100 })
       setServices(res.services)
     } catch {
       toast.error("Gagal memuat layanan")
@@ -96,16 +146,30 @@ export default function NewBookingPage() {
     }
   }
 
+  /** Fetch semua service aktif dari store — tanpa filter type — untuk lookup harga addon */
+  const fetchAllStoreServices = async (storeId: string) => {
+    try {
+      const res = await getAdminServices({ store_id: storeId, is_active: "true", limit: 500 })
+      setAllStoreServices(res.services)
+    } catch {
+      // fail silently — addon prices are bonus info
+    }
+  }
+
   const handleStoreChange = async (storeId: string) => {
     setForm((p) => ({ ...p, store_id: storeId, time_range: "", service_id: "" }))
     setSelectedAddonIds([])
     setSessions([])
     setServices([])
+    setAllStoreServices([])
     if (!storeId) return
     setLoadingStore(true)
     try {
-      const res = await getStoreById(storeId)
-      setSessions(res.store.sessions ?? [])
+      const [storeRes] = await Promise.all([
+        getStoreById(storeId),
+        fetchAllStoreServices(storeId),
+      ])
+      setSessions(storeRes.store.sessions ?? [])
       if (form.service_type_id) await fetchServices(storeId, form.service_type_id)
     } catch {
       toast.error("Gagal memuat data store")
@@ -128,7 +192,7 @@ export default function NewBookingPage() {
     setLoadingPets(true)
     try {
       const res = await getUser(customerId)
-      setPets((res.user.pets ?? []).map((p) => ({ _id: p._id, name: p.name })))
+      setPets(res.user.pets ?? [])
     } catch {
       toast.error("Gagal memuat data hewan customer")
     } finally {
@@ -136,23 +200,25 @@ export default function NewBookingPage() {
     }
   }
 
-  const selectedService = services.find((s) => s._id === form.service_id)
-  const addons = selectedService?.addons ?? []
+  // ── Derived selections ──────────────────────────────────────────────────────
+  const selectedCustomer    = customers.find((c) => c._id === form.customer_id)
+  const selectedPet         = pets.find((p) => p._id === form.pet_id)
+  const selectedStore       = stores.find((s) => s._id === form.store_id)
+  const selectedServiceType = serviceTypes.find((t) => t._id === form.service_type_id)
+  const selectedService     = services.find((s) => s._id === form.service_id)
+  const addons              = selectedService?.addons ?? []
+
+  // ── Step gates ─────────────────────────────────────────────────────────────
+  const step1Done = !!form.customer_id && !!form.pet_id
+  const step2Done = step1Done && !!form.store_id && !!form.date && !!form.time_range
+  const step3Done = step2Done && !!form.service_type_id && !!form.service_id
 
   const toggleAddon = (id: string) =>
-    setSelectedAddonIds((prev) =>
-      prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id],
-    )
+    setSelectedAddonIds((prev) => prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.store_id) { toast.error("Pilih store terlebih dahulu"); return }
-    if (!form.service_type_id) { toast.error("Pilih tipe layanan terlebih dahulu"); return }
-    if (!form.customer_id) { toast.error("Pilih customer terlebih dahulu"); return }
-    if (!form.pet_id) { toast.error("Pilih hewan peliharaan terlebih dahulu"); return }
-    if (!form.service_id) { toast.error("Pilih layanan terlebih dahulu"); return }
-    if (!form.date) { toast.error("Pilih tanggal terlebih dahulu"); return }
-    if (!form.time_range) { toast.error("Pilih sesi waktu terlebih dahulu"); return }
+    if (!step3Done) { toast.error("Lengkapi semua langkah wajib terlebih dahulu"); return }
 
     setSubmitting(true)
     try {
@@ -171,7 +237,9 @@ export default function NewBookingPage() {
           ? (customPaymentMethod.trim() || undefined)
           : (form.payment_method || undefined),
         note: form.note || undefined,
-        sessions: sessionRows.filter((r) => r.type && r.groomer_id).map((r, i) => ({ type: r.type, groomer_id: r.groomer_id, order: i })),
+        sessions: sessionRows
+          .filter((r) => r.type && r.groomer_id)
+          .map((r, i) => ({ type: r.type, groomer_id: r.groomer_id, order: i })),
       })
       toast.success("Booking berhasil dibuat")
       router.push("/admin/bookings")
@@ -197,291 +265,588 @@ export default function NewBookingPage() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-2">
-        {/* Store & Schedule */}
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle className="font-display text-lg">Store &amp; Jadwal</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <Label>Store</Label>
-              <Select value={form.store_id} onValueChange={handleStoreChange} disabled={loadingInit}>
-                <SelectTrigger>
-                  <SelectValue placeholder={loadingInit ? "Memuat..." : "Pilih store"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {stores.map((s) => (
-                    <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-8">
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="date">Tanggal</Label>
-              <Input
-                id="date"
-                type="date"
-                required
-                value={form.date}
-                onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
-              />
-            </div>
+        {/* ── Step 1: Customer & Pet ─────────────────────────────────────────── */}
+        <section className="flex flex-col gap-4">
+          <StepHeader step={1} title="Pilih Customer & Pet" done={step1Done} />
+          <Card className="border-border/50">
+            <CardContent className="flex flex-col gap-5 pt-6">
 
-            <div className="flex flex-col gap-2">
-              <Label>Sesi Waktu</Label>
-              <Select
-                value={form.time_range}
-                onValueChange={(v) => setForm((p) => ({ ...p, time_range: v }))}
-                disabled={sessions.length === 0 || loadingStore}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={loadingStore ? "Memuat..." : sessions.length === 0 ? "Pilih store dulu" : "Pilih sesi"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {sessions.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="travel_fee">Biaya Perjalanan (IDR, opsional)</Label>
-              <Input
-                id="travel_fee"
-                type="number"
-                min={0}
-                placeholder="0"
-                value={form.travel_fee}
-                onChange={(e) => setForm((p) => ({ ...p, travel_fee: e.target.value }))}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Customer & Pet */}
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle className="font-display text-lg">Customer &amp; Hewan</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <Label>Customer</Label>
-              <Select value={form.customer_id} onValueChange={handleCustomerChange} disabled={loadingInit}>
-                <SelectTrigger>
-                  <SelectValue placeholder={loadingInit ? "Memuat..." : "Pilih customer"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {customers.map((c) => (
-                    <SelectItem key={c._id} value={c._id}>{c.username} — {c.phone_number}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label>Hewan Peliharaan</Label>
-              <Select
-                value={form.pet_id}
-                onValueChange={(v) => setForm((p) => ({ ...p, pet_id: v }))}
-                disabled={!form.customer_id || loadingPets}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={loadingPets ? "Memuat..." : !form.customer_id ? "Pilih customer dulu" : pets.length === 0 ? "Tidak ada hewan" : "Pilih hewan"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {pets.map((p) => (
-                    <SelectItem key={p._id} value={p._id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Service & Add-ons */}
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle className="font-display text-lg">Layanan &amp; Add-ons</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <Label>Tipe Layanan</Label>
-              <Select value={form.service_type_id} onValueChange={handleServiceTypeChange} disabled={loadingInit}>
-                <SelectTrigger>
-                  <SelectValue placeholder={loadingInit ? "Memuat..." : "Pilih tipe layanan"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {serviceTypes.map((t) => (
-                    <SelectItem key={t._id} value={t._id}>{t.title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label>Layanan Utama</Label>
-              <Select
-                value={form.service_id}
-                onValueChange={(v) => { setForm((p) => ({ ...p, service_id: v })); setSelectedAddonIds([]) }}
-                disabled={services.length === 0 || loadingServices}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={loadingServices ? "Memuat..." : services.length === 0 ? "Pilih store & tipe layanan dulu" : "Pilih layanan"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {services.map((s) => (
-                    <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {addons.length > 0 && (
-              <div className="flex flex-col gap-3">
-                <Label>Add-ons</Label>
-                {addons.map((addon) => (
-                  <div key={addon._id} className="flex items-center gap-3">
-                    <Checkbox
-                      id={addon._id}
-                      checked={selectedAddonIds.includes(addon._id)}
-                      onCheckedChange={() => toggleAddon(addon._id)}
-                    />
-                    <label htmlFor={addon._id} className="cursor-pointer text-sm text-foreground">
-                      {addon.name}
-                    </label>
+              {/* Customer */}
+              <div className="flex flex-col gap-2">
+                <Label>Customer</Label>
+                <Select value={form.customer_id} onValueChange={handleCustomerChange} disabled={loadingInit}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingInit ? "Memuat..." : "Pilih customer"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((c) => (
+                      <SelectItem key={c._id} value={c._id}>{c.username} — {c.phone_number}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedCustomer && (
+                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1.5 rounded-xl border border-border/40 bg-muted/40 px-4 py-3">
+                    <DetailRow icon={<Mail className="h-3.5 w-3.5" />} label="Email" value={selectedCustomer.email} />
+                    <DetailRow icon={<Phone className="h-3.5 w-3.5" />} label="No. HP" value={selectedCustomer.phone_number} />
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">Status:</span>
+                      <Badge variant={selectedCustomer.is_active ? "default" : "secondary"} className="text-xs">
+                        {selectedCustomer.is_active ? "Aktif" : "Nonaktif"}
+                      </Badge>
+                    </div>
                   </div>
-                ))}
+                )}
               </div>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Notes & Optional */}
-        <Card className="border-border/50">
-          <CardHeader>
-            <CardTitle className="font-display text-lg">Catatan &amp; Info Tambahan</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="note">Catatan (opsional)</Label>
-              <Textarea
-                id="note"
-                placeholder="Permintaan khusus atau catatan mengenai hewan..."
-                rows={3}
-                value={form.note}
-                onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))}
-              />
-            </div>
+              {/* Pet */}
+              <div className="flex flex-col gap-2">
+                <Label>Hewan Peliharaan</Label>
+                <Select
+                  value={form.pet_id}
+                  onValueChange={(v) => setForm((p) => ({ ...p, pet_id: v }))}
+                  disabled={!form.customer_id || loadingPets}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={
+                      loadingPets ? "Memuat..." :
+                      !form.customer_id ? "Pilih customer dulu" :
+                      pets.length === 0 ? "Tidak ada hewan" : "Pilih hewan"
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pets.map((p) => (
+                      <SelectItem key={p._id} value={p._id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedPet && (
+                  <div className="mt-1 rounded-xl border border-border/40 bg-muted/40 px-4 py-3">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                      {selectedPet.pet_type?.name && <DetailRow label="Tipe" value={selectedPet.pet_type.name} />}
+                      {selectedPet.breed?.name     && <DetailRow label="Ras"  value={selectedPet.breed.name} />}
+                      {selectedPet.size?.name      && <DetailRow label="Ukuran" value={selectedPet.size.name} />}
+                      {selectedPet.hair?.name      && <DetailRow label="Bulu" value={selectedPet.hair.name} />}
+                      {selectedPet.weight != null  && (
+                        <DetailRow icon={<Weight className="h-3.5 w-3.5" />} label="Berat" value={`${selectedPet.weight} kg`} />
+                      )}
+                      {selectedPet.birthday && (
+                        <DetailRow
+                          icon={<Cake className="h-3.5 w-3.5" />}
+                          label="Tgl Lahir"
+                          value={new Date(selectedPet.birthday).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+                        />
+                      )}
+                    </div>
+                    {selectedPet.tags && selectedPet.tags.length > 0 && (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <Tag className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        {selectedPet.tags.map((tag) => (
+                          <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
+                        ))}
+                      </div>
+                    )}
+                    {selectedPet.description && (
+                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{selectedPet.description}</p>
+                    )}
+                    {selectedPet.internal_note && (
+                      <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-400">
+                        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        <span>{selectedPet.internal_note}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </section>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="payment_method">Metode Pembayaran (opsional)</Label>
-              <Select
-                value={form.payment_method}
-                onValueChange={(v) => setForm((p) => ({ ...p, payment_method: v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih metode pembayaran" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="transfer">Transfer</SelectItem>
-                  <SelectItem value="qris">QRIS</SelectItem>
-                  <SelectItem value="card">Kartu Debit/Kredit</SelectItem>
-                  <SelectItem value="other">Lainnya</SelectItem>
-                </SelectContent>
-              </Select>
-              {form.payment_method === "other" && (
-                <Input
-                  placeholder="Tulis metode pembayaran..."
-                  value={customPaymentMethod}
-                  onChange={(e) => setCustomPaymentMethod(e.target.value)}
-                />
-              )}
-            </div>
+        <Separator />
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="referal_code">Referral Code (opsional)</Label>
-              <Input
-                id="referal_code"
-                placeholder="FRIEND20"
-                value={form.referal_code}
-                onChange={(e) => setForm((p) => ({ ...p, referal_code: e.target.value }))}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        {/* ── Step 2: Store & Jadwal ─────────────────────────────────────────── */}
+        {!step1Done ? <LockedSection step={2} title="Store & Jadwal" /> : (
+          <section className="flex flex-col gap-4">
+            <StepHeader step={2} title="Store & Jadwal" done={step2Done} />
+            <Card className="border-border/50">
+              <CardContent className="flex flex-col gap-5 pt-6">
 
-        {/* Sesi Grooming */}
-        <Card className="border-border/50 lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="font-display text-lg">Sesi Grooming (opsional)</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {sessionRows.length === 0 && (
-              <p className="text-sm text-muted-foreground">Belum ada sesi. Tambahkan sesi grooming jika diperlukan.</p>
-            )}
-            {sessionRows.map((row, idx) => (
-              <div key={idx} className="flex flex-col gap-3 rounded-lg border border-border/50 bg-muted/30 p-3 sm:flex-row sm:items-end">
-                <div className="flex flex-1 flex-col gap-1">
-                  <Label className="text-xs">Tipe Sesi</Label>
-                  <Input
-                    placeholder="washing, drying, cutting..."
-                    value={row.type}
-                    onChange={(e) => setSessionRows((prev) => prev.map((r, i) => i === idx ? { ...r, type: e.target.value } : r))}
-                  />
-                </div>
-                <div className="flex flex-1 flex-col gap-1">
-                  <Label className="text-xs">Groomer</Label>
-                  <Select
-                    value={row.groomer_id}
-                    onValueChange={(v) => setSessionRows((prev) => prev.map((r, i) => i === idx ? { ...r, groomer_id: v } : r))}
-                  >
+                {/* Store */}
+                <div className="flex flex-col gap-2">
+                  <Label>Store</Label>
+                  <Select value={form.store_id} onValueChange={handleStoreChange} disabled={loadingInit}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Pilih groomer" />
+                      <SelectValue placeholder={loadingInit ? "Memuat..." : "Pilih store"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {groomers.map((g) => (
-                        <SelectItem key={g._id} value={g._id}>{g.username}</SelectItem>
+                      {stores.map((s) => (
+                        <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {selectedStore && (
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1.5 rounded-xl border border-border/40 bg-muted/40 px-4 py-3">
+                      {selectedStore.location?.address && (
+                        <DetailRow
+                          icon={<MapPin className="h-3.5 w-3.5" />}
+                          label="Alamat"
+                          value={[selectedStore.location.address, selectedStore.location.city, selectedStore.location.province].filter(Boolean).join(", ")}
+                        />
+                      )}
+                      {selectedStore.operational?.opening_time && selectedStore.operational?.closing_time && (
+                        <DetailRow
+                          icon={<Clock className="h-3.5 w-3.5" />}
+                          label="Jam Buka"
+                          value={`${selectedStore.operational.opening_time} – ${selectedStore.operational.closing_time}`}
+                        />
+                      )}
+                      {selectedStore.operational?.operational_days && selectedStore.operational.operational_days.length > 0 && (
+                        <DetailRow
+                          icon={<CalendarDays className="h-3.5 w-3.5" />}
+                          label="Hari Buka"
+                          value={selectedStore.operational.operational_days.join(", ")}
+                        />
+                      )}
+                      {selectedStore.contact?.phone_number && (
+                        <DetailRow icon={<Phone className="h-3.5 w-3.5" />} label="Telepon" value={selectedStore.contact.phone_number} />
+                      )}
+                      {selectedStore.contact?.whatsapp && (
+                        <DetailRow icon={<Phone className="h-3.5 w-3.5" />} label="WhatsApp" value={selectedStore.contact.whatsapp} />
+                      )}
+                    </div>
+                  )}
                 </div>
+
+                {/* Date & Session */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="date">Tanggal</Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      required
+                      value={form.date}
+                      onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label>Sesi Waktu</Label>
+                    <Select
+                      value={form.time_range}
+                      onValueChange={(v) => setForm((p) => ({ ...p, time_range: v }))}
+                      disabled={sessions.length === 0 || loadingStore}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={loadingStore ? "Memuat..." : sessions.length === 0 ? "Pilih store dulu" : "Pilih sesi"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sessions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Travel fee */}
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="travel_fee">Biaya Perjalanan (IDR, opsional)</Label>
+                  <Input
+                    id="travel_fee"
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    value={form.travel_fee}
+                    onChange={(e) => setForm((p) => ({ ...p, travel_fee: e.target.value }))}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        <Separator />
+
+        {/* ── Step 3: Layanan & Add-ons ──────────────────────────────────────── */}
+        {!step2Done ? <LockedSection step={3} title="Layanan & Add-ons" /> : (
+          <section className="flex flex-col gap-4">
+            <StepHeader step={3} title="Layanan & Add-ons" done={step3Done} />
+            <Card className="border-border/50">
+              <CardContent className="flex flex-col gap-5 pt-6">
+
+                {/* Service Type */}
+                <div className="flex flex-col gap-2">
+                  <Label>Tipe Layanan</Label>
+                  <Select value={form.service_type_id} onValueChange={handleServiceTypeChange} disabled={loadingInit}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingInit ? "Memuat..." : "Pilih tipe layanan"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {serviceTypes.map((t) => (
+                        <SelectItem key={t._id} value={t._id}>{t.title}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedServiceType?.description && (
+                    <p className="mt-1 rounded-xl border border-border/40 bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                      {selectedServiceType.description}
+                    </p>
+                  )}
+                </div>
+
+                {/* Service */}
+                <div className="flex flex-col gap-2">
+                  <Label>Layanan Utama</Label>
+                  <Select
+                    value={form.service_id}
+                    onValueChange={(v) => { setForm((p) => ({ ...p, service_id: v })); setSelectedAddonIds([]) }}
+                    disabled={services.length === 0 || loadingServices}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={
+                        loadingServices ? "Memuat..." :
+                        services.length === 0 ? "Pilih store & tipe layanan dulu" : "Pilih layanan"
+                      } />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {services.map((s) => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Service detail */}
+                  {selectedService && (
+                    <div className="mt-1 rounded-xl border border-border/40 bg-muted/40 px-4 py-3">
+                      {selectedService.description && (
+                        <p className="mb-3 text-sm leading-relaxed text-muted-foreground">{selectedService.description}</p>
+                      )}
+
+                      <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                        <DetailRow
+                          icon={<Clock className="h-3.5 w-3.5" />}
+                          label="Durasi"
+                          value={`${selectedService.duration} menit`}
+                        />
+                        {selectedService.price_type === "single" && selectedService.price != null && (
+                          <DetailRow
+                            label="Harga"
+                            value={<span className="font-semibold text-primary">{formatPrice(selectedService.price)}</span>}
+                          />
+                        )}
+                      </div>
+
+                      {/* Multiple prices — highlight baris yang cocok dengan pet */}
+                      {selectedService.price_type === "multiple" && selectedService.prices && selectedService.prices.length > 0 && (
+                        <div className="mt-3">
+                          <div className="mb-1.5 flex items-center gap-1.5">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Daftar Harga</p>
+                            {selectedPet && selectedService.prices.some((p) => isPriceMatchingPet(p, selectedPet)) && (
+                              <span className="flex items-center gap-1 text-[10px] text-primary">
+                                <Star className="h-3 w-3 fill-primary" />
+                                sesuai {selectedPet.name}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-col divide-y divide-border/50 overflow-hidden rounded-lg border border-border/50 bg-card">
+                            {selectedService.prices.map((price, i) => {
+                              const label = [price.pet_name, price.size_name, price.hair_name].filter(Boolean).join(" · ")
+                              const isMatch = !!selectedPet && isPriceMatchingPet(price, selectedPet)
+                              return (
+                                <div
+                                  key={i}
+                                  className={`flex items-center justify-between px-3 py-2 text-sm transition-colors ${
+                                    isMatch
+                                      ? "bg-primary/10 ring-1 ring-inset ring-primary/30"
+                                      : ""
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    {isMatch && <Star className="h-3.5 w-3.5 shrink-0 fill-primary text-primary" />}
+                                    <span className={isMatch ? "font-semibold text-primary" : "text-muted-foreground"}>
+                                      {label || "—"}
+                                    </span>
+                                  </div>
+                                  <span className={`font-bold ${isMatch ? "text-primary" : "text-foreground"}`}>
+                                    {formatPrice(price.price)}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          {/* Peringatan jika tidak ada harga yang cocok dengan pet */}
+                          {selectedPet && !selectedService.prices.some((p) => isPriceMatchingPet(p, selectedPet)) && (
+                            <div className="mt-2 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-xs text-destructive">
+                              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                              <span>
+                                Tidak ada harga yang tersedia untuk{" "}
+                                <strong>{selectedPet.name}</strong>
+                                {[selectedPet.pet_type?.name, selectedPet.size?.name, selectedPet.hair?.name].filter(Boolean).length > 0 && (
+                                  <> ({[selectedPet.pet_type?.name, selectedPet.size?.name, selectedPet.hair?.name].filter(Boolean).join(", ")})</>
+                                )}
+                                . Layanan ini mungkin tidak tersedia untuk pet ini.
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Constraints */}
+                      {/* {((selectedService.pet_types?.length ?? 0) > 0 ||
+                        (selectedService.size_categories?.length ?? 0) > 0 ||
+                        (selectedService.hair_categories?.length ?? 0) > 0) && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {selectedService.pet_types?.map((pt) => (
+                            <Badge key={pt._id} variant="secondary" className="text-xs">{pt.name}</Badge>
+                          ))}
+                          {selectedService.size_categories?.map((sc) => (
+                            <Badge key={sc._id} variant="outline" className="text-xs">{sc.name}</Badge>
+                          ))}
+                          {selectedService.hair_categories?.map((hc) => (
+                            <Badge key={hc._id} variant="outline" className="text-xs">{hc.name}</Badge>
+                          ))}
+                        </div>
+                      )} */}
+
+                      {/* Include list */}
+                      {selectedService.include && selectedService.include.length > 0 && (
+                        <div className="mt-3">
+                          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Termasuk</p>
+                          <ul className="flex flex-col gap-1">
+                            {selectedService.include.map((item, i) => (
+                              <li key={i} className="flex items-start gap-2 text-xs text-foreground/80">
+                                <Check className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
+                                <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Add-ons */}
+                {addons.length > 0 && (
+                  <div className="flex flex-col gap-3">
+                    <Label>Add-ons (opsional)</Label>
+                    <div className="flex flex-col gap-2">
+                      {addons.map((addon) => {
+                        const selected     = selectedAddonIds.includes(addon._id)
+                        const addonService = allStoreServices.find((s) => s._id === addon._id)
+
+                        // Harga addon: cek prices[] dulu, fallback ke price
+                        const addonPriceDisplay = (() => {
+                          if (!addonService) return null
+                          if (addonService.prices && addonService.prices.length > 0) {
+                            if (selectedPet) {
+                              const match = addonService.prices.find((p) => isPriceMatchingPet(p, selectedPet))
+                              if (match) return formatPrice(match.price)
+                            }
+                            const min = Math.min(...addonService.prices.map((p) => p.price))
+                            return `Mulai ${formatPrice(min)}`
+                          }
+                          if (addonService.price != null) return formatPrice(addonService.price)
+                          return null
+                        })()
+
+                        return (
+                          <label
+                            key={addon._id}
+                            htmlFor={addon._id}
+                            className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
+                              selected ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/40"
+                            }`}
+                          >
+                            <Checkbox
+                              id={addon._id}
+                              checked={selected}
+                              onCheckedChange={() => toggleAddon(addon._id)}
+                              className="mt-0.5 shrink-0"
+                            />
+                            <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-sm font-medium text-foreground">
+                                  {addon.name}
+                                </span>
+                                {addon.code && (
+                                  <span className="font-mono text-[10px] text-muted-foreground">{addon.code}</span>
+                                )}
+                                {addonService?.duration != null && (
+                                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <Clock className="h-3 w-3" />
+                                    {addonService.duration} menit
+                                  </span>
+                                )}
+                              </div>
+                              {addonPriceDisplay && (
+                                <span className={`shrink-0 text-sm font-bold ${selected ? "text-primary" : "text-foreground"}`}>
+                                  {addonPriceDisplay}
+                                </span>
+                              )}
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        <Separator />
+
+        {/* ── Step 4: Session & Groomer ──────────────────────────────────────── */}
+        {!step3Done ? <LockedSection step={4} title="Session & Groomer" /> : (
+          <section className="flex flex-col gap-4">
+            <StepHeader
+              step={4}
+              title="Session & Groomer"
+              done={sessionRows.length > 0 && sessionRows.every((r) => r.type && r.groomer_id)}
+            />
+            <Card className="border-border/50">
+              <CardContent className="flex flex-col gap-4 pt-6">
+                {sessionRows.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Belum ada sesi. Tambahkan sesi grooming jika diperlukan.</p>
+                )}
+                {sessionRows.map((row, idx) => {
+                  const selectedGroomer = groomers.find((g) => g._id === row.groomer_id)
+                  return (
+                    <div key={idx} className="flex flex-col gap-3 rounded-xl border border-border/50 bg-muted/30 p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
+                          {idx + 1}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={() => setSessionRows((prev) => prev.filter((_, i) => i !== idx))}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="flex flex-col gap-1.5">
+                          <Label className="text-xs text-muted-foreground">Tipe Sesi</Label>
+                          <Input
+                            placeholder="washing, drying, cutting..."
+                            value={row.type}
+                            onChange={(e) => setSessionRows((prev) => prev.map((r, i) => i === idx ? { ...r, type: e.target.value } : r))}
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label className="text-xs text-muted-foreground">Groomer</Label>
+                          <Select
+                            value={row.groomer_id}
+                            onValueChange={(v) => setSessionRows((prev) => prev.map((r, i) => i === idx ? { ...r, groomer_id: v } : r))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Pilih groomer" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {groomers.map((g) => <SelectItem key={g._id} value={g._id}>{g.username}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      {selectedGroomer && (
+                        <div className="flex flex-wrap gap-x-4 gap-y-1.5 rounded-lg border border-border/40 bg-background px-3 py-2">
+                          <DetailRow icon={<Scissors className="h-3.5 w-3.5" />} label="Groomer" value={selectedGroomer.username} />
+                          <DetailRow icon={<Mail className="h-3.5 w-3.5" />} label="Email" value={selectedGroomer.email} />
+                          {selectedGroomer.phone_number && (
+                            <DetailRow icon={<Phone className="h-3.5 w-3.5" />} label="No. HP" value={selectedGroomer.phone_number} />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 text-destructive hover:text-destructive"
-                  onClick={() => setSessionRows((prev) => prev.filter((_, i) => i !== idx))}
+                  variant="outline"
+                  size="sm"
+                  className="w-fit"
+                  onClick={() => setSessionRows((prev) => [...prev, { type: "", groomer_id: "" }])}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  Tambah Sesi
                 </Button>
-              </div>
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="w-fit"
-              onClick={() => setSessionRows((prev) => [...prev, { type: "", groomer_id: "" }])}
-            >
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
-              Tambah Sesi
-            </Button>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        <Separator />
+
+        {/* ── Step 5: Catatan & Info Tambahan ────────────────────────────────── */}
+        {!step3Done ? <LockedSection step={5} title="Catatan & Info Tambahan" /> : (
+          <section className="flex flex-col gap-4">
+            <StepHeader
+              step={5}
+              title="Catatan & Info Tambahan"
+              done={!!(form.note || form.payment_method || form.referal_code)}
+            />
+            <Card className="border-border/50">
+              <CardContent className="flex flex-col gap-4 pt-6">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="note">Catatan (opsional)</Label>
+                  <Textarea
+                    id="note"
+                    placeholder="Permintaan khusus atau catatan mengenai hewan..."
+                    rows={3}
+                    value={form.note}
+                    onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))}
+                  />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-2">
+                    <Label>Metode Pembayaran (opsional)</Label>
+                    <Select value={form.payment_method} onValueChange={(v) => setForm((p) => ({ ...p, payment_method: v }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih metode pembayaran" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cash">Cash</SelectItem>
+                        <SelectItem value="transfer">Transfer</SelectItem>
+                        <SelectItem value="qris">QRIS</SelectItem>
+                        <SelectItem value="card">Kartu Debit/Kredit</SelectItem>
+                        <SelectItem value="other">Lainnya</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {form.payment_method === "other" && (
+                      <Input
+                        placeholder="Tulis metode pembayaran..."
+                        value={customPaymentMethod}
+                        onChange={(e) => setCustomPaymentMethod(e.target.value)}
+                      />
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="referal_code">Referral Code (opsional)</Label>
+                    <Input
+                      id="referal_code"
+                      placeholder="FRIEND20"
+                      value={form.referal_code}
+                      onChange={(e) => setForm((p) => ({ ...p, referal_code: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        )}
 
         {/* Submit */}
-        <div className="flex gap-3 lg:col-span-2">
-          <Button type="submit" className="font-display font-bold" disabled={submitting}>
+        <div className="flex gap-3">
+          <Button type="submit" className="font-display font-bold" disabled={submitting || !step3Done}>
             {submitting ? "Menyimpan..." : "Buat Booking"}
           </Button>
           <Button type="button" variant="outline" asChild>
             <Link href="/admin/bookings">Batal</Link>
           </Button>
         </div>
+
       </form>
     </div>
   )
