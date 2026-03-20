@@ -16,6 +16,7 @@ import {
   Moon,
   Sun,
   UserCircle,
+  CreditCard,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/lib/auth-context"
@@ -41,6 +42,7 @@ const menuItems = [
   { title: "Users", href: "/admin/users", icon: Users },
   { title: "Stores", href: "/admin/stores", icon: Store },
   { title: "Services", href: "/admin/services", icon: Scissors },
+  { title: "Memberships", href: "/admin/memberships", icon: CreditCard },
   { title: "Options", href: "/admin/options", icon: Tag },
   { title: "Banners", href: "/admin/banners", icon: ImageIcon },
 ]
