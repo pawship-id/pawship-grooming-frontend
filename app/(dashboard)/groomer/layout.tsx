@@ -2,7 +2,7 @@
 
 import React from "react"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -20,8 +20,12 @@ export default function GroomerLayout({ children }: { children: React.ReactNode 
   const { user, isAuthenticated, logout } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
+    if (!mounted) return
     if (!isAuthenticated) {
       router.push("/login")
     } else if (user?.role !== "groomer") {
@@ -31,9 +35,9 @@ export default function GroomerLayout({ children }: { children: React.ReactNode 
         router.push("/customer/tracking")
       }
     }
-  }, [isAuthenticated, user, router])
+  }, [mounted, isAuthenticated, user, router])
 
-  if (!isAuthenticated || user?.role !== "groomer") {
+  if (!mounted || !isAuthenticated || user?.role !== "groomer") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-muted-foreground">Loading...</div>
