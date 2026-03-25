@@ -187,6 +187,7 @@ export interface BookingPreviewResult {
   pricing_breakdown: {
     service: { name: string; price: number }
     addons: { _id: string; name: string; price: number }[]
+    travel_fee?: number
     subtotal: number
     discount: number
     final: number
@@ -204,7 +205,7 @@ export interface CreateBookingPayload {
   date: string
   time_range: string
   service_addon_ids?: string[]
-  travel_fee?: number
+  pick_up?: boolean
   discount_ids?: string[]
   selected_benefit_ids?: string[]
   referal_code?: string
@@ -250,6 +251,9 @@ export async function getBookingPreview(payload: {
   addon_ids?: string[]
   date: string
   time_range?: string
+  pick_up?: boolean
+  store_id?: string
+  customer_id?: string
 }) {
   return apiAuthRequest<{ message: string } & BookingPreviewResult>("/bookings/preview", {
     method: "POST",
