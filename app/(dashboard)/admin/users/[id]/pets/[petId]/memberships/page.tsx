@@ -5,18 +5,19 @@ import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft,
   CreditCard,
-  CalendarDays,
   CheckCircle2,
   XCircle,
   Clock,
   Infinity,
-  ShieldCheck,
+  Pencil,
+  RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
@@ -28,14 +29,15 @@ import { type ApiCurrentUser, getUser } from "@/lib/api/users"
 import {
   type MembershipPlan,
   type PetMembership,
-  type BenefitsSummaryData,
   type BenefitsHistoryData,
+  type MembershipHistoryItem,
   getMemberships,
   getActivePetMembership,
-  getPetMembershipBenefitsSummary,
   getPetMembershipBenefitsHistory,
-  getPetMemberships,
+  getMembershipHistory,
   purchasePetMembership,
+  updatePetMembership,
+  renewPetMembership,
   cancelPetMembership,
 } from "@/lib/api/memberships"
 
@@ -70,6 +72,109 @@ const periodLabel: Record<string, string> = {
   unlimited: "Tidak terbatas",
 }
 
+const appliesToLabel: Record<string, string> = {
+  service: "Layanan",
+  addon: "Add-on",
+  pickup: "Jemput & Antar",
+}
+
+function isoToDateInput(iso: string) {
+  return iso ? iso.split("T")[0] : ""
+}
+
+function isPetMembershipActive(pm: { start_date: string; end_date: string }) {
+  const now = Date.now()
+  return new Date(pm.start_date).getTime() <= now && now <= new Date(pm.end_date).getTime()
+}
+
+interface UpdateMembershipForm {
+  start_date: string
+  end_date: string
+}
+
+const DEFAULT_UPDATE_FORM: UpdateMembershipForm = {
+  start_date: "",
+  end_date: "",
+}
+
+// ── Sub-Components ─────────────────────────────────────────────────────────
+
+function MembershipCard({
+  membership: pm,
+  onEdit,
+  onCancel,
+}: {
+  membership: PetMembership
+  onEdit: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm min-h-[180px] flex flex-col">
+      {/* top accent bar */}
+      <div className="h-1 w-full bg-gradient-to-r from-foreground/20 via-foreground/10 to-transparent" />
+      {/* decorative circles */}
+      <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-muted/60 pointer-events-none" />
+      <div className="absolute right-10 -bottom-14 h-48 w-48 rounded-full bg-muted/40 pointer-events-none" />
+      <div className="relative flex flex-col gap-4 p-6 flex-1">
+        {/* top row: label + badge */}
+        <div className="flex items-start justify-between gap-2">
+          <span className="text-[10px] font-medium tracking-widest text-muted-foreground uppercase">
+            Pawship Membership
+          </span>
+          <Badge variant="secondary" className="text-xs shrink-0">
+            Aktif
+          </Badge>
+        </div>
+        {/* membership name */}
+        <h3 className="font-display text-lg font-bold leading-tight text-foreground -mt-2">
+          {pm.membership.name}
+        </h3>
+        <Separator className="opacity-50" />
+        {/* pet info row */}
+        <div className="flex items-end justify-between gap-2">
+          <div className="flex flex-col gap-1 min-w-0">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Pemilik & Pet</p>
+            <p className="text-sm font-semibold text-foreground truncate">{pm.pet.owner.username}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {pm.pet.name}
+              {pm.pet.pet_type?.name ? ` · ${pm.pet.pet_type.name}` : ""}
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Masa Berlaku</p>
+            <p className="text-xs font-medium text-foreground whitespace-nowrap">
+              {formatDate(pm.start_date)}
+            </p>
+            <p className="text-xs text-muted-foreground whitespace-nowrap">
+              s/d {formatDate(pm.end_date)}
+            </p>
+          </div>
+        </div>
+        {/* footer */}
+        <div className="flex items-center justify-between mt-auto pt-1">
+          <span className="text-xs text-muted-foreground">{pm.membership.duration_months} Bulan</span>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors hover:underline underline-offset-2"
+              onClick={onEdit}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              className="text-xs text-destructive hover:text-destructive transition-colors hover:underline underline-offset-2"
+              onClick={onCancel}
+            >
+              Batalkan
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 
 export default function PetMembershipsPage() {
@@ -82,17 +187,14 @@ export default function PetMembershipsPage() {
   const [petName, setPetName] = useState<string>("")
   const [isLoadingUser, setIsLoadingUser] = useState(true)
 
-  const [activeMembership, setActiveMembership] = useState<PetMembership | null>(null)
+  const [activeMemberships, setActiveMemberships] = useState<PetMembership[]>([])
   const [isLoadingActive, setIsLoadingActive] = useState(true)
-
-  const [benefitsSummary, setBenefitsSummary] = useState<BenefitsSummaryData | null>(null)
-  const [isLoadingSummary, setIsLoadingSummary] = useState(true)
 
   const [benefitsHistory, setBenefitsHistory] = useState<BenefitsHistoryData | null>(null)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
 
-  const [allPetMemberships, setAllPetMemberships] = useState<PetMembership[]>([])
-  const [isLoadingAll, setIsLoadingAll] = useState(true)
+  const [membershipHistory, setMembershipHistory] = useState<MembershipHistoryItem[]>([])
+  const [isLoadingHistory2, setIsLoadingHistory2] = useState(true)
 
   const [availablePlans, setAvailablePlans] = useState<MembershipPlan[]>([])
 
@@ -104,6 +206,15 @@ export default function PetMembershipsPage() {
   // Cancel dialog
   const [cancelTarget, setCancelTarget] = useState<PetMembership | null>(null)
 
+  // Update dialog
+  const [updateTarget, setUpdateTarget] = useState<PetMembership | null>(null)
+  const [updateForm, setUpdateForm] = useState<UpdateMembershipForm>(DEFAULT_UPDATE_FORM)
+  const [isUpdating, setIsUpdating] = useState(false)
+
+  // Renew dialog
+  const [renewTarget, setRenewTarget] = useState<PetMembership | null>(null)
+  const [isRenewing, setIsRenewing] = useState(false)
+
   // Load user & pet name
   useEffect(() => {
     setIsLoadingUser(true)
@@ -113,7 +224,7 @@ export default function PetMembershipsPage() {
         const pet = res.user.pets?.find((p: { _id: string }) => p._id === petId)
         if (pet) setPetName((pet as { name: string }).name)
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setIsLoadingUser(false))
   }, [userId, petId])
 
@@ -121,30 +232,18 @@ export default function PetMembershipsPage() {
   useEffect(() => {
     getMemberships({ is_active: true })
       .then((res) => setAvailablePlans(res.data))
-      .catch(() => {})
+      .catch(() => { })
   }, [])
 
   const loadActiveMembership = useCallback(async () => {
     setIsLoadingActive(true)
     try {
       const res = await getActivePetMembership(petId)
-      setActiveMembership(res.data)
+      setActiveMemberships(res.data)
     } catch {
-      setActiveMembership(null)
+      setActiveMemberships([])
     } finally {
       setIsLoadingActive(false)
-    }
-  }, [petId])
-
-  const loadBenefitsSummary = useCallback(async () => {
-    setIsLoadingSummary(true)
-    try {
-      const res = await getPetMembershipBenefitsSummary(petId)
-      setBenefitsSummary(res.data)
-    } catch {
-      setBenefitsSummary(null)
-    } finally {
-      setIsLoadingSummary(false)
     }
   }, [petId])
 
@@ -160,24 +259,23 @@ export default function PetMembershipsPage() {
     }
   }, [petId])
 
-  const loadAllPetMemberships = useCallback(async () => {
-    setIsLoadingAll(true)
+  const loadMembershipHistory = useCallback(async () => {
+    setIsLoadingHistory2(true)
     try {
-      const res = await getPetMemberships({ pet_id: petId })
-      setAllPetMemberships(res.data)
+      const res = await getMembershipHistory(petId)
+      setMembershipHistory(res.data)
     } catch {
-      setAllPetMemberships([])
+      setMembershipHistory([])
     } finally {
-      setIsLoadingAll(false)
+      setIsLoadingHistory2(false)
     }
   }, [petId])
 
   useEffect(() => {
     loadActiveMembership()
-    loadBenefitsSummary()
     loadBenefitsHistory()
-    loadAllPetMemberships()
-  }, [loadActiveMembership, loadBenefitsSummary, loadBenefitsHistory, loadAllPetMemberships])
+    loadMembershipHistory()
+  }, [loadActiveMembership, loadBenefitsHistory, loadMembershipHistory])
 
   const handlePurchase = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -192,8 +290,7 @@ export default function PetMembershipsPage() {
       setPurchaseOpen(false)
       setSelectedPlanId("")
       loadActiveMembership()
-      loadBenefitsSummary()
-      loadAllPetMemberships()
+      loadMembershipHistory()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal membeli membership")
     } finally {
@@ -208,10 +305,46 @@ export default function PetMembershipsPage() {
       toast.success("Membership berhasil dibatalkan")
       setCancelTarget(null)
       loadActiveMembership()
-      loadBenefitsSummary()
-      loadAllPetMemberships()
+      loadMembershipHistory()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal membatalkan membership")
+    }
+  }
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!updateTarget) return
+    setIsUpdating(true)
+    try {
+      const payload: Record<string, string> = {}
+      if (updateForm.start_date) payload.start_date = new Date(updateForm.start_date).toISOString()
+      if (updateForm.end_date) payload.end_date = new Date(updateForm.end_date).toISOString()
+      await updatePetMembership(updateTarget._id, payload)
+      toast.success("Membership berhasil diperbarui")
+      setUpdateTarget(null)
+      setUpdateForm(DEFAULT_UPDATE_FORM)
+      loadActiveMembership()
+      loadMembershipHistory()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal memperbarui membership")
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  const handleRenew = async () => {
+    if (!renewTarget) return
+    setIsRenewing(true)
+    try {
+      await renewPetMembership(renewTarget._id)
+      toast.success("Membership berhasil diperbarui")
+      setRenewTarget(null)
+      loadActiveMembership()
+      loadMembershipHistory()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal memperbarui membership")
+    } finally {
+      setIsRenewing(false)
     }
   }
 
@@ -227,7 +360,7 @@ export default function PetMembershipsPage() {
             variant="ghost"
             size="icon"
             className="h-9 w-9 mt-0.5 shrink-0"
-            onClick={() => router.push(`/admin/users/${userId}/pets`)}
+            onClick={() => router.back()}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -253,41 +386,42 @@ export default function PetMembershipsPage() {
 
         <Separator />
 
-        {/* Active Membership Card */}
+        {/* Active Membership Cards */}
         <div>
-          <h2 className="font-display font-semibold text-lg mb-3">Membership Aktif</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-display font-semibold text-lg">Membership Aktif</h2>
+            <Button variant="outline" size="sm" onClick={() => { setSelectedPlanId(""); setPurchaseOpen(true) }}>
+              <CreditCard className="h-4 w-4 mr-2" />
+              Beli Membership
+            </Button>
+          </div>
           {isLoadingActive ? (
-            <Card className="border-border/50">
-              <CardContent className="p-4 flex flex-col gap-2">
-                <Skeleton className="h-5 w-48" />
-                <Skeleton className="h-4 w-64" />
-              </CardContent>
-            </Card>
-          ) : activeMembership ? (
-            <Card className="border-border/50">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ShieldCheck className="h-5 w-5 text-emerald-500" />
-                    {activeMembership.membership.name}
-                  </CardTitle>
-                  <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200" variant="outline">
-                    Aktif
-                  </Badge>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div key={i} className="rounded-2xl bg-muted h-[168px] p-6 flex flex-col gap-3">
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="h-5 w-48" />
+                  <Skeleton className="h-4 w-40 mt-auto" />
                 </div>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <CalendarDays className="h-4 w-4 shrink-0" />
-                  Mulai: {formatDate(activeMembership.start_date)}
-                </span>
-                <span className="flex items-center gap-1">
-                  <CalendarDays className="h-4 w-4 shrink-0" />
-                  Berakhir: {formatDate(activeMembership.end_date)}
-                </span>
-                <span className="text-xs font-mono text-muted-foreground/70">ID: {activeMembership._id}</span>
-              </CardContent>
-            </Card>
+              ))}
+            </div>
+          ) : activeMemberships?.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {activeMemberships.map((pm) => (
+                <MembershipCard
+                  key={pm._id}
+                  membership={pm}
+                  onEdit={() => {
+                    setUpdateTarget(pm)
+                    setUpdateForm({
+                      start_date: isoToDateInput(pm.start_date),
+                      end_date: isoToDateInput(pm.end_date),
+                    })
+                  }}
+                  onCancel={() => setCancelTarget(pm)}
+                />
+              ))}
+            </div>
           ) : (
             <Card className="border-dashed border-border/50">
               <CardContent className="p-6 flex flex-col items-center gap-3 text-center">
@@ -304,78 +438,84 @@ export default function PetMembershipsPage() {
 
         {/* Benefits Summary */}
         <div>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-display font-semibold text-lg">Ringkasan Benefit</h2>
-            {activeMembership && (
-              <Button variant="outline" size="sm" onClick={() => { setSelectedPlanId(""); setPurchaseOpen(true) }}>
-                <CreditCard className="h-4 w-4 mr-2" />
-                Beli Membership
-              </Button>
-            )}
-          </div>
-
-          {isLoadingSummary ? (
+          <h2 className="font-display font-semibold text-lg mb-3">Ringkasan Benefit</h2>
+          {isLoadingActive ? (
             <Card className="border-border/50">
               <CardContent className="p-4 flex flex-col gap-2">
                 {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-4 w-full" />)}
               </CardContent>
             </Card>
-          ) : benefitsSummary?.has_active_membership && benefitsSummary.benefits.length > 0 ? (
-            <Card className="border-border/50">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tipe</TableHead>
-                    <TableHead>Berlaku</TableHead>
-                    <TableHead>Layanan</TableHead>
-                    <TableHead>Periode</TableHead>
-                    <TableHead>Nilai</TableHead>
-                    <TableHead>Digunakan</TableHead>
-                    <TableHead>Sisa</TableHead>
-                    <TableHead>Bisa Dipakai</TableHead>
-                    <TableHead>Reset Berikutnya</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {benefitsSummary.benefits.map((b) => (
-                    <TableRow key={b._id}>
-                      <TableCell className="text-sm font-medium">{benefitTypeLabel[b.type] ?? b.type}</TableCell>
-                      <TableCell className="text-sm capitalize">{b.applies_to}</TableCell>
-                      <TableCell className="text-sm">{b.service?.name ?? "-"}</TableCell>
-                      <TableCell className="text-sm">{periodLabel[b.period] ?? b.period}</TableCell>
-                      <TableCell className="text-sm">
-                        {b.type === "discount" ? `${b.value}%` : `-`}
-                      </TableCell>
-                      <TableCell className="text-sm">{b.used}x</TableCell>
-                      <TableCell className="text-sm">
-                        {b.remaining === null ? <Infinity className="h-4 w-4" /> : `${b.remaining}x`}
-                      </TableCell>
-                      <TableCell>
-                        {b.can_apply ? (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                        ) : (
-                          <XCircle className="h-4 w-4 text-destructive" />
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {b.next_reset_date ? (
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3.5 w-3.5 shrink-0" />
-                            {formatDate(b.next_reset_date)}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
+          ) : activeMemberships?.length > 0 ? (
+            <div className="flex flex-col gap-4">
+              {activeMemberships.map((pm) => (
+                <div key={pm._id}>
+                  <p className="text-sm font-medium text-muted-foreground mb-2">{pm.membership.name}</p>
+                  <Card className="border-border/50">
+                    {pm.benefits_snapshot.length > 0 ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Tipe</TableHead>
+                            <TableHead>Berlaku</TableHead>
+                            <TableHead>Layanan</TableHead>
+                            <TableHead>Periode</TableHead>
+                            <TableHead>Nilai</TableHead>
+                            <TableHead>Digunakan</TableHead>
+                            <TableHead>Sisa</TableHead>
+                            {/* <TableHead>Bisa Dipakai</TableHead> */}
+                            <TableHead>Reset Berikutnya</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {pm.benefits_snapshot.map((b) => {
+                            const remaining = b.limit === null ? null : (b.limit ?? 0) - b.used
+                            const canApply = b.limit === null || (remaining !== null && remaining > 0)
+                            return (
+                              <TableRow key={b._id}>
+                                <TableCell className="text-sm font-medium">{benefitTypeLabel[b.type] ?? b.type}</TableCell>
+                                <TableCell className="text-sm">{appliesToLabel[b.applies_to] ?? b.applies_to}</TableCell>
+                                <TableCell className="text-sm">{b.service?.name ?? b.label ?? "-"}</TableCell>
+                                <TableCell className="text-sm">{periodLabel[b.period] ?? b.period}</TableCell>
+                                <TableCell className="text-sm">
+                                  {b.type === "discount" ? `${b.value}%` : b.limit === null ? <Infinity className="h-4 w-4" /> : `${b.limit}x`}
+                                </TableCell>
+                                <TableCell className="text-sm">{b.used}x</TableCell>
+                                <TableCell className={`text-sm font-medium ${canApply ? "text-emerald-600" : "text-destructive"}`}>
+                                  {remaining === null ? <Infinity className="h-4 w-4" /> : `${remaining}x`}
+                                </TableCell>
+                                {/* <TableCell>
+                                  {canApply ? (
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                  ) : (
+                                    <XCircle className="h-4 w-4 text-destructive" />
+                                  )}
+                                </TableCell> */}
+                                <TableCell className="text-xs text-muted-foreground">
+                                  {b.period_reset_date ? (
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="h-3.5 w-3.5 shrink-0" />
+                                      {formatDate(b.period_reset_date)}
+                                    </span>
+                                  ) : "—"}
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      <CardContent className="py-6 text-center text-sm text-muted-foreground">
+                        Tidak ada benefit tersedia
+                      </CardContent>
+                    )}
+                  </Card>
+                </div>
+              ))}
+            </div>
           ) : (
             <Card className="border-border/50">
               <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                {benefitsSummary?.has_active_membership ? "Tidak ada benefit tersedia" : "Tidak ada membership aktif"}
+                Tidak ada membership aktif
               </CardContent>
             </Card>
           )}
@@ -388,15 +528,15 @@ export default function PetMembershipsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Event</TableHead>
                   <TableHead>Paket</TableHead>
                   <TableHead>Mulai</TableHead>
                   <TableHead>Berakhir</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-24" />
+                  <TableHead>Tanggal</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoadingAll ? (
+                {isLoadingHistory2 ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <TableRow key={i}>
                       {Array.from({ length: 5 }).map((__, j) => (
@@ -404,38 +544,31 @@ export default function PetMembershipsPage() {
                       ))}
                     </TableRow>
                   ))
-                ) : allPetMemberships.length === 0 ? (
+                ) : membershipHistory.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
                       Belum ada riwayat membership
                     </TableCell>
                   </TableRow>
                 ) : (
-                  allPetMemberships.map((pm) => (
-                    <TableRow key={pm._id}>
-                      <TableCell className="text-sm font-medium">{pm.membership.name}</TableCell>
-                      <TableCell className="text-sm">{formatDate(pm.start_date)}</TableCell>
-                      <TableCell className="text-sm">{formatDate(pm.end_date)}</TableCell>
+                  membershipHistory.map((h) => (
+                    <TableRow key={h._id}>
                       <TableCell>
                         <Badge
                           variant="outline"
-                          className={pm.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}
+                          className={
+                            h.event_type === "purchased" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                            h.event_type === "renewed" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                            "bg-muted text-muted-foreground border-border"
+                          }
                         >
-                          {pm.is_active ? "Aktif" : "Tidak aktif"}
+                          {h.event_type === "purchased" ? "Dibeli" : h.event_type === "renewed" ? "Diperpanjang" : "Dibatalkan"}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        {pm.is_active && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs text-destructive hover:text-destructive"
-                            onClick={() => setCancelTarget(pm)}
-                          >
-                            Batalkan
-                          </Button>
-                        )}
-                      </TableCell>
+                      <TableCell className="text-sm font-medium">{h.membership.name}</TableCell>
+                      <TableCell className="text-sm">{formatDate(h.start_date)}</TableCell>
+                      <TableCell className="text-sm">{formatDate(h.end_date)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{formatDate(h.event_date)}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -490,7 +623,7 @@ export default function PetMembershipsPage() {
 
       {/* Purchase Dialog */}
       <Dialog open={purchaseOpen} onOpenChange={setPurchaseOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle className="font-display">Beli Membership untuk {petName || "Pet"}</DialogTitle>
           </DialogHeader>
@@ -503,8 +636,8 @@ export default function PetMembershipsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {availablePlans.map((p) => (
-                    <SelectItem key={p._id} value={p._id}>
-                      {p.name} — {p.duration_months} bulan
+                    <SelectItem key={p._id} value={p._id} disabled={activeMemberships?.some((am) => am.membership._id === p._id)}>
+                      {activeMemberships?.some((am) => am.membership._id === p._id) && <span className="text-primary">Membership Aktif — </span>} {p.name} — {p.duration_months} bulan
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -519,6 +652,61 @@ export default function PetMembershipsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Update Membership Dialog */}
+      <Dialog open={!!updateTarget} onOpenChange={(open) => { if (!open) { setUpdateTarget(null); setUpdateForm(DEFAULT_UPDATE_FORM) } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-display">Edit Tanggal Membership {updateTarget?.membership.name}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdate} className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="update-start-date">Tanggal Mulai</Label>
+                <Input
+                  id="update-start-date"
+                  type="date"
+                  value={updateForm.start_date}
+                  onChange={(e) => setUpdateForm((p) => ({ ...p, start_date: e.target.value }))}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="update-end-date">Tanggal Berakhir</Label>
+                <Input
+                  id="update-end-date"
+                  type="date"
+                  value={updateForm.end_date}
+                  onChange={(e) => setUpdateForm((p) => ({ ...p, end_date: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => { setUpdateTarget(null); setUpdateForm(DEFAULT_UPDATE_FORM) }}>Batal</Button>
+              <Button type="submit" disabled={isUpdating}>
+                {isUpdating ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Renew Confirmation */}
+      <AlertDialog open={!!renewTarget} onOpenChange={(open) => !open && setRenewTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Perpanjang Membership</AlertDialogTitle>
+            <AlertDialogDescription>
+              Perpanjang membership <span className="font-medium text-foreground">{renewTarget?.membership.name}</span>? Tanggal berakhir baru akan dihitung dari tanggal berakhir lama ditambah durasi paket.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRenew} disabled={isRenewing}>
+              {isRenewing ? "Memproses..." : "Perpanjang"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Cancel Confirmation */}
       <AlertDialog open={!!cancelTarget} onOpenChange={(open) => !open && setCancelTarget(null)}>

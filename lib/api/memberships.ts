@@ -128,6 +128,7 @@ export interface BenefitSnapshot {
   period: BenefitPeriod
   value?: number | null
   label?: string | null
+  service_id?: string | null
   service?: BenefitServiceRef | null
   limit?: number | null
   used: number
@@ -142,7 +143,6 @@ export interface PetMembership {
   membership: MembershipRef
   start_date: string
   end_date: string
-  is_active: boolean
   benefits_snapshot: BenefitSnapshot[]
   createdAt: string
   updatedAt: string
@@ -282,7 +282,7 @@ export async function purchasePetMembership(payload: PurchasePetMembershipPayloa
 }
 
 export async function getActivePetMembership(petId: string) {
-  return apiAuthRequest<PetMembershipDetailResponse>(`/pet-memberships/${petId}/active`)
+  return apiAuthRequest<PetMembershipsResponse>(`/pet-memberships/${petId}/active`)
 }
 
 export async function getPetMembershipBenefitsSummary(petId: string) {
@@ -309,8 +309,57 @@ export async function updatePetMembership(id: string, payload: UpdatePetMembersh
   })
 }
 
+export async function renewPetMembership(id: string) {
+  return apiAuthRequest<PetMembershipDetailResponse>(`/pet-memberships/${id}/renew`, {
+    method: "POST",
+  })
+}
+
 export async function cancelPetMembership(id: string) {
   return apiAuthRequest<PetMembershipDeleteResponse>(`/pet-memberships/${id}`, {
     method: "DELETE",
   })
+}
+
+// ── Membership History ─────────────────────────────────────────────────────
+
+export type MembershipHistoryEventType = "purchased" | "renewed" | "cancelled"
+
+export interface MembershipHistoryBenefitSnapshot {
+  _id: string
+  applies_to: BenefitAppliesTo
+  service_id?: string | null
+  type: BenefitType
+  period?: BenefitPeriod
+  limit?: number | null
+  used: number
+  period_reset_date?: string | null
+}
+
+export interface MembershipHistoryItem {
+  _id: string
+  event_type: MembershipHistoryEventType
+  event_date: string
+  start_date: string
+  end_date: string
+  membership: {
+    _id: string
+    name: string
+    description?: string
+    duration_months: number
+    price: number
+  }
+  benefits_snapshot_before: MembershipHistoryBenefitSnapshot[]
+  note?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MembershipHistoryResponse {
+  message: string
+  data: MembershipHistoryItem[]
+}
+
+export async function getMembershipHistory(petId: string) {
+  return apiAuthRequest<MembershipHistoryResponse>(`/pet-memberships/${petId}/membership-history`)
 }

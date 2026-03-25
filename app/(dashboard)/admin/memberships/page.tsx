@@ -65,6 +65,11 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
 }
 
+function isPetMembershipActive(pm: { start_date: string; end_date: string }) {
+  const now = Date.now()
+  return new Date(pm.start_date).getTime() <= now && now <= new Date(pm.end_date).getTime()
+}
+
 // ── Benefit form ───────────────────────────────────────────────────────────
 
 interface BenefitForm extends BenefitPayload {
@@ -176,26 +181,24 @@ function BenefitFormFields({
   value,
   onChange: onFieldChange,
   services,
+  sourceTab,
+  onSourceTabChange,
 }: {
   value: Omit<BenefitForm, "_localId">
   onChange: React.Dispatch<React.SetStateAction<Omit<BenefitForm, "_localId">>>
   services: AdminService[]
+  sourceTab: "layanan" | "label"
+  onSourceTabChange: (src: "layanan" | "label") => void
 }) {
-  // "layanan" = pilih dari daftar layanan; "label" = ketik manual (discount only)
-  // sourceTab tracks explicit user selection; value-derived state takes priority when value is set
-  const [sourceTab, setSourceTab] = useState<"layanan" | "label">(() =>
-    value.label ? "label" : "layanan"
-  )
+  // value-derived source takes priority when a value is already set
   const benefitSource: "layanan" | "label" = value.service_id ? "layanan" : (value.label ? "label" : sourceTab)
 
   const switchSource = (src: "layanan" | "label") => {
-    setSourceTab(src)
+    onSourceTabChange(src)
     if (src === "layanan") {
-      // clear label, keep type as-is
       onFieldChange((p) => ({ ...p, label: "", service_id: "" }))
     } else {
-      // clear service, lock type to discount
-      onFieldChange((p) => ({ ...p, service_id: "", label: "", type: "discount" as BenefitType, period: "unlimited" as BenefitPeriod }))
+      onFieldChange((p) => ({ ...p, service_id: "", label: "" }))
     }
   }
 
@@ -222,7 +225,6 @@ function BenefitFormFields({
       {/* 2 & 3. Sumber Benefit — tab toggle between layanan/label */}
       <div className="flex flex-col gap-1.5">
         <Label className="text-xs">Sumber Benefit</Label>
-        {/* Tab toggle */}
         <div className="flex rounded-md border border-border overflow-hidden text-xs">
           <button
             type="button"
@@ -240,7 +242,7 @@ function BenefitFormFields({
           </button>
         </div>
 
-        {/* Layanan tab content */}
+        {/* Layanan tab — service dropdown (optional) */}
         {benefitSource === "layanan" && (
           <div className="flex gap-1.5 mt-0.5">
             <Select
@@ -251,7 +253,7 @@ function BenefitFormFields({
               }}
             >
               <SelectTrigger className="h-8 text-xs flex-1">
-                <SelectValue placeholder="Pilih layanan (opsional)..." />
+                <SelectValue placeholder="Pilih layanan..." />
               </SelectTrigger>
               <SelectContent>
                 {services.map((s) => (
@@ -259,7 +261,7 @@ function BenefitFormFields({
                 ))}
               </SelectContent>
             </Select>
-            {value.service_id && (
+            {/* {value.service_id && (
               <Button
                 type="button"
                 variant="ghost"
@@ -269,47 +271,42 @@ function BenefitFormFields({
               >
                 <X className="h-3.5 w-3.5" />
               </Button>
-            )}
+            )} */}
           </div>
         )}
 
-        {/* Label tab content — type locked to discount */}
+        {/* Label tab — free text input */}
         {benefitSource === "label" && (
-          <div className="flex flex-col gap-1 mt-0.5">
-            <Input
-              className="h-8 text-xs"
-              placeholder="cth. Grooming gratis"
-              value={value.label ?? ""}
-              onChange={(e) => onFieldChange((p) => ({ ...p, label: e.target.value }))}
-            />
-            <p className="text-xs text-muted-foreground">Tipe otomatis: Diskon (%)</p>
-          </div>
+          <Input
+            className="h-8 text-xs mt-0.5"
+            placeholder="cth. Grooming gratis"
+            value={value.label ?? ""}
+            onChange={(e) => onFieldChange((p) => ({ ...p, label: e.target.value }))}
+          />
         )}
       </div>
 
-      {/* 4. Tipe — hidden for label mode (locked to discount) */}
-      {benefitSource === "layanan" && (
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">Tipe</Label>
-          <Select
-            value={value.type}
-            onValueChange={(v) => {
-              const t = v as BenefitType
-              onFieldChange((p) => ({ ...p, type: t, ...(t === "discount" ? { period: "unlimited" } : {}) }))
-            }}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="quota">Kuota Sesi</SelectItem>
-              <SelectItem value="discount">Diskon (%)</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+      {/* 4. Tipe — always shown */}
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-xs">Tipe</Label>
+        <Select
+          value={value.type}
+          onValueChange={(v) => {
+            const t = v as BenefitType
+            onFieldChange((p) => ({ ...p, type: t, ...(t === "discount" ? { period: "unlimited" } : {}) }))
+          }}
+        >
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="quota">Kuota Sesi</SelectItem>
+            <SelectItem value="discount">Diskon (%)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-      {/* 5. Periode — hidden for discount (locked to unlimited) */}
+      {/* 5. Periode — only for quota */}
       {value.type === "quota" && (
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">Periode Reset</Label>
@@ -329,7 +326,7 @@ function BenefitFormFields({
         </div>
       )}
 
-      {/* 6. Value — only for discount */}
+      {/* 6. Nilai Diskon — only for discount */}
       {value.type === "discount" && (
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">Nilai Diskon (%)</Label>
@@ -345,7 +342,7 @@ function BenefitFormFields({
         </div>
       )}
 
-      {/* 7. Limit — only for quota with non-unlimited period */}
+      {/* 7. Batas Penggunaan — only for quota with non-unlimited period */}
       {value.type === "quota" && value.period !== "unlimited" && (
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">Batas Penggunaan</Label>
@@ -363,6 +360,17 @@ function BenefitFormFields({
   )
 }
 
+// ── Benefit validation ─────────────────────────────────────────────────────
+
+function validateBenefit(b: Omit<BenefitForm, "_localId">, sourceTab: "layanan" | "label"): string | null {
+  const effectiveSource: "layanan" | "label" = b.service_id ? "layanan" : (b.label ? "label" : sourceTab)
+  if (effectiveSource === "layanan" && !b.service_id) return "Layanan harus dipilih"
+  if (effectiveSource === "label" && !b.label) return "Label benefit harus diisi"
+  if (b.type === "discount" && (b.value === undefined || b.value === null)) return "Nilai diskon harus diisi"
+  if (b.type === "quota" && b.period !== "unlimited" && (b.limit === undefined || b.limit === null)) return "Batas penggunaan harus diisi"
+  return null
+}
+
 // ── Benefit Editor Sub-Component ──────────────────────────────────────────
 
 function BenefitEditor({
@@ -375,13 +383,21 @@ function BenefitEditor({
   services: AdminService[]
 }) {
   const [newBenefit, setNewBenefit] = useState<Omit<BenefitForm, "_localId">>({ ...DEFAULT_BENEFIT_FORM })
+  const [newSourceTab, setNewSourceTab] = useState<"layanan" | "label">("layanan")
+  const [newError, setNewError] = useState<string | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingLocalId, setEditingLocalId] = useState<string | null>(null)
   const [editBenefit, setEditBenefit] = useState<Omit<BenefitForm, "_localId">>({ ...DEFAULT_BENEFIT_FORM })
+  const [editSourceTab, setEditSourceTab] = useState<"layanan" | "label">("layanan")
+  const [editError, setEditError] = useState<string | null>(null)
 
   const addBenefit = () => {
+    const err = validateBenefit(newBenefit, newSourceTab)
+    if (err) { setNewError(err); return }
     onChange([...benefits, { ...newBenefit, _localId: newLocalId() }])
     setNewBenefit({ ...DEFAULT_BENEFIT_FORM })
+    setNewSourceTab("layanan")
+    setNewError(null)
     setShowAddForm(false)
   }
 
@@ -393,16 +409,21 @@ function BenefitEditor({
   const startEdit = (b: BenefitForm) => {
     const { _localId: _, ...rest } = b
     setEditBenefit(rest)
+    setEditSourceTab(b.label && !b.service_id ? "label" : "layanan")
+    setEditError(null)
     setEditingLocalId(b._localId)
   }
 
   const saveEdit = () => {
     if (!editingLocalId) return
+    const err = validateBenefit(editBenefit, editSourceTab)
+    if (err) { setEditError(err); return }
     onChange(benefits.map((b) => b._localId === editingLocalId ? { ...editBenefit, _localId: editingLocalId } : b))
     setEditingLocalId(null)
+    setEditError(null)
   }
 
-  const cancelEdit = () => setEditingLocalId(null)
+  const cancelEdit = () => { setEditingLocalId(null); setEditError(null) }
 
   return (
     <div className="flex flex-col gap-3">
@@ -414,7 +435,14 @@ function BenefitEditor({
               {editingLocalId === b._localId ? (
                 /* Inline edit form */
                 <div className="flex flex-col gap-3 p-3">
-                  <BenefitFormFields value={editBenefit} onChange={setEditBenefit} services={services} />
+                  <BenefitFormFields
+                    value={editBenefit}
+                    onChange={(v) => { setEditBenefit(v); setEditError(null) }}
+                    services={services}
+                    sourceTab={editSourceTab}
+                    onSourceTabChange={setEditSourceTab}
+                  />
+                  {editError && <p className="text-xs text-destructive">{editError}</p>}
                   <div className="flex gap-2">
                     <Button type="button" size="sm" className="h-7 text-xs flex-1" onClick={saveEdit}>
                       <Check className="h-3.5 w-3.5 mr-1" />
@@ -436,7 +464,7 @@ function BenefitEditor({
                     <span className="text-xs text-muted-foreground">
                       {APPLIES_TO_LABEL[b.applies_to]} · {PERIOD_LABEL[b.period ?? "unlimited"]}
                       {b.limit != null && ` · Maks ${b.limit}x`}
-                      {b.limit == null && " · Tidak terbatas"}
+                      {b.limit == null && b.type === "quota" && " · Tidak terbatas"}
                     </span>
                     {b.service_id ? (
                       <span className="text-xs text-muted-foreground">
@@ -480,7 +508,14 @@ function BenefitEditor({
             <CardTitle className="text-sm font-medium">Tambah Benefit</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 px-3 pb-3">
-            <BenefitFormFields value={newBenefit} onChange={setNewBenefit} services={services} />
+            <BenefitFormFields
+              value={newBenefit}
+              onChange={(v) => { setNewBenefit(v); setNewError(null) }}
+              services={services}
+              sourceTab={newSourceTab}
+              onSourceTabChange={setNewSourceTab}
+            />
+            {newError && <p className="text-xs text-destructive">{newError}</p>}
             <div className="flex gap-2">
               <Button type="button" size="sm" className="h-7 text-xs flex-1" onClick={addBenefit}>
                 <Plus className="h-3.5 w-3.5 mr-1" />
@@ -491,7 +526,7 @@ function BenefitEditor({
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs"
-                onClick={() => { setShowAddForm(false); setNewBenefit({ ...DEFAULT_BENEFIT_FORM }) }}
+                onClick={() => { setShowAddForm(false); setNewBenefit({ ...DEFAULT_BENEFIT_FORM }); setNewSourceTab("layanan"); setNewError(null) }}
               >
                 Batal
               </Button>
@@ -1208,13 +1243,13 @@ function PetMembershipsTab() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={pm.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}
+                        className={isPetMembershipActive(pm) ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}
                       >
-                        {pm.is_active ? "Aktif" : "Tidak aktif"}
+                        {isPetMembershipActive(pm) ? "Aktif" : "Tidak aktif"}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {pm.is_active && (
+                      {isPetMembershipActive(pm) && (
                         <Button
                           variant="ghost"
                           size="sm"

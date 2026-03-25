@@ -84,9 +84,11 @@ interface ServiceForm {
   available_store_ids: string[]
   addon_ids: string[]
   include: string[]
+  sessions: string[]
   show_in_homepage: boolean
   order: string
   service_location_type: string
+  is_pick_up_available: boolean
   is_active: boolean
   imageFile: File | null
   imagePreview: string | null
@@ -121,9 +123,11 @@ const DEFAULT_SERVICE_FORM: ServiceForm = {
   available_store_ids: [],
   addon_ids: [],
   include: [],
+  sessions: [],
   show_in_homepage: false,
   order: "0",
   service_location_type: "in store",
+  is_pick_up_available: false,
   is_active: true,
   imageFile: null,
   imagePreview: null,
@@ -598,6 +602,17 @@ function ServiceFormFields({
 
       <Separator />
 
+      {/* Sessions */}
+      <div className="flex flex-col gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sesi</p>
+        <TagInput
+          tags={form.sessions}
+          onChange={(tags) => setForm((p) => ({ ...p, sessions: tags }))}
+        />
+      </div>
+
+      <Separator />
+
       {/* Stores */}
       <div className="flex flex-col gap-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Toko Tersedia</p>
@@ -649,6 +664,10 @@ function ServiceFormFields({
               <SelectItem value="in home">Di Rumah (In Home)</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+        <div className="flex items-center gap-3">
+          <Switch id="sv-pickup" checked={form.is_pick_up_available} onCheckedChange={(v) => setForm((p) => ({ ...p, is_pick_up_available: v }))} />
+          <Label htmlFor="sv-pickup">Layanan Pick Up Tersedia</Label>
         </div>
         <div className="flex items-center gap-3">
           <Switch id="sv-unlimited" checked={form.available_for_unlimited} onCheckedChange={(v) => setForm((p) => ({ ...p, available_for_unlimited: v }))} />
@@ -883,11 +902,13 @@ export default function ServicesPage() {
     available_store_ids: form.available_store_ids.length ? form.available_store_ids : undefined,
     addon_ids: form.addon_ids.length ? form.addon_ids : undefined,
     include: form.include.length ? form.include : undefined,
+    sessions: form.sessions.length ? form.sessions : undefined,
     image_url: form.image_url ?? undefined,
     public_id: form.public_id ?? undefined,
     show_in_homepage: form.show_in_homepage,
     order: Number(form.order),
     service_location_type: form.service_location_type,
+    is_pick_up_available: form.is_pick_up_available,
     is_active: form.is_active,
   })
 
@@ -953,9 +974,11 @@ export default function ServicesPage() {
       available_store_ids: svc.avaiable_store?.map((s) => s._id) ?? [],
       addon_ids: svc.addons?.map((a) => a._id) ?? [],
       include: svc.include ?? [],
+      sessions: svc.sessions ?? [],
       show_in_homepage: svc.show_in_homepage,
       order: String(svc.order),
       service_location_type: svc.service_location_type ?? "in store",
+      is_pick_up_available: svc.is_pick_up_available ?? false,
       is_active: svc.is_active,
       imageFile: null,
       imagePreview: null,
@@ -1479,6 +1502,8 @@ export default function ServicesPage() {
                   <span>{viewService.duration} menit</span>
                   <span className="text-muted-foreground">Lokasi</span>
                   <span className="capitalize">{viewService.service_location_type ?? "—"}</span>
+                  <span className="text-muted-foreground">Pick Up</span>
+                  <span>{viewService.is_pick_up_available ? "Tersedia" : "Tidak Tersedia"}</span>
                   <span className="text-muted-foreground">Tipe Harga</span>
                   <Badge variant="outline" className="w-fit text-xs">
                     {viewService.price_type === "single" ? "Single" : "Multiple"}
@@ -1590,6 +1615,19 @@ export default function ServicesPage() {
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Addon</p>
                     <div className="flex flex-wrap gap-1">
                       {viewService.addons!.map((a) => <Badge key={a._id} variant="outline" className="text-xs">{a.name}</Badge>)}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Sessions */}
+              {(viewService.sessions?.length ?? 0) > 0 && (
+                <>
+                  <Separator />
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sesi</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {viewService.sessions!.map((s, i) => <Badge key={i} variant="secondary" className="text-xs">{s}</Badge>)}
                     </div>
                   </div>
                 </>
