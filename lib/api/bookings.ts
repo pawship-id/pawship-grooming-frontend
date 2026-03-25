@@ -149,6 +149,50 @@ export interface BookingDetailResponse {
   booking: AdminBooking
 }
 
+// ── Booking preview ──────────────────────────────────────────────────────────
+
+export interface BookingPreviewBenefit {
+  _id: string
+  applies_to: string
+  service_id?: string
+  label?: string
+  service?: any
+  type: string          // "discount" | "quota"
+  period: string        // "weekly" | "monthly" | "unlimited"
+  value?: number
+  limit: number | null
+  used: number
+  remaining: number | null
+  can_apply: boolean
+  period_reset_date: string | null
+  next_reset_date: string | null
+  amount_discount?: number
+  description: string
+}
+
+export interface BookingPreviewResult {
+  pet_id: string
+  pet_name: string
+  service_id: string
+  service_name: string
+  pricing: {
+    original_service_price: number
+    addon_prices: { _id: string; name: string; price: number }[]
+    subtotal_before_benefits: number
+    has_active_membership: boolean
+    available_benefits: BookingPreviewBenefit[]
+    estimated_total_discount: number
+    estimated_final_price: number
+  }
+  pricing_breakdown: {
+    service: { name: string; price: number }
+    addons: { _id: string; name: string; price: number }[]
+    subtotal: number
+    discount: number
+    final: number
+  }
+}
+
 // ── Request payloads ─────────────────────────────────────────────────────────
 
 export interface CreateBookingPayload {
@@ -162,7 +206,7 @@ export interface CreateBookingPayload {
   service_addon_ids?: string[]
   travel_fee?: number
   discount_ids?: string[]
-  sessions?: SessionInput[]
+  selected_benefit_ids?: string[]
   referal_code?: string
   note?: string
   payment_method?: string
@@ -198,6 +242,19 @@ export async function getAdminBookings() {
 
 export async function getAdminBookingById(id: string) {
   return apiAuthRequest<BookingDetailResponse>(`/bookings/${id}`)
+}
+
+export async function getBookingPreview(payload: {
+  pet_id: string
+  service_id: string
+  addon_ids?: string[]
+  date: string
+  time_range?: string
+}) {
+  return apiAuthRequest<{ message: string } & BookingPreviewResult>("/bookings/preview", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
 }
 
 export async function createAdminBooking(payload: CreateBookingPayload) {

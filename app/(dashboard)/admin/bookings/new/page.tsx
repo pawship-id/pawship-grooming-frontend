@@ -4,9 +4,9 @@ import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
-  ArrowLeft, AlertTriangle, Check, Lock, Plus, Trash2,
+  ArrowLeft, AlertTriangle, Check, Lock,
   Mail, Phone, Clock, MapPin, CalendarDays, Tag, Weight, Cake,
-  Scissors, Info, Star,
+  Info, Star, Sparkles, Gift,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,7 +26,8 @@ import { getAdminServices } from "@/lib/api/services"
 import type { AdminService, AdminServicePrice } from "@/lib/api/services"
 import { getServiceTypes } from "@/lib/api/service-types"
 import type { ApiServiceType } from "@/lib/api/service-types"
-import { createAdminBooking } from "@/lib/api/bookings"
+import { createAdminBooking, getBookingPreview } from "@/lib/api/bookings"
+import type { BookingPreviewResult, BookingPreviewBenefit } from "@/lib/api/bookings"
 
 const DEFAULT_FORM = {
   store_id: "",
@@ -98,19 +99,21 @@ export default function NewBookingPage() {
   const router = useRouter()
   const [form, setForm] = useState(DEFAULT_FORM)
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([])
+  const [selectedBenefitIds, setSelectedBenefitIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [customPaymentMethod, setCustomPaymentMethod] = useState("")
 
   const [stores, setStores] = useState<ApiStore[]>([])
   const [serviceTypes, setServiceTypes] = useState<ApiServiceType[]>([])
   const [customers, setCustomers] = useState<ApiUser[]>([])
-  const [groomers, setGroomers] = useState<ApiUser[]>([])
   const [sessions, setSessions] = useState<string[]>([])
   const [services, setServices] = useState<AdminService[]>([])
   const [pets, setPets] = useState<ApiPet[]>([])
-  const [sessionRows, setSessionRows] = useState<Array<{ type: string; groomer_id: string }>>([])
   /** Semua service aktif di store yang dipilih — dipakai untuk lookup harga addon */
   const [allStoreServices, setAllStoreServices] = useState<AdminService[]>([])
+
+  const [previewData, setPreviewData] = useState<BookingPreviewResult | null>(null)
+  const [loadingPreview, setLoadingPreview] = useState(false)
 
   const [loadingInit, setLoadingInit] = useState(true)
   const [loadingStore, setLoadingStore] = useState(false)
@@ -122,13 +125,11 @@ export default function NewBookingPage() {
       getStores({ page: 1, limit: 100, is_active: "true" }),
       getServiceTypes({ is_active: "true" }),
       getUsers({ page: 1, limit: 200, role: "customer" }),
-      getUsers({ page: 1, limit: 200, role: "groomer" }),
     ])
-      .then(([storesRes, typesRes, usersRes, groomersRes]) => {
+      .then(([storesRes, typesRes, usersRes]) => {
         setStores(storesRes.stores)
         setServiceTypes(typesRes.serviceTypes)
         setCustomers(usersRes.users)
-        setGroomers(groomersRes.users)
       })
       .catch(() => toast.error("Gagal memuat data awal"))
       .finally(() => setLoadingInit(false))
@@ -216,6 +217,33 @@ export default function NewBookingPage() {
   const toggleAddon = (id: string) =>
     setSelectedAddonIds((prev) => prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id])
 
+  const toggleBenefit = (id: string) =>
+    setSelectedBenefitIds((prev) => prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id])
+
+  // ── Preview: auto-fetch whenever pet / service / addons / date change ───────
+  useEffect(() => {
+    if (!form.pet_id || !form.service_id || !form.date) {
+      setPreviewData(null)
+      setSelectedBenefitIds([])
+      return
+    }
+    let cancelled = false
+    setLoadingPreview(true)
+    setPreviewData(null)
+    setSelectedBenefitIds([])
+    getBookingPreview({
+      pet_id: form.pet_id,
+      service_id: form.service_id,
+      addon_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
+      date: form.date,
+      time_range: form.time_range || undefined,
+    })
+      .then((res) => { if (!cancelled) setPreviewData(res) })
+      .catch(() => { if (!cancelled) setPreviewData(null) })
+      .finally(() => { if (!cancelled) setLoadingPreview(false) })
+    return () => { cancelled = true }
+  }, [form.pet_id, form.service_id, form.date, selectedAddonIds])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!step3Done) { toast.error("Lengkapi semua langkah wajib terlebih dahulu"); return }
@@ -232,14 +260,12 @@ export default function NewBookingPage() {
         time_range: form.time_range,
         service_addon_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
         travel_fee: form.travel_fee ? Number(form.travel_fee) : undefined,
+        selected_benefit_ids: selectedBenefitIds.length > 0 ? selectedBenefitIds : undefined,
         referal_code: form.referal_code || undefined,
         payment_method: form.payment_method === "other"
           ? (customPaymentMethod.trim() || undefined)
           : (form.payment_method || undefined),
         note: form.note || undefined,
-        sessions: sessionRows
-          .filter((r) => r.type && r.groomer_id)
-          .map((r, i) => ({ type: r.type, groomer_id: r.groomer_id, order: i })),
       })
       toast.success("Booking berhasil dibuat")
       router.push("/admin/bookings")
@@ -695,83 +721,167 @@ export default function NewBookingPage() {
 
         <Separator />
 
-        {/* ── Step 4: Session & Groomer ──────────────────────────────────────── */}
-        {!step3Done ? <LockedSection step={4} title="Session & Groomer" /> : (
+        {/* ── Step 4: Preview Harga & Benefit ───────────────────────────── */}
+        {!step3Done ? <LockedSection step={4} title="Preview Harga & Benefit" /> : (
           <section className="flex flex-col gap-4">
             <StepHeader
               step={4}
-              title="Session & Groomer"
-              done={sessionRows.length > 0 && sessionRows.every((r) => r.type && r.groomer_id)}
+              title="Preview Harga & Benefit"
+              done={!!previewData}
             />
             <Card className="border-border/50">
               <CardContent className="flex flex-col gap-4 pt-6">
-                {sessionRows.length === 0 && (
-                  <p className="text-sm text-muted-foreground">Belum ada sesi. Tambahkan sesi grooming jika diperlukan.</p>
+                {loadingPreview && (
+                  <div className="flex flex-col gap-2">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="h-8 animate-pulse rounded-lg bg-muted" />
+                    ))}
+                  </div>
                 )}
-                {sessionRows.map((row, idx) => {
-                  const selectedGroomer = groomers.find((g) => g._id === row.groomer_id)
-                  return (
-                    <div key={idx} className="flex flex-col gap-3 rounded-xl border border-border/50 bg-muted/30 p-4">
-                      <div className="flex items-center justify-between">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
-                          {idx + 1}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
-                          onClick={() => setSessionRows((prev) => prev.filter((_, i) => i !== idx))}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+
+                {!loadingPreview && !previewData && (
+                  <p className="text-sm text-muted-foreground">Pilih layanan dan tanggal untuk melihat preview harga.</p>
+                )}
+
+                {!loadingPreview && previewData && (
+                  <div className="flex flex-col gap-5">
+                    {/* Pricing breakdown */}
+                    <div className="flex flex-col gap-1.5">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rincian Harga</p>
+                      <div className="overflow-hidden rounded-xl border border-border/50 bg-card">
+                        <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                          <span className="text-muted-foreground">{previewData.pricing_breakdown.service.name}</span>
+                          <span className="font-medium">{formatPrice(previewData.pricing_breakdown.service.price)}</span>
+                        </div>
+                        {previewData.pricing_breakdown.addons.map((addon) => (
+                          <div key={addon._id} className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                            <span className="text-muted-foreground">+ {addon.name}</span>
+                            <span className="font-medium">{formatPrice(addon.price)}</span>
+                          </div>
+                        ))}
+                        {form.travel_fee && Number(form.travel_fee) > 0 && (
+                          <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                            <span className="text-muted-foreground">Biaya Perjalanan</span>
+                            <span className="font-medium">{formatPrice(Number(form.travel_fee))}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between border-t border-border/50 bg-muted/30 px-4 py-2.5 text-sm font-semibold">
+                          <span>Subtotal</span>
+                          <span>{formatPrice(previewData.pricing_breakdown.subtotal)}</span>
+                        </div>
+                        {selectedBenefitIds.length > 0 && previewData.pricing.available_benefits.filter(
+                          (b) => selectedBenefitIds.includes(b._id) && b.type === "discount" && b.can_apply
+                        ).map((b) => (
+                          <div key={b._id} className="flex items-center justify-between border-t border-primary/20 bg-primary/5 px-4 py-2.5 text-sm">
+                            <span className="text-primary">
+                              <Gift className="mr-1.5 inline h-3.5 w-3.5" />
+                              {b.label || b.description}
+                            </span>
+                            <span className="font-semibold text-primary">- {formatPrice(b.amount_discount ?? 0)}</span>
+                          </div>
+                        ))}
+                        {selectedBenefitIds.length > 0 && (
+                          <div className="flex items-center justify-between border-t border-primary/30 bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
+                            <span>Total Akhir</span>
+                            <span className="text-base">
+                              {formatPrice(
+                                Math.max(0,
+                                  previewData.pricing_breakdown.subtotal -
+                                  previewData.pricing.available_benefits
+                                    .filter((b) => selectedBenefitIds.includes(b._id) && b.type === "discount" && b.can_apply)
+                                    .reduce((sum, b) => sum + (b.amount_discount ?? 0), 0)
+                                )
+                              )}
+                            </span>
+                          </div>
+                        )}
+                        {selectedBenefitIds.length === 0 && (
+                          <div className="flex items-center justify-between border-t border-primary/30 bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
+                            <span>Total Akhir</span>
+                            <span className="text-base">{formatPrice(previewData.pricing_breakdown.subtotal)}</span>
+                          </div>
+                        )}
                       </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="flex flex-col gap-1.5">
-                          <Label className="text-xs text-muted-foreground">Tipe Sesi</Label>
-                          <Input
-                            placeholder="washing, drying, cutting..."
-                            value={row.type}
-                            onChange={(e) => setSessionRows((prev) => prev.map((r, i) => i === idx ? { ...r, type: e.target.value } : r))}
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          <Label className="text-xs text-muted-foreground">Groomer</Label>
-                          <Select
-                            value={row.groomer_id}
-                            onValueChange={(v) => setSessionRows((prev) => prev.map((r, i) => i === idx ? { ...r, groomer_id: v } : r))}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih groomer" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {groomers.map((g) => <SelectItem key={g._id} value={g._id}>{g.username}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      {selectedGroomer && (
-                        <div className="flex flex-wrap gap-x-4 gap-y-1.5 rounded-lg border border-border/40 bg-background px-3 py-2">
-                          <DetailRow icon={<Scissors className="h-3.5 w-3.5" />} label="Groomer" value={selectedGroomer.username} />
-                          <DetailRow icon={<Mail className="h-3.5 w-3.5" />} label="Email" value={selectedGroomer.email} />
-                          {selectedGroomer.phone_number && (
-                            <DetailRow icon={<Phone className="h-3.5 w-3.5" />} label="No. HP" value={selectedGroomer.phone_number} />
-                          )}
-                        </div>
-                      )}
                     </div>
-                  )
-                })}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-fit"
-                  onClick={() => setSessionRows((prev) => [...prev, { type: "", groomer_id: "" }])}
-                >
-                  <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  Tambah Sesi
-                </Button>
+
+                    {/* Benefit selection */}
+                    {previewData.pricing.has_active_membership && previewData.pricing.available_benefits.length > 0 && (
+                      <div className="flex flex-col gap-2.5">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          <p className="text-sm font-semibold text-foreground">Benefit Membership</p>
+                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                            {previewData.pricing.available_benefits.filter((b) => b.can_apply).length} tersedia
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          {previewData.pricing.available_benefits.map((benefit) => {
+                            const selected = selectedBenefitIds.includes(benefit._id)
+                            const canApply = benefit.can_apply
+                            return (
+                              <label
+                                key={benefit._id}
+                                htmlFor={`benefit-${benefit._id}`}
+                                className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
+                                  !canApply
+                                    ? "cursor-not-allowed border-border/30 bg-muted/20 opacity-50"
+                                    : selected
+                                    ? "border-primary bg-primary/5"
+                                    : "border-border bg-card hover:border-primary/40"
+                                }`}
+                              >
+                                <Checkbox
+                                  id={`benefit-${benefit._id}`}
+                                  checked={selected}
+                                  disabled={!canApply}
+                                  onCheckedChange={() => canApply && toggleBenefit(benefit._id)}
+                                  className="mt-0.5 shrink-0"
+                                />
+                                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-foreground">
+                                      {benefit.label || benefit.description}
+                                    </span>
+                                    <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                      benefit.type === "discount"
+                                        ? "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                                        : "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                                    }`}>
+                                      {benefit.type === "discount" ? `${benefit.value}% off` : "Kuota gratis"}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                                    <span>{benefit.description}</span>
+                                    {benefit.remaining !== null && (
+                                      <span className={benefit.remaining === 0 ? "text-destructive" : ""}>
+                                        Sisa: {benefit.remaining}/{benefit.limit ?? "∞"}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {!canApply && (
+                                    <span className="text-[11px] text-destructive">Tidak dapat digunakan saat ini</span>
+                                  )}
+                                </div>
+                                {benefit.type === "discount" && canApply && benefit.amount_discount != null && benefit.amount_discount > 0 && (
+                                  <span className={`shrink-0 text-sm font-bold ${selected ? "text-primary" : "text-muted-foreground"}`}>
+                                    - {formatPrice(benefit.amount_discount)}
+                                  </span>
+                                )}
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {!previewData.pricing.has_active_membership && (
+                      <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                        <Info className="h-4 w-4 shrink-0" />
+                        <span>Hewan ini tidak memiliki membership aktif. Tidak ada benefit yang tersedia.</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </section>
