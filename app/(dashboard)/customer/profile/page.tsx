@@ -266,13 +266,24 @@ function EditProfileDialog({
                   </div>
                 ) : (
                   <div className="flex items-center gap-2 px-3 py-2">
+                    <input
+                      type="radio"
+                      id={`main_address_collapsed_${idx}`}
+                      name="main_address"
+                      checked={!!addr.is_main_address}
+                      onChange={() => setForm(f => ({
+                        ...f,
+                        addresses: f.addresses.map((a, i) => ({ ...a, is_main_address: i === idx }))
+                      }))}
+                      className="shrink-0 cursor-pointer"
+                    />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5">
+                      <label htmlFor={`main_address_collapsed_${idx}`} className="flex items-center gap-1.5 mb-0.5 cursor-pointer">
                         {addr.is_main_address && (
                           <span className="text-xs text-primary font-semibold">Utama</span>
                         )}
                         <span className="text-xs font-medium">{addr.label || "Alamat"}</span>
-                      </div>
+                      </label>
                       <p className="text-xs text-muted-foreground truncate">
                         {[addr.street, addr.district, addr.city, addr.province]
                           .filter(Boolean)
@@ -672,7 +683,7 @@ function PetCard({
             </div>
           )}
         </div>
-        {pet.tags.length > 0 && (
+        {/* {pet.tags.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-1">
             {pet.tags.map((tag) => (
               <Badge key={tag} variant="secondary" className="text-xs">
@@ -680,7 +691,7 @@ function PetCard({
               </Badge>
             ))}
           </div>
-        )}
+        )} */}
         {activeMembership && (
           <div className="mt-3 rounded-md bg-primary/5 p-3">
             <p className="text-xs font-medium text-primary mb-1">Active Membership</p>
@@ -808,7 +819,7 @@ export default function CustomerProfilePage() {
                 </Badge>
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={() => setEditProfileOpen(true)}>
+            <Button variant="default" size="sm" onClick={() => setEditProfileOpen(true)}>
               <Pencil className="mr-2 h-3.5 w-3.5" />
               Edit Profil
             </Button>
@@ -869,12 +880,12 @@ export default function CustomerProfilePage() {
                 <span className="text-xs text-muted-foreground font-medium">Alamat</span>
               </div>
               {profile.profile.addresses.map((addr, idx) => (
-                <div key={addr._id || idx} className={`rounded border px-3 py-2 text-xs ${addr.is_main_address ? "border-primary bg-primary/10" : "border-border bg-muted/30"}`}>
+                <div key={addr._id || idx} className={`rounded border px-3 py-2 text-xs ${addr.is_main_address ? "border-green-700 bg-green-50" : "border-border bg-muted/30"}`}>
                   <div className="flex items-center gap-2 mb-1">
-                    {addr.is_main_address && <span className="text-primary font-semibold mr-2">Utama</span>}
-                    <span className="font-medium">{addr.label || "Alamat"}</span>
+                    {addr.is_main_address && <span className="text-green-700 font-semibold mr-1`">Utama</span>}
+                    <span className="font-medium text-gray-700">{addr.label || "Alamat"}</span>
                   </div>
-                  <div>
+                  <div className="text-gray-700">
                     {[addr.street, addr.subdistrict, addr.district, addr.city, addr.province, addr.postal_code]
                       .filter(Boolean)
                       .join(", ")}
@@ -919,7 +930,7 @@ export default function CustomerProfilePage() {
           open={editProfileOpen}
           onOpenChange={setEditProfileOpen}
           profile={profile}
-          onSaved={(updated) => setProfile(updated)}
+          onSaved={(updated) => setProfile(prev => ({ ...updated, pets: prev?.pets ?? updated.pets }))}
         />
       )}
 
