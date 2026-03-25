@@ -40,7 +40,10 @@ import type { ApiUser } from "@/lib/api/users"
 
 const statusColors: Record<string, string> = {
   requested: "bg-accent/20 text-accent-foreground",
+  waitlist: "bg-yellow-100 text-yellow-800",
   confirmed: "bg-secondary/60 text-secondary-foreground",
+  "driver on the way": "bg-blue-100 text-blue-700",
+  "groomer on the way": "bg-blue-100 text-blue-700",
   arrived: "bg-primary/10 text-primary",
   "in progress": "bg-primary/10 text-primary",
   completed: "bg-secondary/60 text-secondary-foreground",
@@ -50,7 +53,10 @@ const statusColors: Record<string, string> = {
 
 const ALL_STATUSES = [
   "requested",
+  "waitlist",
   "confirmed",
+  "driver on the way",
+  "groomer on the way",
   "arrived",
   "in progress",
   "completed",
@@ -58,12 +64,27 @@ const ALL_STATUSES = [
   "cancelled",
 ]
 
-const MAIN_FLOW = ["requested", "confirmed", "arrived", "in progress", "completed"]
+const IN_STORE_MAIN_FLOW = ["requested", "confirmed", "arrived", "in progress", "completed"]
+const IN_HOME_MAIN_FLOW = ["requested", "confirmed", "driver on the way", "groomer on the way", "arrived", "in progress", "completed"]
 
-const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+const IN_STORE_TRANSITIONS: Record<string, string[]> = {
+  waitlist: ["confirmed", "cancelled"],
   requested: ["confirmed", "rescheduled", "cancelled"],
   rescheduled: ["confirmed", "rescheduled", "cancelled"],
   confirmed: ["arrived", "rescheduled", "cancelled"],
+  arrived: ["in progress", "rescheduled", "cancelled"],
+  "in progress": ["completed", "cancelled"],
+  completed: [],
+  cancelled: [],
+}
+
+const IN_HOME_TRANSITIONS: Record<string, string[]> = {
+  waitlist: ["confirmed", "cancelled"],
+  requested: ["confirmed", "rescheduled", "cancelled"],
+  rescheduled: ["confirmed", "rescheduled", "cancelled"],
+  confirmed: ["driver on the way", "rescheduled", "cancelled"],
+  "driver on the way": ["groomer on the way", "rescheduled", "cancelled"],
+  "groomer on the way": ["arrived", "rescheduled", "cancelled"],
   arrived: ["in progress", "rescheduled", "cancelled"],
   "in progress": ["completed", "cancelled"],
   completed: [],
@@ -282,6 +303,9 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     )
   }
 
+  const isInHome = booking.type === "in home"
+  const MAIN_FLOW = isInHome ? IN_HOME_MAIN_FLOW : IN_STORE_MAIN_FLOW
+  const ALLOWED_TRANSITIONS = isInHome ? IN_HOME_TRANSITIONS : IN_STORE_TRANSITIONS
   const allowedNextStatuses = ALLOWED_TRANSITIONS[booking.booking_status] ?? []
   const hasInProgressSession = booking.sessions.some((s) => s.status === "in progress")
   const allSessionsFinished =
@@ -346,12 +370,12 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                   )
                 })}
-                {(booking.booking_status === "cancelled" || booking.booking_status === "rescheduled") && (
+                {(booking.booking_status === "cancelled" || booking.booking_status === "rescheduled" || booking.booking_status === "waitlist") && (
                   <>
                     <div className="mx-2 h-px w-4 shrink-0 bg-border/50" />
                     <div
                       className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium capitalize ring-1
-                      ${booking.booking_status === "cancelled" ? "bg-destructive/10 text-destructive ring-destructive/30" : "bg-accent/20 text-accent-foreground ring-accent/30"}
+                      ${booking.booking_status === "cancelled" ? "bg-destructive/10 text-destructive ring-destructive/30" : booking.booking_status === "waitlist" ? "bg-yellow-100 text-yellow-800 ring-yellow-300" : "bg-accent/20 text-accent-foreground ring-accent/30"}
                     `}
                     >
                       {booking.booking_status}
@@ -468,7 +492,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 </p>
               </div>
 
-              {booking.service_snapshot.addons.length > 0 && (
+              {booking.service_snapshot.addons?.length > 0 && (
                 <div>
                   <span className="text-xs text-muted-foreground">Add-ons</span>
                   <div className="mt-1 flex flex-wrap gap-1">
