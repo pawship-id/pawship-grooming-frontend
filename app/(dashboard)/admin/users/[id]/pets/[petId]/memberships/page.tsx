@@ -16,10 +16,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
@@ -622,31 +622,90 @@ export default function PetMembershipsPage() {
       </div>
 
       {/* Purchase Dialog */}
-      <Dialog open={purchaseOpen} onOpenChange={setPurchaseOpen}>
+      <Dialog open={purchaseOpen} onOpenChange={(open) => { if (!open) { setPurchaseOpen(false); setSelectedPlanId("") } }}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="font-display">Beli Membership untuk {petName || "Pet"}</DialogTitle>
+            <DialogTitle className="font-display">Beli Membership</DialogTitle>
+            <DialogDescription>
+              Pilih paket membership untuk <span className="font-medium text-foreground">{petName || "Pet"}</span>
+            </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handlePurchase} className="flex flex-col gap-4">
+          <form onSubmit={handlePurchase} className="flex flex-col gap-5">
+            {/* Plan Cards */}
             <div className="flex flex-col gap-2">
-              <Label htmlFor="plan-select">Paket Membership <span className="text-destructive">*</span></Label>
-              <Select value={selectedPlanId} onValueChange={setSelectedPlanId} required>
-                <SelectTrigger id="plan-select">
-                  <SelectValue placeholder="Pilih paket" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availablePlans.map((p) => (
-                    <SelectItem key={p._id} value={p._id} disabled={activeMemberships?.some((am) => am.membership._id === p._id)}>
-                      {activeMemberships?.some((am) => am.membership._id === p._id) && <span className="text-primary">Membership Aktif — </span>} {p.name} — {p.duration_months} bulan
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Paket Membership <span className="text-destructive">*</span></Label>
+              {availablePlans.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">Tidak ada paket tersedia</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {availablePlans.map((p) => {
+                    const isActive = activeMemberships?.some((am) => am.membership._id === p._id)
+                    const isSelected = selectedPlanId === p._id
+                    return (
+                      <button
+                        key={p._id}
+                        type="button"
+                        disabled={isActive}
+                        onClick={() => setSelectedPlanId(p._id)}
+                        className={cn(
+                          "relative flex items-center justify-between rounded-xl border p-4 text-left transition-all",
+                          isActive
+                            ? "cursor-not-allowed opacity-50 bg-muted border-border"
+                            : isSelected
+                            ? "border-foreground bg-foreground/5 shadow-sm"
+                            : "border-border hover:border-foreground/40 hover:bg-muted/40"
+                        )}
+                      >
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-semibold text-sm">{p.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {p.duration_months} bulan{p.description ? ` · ${p.description}` : ""}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0">
+                          {isActive && (
+                            <Badge variant="secondary" className="text-xs">Aktif</Badge>
+                          )}
+                          <span className="font-bold text-sm">Rp {p.price.toLocaleString("id-ID")}</span>
+                          {isSelected && !isActive && (
+                            <CheckCircle2 className="h-4 w-4 text-foreground shrink-0" />
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
+
+            {/* Purchase Summary */}
+            {selectedPlanId && (() => {
+              const plan = availablePlans.find((p) => p._id === selectedPlanId)
+              if (!plan) return null
+              return (
+                <div className="rounded-xl border border-border/60 bg-muted/40 p-4 flex flex-col gap-2">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ringkasan Pembelian</p>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">{plan.name}</span>
+                    <span className="text-sm font-semibold">Rp {plan.price.toLocaleString("id-ID")}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-muted-foreground">
+                    <span className="text-xs">Durasi</span>
+                    <span className="text-xs">{plan.duration_months} bulan</span>
+                  </div>
+                  <Separator className="opacity-50" />
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-semibold">Total</span>
+                    <span className="text-sm font-bold">Rp {plan.price.toLocaleString("id-ID")}</span>
+                  </div>
+                </div>
+              )
+            })()}
+
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setPurchaseOpen(false)}>Batal</Button>
-              <Button type="submit" disabled={isPurchasing}>
-                {isPurchasing ? "Memproses..." : "Beli"}
+              <Button type="button" variant="outline" onClick={() => { setPurchaseOpen(false); setSelectedPlanId("") }}>Batal</Button>
+              <Button type="submit" disabled={isPurchasing || !selectedPlanId}>
+                {isPurchasing ? "Memproses..." : "Beli Sekarang"}
               </Button>
             </div>
           </form>
