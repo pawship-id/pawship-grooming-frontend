@@ -916,7 +916,7 @@ export default function NewBookingPage() {
                         {isPickup && previewData.pricing_breakdown.travel_fee != null && previewData.pricing_breakdown.travel_fee > 0 && (() => {
                           const b = previewData.pricing.available_benefits.find(
                             (x) => selectedBenefitIds.includes(x._id) && x.can_apply &&
-                                    (x.applies_to === "pick_up" || x.applies_to === "travel_fee")
+                                    (x.applies_to === "pick_up" || x.applies_to === "travel_fee" || x.applies_to === "pickup")
                           )
                           const isQuota = b?.type === "quota"
                           const tFee = previewData.pricing_breakdown.travel_fee!

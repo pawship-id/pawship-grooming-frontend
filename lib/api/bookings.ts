@@ -130,7 +130,6 @@ export interface AdminBooking {
   customer_id: string
   pet_id: string
   store_id: string
-  service_id: string
   service_type?: string
   pet_snapshot: PetSnapshot
   service_snapshot: ServiceSnapshot

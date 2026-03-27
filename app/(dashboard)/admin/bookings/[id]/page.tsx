@@ -509,7 +509,9 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 {/* Service row */}
                 {(() => {
                   const b = booking.applied_benefits?.find(
-                    (ab) => ab.service_id === booking.service_id
+                    (ab) =>
+                      ab.applies_to === "service" ||
+                      (ab.service_id != null && ab.service_id === booking.service_snapshot._id)
                   )
                   const isQuota = b?.benefit_type === "quota"
                   return (
