@@ -272,6 +272,7 @@ export default function NewBookingPage() {
     if (!form.pet_id || !form.service_id) return
     if (selectedBenefitIds.length === 0) {
       setApplyBenefitResult(null)
+      setLoadingApplyBenefit(false)
       return
     }
     let cancelled = false
@@ -986,10 +987,11 @@ export default function NewBookingPage() {
                           const grandTotal = previewData.pricing_breakdown.grand_total
                           const hasDiscount = selectedBenefitIds.length > 0 && applyBenefitResult != null && applyBenefitResult.total_discount > 0
                           const displayTotal = hasDiscount ? applyBenefitResult!.final_price : grandTotal
+                          const showSkeleton = selectedBenefitIds.length > 0 && loadingApplyBenefit
                           return (
                             <div className="flex items-center justify-between border-t border-primary/30 bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
                               <span>Total Akhir</span>
-                              {loadingApplyBenefit ? (
+                              {showSkeleton ? (
                                 <span className="h-5 w-24 animate-pulse rounded bg-primary/20" />
                               ) : (
                                 <span className="text-base">{formatPrice(Math.max(0, displayTotal))}</span>
