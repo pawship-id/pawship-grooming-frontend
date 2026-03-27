@@ -189,9 +189,42 @@ export interface BookingPreviewResult {
     addons: { _id: string; name: string; price: number }[]
     travel_fee?: number
     subtotal: number
+    grand_total: number
     discount: number
     final: number
   }
+}
+
+// ── Apply benefit preview ────────────────────────────────────────────────────
+
+export interface ApplyBenefitBreakdownItem {
+  benefit: {
+    _id: string
+    label: string | null
+    service: { name: string } | null
+  }
+  applies_to: string
+  benefit_type: string
+  benefit_period: string
+  benefit_value: number | null
+  base_price: number
+  amount_deducted: number
+  description: string | null
+  applied_at: string
+}
+
+export interface ApplyBenefitPreviewResult {
+  applied_benefits: {
+    benefit_id: string
+    benefit_type: string
+    benefit_period: string
+    benefit_value: number | null
+    amount_deducted: number
+    applied_at: string
+  }[]
+  total_discount: number
+  final_price: number
+  breakdown: ApplyBenefitBreakdownItem[]
 }
 
 // ── Request payloads ─────────────────────────────────────────────────────────
@@ -256,6 +289,20 @@ export async function getBookingPreview(payload: {
   customer_id?: string
 }) {
   return apiAuthRequest<{ message: string } & BookingPreviewResult>("/bookings/preview", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function applyBenefitPreview(payload: {
+  pet_id: string
+  selected_benefit_ids: string[]
+  store_id?: string
+  service_id?: string
+  add_on_ids?: string[]
+  original_total_price?: number
+}) {
+  return apiAuthRequest<{ message: string } & ApplyBenefitPreviewResult>("/bookings/public/apply-benefit", {
     method: "POST",
     body: JSON.stringify(payload),
   })

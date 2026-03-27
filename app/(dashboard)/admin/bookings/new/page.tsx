@@ -26,8 +26,8 @@ import { getAdminServices } from "@/lib/api/services"
 import type { AdminService, AdminServicePrice } from "@/lib/api/services"
 import { getServiceTypes } from "@/lib/api/service-types"
 import type { ApiServiceType } from "@/lib/api/service-types"
-import { createAdminBooking, getBookingPreview } from "@/lib/api/bookings"
-import type { BookingPreviewResult, BookingPreviewBenefit } from "@/lib/api/bookings"
+import { createAdminBooking, getBookingPreview, applyBenefitPreview } from "@/lib/api/bookings"
+import type { BookingPreviewResult, BookingPreviewBenefit, ApplyBenefitPreviewResult } from "@/lib/api/bookings"
 
 const DEFAULT_FORM = {
   store_id: "",
@@ -114,6 +114,9 @@ export default function NewBookingPage() {
   const [previewData, setPreviewData] = useState<BookingPreviewResult | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [loadingPreview, setLoadingPreview] = useState(false)
+
+  const [applyBenefitResult, setApplyBenefitResult] = useState<ApplyBenefitPreviewResult | null>(null)
+  const [loadingApplyBenefit, setLoadingApplyBenefit] = useState(false)
 
   const [loadingInit, setLoadingInit] = useState(true)
   const [loadingStore, setLoadingStore] = useState(false)
@@ -245,6 +248,7 @@ export default function NewBookingPage() {
     setPreviewData(null)
     setPreviewError(null)
     setSelectedBenefitIds([])
+    setApplyBenefitResult(null)
     getBookingPreview({
       pet_id: form.pet_id,
       service_id: form.service_id,
@@ -261,7 +265,30 @@ export default function NewBookingPage() {
       })
       .finally(() => { if (!cancelled) setLoadingPreview(false) })
     return () => { cancelled = true }
-  }, [form.pet_id, form.service_id, form.date, selectedAddonIds, isPickup])
+  }, [form.pet_id, form.service_id, form.date, form.time_range, selectedAddonIds, isPickup])
+
+  // ── Apply benefit: auto-fetch whenever benefit selection changes ────────────────
+  useEffect(() => {
+    if (!form.pet_id || !form.service_id) return
+    if (selectedBenefitIds.length === 0) {
+      setApplyBenefitResult(null)
+      return
+    }
+    let cancelled = false
+    setLoadingApplyBenefit(true)
+    applyBenefitPreview({
+      pet_id: form.pet_id,
+      selected_benefit_ids: selectedBenefitIds,
+      service_id: form.service_id,
+      add_on_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
+      store_id: isPickup ? form.store_id : undefined,
+      original_total_price: previewData?.pricing_breakdown?.grand_total,
+    })
+      .then((res) => { if (!cancelled) setApplyBenefitResult(res) })
+      .catch(() => { if (!cancelled) setApplyBenefitResult(null) })
+      .finally(() => { if (!cancelled) setLoadingApplyBenefit(false) })
+    return () => { cancelled = true }
+  }, [selectedBenefitIds, form.pet_id, form.service_id, selectedAddonIds, isPickup])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -884,15 +911,43 @@ export default function NewBookingPage() {
                             </div>
                           )
                         })}
-                        {isPickup && previewData.pricing_breakdown.travel_fee != null && previewData.pricing_breakdown.travel_fee > 0 && (
-                          <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
-                            <span className="flex items-center gap-1.5 text-muted-foreground">
-                              <Truck className="h-3.5 w-3.5" />
-                              Biaya Pickup
-                            </span>
-                            <span className="font-medium">{formatPrice(previewData.pricing_breakdown.travel_fee)}</span>
-                          </div>
-                        )}
+                        {isPickup && previewData.pricing_breakdown.travel_fee != null && previewData.pricing_breakdown.travel_fee > 0 && (() => {
+                          const b = previewData.pricing.available_benefits.find(
+                            (x) => selectedBenefitIds.includes(x._id) && x.can_apply &&
+                                    (x.applies_to === "pick_up" || x.applies_to === "travel_fee")
+                          )
+                          const isQuota = b?.type === "quota"
+                          const tFee = previewData.pricing_breakdown.travel_fee!
+                          return (
+                            <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                              <div className="flex items-center gap-2">
+                                <span className="flex items-center gap-1.5 text-muted-foreground">
+                                  <Truck className="h-3.5 w-3.5" />
+                                  Biaya Pickup
+                                </span>
+                                {b && (
+                                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                    isQuota
+                                      ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                                      : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                                  }`}>
+                                    {isQuota ? "Gratis" : (b.value != null ? `-${b.value}%` : "Diskon")}
+                                  </span>
+                                )}
+                              </div>
+                              {b ? (
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <span className="text-xs line-through text-muted-foreground">{formatPrice(tFee)}</span>
+                                  <span className="font-semibold text-primary">
+                                    {isQuota ? "Gratis" : formatPrice(Math.max(0, tFee - (b.amount_discount ?? 0)))}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="font-medium">{formatPrice(tFee)}</span>
+                              )}
+                            </div>
+                          )
+                        })()}
                         <div className="flex items-center justify-between border-t border-border/50 bg-muted/30 px-4 py-2.5 text-sm font-semibold">
                           <span>Subtotal</span>
                           <span>{formatPrice(previewData.pricing_breakdown.subtotal)}</span>
@@ -902,6 +957,8 @@ export default function NewBookingPage() {
                           (b) => selectedBenefitIds.includes(b._id) && b.type === "discount" && b.can_apply
                             && b.service_id !== form.service_id
                             && !selectedAddonIds.includes(b.service_id ?? "")
+                            && b.applies_to !== "pick_up"
+                            && b.applies_to !== "travel_fee"
                         ).map((b) => (
                           <div key={b._id} className="flex items-center justify-between border-t border-primary/20 bg-primary/5 px-4 py-2.5 text-sm">
                             <span className="text-primary">
@@ -911,29 +968,23 @@ export default function NewBookingPage() {
                             <span className="font-semibold text-primary">- {formatPrice(b.amount_discount ?? 0)}</span>
                           </div>
                         ))}
-                        {/* Total Akhir — dihitung dari item individual agar travel_fee selalu masuk */}
+                        {/* Total Akhir — server-driven: gunakan applyBenefitResult jika ada benefit dipilih */}
                         {(() => {
-                          const travelFee = isPickup && previewData.pricing_breakdown.travel_fee
-                            ? previewData.pricing_breakdown.travel_fee : 0
-                          const baseTotal = previewData.pricing_breakdown.service.price
-                            + previewData.pricing_breakdown.addons.reduce((s, a) => s + a.price, 0)
-                            + travelFee
-                          const totalDiscount = selectedBenefitIds.length > 0
-                            ? previewData.pricing.available_benefits
-                                .filter((b) => selectedBenefitIds.includes(b._id) && (b.type === "discount" || b.type === "quota") && b.can_apply)
-                                .reduce((sum, b) => {
-                                  if (b.type === "quota") {
-                                    if (b.service_id === form.service_id) return sum + previewData.pricing_breakdown.service.price
-                                    const addon = previewData.pricing_breakdown.addons.find((a) => a._id === b.service_id)
-                                    return sum + (addon?.price ?? 0)
-                                  }
-                                  return sum + (b.amount_discount ?? 0)
-                                }, 0)
-                            : 0
+                          const grandTotal = previewData.pricing_breakdown.grand_total
+                          const serverFinal = applyBenefitResult?.final_price
+                          // final_price dari /apply-benefit adalah jumlah item after discount (bukan per seluruh booking)
+                          // kita tetap tambahkan komponen yang tidak di-discount
+                          const displayTotal = selectedBenefitIds.length > 0 && serverFinal != null
+                            ? serverFinal
+                            : grandTotal
                           return (
                             <div className="flex items-center justify-between border-t border-primary/30 bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
                               <span>Total Akhir</span>
-                              <span className="text-base">{formatPrice(Math.max(0, baseTotal - totalDiscount))}</span>
+                              {loadingApplyBenefit ? (
+                                <span className="h-5 w-24 animate-pulse rounded bg-primary/20" />
+                              ) : (
+                                <span className="text-base">{formatPrice(Math.max(0, displayTotal))}</span>
+                              )}
                             </div>
                           )
                         })()}
