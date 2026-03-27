@@ -845,7 +845,7 @@ export default function NewBookingPage() {
                     <div className="flex flex-col gap-1.5">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rincian Harga</p>
                       <div className="overflow-hidden rounded-xl border border-border/50 bg-card">
-                        {/* Service row — inline discount/quota jika ada benefit yang cocok */}
+                        {/* Service row */}
                         {(() => {
                           const b = previewData.pricing.available_benefits.find(
                             (x) => selectedBenefitIds.includes(x._id) && x.service_id === form.service_id && (x.type === "discount" || x.type === "quota") && x.can_apply
@@ -878,7 +878,7 @@ export default function NewBookingPage() {
                             </div>
                           )
                         })()}
-                        {/* Addon rows — inline discount/quota jika ada benefit yang cocok */}
+                        {/* Addon rows */}
                         {previewData.pricing_breakdown.addons.map((addon) => {
                           const b = previewData.pricing.available_benefits.find(
                             (x) => selectedBenefitIds.includes(x._id) && x.service_id === addon._id && (x.type === "discount" || x.type === "quota") && x.can_apply
@@ -911,6 +911,7 @@ export default function NewBookingPage() {
                             </div>
                           )
                         })}
+                        {/* Travel fee row — strikethrough jika ada pickup benefit */}
                         {isPickup && previewData.pricing_breakdown.travel_fee != null && previewData.pricing_breakdown.travel_fee > 0 && (() => {
                           const b = previewData.pricing.available_benefits.find(
                             (x) => selectedBenefitIds.includes(x._id) && x.can_apply &&
@@ -948,35 +949,43 @@ export default function NewBookingPage() {
                             </div>
                           )
                         })()}
+                        {/* Subtotal — total semua item sebelum diskon member */}
                         <div className="flex items-center justify-between border-t border-border/50 bg-muted/30 px-4 py-2.5 text-sm font-semibold">
                           <span>Subtotal</span>
-                          <span>{formatPrice(previewData.pricing_breakdown.subtotal)}</span>
+                          <span>{formatPrice(previewData.pricing_breakdown.grand_total)}</span>
                         </div>
-                        {/* Discount rows — hanya tampilkan benefit discount yang TIDAK ditampilkan inline */}
-                        {selectedBenefitIds.length > 0 && previewData.pricing.available_benefits.filter(
-                          (b) => selectedBenefitIds.includes(b._id) && b.type === "discount" && b.can_apply
-                            && b.service_id !== form.service_id
-                            && !selectedAddonIds.includes(b.service_id ?? "")
-                            && b.applies_to !== "pick_up"
-                            && b.applies_to !== "travel_fee"
-                        ).map((b) => (
-                          <div key={b._id} className="flex items-center justify-between border-t border-primary/20 bg-primary/5 px-4 py-2.5 text-sm">
-                            <span className="text-primary">
-                              <Gift className="mr-1.5 inline h-3.5 w-3.5" />
-                              {b.label || b.description}
-                            </span>
-                            <span className="font-semibold text-primary">- {formatPrice(b.amount_discount ?? 0)}</span>
+                        {/* Diskon Member — tampil ketika ada benefit dipilih dan ada nilai diskon */}
+                        {selectedBenefitIds.length > 0 && (loadingApplyBenefit || (applyBenefitResult && applyBenefitResult.total_discount > 0)) && (
+                          <div className="flex flex-col border-t border-primary/20 bg-primary/5">
+                            <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                              <span className="flex items-center gap-1.5 font-medium text-primary">
+                                <Gift className="h-3.5 w-3.5" />
+                                Diskon Member
+                              </span>
+                              {loadingApplyBenefit ? (
+                                <span className="h-4 w-20 animate-pulse rounded bg-primary/20" />
+                              ) : (
+                                <span className="font-semibold text-primary">- {formatPrice(applyBenefitResult!.total_discount)}</span>
+                              )}
+                            </div>
+                            {/* Breakdown per benefit jika lebih dari satu */}
+                            {!loadingApplyBenefit && applyBenefitResult && applyBenefitResult.breakdown.length > 1 && (
+                              <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                                {applyBenefitResult.breakdown.map((item, i) => (
+                                  <div key={i} className="flex items-center justify-between text-xs text-muted-foreground">
+                                    <span className="truncate pr-4">{item.benefit?.label || item.description || item.applies_to}</span>
+                                    <span className="shrink-0">- {formatPrice(item.amount_deducted)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        ))}
-                        {/* Total Akhir — server-driven: gunakan applyBenefitResult jika ada benefit dipilih */}
+                        )}
+                        {/* Total Akhir — grand_total dikurangi diskon member jika ada */}
                         {(() => {
                           const grandTotal = previewData.pricing_breakdown.grand_total
-                          const serverFinal = applyBenefitResult?.final_price
-                          // final_price dari /apply-benefit adalah jumlah item after discount (bukan per seluruh booking)
-                          // kita tetap tambahkan komponen yang tidak di-discount
-                          const displayTotal = selectedBenefitIds.length > 0 && serverFinal != null
-                            ? serverFinal
-                            : grandTotal
+                          const hasDiscount = selectedBenefitIds.length > 0 && applyBenefitResult != null && applyBenefitResult.total_discount > 0
+                          const displayTotal = hasDiscount ? applyBenefitResult!.final_price : grandTotal
                           return (
                             <div className="flex items-center justify-between border-t border-primary/30 bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
                               <span>Total Akhir</span>
