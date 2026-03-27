@@ -103,6 +103,26 @@ export interface BookingStore {
   name: string
 }
 
+// ── Applied benefit (saved on booking) ─────────────────────────────────────
+
+export interface AdminAppliedBenefit {
+  benefit: {
+    _id: string
+    label: string | null
+    service: { name: string } | null
+  }
+  applies_to: string
+  benefit_type: string       // 'discount' | 'quota'
+  benefit_period: string     // 'weekly' | 'monthly' | 'unlimited'
+  benefit_value: number | null
+  base_price: number
+  amount_deducted: number
+  description: string | null
+  pet_membership_id: string | null
+  service_id: string | null
+  applied_at: string
+}
+
 // ── Main booking shape ───────────────────────────────────────────────────────
 
 export interface AdminBooking {
@@ -122,7 +142,12 @@ export interface AdminBooking {
   service_addon_ids: string[]
   travel_fee: number
   sub_total_service: number
-  total_price: number
+  original_total_price: number
+  total_discount: number
+  final_total_price: number
+  pick_up: boolean
+  applied_benefits: AdminAppliedBenefit[]
+  selected_benefit_ids: string[]
   discount_ids: string[]
   sessions: BookingSession[]
   grooming_session?: GroomingSession

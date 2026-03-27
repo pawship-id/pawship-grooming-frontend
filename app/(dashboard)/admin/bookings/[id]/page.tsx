@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { use } from "react"
 import Link from "next/link"
-import { ArrowLeft, User, Calendar, Clock, ClipboardList, Plus, Trash2, Play, CheckCircle, Loader2, Camera } from "lucide-react"
+import { ArrowLeft, User, Calendar, Clock, ClipboardList, Plus, Trash2, Play, CheckCircle, Loader2, Camera, Truck, Gift } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -505,18 +505,139 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 </div>
               )}
 
-              <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <span className="text-muted-foreground">Subtotal layanan</span>
-                  <span className="text-right font-medium">{formatPrice(booking.sub_total_service)}</span>
-                  {booking.travel_fee > 0 && (
-                    <>
-                      <span className="text-muted-foreground">Biaya perjalanan</span>
-                      <span className="text-right font-medium">{formatPrice(booking.travel_fee)}</span>
-                    </>
-                  )}
-                  <span className="font-medium text-foreground">Total</span>
-                  <span className="text-right font-bold text-foreground">{formatPrice(booking.total_price)}</span>
+              <div className="overflow-hidden rounded-xl border border-border/50 bg-card">
+                {/* Service row */}
+                {(() => {
+                  const b = booking.applied_benefits?.find(
+                    (ab) => ab.service_id === booking.service_id
+                  )
+                  const isQuota = b?.benefit_type === "quota"
+                  return (
+                    <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">{booking.service_snapshot.name}</span>
+                        {b && (
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                            isQuota
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                              : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                          }`}>
+                            {isQuota ? "Gratis" : (b.benefit_value != null ? `-${b.benefit_value}%` : "Diskon")}
+                          </span>
+                        )}
+                      </div>
+                      {b ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-xs line-through text-muted-foreground">{formatPrice(booking.service_snapshot.price)}</span>
+                          <span className="font-semibold text-primary">
+                            {isQuota ? "Gratis" : formatPrice(Math.max(0, booking.service_snapshot.price - b.amount_deducted))}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-medium">{formatPrice(booking.service_snapshot.price)}</span>
+                      )}
+                    </div>
+                  )
+                })()}
+                {/* Addon rows */}
+                {booking.service_snapshot.addons?.map((addon) => {
+                  const b = booking.applied_benefits?.find((ab) => ab.service_id === addon._id)
+                  const isQuota = b?.benefit_type === "quota"
+                  return (
+                    <div key={addon._id} className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">+ {addon.name}</span>
+                        {b && (
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                            isQuota
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                              : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                          }`}>
+                            {isQuota ? "Gratis" : (b.benefit_value != null ? `-${b.benefit_value}%` : "Diskon")}
+                          </span>
+                        )}
+                      </div>
+                      {b ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-xs line-through text-muted-foreground">{formatPrice(addon.price)}</span>
+                          <span className="font-semibold text-primary">
+                            {isQuota ? "Gratis" : formatPrice(Math.max(0, addon.price - b.amount_deducted))}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-medium">{formatPrice(addon.price)}</span>
+                      )}
+                    </div>
+                  )
+                })}
+                {/* Travel fee row */}
+                {booking.travel_fee > 0 && (() => {
+                  const b = booking.applied_benefits?.find(
+                    (ab) => ab.applies_to === "pick_up" || ab.applies_to === "travel_fee" || ab.applies_to === "pickup"
+                  )
+                  const isQuota = b?.benefit_type === "quota"
+                  return (
+                    <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Truck className="h-3.5 w-3.5" />
+                          Biaya Pickup
+                        </span>
+                        {b && (
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                            isQuota
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                              : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                          }`}>
+                            {isQuota ? "Gratis" : (b.benefit_value != null ? `-${b.benefit_value}%` : "Diskon")}
+                          </span>
+                        )}
+                      </div>
+                      {b ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-xs line-through text-muted-foreground">{formatPrice(booking.travel_fee)}</span>
+                          <span className="font-semibold text-primary">
+                            {isQuota ? "Gratis" : formatPrice(Math.max(0, booking.travel_fee - b.amount_deducted))}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-medium">{formatPrice(booking.travel_fee)}</span>
+                      )}
+                    </div>
+                  )
+                })()}
+                {/* Subtotal + Diskon Member — hanya jika ada diskon */}
+                {booking.total_discount > 0 && (
+                  <>
+                    <div className="flex items-center justify-between border-t border-border/50 bg-muted/30 px-4 py-2.5 text-sm font-semibold">
+                      <span>Subtotal</span>
+                      <span>{formatPrice(booking.original_total_price)}</span>
+                    </div>
+                    <div className="flex flex-col border-t border-primary/20 bg-primary/5">
+                      <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                        <span className="flex items-center gap-1.5 font-medium text-primary">
+                          <Gift className="h-3.5 w-3.5" />
+                          Diskon Member
+                        </span>
+                        <span className="font-semibold text-primary">- {formatPrice(booking.total_discount)}</span>
+                      </div>
+                      {booking.applied_benefits?.length > 1 && (
+                        <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                          {booking.applied_benefits.map((ab, i) => (
+                            <div key={i} className="flex items-center justify-between text-xs text-muted-foreground">
+                              <span className="truncate pr-4">{ab.benefit?.label || ab.description || ab.applies_to}</span>
+                              <span className="shrink-0">- {formatPrice(ab.amount_deducted)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+                {/* Total Akhir */}
+                <div className="flex items-center justify-between border-t border-primary/30 bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
+                  <span>Total Akhir</span>
+                  <span className="text-base">{formatPrice(booking.final_total_price ?? booking.original_total_price)}</span>
                 </div>
               </div>
 
