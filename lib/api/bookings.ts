@@ -149,6 +149,7 @@ export interface AdminBooking {
   selected_benefit_ids: string[]
   discount_ids: string[]
   sessions: BookingSession[]
+  media?: SessionMedia[]
   grooming_session?: GroomingSession
   referal_code?: string
   note?: string
@@ -279,6 +280,7 @@ export type UpdateBookingPayload = Partial<
 export interface UpdateSessionPayload {
   notes?: string
   internal_note?: string
+  groomer_id?: string
 }
 
 export interface FinishSessionPayload {
@@ -407,5 +409,27 @@ export async function uploadSessionMedia(
   return apiAuthRequest<{ message: string }>(`/bookings/${bookingId}/session/${sessionId}/media`, {
     method: "POST",
     body: formData,
+  })
+}
+
+export async function uploadBookingMedia(
+  bookingId: string,
+  file: File,
+  type: "before" | "after",
+  note?: string,
+) {
+  const formData = new FormData()
+  formData.append("image", file)
+  formData.append("type", type)
+  if (note) formData.append("note", note)
+  return apiAuthRequest<{ message: string }>(`/bookings/${bookingId}/media`, {
+    method: "POST",
+    body: formData,
+  })
+}
+
+export async function deleteBookingMedia(bookingId: string, mediaId: string) {
+  return apiAuthRequest<{ message: string }>(`/bookings/${bookingId}/media/${mediaId}`, {
+    method: "DELETE",
   })
 }

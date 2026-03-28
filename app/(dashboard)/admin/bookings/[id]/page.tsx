@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { use } from "react"
 import Link from "next/link"
-import { ArrowLeft, User, Calendar, Clock, ClipboardList, Plus, Trash2, Play, CheckCircle, Loader2, Camera, Truck, Gift } from "lucide-react"
+import { ArrowLeft, User, Calendar, Clock, ClipboardList, Plus, Trash2, Play, CheckCircle, Loader2, Truck, Gift, ImagePlus, PawPrint, Scissors, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,7 +31,8 @@ import {
   startBookingSession,
   finishBookingSession,
   deleteBookingSession,
-  uploadSessionMedia,
+  uploadBookingMedia,
+  deleteBookingMedia,
 } from "@/lib/api/bookings"
 import type { AdminBooking } from "@/lib/api/bookings"
 import { getStoreById } from "@/lib/api/stores"
@@ -144,8 +145,15 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [internalNoteDraft, setInternalNoteDraft] = useState("")
   const [savingNotes, setSavingNotes] = useState(false)
 
-  // Per-session media upload
-  const [uploadingMedia, setUploadingMedia] = useState<Record<string, boolean>>({})
+  // Assign groomer modal
+  const [assignGroomerSessionId, setAssignGroomerSessionId] = useState<string | null>(null)
+  const [assignGroomerValue, setAssignGroomerValue] = useState("")
+  const [savingGroomer, setSavingGroomer] = useState(false)
+
+  // Booking-level media upload/delete
+  const [uploadingMediaType, setUploadingMediaType] = useState<"before" | "after" | null>(null)
+  const [deletingBookingMediaId, setDeletingBookingMediaId] = useState<string | null>(null)
+  const [confirmDeleteMediaId, setConfirmDeleteMediaId] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -248,16 +256,46 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  const handleUploadMedia = async (sessionId: string, file: File, type: "before" | "after") => {
-    setUploadingMedia((prev) => ({ ...prev, [sessionId]: true }))
+  const handleAssignGroomer = async () => {
+    if (!assignGroomerSessionId || !assignGroomerValue) return
+    setSavingGroomer(true)
     try {
-      await uploadSessionMedia(id, sessionId, file, type)
+      await updateBookingSession(id, assignGroomerSessionId, { groomer_id: assignGroomerValue })
+      await refreshBooking()
+      setAssignGroomerSessionId(null)
+      setAssignGroomerValue("")
+      toast.success("Groomer berhasil di-assign")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal assign groomer")
+    } finally {
+      setSavingGroomer(false)
+    }
+  }
+
+  const handleUploadBookingMedia = async (file: File, type: "before" | "after") => {
+    setUploadingMediaType(type)
+    try {
+      await uploadBookingMedia(id, file, type)
       await refreshBooking()
       toast.success(`Foto ${type} berhasil diupload`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal mengupload foto")
     } finally {
-      setUploadingMedia((prev) => ({ ...prev, [sessionId]: false }))
+      setUploadingMediaType(null)
+    }
+  }
+
+  const handleDeleteBookingMedia = async (mediaId: string) => {
+    setDeletingBookingMediaId(mediaId)
+    try {
+      await deleteBookingMedia(id, mediaId)
+      await refreshBooking()
+      toast.success("Foto berhasil dihapus")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus foto")
+    } finally {
+      setDeletingBookingMediaId(null)
+      setConfirmDeleteMediaId(null)
     }
   }
 
@@ -484,27 +522,6 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 )}
               </div>
 
-              <div>
-                <span className="text-xs text-muted-foreground">Layanan</span>
-                <p className="font-medium text-foreground">
-                  {booking.service_snapshot.name}
-                  <span className="ml-2 text-xs text-muted-foreground">({booking.service_snapshot.code})</span>
-                </p>
-              </div>
-
-              {booking.service_snapshot.addons?.length > 0 && (
-                <div>
-                  <span className="text-xs text-muted-foreground">Add-ons</span>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {booking.service_snapshot.addons.map((addon) => (
-                      <Badge key={addon._id} variant="outline" className="text-xs">
-                        {addon.name} ({formatPrice(addon.price)})
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div className="overflow-hidden rounded-xl border border-border/50 bg-card">
                 {/* Service row */}
                 {(() => {
@@ -669,33 +686,40 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
               {booking.customer && (
-                <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Customer</p>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <span className="text-muted-foreground">Nama</span>
-                    <span className="font-medium">{booking.customer.username}</span>
-                    <span className="text-muted-foreground">Email</span>
-                    <span className="font-medium">{booking.customer.email}</span>
-                    <span className="text-muted-foreground">Telepon</span>
-                    <span className="font-medium">{booking.customer.phone_number}</span>
+                <div className="flex items-start gap-3 rounded-xl bg-muted/40 p-4">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                    {booking.customer.username.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <p className="font-semibold text-foreground">{booking.customer.username}</p>
+                    <p className="text-xs text-muted-foreground">{booking.customer.email}</p>
+                    <p className="text-xs text-muted-foreground">{booking.customer.phone_number}</p>
                   </div>
                 </div>
               )}
-              <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hewan Peliharaan</p>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <span className="text-muted-foreground">Nama</span>
-                  <span className="font-medium">{booking.pet_snapshot.name}</span>
-                  <span className="text-muted-foreground">Jenis</span>
-                  <span className="font-medium">{booking.pet_snapshot.pet_type?.name ?? "-"}</span>
-                  <span className="text-muted-foreground">Ukuran</span>
-                  <span className="font-medium">{booking.pet_snapshot.size?.name ?? "-"}</span>
-                  <span className="text-muted-foreground">Bulu</span>
-                  <span className="font-medium">{booking.pet_snapshot.hair?.name ?? "-"}</span>
-                  <span className="text-muted-foreground">Ras</span>
-                  <span className="font-medium">{booking.pet_snapshot.breed?.name ?? "-"}</span>
-                  <span className="text-muted-foreground">Member</span>
-                  <span className="font-medium">{booking.pet_snapshot.member_type?.name ?? "-"}</span>
+              <div className="flex items-start gap-3 rounded-xl bg-muted/40 p-4">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <PawPrint className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div>
+                    <p className="font-semibold text-foreground">{booking.pet_snapshot.name}</p>
+                    <p className="text-xs text-muted-foreground">{booking.pet_snapshot.breed?.name ?? "-"}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {booking.pet_snapshot.pet_type && (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-foreground">{booking.pet_snapshot.pet_type.name}</span>
+                    )}
+                    {booking.pet_snapshot.size && (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-foreground">{booking.pet_snapshot.size.name}</span>
+                    )}
+                    {booking.pet_snapshot.hair && (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-foreground">{booking.pet_snapshot.hair.name}</span>
+                    )}
+                    {booking.pet_snapshot.member_type && (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{booking.pet_snapshot.member_type.name}</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -761,12 +785,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 <p className="text-sm text-muted-foreground">Belum ada sesi grooming.</p>
               )}
               {booking.sessions.map((session, idx) => {
-                const hasBeforeMedia = session.media.some((m) => m.type === "before")
-                const hasAfterMedia = session.media.some((m) => m.type === "after")
                 const isEditingNotes = editingNoteSessionId === session._id
-                const isUploadingThisSession = uploadingMedia[session._id ?? ""] ?? false
-                const beforePhotos = session.media.filter((m) => m.type === "before")
-                const afterPhotos = session.media.filter((m) => m.type === "after")
 
                 return (
                   <div key={session._id ?? idx} className="flex flex-col gap-3 rounded-lg border border-border/50 bg-muted/30 p-3">
@@ -797,8 +816,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                                 disabled={
                                   booking.booking_status !== "in progress" ||
                                   hasInProgressSession ||
-                                  booking.sessions.slice(0, idx).some((s) => s.status !== "finished") ||
-                                  !hasBeforeMedia
+                                  booking.sessions.slice(0, idx).some((s) => s.status !== "finished")
                                 }
                               >
                                 <Play className="mr-1.5 h-3.5 w-3.5" />
@@ -821,7 +839,6 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                               size="sm"
                               variant="outline"
                               onClick={() => handleFinishSession(session._id!)}
-                              disabled={!hasAfterMedia}
                             >
                               <CheckCircle className="mr-1.5 h-3.5 w-3.5" />
                               Selesai
@@ -831,102 +848,53 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       )}
                     </div>
 
-                    {/* Groomer & timestamps */}
-                    {session.groomer_detail && (
-                      <span className="text-xs text-muted-foreground">Groomer: {session.groomer_detail.username}</span>
-                    )}
+                    {/* Groomer assignment */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {session.groomer_detail ? (
+                        <>
+                          <span className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground">
+                            <Scissors className="h-3 w-3" />
+                            {session.groomer_detail.username}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => {
+                              setAssignGroomerSessionId(session._id!)
+                              setAssignGroomerValue(session.groomer_id ?? "")
+                            }}
+                          >
+                            Ganti Groomer
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-400">
+                            Belum ada groomer
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => {
+                              setAssignGroomerSessionId(session._id!)
+                              setAssignGroomerValue("")
+                            }}
+                          >
+                            Assign Groomer
+                          </Button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Timestamps */}
                     {(session.started_at || session.finished_at) && (
                       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                         {session.started_at && <span>Mulai: {formatDateTime(session.started_at)}</span>}
                         {session.finished_at && <span>Selesai: {formatDateTime(session.finished_at)}</span>}
-                      </div>
-                    )}
-
-                    {/* Before photos */}
-                    <div className="flex flex-col gap-1.5">
-                      <p className="text-xs font-medium text-muted-foreground">Foto Before</p>
-                      <div className="flex flex-wrap gap-2">
-                        {beforePhotos.map((m, photoIdx) => (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            key={m._id ?? m.public_id ?? photoIdx}
-                            src={m.secure_url ?? m.url ?? ""}
-                            alt="before"
-                            className="h-16 w-16 rounded-md border border-border/50 object-cover"
-                          />
-                        ))}
-                        {session.status === "not started" && session._id && (
-                          <label
-                            className={`flex h-16 w-16 cursor-pointer items-center justify-center rounded-md border border-dashed border-border/50 bg-muted/40 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${isUploadingThisSession ? "pointer-events-none opacity-60" : ""}`}
-                          >
-                            {isUploadingThisSession ? (
-                              <Loader2 className="h-5 w-5 animate-spin" />
-                            ) : (
-                              <Camera className="h-5 w-5" />
-                            )}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0]
-                                if (file && session._id) handleUploadMedia(session._id, file, "before")
-                                e.target.value = ""
-                              }}
-                            />
-                          </label>
-                        )}
-                        {beforePhotos.length === 0 && session.status !== "not started" && (
-                          <span className="text-xs italic text-muted-foreground">Tidak ada foto</span>
-                        )}
-                      </div>
-                      {session.status === "not started" && !hasBeforeMedia && (
-                        <p className="text-xs text-amber-600 dark:text-amber-400">Upload foto before sebelum memulai sesi.</p>
-                      )}
-                    </div>
-
-                    {/* After photos */}
-                    {(session.status === "in progress" || session.status === "finished") && (
-                      <div className="flex flex-col gap-1.5">
-                        <p className="text-xs font-medium text-muted-foreground">Foto After</p>
-                        <div className="flex flex-wrap gap-2">
-                          {afterPhotos.map((m, photoIdx) => (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              key={m._id ?? m.public_id ?? photoIdx}
-                              src={m.secure_url ?? m.url ?? ""}
-                              alt="after"
-                              className="h-16 w-16 rounded-md border border-border/50 object-cover"
-                            />
-                          ))}
-                          {session.status === "in progress" && session._id && (
-                            <label
-                              className={`flex h-16 w-16 cursor-pointer items-center justify-center rounded-md border border-dashed border-border/50 bg-muted/40 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${isUploadingThisSession ? "pointer-events-none opacity-60" : ""}`}
-                            >
-                              {isUploadingThisSession ? (
-                                <Loader2 className="h-5 w-5 animate-spin" />
-                              ) : (
-                                <Camera className="h-5 w-5" />
-                              )}
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0]
-                                  if (file && session._id) handleUploadMedia(session._id, file, "after")
-                                  e.target.value = ""
-                                }}
-                              />
-                            </label>
-                          )}
-                          {afterPhotos.length === 0 && session.status === "finished" && (
-                            <span className="text-xs italic text-muted-foreground">Tidak ada foto</span>
-                          )}
-                        </div>
-                        {session.status === "in progress" && !hasAfterMedia && (
-                          <p className="text-xs text-amber-600 dark:text-amber-400">Upload foto after sebelum menyelesaikan sesi.</p>
-                        )}
                       </div>
                     )}
 
@@ -1033,6 +1001,101 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               )}
             </CardContent>
           </Card>
+
+          {/* Foto Grooming */}
+          <Card className="border-border/50 lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 font-display text-lg">
+                <ImagePlus className="h-5 w-5 text-primary" />
+                Foto Grooming
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-6">
+              {/* Before photos */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-foreground">Foto Before</p>
+                  <label className={`cursor-pointer ${uploadingMediaType === "before" ? "pointer-events-none opacity-60" : ""}`}>
+                    <Button type="button" size="sm" variant="outline" asChild>
+                      <span>
+                        {uploadingMediaType === "before" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="mr-1.5 h-3.5 w-3.5" />}
+                        Upload Before
+                      </span>
+                    </Button>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleUploadBookingMedia(file, "before")
+                        e.target.value = ""
+                      }}
+                    />
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {(booking.media ?? []).filter((m) => m.type === "before").map((m, i) => (
+                    <div key={m._id ?? i} className="relative h-20 w-20">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={m.secure_url ?? m.url ?? ""} alt="before" className="h-20 w-20 rounded-lg border border-border/50 object-cover" />
+                      <button
+                        onClick={() => setConfirmDeleteMediaId(m._id!)}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {(booking.media ?? []).filter((m) => m.type === "before").length === 0 && (
+                    <p className="text-sm italic text-muted-foreground">Belum ada foto before</p>
+                  )}
+                </div>
+              </div>
+
+              {/* After photos */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-foreground">Foto After</p>
+                  <label className={`cursor-pointer ${uploadingMediaType === "after" ? "pointer-events-none opacity-60" : ""}`}>
+                    <Button type="button" size="sm" variant="outline" asChild>
+                      <span>
+                        {uploadingMediaType === "after" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="mr-1.5 h-3.5 w-3.5" />}
+                        Upload After
+                      </span>
+                    </Button>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleUploadBookingMedia(file, "after")
+                        e.target.value = ""
+                      }}
+                    />
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {(booking.media ?? []).filter((m) => m.type === "after").map((m, i) => (
+                    <div key={m._id ?? i} className="relative h-20 w-20">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={m.secure_url ?? m.url ?? ""} alt="after" className="h-20 w-20 rounded-lg border border-border/50 object-cover" />
+                      <button
+                        onClick={() => setConfirmDeleteMediaId(m._id!)}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {(booking.media ?? []).filter((m) => m.type === "after").length === 0 && (
+                    <p className="text-sm italic text-muted-foreground">Belum ada foto after</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -1078,6 +1141,60 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               }}
             >
               Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!assignGroomerSessionId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAssignGroomerSessionId(null)
+            setAssignGroomerValue("")
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Assign Groomer</AlertDialogTitle>
+            <AlertDialogDescription>Pilih groomer untuk sesi ini</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Select value={assignGroomerValue} onValueChange={setAssignGroomerValue}>
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih groomer..." />
+              </SelectTrigger>
+              <SelectContent>
+                {groomers.map((g) => (
+                  <SelectItem key={g._id} value={g._id}>{g.username}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleAssignGroomer} disabled={savingGroomer || !assignGroomerValue}>
+              {savingGroomer ? "Menyimpan..." : "Simpan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!confirmDeleteMediaId} onOpenChange={(open) => { if (!open) setConfirmDeleteMediaId(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Foto?</AlertDialogTitle>
+            <AlertDialogDescription>Foto ini akan dihapus secara permanen dan tidak dapat dikembalikan.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (confirmDeleteMediaId) handleDeleteBookingMedia(confirmDeleteMediaId) }}
+              disabled={!!deletingBookingMediaId}
+            >
+              {deletingBookingMediaId ? "Menghapus..." : "Hapus"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
