@@ -609,16 +609,20 @@ function ServiceFormFields({
         )}
       </div>
 
-      <Separator />
+      {!isAddonType && (
+        <>
+          <Separator />
 
-      {/* Sessions */}
-      <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sesi</p>
-        <TagInput
-          tags={form.sessions}
-          onChange={(tags) => setForm((p) => ({ ...p, sessions: tags }))}
-        />
-      </div>
+          {/* Sessions */}
+          <div className="flex flex-col gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sesi</p>
+            <TagInput
+              tags={form.sessions}
+              onChange={(tags) => setForm((p) => ({ ...p, sessions: tags }))}
+            />
+          </div>
+        </>
+      )}
 
       <Separator />
 
