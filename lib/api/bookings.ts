@@ -154,6 +154,7 @@ export interface AdminBooking {
   referal_code?: string
   note?: string
   payment_method?: string
+  created_by_role?: "customer" | "admin" | null
   isDeleted: boolean
   createdAt: string
   updatedAt: string
@@ -167,6 +168,9 @@ export interface AdminBooking {
 export interface BookingsResponse {
   message: string
   bookings: AdminBooking[]
+  total: number
+  page: number
+  limit: number
 }
 
 export interface BookingDetailResponse {
@@ -296,8 +300,25 @@ export interface UpdateBookingStatusPayload {
 
 // ── API functions ─────────────────────────────────────────────────────────────
 
-export async function getAdminBookings() {
-  return apiAuthRequest<BookingsResponse>("/bookings")
+export interface GetAdminBookingsParams {
+  page?: number
+  limit?: number
+  status?: string
+  date_from?: string
+  date_to?: string
+  created_by_role?: string
+}
+
+export async function getAdminBookings(params?: GetAdminBookingsParams) {
+  const qs = new URLSearchParams()
+  if (params?.page) qs.set("page", String(params.page))
+  if (params?.limit) qs.set("limit", String(params.limit))
+  if (params?.status) qs.set("status", params.status)
+  if (params?.date_from) qs.set("date_from", params.date_from)
+  if (params?.date_to) qs.set("date_to", params.date_to)
+  if (params?.created_by_role) qs.set("created_by_role", params.created_by_role)
+  const query = qs.toString()
+  return apiAuthRequest<BookingsResponse>(query ? `/bookings?${query}` : "/bookings")
 }
 
 export async function getAdminBookingById(id: string) {

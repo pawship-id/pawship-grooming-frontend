@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Mail, Phone, Shield, Calendar, User, Weight, Tag, Pencil, Plus, Trash2, MapPin } from "lucide-react"
+import dynamic from "next/dynamic"
+import { Mail, Phone, Shield, Calendar, User, Weight, Tag, Pencil, Plus, Trash2, MapPin, LocateFixed } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -49,6 +50,16 @@ function formatDate(dateStr: string) {
 
 import type { UserAddress } from "@/lib/api/users"
 
+const LocationMap = dynamic(
+  () => import("@/app/(dashboard)/admin/stores/store-location-map").then((mod) => ({ default: mod.StoreLocationMap })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-[380px] w-full rounded-md border border-border bg-muted/40 animate-pulse" />
+    ),
+  }
+)
+
 type ProfileFormState = {
   full_name: string
   gender: string
@@ -73,6 +84,9 @@ function EditProfileDialog({
   })
   const [saving, setSaving] = useState(false)
   const [editingAddressIdx, setEditingAddressIdx] = useState<number | null>(null)
+  const [coordInputMode, setCoordInputMode] = useState<"manual" | "map">("manual")
+  const [mapOpen, setMapOpen] = useState(false)
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -82,8 +96,40 @@ function EditProfileDialog({
         addresses: profile.profile?.addresses?.length ? profile.profile.addresses : [],
       })
       setEditingAddressIdx(null)
+      setCoordInputMode("manual")
+      setMapOpen(false)
     }
   }, [open, profile])
+
+  useEffect(() => {
+    setCoordInputMode("manual")
+    setMapOpen(false)
+  }, [editingAddressIdx])
+
+  function handleDetectLocation() {
+    if (editingAddressIdx === null) return
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      toast.error("Geolocation tidak didukung oleh browser ini")
+      return
+    }
+    setIsDetectingLocation(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = Number(position.coords.latitude.toFixed(6))
+        const lng = Number(position.coords.longitude.toFixed(6))
+        setForm(f => ({
+          ...f,
+          addresses: f.addresses.map((a, i) => i === editingAddressIdx ? { ...a, latitude: lat, longitude: lng } : a)
+        }))
+        setIsDetectingLocation(false)
+      },
+      () => {
+        toast.error("Gagal mendeteksi lokasi. Pastikan akses lokasi diizinkan.")
+        setIsDetectingLocation(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -107,6 +153,7 @@ function EditProfileDialog({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
         <DialogHeader>
@@ -250,6 +297,90 @@ function EditProfileDialog({
                           placeholder="Kode Pos"
                         />
                       </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label>Koordinat</Label>
+                        <div className="flex rounded-md border border-border w-fit">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={coordInputMode === "manual" ? "secondary" : "ghost"}
+                            className="rounded-none rounded-l-md"
+                            onClick={() => setCoordInputMode("manual")}
+                          >
+                            Manual
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={coordInputMode === "map" ? "secondary" : "ghost"}
+                            className="rounded-none rounded-r-md border-l border-border"
+                            onClick={() => setCoordInputMode("map")}
+                          >
+                            Dari Peta
+                          </Button>
+                        </div>
+                      </div>
+                      {coordInputMode === "manual" ? (
+                        <>
+                          <div className="flex flex-col gap-1.5">
+                            <Label htmlFor={`address-latitude-${idx}`}>Latitude</Label>
+                            <Input
+                              id={`address-latitude-${idx}`}
+                              type="number"
+                              step="any"
+                              value={addr.latitude ?? ""}
+                              onChange={e => setForm(f => ({
+                                ...f,
+                                addresses: f.addresses.map((a, i) => i === idx ? { ...a, latitude: e.target.value ? parseFloat(e.target.value) : undefined } : a)
+                              }))}
+                              placeholder="-6.208"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <Label htmlFor={`address-longitude-${idx}`}>Longitude</Label>
+                            <Input
+                              id={`address-longitude-${idx}`}
+                              type="number"
+                              step="any"
+                              value={addr.longitude ?? ""}
+                              onChange={e => setForm(f => ({
+                                ...f,
+                                addresses: f.addresses.map((a, i) => i === idx ? { ...a, longitude: e.target.value ? parseFloat(e.target.value) : undefined } : a)
+                              }))}
+                              placeholder="106.845"
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex flex-col gap-2 sm:col-span-2">
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setMapOpen(true)}
+                            >
+                              <MapPin className="h-3.5 w-3.5 mr-1" />
+                              Pilih dari Peta
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={isDetectingLocation}
+                              onClick={handleDetectLocation}
+                            >
+                              <LocateFixed className="h-3.5 w-3.5 mr-1" />
+                              {isDetectingLocation ? "Mendeteksi..." : "Lokasi Saat Ini"}
+                            </Button>
+                          </div>
+                          {addr.latitude != null && addr.longitude != null && (
+                            <p className="text-xs text-muted-foreground">
+                              Koordinat terpilih: {addr.latitude}, {addr.longitude}
+                            </p>
+                          )}
+                        </div>
+                      )}
                       <div className="flex flex-col gap-1.5 sm:col-span-2">
                         <Label htmlFor={`address-note-${idx}`}>Catatan (opsional)</Label>
                         <Input
@@ -345,6 +476,32 @@ function EditProfileDialog({
         </form>
       </DialogContent>
     </Dialog>
+    <Dialog open={mapOpen} onOpenChange={setMapOpen}>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Pilih Lokasi di Peta</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Klik titik pada peta untuk mengisi koordinat alamat secara otomatis.
+        </p>
+        {mapOpen && editingAddressIdx !== null && (
+          <LocationMap
+            selectedLat={form.addresses[editingAddressIdx]?.latitude ?? null}
+            selectedLng={form.addresses[editingAddressIdx]?.longitude ?? null}
+            onSelect={(lat, lng) => {
+              setForm(f => ({
+                ...f,
+                addresses: f.addresses.map((a, i) => i === editingAddressIdx ? { ...a, latitude: lat, longitude: lng } : a)
+              }))
+            }}
+          />
+        )}
+        <div className="flex justify-end">
+          <Button type="button" onClick={() => setMapOpen(false)}>Selesai</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }
 
