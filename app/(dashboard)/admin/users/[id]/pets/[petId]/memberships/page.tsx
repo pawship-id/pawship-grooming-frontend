@@ -543,10 +543,10 @@ export default function PetMembershipsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Event</TableHead>
+                  <TableHead>Tanggal</TableHead>
                   <TableHead>Paket</TableHead>
                   <TableHead>Mulai</TableHead>
                   <TableHead>Berakhir</TableHead>
-                  <TableHead>Tanggal</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -573,16 +573,17 @@ export default function PetMembershipsPage() {
                           className={
                             h.event_type === "purchased" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
                             h.event_type === "renewed" ? "bg-blue-50 text-blue-700 border-blue-200" :
+                            h.event_type === "updated" ? "bg-amber-50 text-amber-700 border-amber-200" :
                             "bg-muted text-muted-foreground border-border"
                           }
                         >
-                          {h.event_type === "purchased" ? "Dibeli" : h.event_type === "renewed" ? "Diperpanjang" : "Dibatalkan"}
+                          {h.event_type === "purchased" ? "Dibeli" : h.event_type === "renewed" ? "Diperpanjang" : h.event_type === "updated" ? "Diperbarui" : "Dibatalkan"}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{formatDate(h.event_date)}</TableCell>
                       <TableCell className="text-sm font-medium">{h.membership.name}</TableCell>
                       <TableCell className="text-sm">{formatDate(h.start_date)}</TableCell>
                       <TableCell className="text-sm">{formatDate(h.end_date)}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{formatDate(h.event_date)}</TableCell>
                     </TableRow>
                   ))
                 )}

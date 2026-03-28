@@ -323,7 +323,7 @@ export async function cancelPetMembership(id: string) {
 
 // ── Membership History ─────────────────────────────────────────────────────
 
-export type MembershipHistoryEventType = "purchased" | "renewed" | "cancelled"
+export type MembershipHistoryEventType = "purchased" | "renewed" | "cancelled" | "updated"
 
 export interface MembershipHistoryBenefitSnapshot {
   _id: string
