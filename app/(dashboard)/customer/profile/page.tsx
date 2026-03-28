@@ -952,7 +952,7 @@ function PetDetailDialog({ pet, open, onOpenChange }: { pet: ApiPet; open: boole
             className="absolute left-5 bottom-0 translate-y-[45%] z-10"
             style={{ width: "110px", aspectRatio: "117/143" }}
           >
-            <div className="w-full h-full border-[3px] border-[#fde8c8] rounded-xl overflow-hidden bg-[#ede0cc] shadow-2xl flex items-center justify-center">
+            <div className="w-full h-full border-[3px] border-[#fde8c8] dark:border-[#8a5a30] rounded-xl overflow-hidden bg-[#ede0cc] dark:bg-[#3a2510] shadow-2xl flex items-center justify-center">
               {pet.profile_image?.secure_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -1058,10 +1058,10 @@ function PetCard({
 
   return (
     <>
-    <div className="relative rounded-xl overflow-hidden border border-[#e8c9a0] bg-[#fdf6ed] shadow-sm">
+    <div className="relative rounded-xl overflow-hidden border border-[#e8c9a0] dark:border-[#5a3a1a] bg-[#fdf6ed] dark:bg-[#1e1208] shadow-sm">
       {/* Header */}
-      <div className="px-4 pt-3 pb-2 text-center border-b border-[#e8c9a0]">
-        <p className="text-[11px] font-black tracking-[0.25em] text-[#1a2b4a] uppercase">
+      <div className="px-4 pt-3 pb-2 text-center border-b border-[#e8c9a0] dark:border-[#5a3a1a]">
+        <p className="text-[11px] font-black tracking-[0.25em] text-[#1a2b4a] dark:text-[#e8d5b8] uppercase">
           Pawssport by Pawship
         </p>
       </div>
@@ -1071,7 +1071,7 @@ function PetCard({
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-[#1a2b4a]/50 hover:text-[#1a2b4a] hover:bg-[#e8c9a0]/40"
+          className="h-6 w-6 text-[#1a2b4a]/50 hover:text-[#1a2b4a] hover:bg-[#e8c9a0]/40 dark:text-[#e8d5b8]/50 dark:hover:text-[#e8d5b8] dark:hover:bg-[#5a3a1a]/40"
           onClick={() => onEdit(pet)}
         >
           <Pencil className="h-3 w-3" />
@@ -1079,7 +1079,7 @@ function PetCard({
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-[#1a2b4a]/50 hover:text-[#1a2b4a] hover:bg-[#e8c9a0]/40"
+          className="h-6 w-6 text-[#1a2b4a]/50 hover:text-[#1a2b4a] hover:bg-[#e8c9a0]/40 dark:text-[#e8d5b8]/50 dark:hover:text-[#e8d5b8] dark:hover:bg-[#5a3a1a]/40"
           onClick={() => setDetailOpen(true)}
         >
           <Eye className="h-3 w-3" />
@@ -1087,7 +1087,7 @@ function PetCard({
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-destructive/50 hover:text-destructive hover:bg-[#e8c9a0]/40"
+          className="h-6 w-6 text-destructive/50 hover:text-destructive hover:bg-[#e8c9a0]/40 dark:hover:bg-[#5a3a1a]/40"
           onClick={() => onDelete(pet)}
         >
           <Trash2 className="h-3 w-3" />
@@ -1098,7 +1098,7 @@ function PetCard({
       <div className="flex align-middle gap-4 px-6 py-4">
         {/* Photo */}
         <div className="shrink-0">
-          <div className="w-[117px] h-[143px] border-2 border-[#c8a880] rounded overflow-hidden bg-[#ede0cc] flex items-center justify-center">
+          <div className="w-[117px] h-[143px] border-2 border-[#c8a880] dark:border-[#8a5a30] rounded overflow-hidden bg-[#ede0cc] dark:bg-[#3a2510] flex items-center justify-center">
             {pet.profile_image?.secure_url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -1115,21 +1115,21 @@ function PetCard({
         {/* Details */}
         <div className="flex-1 min-w-0 flex flex-col gap-1.5">
           {/* Type / Breed / Weight row */}
-          <div className="grid grid-cols-3 gap-1 pb-1.5 border-b border-[#e8c9a0]">
+          <div className="grid grid-cols-3 gap-1 pb-1.5 border-b border-[#e8c9a0] dark:border-[#5a3a1a]">
             <div>
-              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Type</p>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Type</p>
               <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
                 {pet.pet_type?.name ?? "—"}
               </p>
             </div>
             <div>
-              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Breed</p>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Breed</p>
               <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
                 {pet.breed?.name ?? "—"}
               </p>
             </div>
             <div>
-              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Weight</p>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Weight</p>
               <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
                 {pet.weight != null ? `${pet.weight} KG` : "—"}
               </p>
@@ -1139,37 +1139,37 @@ function PetCard({
           {/* Info rows */}
           <div className="space-y-1">
             <div>
-              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Pawfriends Name</p>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Pawfriends Name</p>
               <p className="text-[10px] font-bold text-[#c97b3a] uppercase leading-tight">{pet.name}</p>
             </div>
 
             <div>
-              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Date of Birth</p>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Date of Birth</p>
               <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
                 {pet.birthday ? formatDate(pet.birthday) : "—"}
               </p>
             </div>
 
             <div>
-              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Pawrents Name</p>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Pawrents Name</p>
               <p className="text-[9px] font-bold text-[#c97b3a] leading-tight">{ownerName}</p>
             </div>
 
             <div>
-              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Pawrents Phone Number</p>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Pawrents Phone Number</p>
               <p className="text-[9px] font-bold text-[#c97b3a] leading-tight">{ownerPhone}</p>
             </div>
 
             {activeMembership && (
               <div className="grid grid-cols-2 gap-1 pt-0.5">
                 <div>
-                  <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Start Date</p>
+                  <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Start Date</p>
                   <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
                     {formatDate(activeMembership.start_date)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">End Date</p>
+                  <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">End Date</p>
                   <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
                     {formatDate(activeMembership.end_date)}
                   </p>
@@ -1181,11 +1181,11 @@ function PetCard({
       </div>
 
       {/* Footer text */}
-      <div className="px-3 py-1.5 border-t border-[#e8c9a0]">
-        <p className="text-[7px] text-center tracking-[0.18em] text-[#1a2b4a]/50 uppercase leading-relaxed">
+      <div className="px-3 py-1.5 border-t border-[#e8c9a0] dark:border-[#5a3a1a]">
+        <p className="text-[7px] text-center tracking-[0.18em] text-[#1a2b4a]/50 dark:text-[#c8b89a]/50 uppercase leading-relaxed">
           &lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt; YOUR &lt;&lt;&lt;&lt;&lt; PAWFRIENDS &lt;&lt;&lt;&lt;&lt; DESERVE &gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;
         </p>
-        <p className="text-[7px] text-center tracking-[0.18em] text-[#1a2b4a]/50 uppercase leading-relaxed">
+        <p className="text-[7px] text-center tracking-[0.18em] text-[#1a2b4a]/50 dark:text-[#c8b89a]/50 uppercase leading-relaxed">
           &lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&gt;&gt;&gt;&gt;&gt;THE BEST&gt;&gt;&gt;&gt;&gt;&lt;&lt;&lt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;
         </p>
       </div>
@@ -1300,7 +1300,7 @@ export default function CustomerProfilePage() {
       </div>
 
       {/* Profile Section */}
-      <div className="rounded-2xl shadow-md border border-[#e8c9a0]">
+      <div className="rounded-2xl shadow-md border border-[#e8c9a0] dark:border-[#5a3a1a]">
         {/* Warm gradient banner */}
         <div className="relative bg-gradient-to-br from-[#c97b3a] via-[#d9683a] to-[#e05a3a] px-6 pt-5 pb-20 rounded-t-2xl overflow-visible">
           <div
@@ -1345,19 +1345,19 @@ export default function CustomerProfilePage() {
         </div>
 
         {/* Info body */}
-        <div className="bg-[#fdf6ed] px-6 pb-5 pt-20">
+        <div className="bg-[#fdf6ed] dark:bg-[#1e1208] px-6 pb-5 pt-20">
           <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
             <div className="flex flex-col gap-0.5">
               <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Username</span>
-              <span className="text-sm font-semibold text-[#5a3a1a]">{profile.username}</span>
+              <span className="text-sm font-semibold text-[#5a3a1a] dark:text-[#e8d5b8]">{profile.username}</span>
             </div>
             <div className="flex flex-col gap-0.5">
               <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Email</span>
-              <span className="text-sm font-semibold text-[#5a3a1a] break-all">{profile.email}</span>
+              <span className="text-sm font-semibold text-[#5a3a1a] dark:text-[#e8d5b8] break-all">{profile.email}</span>
             </div>
             <div className="flex flex-col gap-0.5">
               <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Phone Number</span>
-              <span className="text-sm font-semibold text-[#5a3a1a]">{profile.phone_number || "—"}</span>
+              <span className="text-sm font-semibold text-[#5a3a1a] dark:text-[#e8d5b8]">{profile.phone_number || "—"}</span>
             </div>
             <div className="flex flex-col gap-0.5">
               <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Status</span>
@@ -1368,12 +1368,12 @@ export default function CustomerProfilePage() {
             {profile.profile?.gender && (
               <div className="flex flex-col gap-0.5">
                 <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Gender</span>
-                <span className="text-sm font-semibold text-[#5a3a1a]">{profile.profile.gender}</span>
+                <span className="text-sm font-semibold text-[#5a3a1a] dark:text-[#e8d5b8]">{profile.profile.gender}</span>
               </div>
             )}
             <div className="flex flex-col gap-0.5">
               <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Member Since</span>
-              <span className="text-sm font-semibold text-[#5a3a1a]">{formatDate(profile.createdAt)}</span>
+              <span className="text-sm font-semibold text-[#5a3a1a] dark:text-[#e8d5b8]">{formatDate(profile.createdAt)}</span>
             </div>
           </div>
 
@@ -1386,20 +1386,20 @@ export default function CustomerProfilePage() {
               {profile.profile.addresses.map((addr, idx) => (
                 <div
                   key={addr._id || idx}
-                  className={`rounded-xl border px-3 py-2.5 text-xs ${addr.is_main_address ? "border-[#c97b3a] bg-[#fde8c8]/60" : "border-[#e8c9a0] bg-[#fdf6ed]"}`}
+                  className={`rounded-xl border px-3 py-2.5 text-xs ${addr.is_main_address ? "border-[#c97b3a] bg-[#fde8c8]/60 dark:bg-[#7a3a1a]/25" : "border-[#e8c9a0] dark:border-[#5a3a1a] bg-[#fdf6ed] dark:bg-[#1e1208]"}`}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     {addr.is_main_address && (
                       <span className="text-[#c97b3a] font-bold text-[10px] tracking-widest uppercase">Utama</span>
                     )}
-                    <span className="font-semibold text-[#5a3a1a]">{addr.label || "Alamat"}</span>
+                    <span className="font-semibold text-[#5a3a1a] dark:text-[#e8d5b8]">{addr.label || "Alamat"}</span>
                   </div>
-                  <div className="text-[#8a6040]">
+                  <div className="text-[#8a6040] dark:text-[#c8a87a]">
                     {[addr.street, addr.subdistrict, addr.district, addr.city, addr.province, addr.postal_code]
                       .filter(Boolean)
                       .join(", ")}
                   </div>
-                  {addr.note && <div className="text-[#a07850] mt-1">{addr.note}</div>}
+                  {addr.note && <div className="text-[#a07850] dark:text-[#b8986a] mt-1">{addr.note}</div>}
                 </div>
               ))}
             </div>
