@@ -600,33 +600,55 @@ export default function PetMembershipsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Tipe</TableHead>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>Booking ID</TableHead>
-                  <TableHead>Potongan</TableHead>
+                  <TableHead>Berlaku Untuk</TableHead>
+                  <TableHead>Booking</TableHead>
+                  <TableHead>Tgl Digunakan</TableHead>
+                  {/* <TableHead className="text-right">Potongan</TableHead> */}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoadingHistory ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <TableRow key={i}>
-                      {Array.from({ length: 4 }).map((__, j) => (
+                      {Array.from({ length: 5 }).map((__, j) => (
                         <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                       ))}
                     </TableRow>
                   ))
                 ) : !benefitsHistory?.benefits_history?.length ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-6">
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
                       Belum ada riwayat penggunaan benefit
                     </TableCell>
                   </TableRow>
                 ) : (
                   benefitsHistory.benefits_history.map((h) => (
                     <TableRow key={h._id}>
-                      <TableCell className="text-sm">{benefitTypeLabel[h.type] ?? h.type}</TableCell>
-                      <TableCell className="text-sm">{formatDatetime(h.applied_date)}</TableCell>
-                      <TableCell className="text-xs font-mono text-muted-foreground">{h.booking_id}</TableCell>
-                      <TableCell className="text-sm">Rp {h.amount_deducted.toLocaleString("id-ID")}</TableCell>
+                      <TableCell>
+                        <Badge variant={h.type === "quota" ? "secondary" : "outline"} className="text-xs capitalize">
+                          {benefitTypeLabel[h.type] ?? h.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm capitalize">
+                        {appliesToLabel[h.applies_to ?? ""] ?? h.applies_to ?? "-"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                          {h.booking_service && (
+                            <span className="text-sm font-medium text-foreground">{h.booking_service}</span>
+                          )}
+                          {h.booking_date && (
+                            <span className="text-xs text-muted-foreground">{formatDate(h.booking_date)}</span>
+                          )}
+                          {/* <span className="font-mono text-[10px] text-muted-foreground/60">{h.booking_id?.slice(-8)}</span> */}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{formatDatetime(h.applied_date)}</TableCell>
+                      {/* <TableCell className="text-right text-sm font-medium">
+                        {h.amount_deducted > 0
+                          ? `- Rp ${h.amount_deducted.toLocaleString("id-ID")}`
+                          : <span className="text-muted-foreground">Gratis</span>}
+                      </TableCell> */}
                     </TableRow>
                   ))
                 )}

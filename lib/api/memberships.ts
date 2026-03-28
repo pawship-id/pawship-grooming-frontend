@@ -245,8 +245,12 @@ export interface BenefitHistoryItem {
   _id: string
   benefit_id: string
   type: BenefitType
+  applies_to?: string | null
   applied_date: string
   booking_id: string
+  booking_date?: string | null
+  booking_service?: string | null
+  booking_status?: string | null
   amount_deducted: number
 }
 
