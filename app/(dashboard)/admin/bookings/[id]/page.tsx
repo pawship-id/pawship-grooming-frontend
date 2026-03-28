@@ -35,6 +35,7 @@ import {
   deleteBookingMedia,
 } from "@/lib/api/bookings"
 import type { AdminBooking } from "@/lib/api/bookings"
+import { applyGroomingFrame } from "@/lib/frame-compositor"
 import { getStoreById } from "@/lib/api/stores"
 import { getUsers } from "@/lib/api/users"
 import type { ApiUser } from "@/lib/api/users"
@@ -166,6 +167,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [uploadingMediaType, setUploadingMediaType] = useState<"before" | "after" | null>(null)
   const [deletingBookingMediaId, setDeletingBookingMediaId] = useState<string | null>(null)
   const [confirmDeleteMediaId, setConfirmDeleteMediaId] = useState<string | null>(null)
+  const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -287,7 +289,8 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const handleUploadBookingMedia = async (file: File, type: "before" | "after") => {
     setUploadingMediaType(type)
     try {
-      await uploadBookingMedia(id, file, type)
+      const framedFile = await applyGroomingFrame(file, type)
+      await uploadBookingMedia(id, framedFile, type)
       await refreshBooking()
       toast.success(`Foto ${type} berhasil diupload`)
     } catch (err) {
@@ -1049,9 +1052,14 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 </div>
                 <div className="flex flex-wrap gap-3">
                   {(booking.media ?? []).filter((m) => m.type === "before").map((m, i) => (
-                    <div key={m.public_id ?? m._id ?? i} className="relative h-20 w-20">
+                    <div key={m.public_id ?? m._id ?? i} className="relative w-28 aspect-[9/16]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={m.secure_url ?? m.url ?? ""} alt="before" className="h-20 w-20 rounded-lg border border-border/50 object-cover" />
+                      <img
+                        src={m.secure_url ?? m.url ?? ""}
+                        alt="before"
+                        className="h-full w-full cursor-pointer rounded-lg border border-border/50 object-cover"
+                        onClick={() => setPreviewMediaUrl(m.secure_url ?? m.url ?? "")}
+                      />
                       <button
                         onClick={() => setConfirmDeleteMediaId(m.public_id ?? "")}
                         className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm"
@@ -1091,9 +1099,14 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 </div>
                 <div className="flex flex-wrap gap-3">
                   {(booking.media ?? []).filter((m) => m.type === "after").map((m, i) => (
-                    <div key={m.public_id ?? m._id ?? i} className="relative h-20 w-20">
+                    <div key={m.public_id ?? m._id ?? i} className="relative w-28 aspect-[9/16]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={m.secure_url ?? m.url ?? ""} alt="after" className="h-20 w-20 rounded-lg border border-border/50 object-cover" />
+                      <img
+                        src={m.secure_url ?? m.url ?? ""}
+                        alt="after"
+                        className="h-full w-full cursor-pointer rounded-lg border border-border/50 object-cover"
+                        onClick={() => setPreviewMediaUrl(m.secure_url ?? m.url ?? "")}
+                      />
                       <button
                         onClick={() => setConfirmDeleteMediaId(m.public_id ?? "")}
                         className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm"
@@ -1212,6 +1225,30 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {previewMediaUrl && (
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          onClick={() => setPreviewMediaUrl(null)}
+        >
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+          <div className="relative flex max-h-full items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewMediaUrl}
+              alt="preview"
+              className="max-h-[90vh] w-auto max-w-full rounded-xl object-contain shadow-2xl"
+            />
+            <button
+              onClick={() => setPreviewMediaUrl(null)}
+              className="absolute -right-3 -top-3 flex h-7 w-7 items-center justify-center rounded-full bg-foreground/80 text-background shadow-lg"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </>
   )
 }

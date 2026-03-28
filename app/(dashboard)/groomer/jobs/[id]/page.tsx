@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { bookings } from "@/lib/mock-data"
 import { toast } from "sonner"
+import { applyGroomingFrame } from "@/lib/frame-compositor"
 import type { JobStatus, PreCondition, BookingMedia } from "@/lib/types"
 
 const jobStatusColors: Record<string, string> = {
@@ -71,21 +72,32 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
     setFlagOpen(false)
   }
 
-  const handleUploadMedia = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleUploadMedia = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
     const type = formData.get("mediaType") as "before" | "after"
-    setMedia((prev) => [
-      ...prev,
-      {
-        id: `media-${Date.now()}`,
-        url: "/placeholder.svg?height=400&width=400",
-        type,
-        uploadedAt: new Date().toISOString(),
-      },
-    ])
-    toast.success(`${type} photo uploaded (demo)`)
-    setUploadOpen(false)
+    const rawFile = formData.get("photo") as File | null
+    if (!rawFile || rawFile.size === 0) {
+      toast.error("Pilih foto terlebih dahulu")
+      return
+    }
+    try {
+      const framedFile = await applyGroomingFrame(rawFile, type)
+      const previewUrl = URL.createObjectURL(framedFile)
+      setMedia((prev) => [
+        ...prev,
+        {
+          id: `media-${Date.now()}`,
+          url: previewUrl,
+          type,
+          uploadedAt: new Date().toISOString(),
+        },
+      ])
+      toast.success(`Foto ${type} berhasil diproses`)
+      setUploadOpen(false)
+    } catch {
+      toast.error("Gagal memproses foto")
+    }
   }
 
   return (
@@ -177,7 +189,7 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="photo">Photo</Label>
-                <Input id="photo" type="file" accept="image/*" />
+                <Input id="photo" name="photo" type="file" accept="image/*" />
               </div>
               <Button type="submit" className="font-display font-bold">Upload</Button>
             </form>
