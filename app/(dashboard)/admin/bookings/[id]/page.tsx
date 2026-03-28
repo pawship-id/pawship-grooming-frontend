@@ -66,7 +66,8 @@ const ALL_STATUSES = [
 ]
 
 const IN_STORE_MAIN_FLOW = ["requested", "confirmed", "arrived", "in progress", "completed"]
-const IN_HOME_MAIN_FLOW = ["requested", "confirmed", "driver on the way", "groomer on the way", "arrived", "in progress", "completed"]
+const IN_STORE_PICKUP_MAIN_FLOW = ["requested", "confirmed", "driver on the way", "arrived", "in progress", "completed"]
+const IN_HOME_MAIN_FLOW = ["requested", "confirmed", "groomer on the way", "arrived", "in progress", "completed"]
 
 const IN_STORE_TRANSITIONS: Record<string, string[]> = {
   waitlist: ["confirmed", "cancelled"],
@@ -79,12 +80,23 @@ const IN_STORE_TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
 }
 
-const IN_HOME_TRANSITIONS: Record<string, string[]> = {
+const IN_STORE_PICKUP_TRANSITIONS: Record<string, string[]> = {
   waitlist: ["confirmed", "cancelled"],
   requested: ["confirmed", "rescheduled", "cancelled"],
   rescheduled: ["confirmed", "rescheduled", "cancelled"],
   confirmed: ["driver on the way", "rescheduled", "cancelled"],
-  "driver on the way": ["groomer on the way", "rescheduled", "cancelled"],
+  "driver on the way": ["arrived", "rescheduled", "cancelled"],
+  arrived: ["in progress", "rescheduled", "cancelled"],
+  "in progress": ["completed", "cancelled"],
+  completed: [],
+  cancelled: [],
+}
+
+const IN_HOME_TRANSITIONS: Record<string, string[]> = {
+  waitlist: ["confirmed", "cancelled"],
+  requested: ["confirmed", "rescheduled", "cancelled"],
+  rescheduled: ["confirmed", "rescheduled", "cancelled"],
+  confirmed: ["groomer on the way", "rescheduled", "cancelled"],
   "groomer on the way": ["arrived", "rescheduled", "cancelled"],
   arrived: ["in progress", "rescheduled", "cancelled"],
   "in progress": ["completed", "cancelled"],
@@ -342,8 +354,9 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   }
 
   const isInHome = booking.type === "in home"
-  const MAIN_FLOW = isInHome ? IN_HOME_MAIN_FLOW : IN_STORE_MAIN_FLOW
-  const ALLOWED_TRANSITIONS = isInHome ? IN_HOME_TRANSITIONS : IN_STORE_TRANSITIONS
+  const isInStorePickup = !isInHome && booking.pick_up === true
+  const MAIN_FLOW = isInHome ? IN_HOME_MAIN_FLOW : isInStorePickup ? IN_STORE_PICKUP_MAIN_FLOW : IN_STORE_MAIN_FLOW
+  const ALLOWED_TRANSITIONS = isInHome ? IN_HOME_TRANSITIONS : isInStorePickup ? IN_STORE_PICKUP_TRANSITIONS : IN_STORE_TRANSITIONS
   const allowedNextStatuses = ALLOWED_TRANSITIONS[booking.booking_status] ?? []
   const hasInProgressSession = booking.sessions.some((s) => s.status === "in progress")
   const allSessionsFinished =

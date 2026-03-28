@@ -17,6 +17,9 @@ import type { AdminBooking } from "@/lib/api/bookings"
 const statusColors: Record<string, string> = {
   requested: "bg-accent/20 text-accent-foreground",
   confirmed: "bg-secondary/60 text-secondary-foreground",
+  waitlist: "bg-yellow-100 text-yellow-800",
+  "driver on the way": "bg-blue-100 text-blue-800",
+  "groomer on the way": "bg-blue-100 text-blue-800",
   arrived: "bg-primary/10 text-primary",
   "in progress": "bg-primary/10 text-primary",
   completed: "bg-secondary/60 text-secondary-foreground",
@@ -174,7 +177,10 @@ export default function BookingsPage() {
                   <SelectContent>
                     <SelectItem value="all">Semua Status</SelectItem>
                     <SelectItem value="requested">Requested</SelectItem>
+                    <SelectItem value="waitlist">Waitlist</SelectItem>
                     <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="driver on the way">Driver on the Way</SelectItem>
+                    <SelectItem value="groomer on the way">Groomer on the Way</SelectItem>
                     <SelectItem value="arrived">Arrived</SelectItem>
                     <SelectItem value="in progress">In Progress</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
