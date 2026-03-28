@@ -232,8 +232,41 @@ export default function NewBookingPage() {
   const toggleAddon = (id: string) =>
     setSelectedAddonIds((prev) => prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id])
 
-  const toggleBenefit = (id: string) =>
-    setSelectedBenefitIds((prev) => prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id])
+  const toggleBenefit = (id: string) => {
+    if (!previewData) {
+      setSelectedBenefitIds((prev) => prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id])
+      return
+    }
+    const benefit = previewData.pricing.available_benefits.find((x: any) => x._id === id)
+    if (!benefit) {
+      setSelectedBenefitIds((prev) => prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id])
+      return
+    }
+    setSelectedBenefitIds((prev) => {
+      if (prev.includes(id)) return prev.filter((b) => b !== id)
+      // When adding a benefit, auto-remove conflicting benefits on the same target
+      const conflicts = prev.filter((selId) => {
+        const sel = previewData.pricing.available_benefits.find((x: any) => x._id === selId)
+        if (!sel || sel.applies_to !== benefit.applies_to) return false
+        // Only quota<->discount pairs conflict (same scope makes the other useless)
+        if (benefit.type === sel.type) return false
+        const quotaBenefit  = benefit.type === "quota"  ? benefit : sel
+        const discountBenefit = benefit.type === "discount" ? benefit : sel
+        if (benefit.applies_to === "service") {
+          const quotaTarget    = quotaBenefit.service_id  || form.service_id
+          const discountTarget = discountBenefit.service_id || form.service_id
+          return quotaTarget === discountTarget
+        }
+        if (benefit.applies_to === "addon") {
+          // conflict if their addon scopes overlap
+          if (!quotaBenefit.service_id || !discountBenefit.service_id) return true // one covers all addons
+          return quotaBenefit.service_id === discountBenefit.service_id
+        }
+        return false
+      })
+      return [...prev.filter((b) => !conflicts.includes(b)), id]
+    })
+  }
 
   // ── Preview: auto-fetch whenever pet / service / addons / date change ───────
   useEffect(() => {
@@ -850,7 +883,7 @@ export default function NewBookingPage() {
                         {/* Service row */}
                         {(() => {
                           const b = previewData.pricing.available_benefits.find(
-                            (x) => selectedBenefitIds.includes(x._id) && x.service_id === form.service_id && (x.type === "discount" || x.type === "quota") && x.can_apply
+                            (x) => selectedBenefitIds.includes(x._id) && x.applies_to === "service" && (!x.service_id || x.service_id === form.service_id) && (x.type === "discount" || x.type === "quota") && x.can_apply
                           )
                           const isQuota = b?.type === "quota"
                           return (
@@ -883,9 +916,11 @@ export default function NewBookingPage() {
                         {/* Addon rows */}
                         {previewData.pricing_breakdown.addons.map((addon) => {
                           const b = previewData.pricing.available_benefits.find(
-                            (x) => selectedBenefitIds.includes(x._id) && x.service_id === addon._id && (x.type === "discount" || x.type === "quota") && x.can_apply
+                            (x) => selectedBenefitIds.includes(x._id) && x.applies_to === "addon" && (!x.service_id || x.service_id === addon._id) && (x.type === "discount" || x.type === "quota") && x.can_apply
                           )
                           const isQuota = b?.type === "quota"
+                          // For null-service_id benefits, compute per-addon discount from b.value
+                          const addonDiscountAmount = !b ? 0 : (b.service_id ? (b.amount_discount ?? 0) : (isQuota ? addon.price : addon.price * (b.value ?? 0) / 100))
                           return (
                             <div key={addon._id} className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
                               <div className="flex items-center gap-2">
@@ -904,7 +939,7 @@ export default function NewBookingPage() {
                                 <div className="flex flex-col items-end gap-0.5">
                                   <span className="text-xs line-through text-muted-foreground">{formatPrice(addon.price)}</span>
                                   <span className="font-semibold text-primary">
-                                    {isQuota ? "Gratis" : formatPrice(Math.max(0, addon.price - (b.amount_discount ?? 0)))}
+                                    {isQuota ? "Gratis" : formatPrice(Math.max(0, addon.price - addonDiscountAmount))}
                                   </span>
                                 </div>
                               ) : (
@@ -1017,12 +1052,35 @@ export default function NewBookingPage() {
                           {previewData.pricing.available_benefits.map((benefit) => {
                             const selected = selectedBenefitIds.includes(benefit._id)
                             const canApply = benefit.can_apply
+
+                            // Determine if this discount is blocked by an already-selected quota on the same target
+                            const blockedByQuota = canApply && benefit.type === "discount" && (() => {
+                              const available = previewData.pricing.available_benefits
+                              if (benefit.applies_to === "service") {
+                                const discountTarget = benefit.service_id || form.service_id
+                                return available.some(
+                                  (x: any) => selectedBenefitIds.includes(x._id) && x.type === "quota" &&
+                                    x.applies_to === "service" &&
+                                    (x.service_id === discountTarget || !x.service_id)
+                                )
+                              }
+                              if (benefit.applies_to === "addon") {
+                                return available.some(
+                                  (x: any) => selectedBenefitIds.includes(x._id) && x.type === "quota" &&
+                                    x.applies_to === "addon" &&
+                                    (!x.service_id || !benefit.service_id || x.service_id === benefit.service_id)
+                                )
+                              }
+                              return false
+                            })()
+
+                            const isDisabled = !canApply || blockedByQuota
                             return (
                               <label
                                 key={benefit._id}
                                 htmlFor={`benefit-${benefit._id}`}
                                 className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
-                                  !canApply
+                                  isDisabled
                                     ? "cursor-not-allowed border-border/30 bg-muted/20 opacity-50"
                                     : selected
                                     ? "border-primary bg-primary/5"
@@ -1032,8 +1090,8 @@ export default function NewBookingPage() {
                                 <Checkbox
                                   id={`benefit-${benefit._id}`}
                                   checked={selected}
-                                  disabled={!canApply}
-                                  onCheckedChange={() => canApply && toggleBenefit(benefit._id)}
+                                  disabled={isDisabled}
+                                  onCheckedChange={() => !isDisabled && toggleBenefit(benefit._id)}
                                   className="mt-0.5 shrink-0"
                                 />
                                 <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -1059,6 +1117,9 @@ export default function NewBookingPage() {
                                   </div>
                                   {!canApply && (
                                     <span className="text-[11px] text-destructive">Tidak dapat digunakan saat ini</span>
+                                  )}
+                                  {blockedByQuota && (
+                                    <span className="text-[11px] text-amber-600 dark:text-amber-400">Tidak dapat digabung — layanan sudah gratis dari benefit kuota</span>
                                   )}
                                 </div>
                                 {benefit.type === "discount" && canApply && benefit.amount_discount != null && benefit.amount_discount > 0 && (
