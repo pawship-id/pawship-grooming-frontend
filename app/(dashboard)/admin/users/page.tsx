@@ -432,6 +432,11 @@ export default function UsersPage() {
                         <Link href={`/admin/users/${user._id}/pets`}>
                           <PawPrint className="mr-2 h-4 w-4" />
                           Lihat Pet
+                          {user.pet_count !== undefined && (
+                            <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+                              {user.pet_count}
+                            </span>
+                          )}
                         </Link>
                       </Button>
                     )}
@@ -516,6 +521,11 @@ export default function UsersPage() {
                                 <Link href={`/admin/users/${user._id}/pets`}>
                                   <PawPrint className="mr-1.5 h-3.5 w-3.5" />
                                   Lihat Pet
+                                  {user.pet_count !== undefined && (
+                                    <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+                                      {user.pet_count}
+                                    </span>
+                                  )}
                                 </Link>
                               </Button>
                             )}

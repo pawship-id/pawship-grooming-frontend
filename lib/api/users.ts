@@ -11,6 +11,7 @@ export interface ApiUser {
   is_active: boolean
   createdAt: string
   updatedAt: string
+  pet_count?: number
 }
 
 export interface ApiPetType {
