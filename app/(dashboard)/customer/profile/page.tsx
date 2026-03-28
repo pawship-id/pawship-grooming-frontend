@@ -776,89 +776,155 @@ function PetFormDialog({
 
 function PetCard({
   pet,
+  ownerName,
+  ownerPhone,
   onEdit,
   onDelete,
 }: {
   pet: ApiPet
+  ownerName: string
+  ownerPhone: string
   onEdit: (pet: ApiPet) => void
   onDelete: (pet: ApiPet) => void
 }) {
   const activeMembership = pet.memberships?.find((m) => m.status === "active")
 
   return (
-    <Card className="border border-border/60">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{pet.name}</CardTitle>
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className={pet.is_active ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500"}
-            >
-              {pet.is_active ? "Active" : "Inactive"}
-            </Badge>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(pet)}>
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => onDelete(pet)}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+    <div className="relative rounded-xl overflow-hidden border border-[#e8c9a0] bg-[#fdf6ed] shadow-sm">
+      {/* Header */}
+      <div className="px-4 pt-3 pb-2 text-center border-b border-[#e8c9a0]">
+        <p className="text-[11px] font-black tracking-[0.25em] text-[#1a2b4a] uppercase">
+          Pawssport by Pawship
+        </p>
+      </div>
+
+      {/* Action buttons */}
+      <div className="absolute top-2 right-2 flex gap-0.5 z-10">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-[#1a2b4a]/50 hover:text-[#1a2b4a] hover:bg-[#e8c9a0]/40"
+          onClick={() => onEdit(pet)}
+        >
+          <Pencil className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-destructive/50 hover:text-destructive hover:bg-[#e8c9a0]/40"
+          onClick={() => onDelete(pet)}
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+
+      {/* Body */}
+      <div className="flex align-middle gap-4 px-6 py-4">
+        {/* Photo */}
+        <div className="shrink-0">
+          <div className="w-[117px] h-[143px] border-2 border-[#c8a880] rounded overflow-hidden bg-[#ede0cc] flex items-center justify-center">
+            {pet.profile_image?.secure_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={pet.profile_image.secure_url}
+                alt={pet.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-4xl select-none">🐾</span>
+            )}
           </div>
         </div>
-      </CardHeader>
-      <Separator />
-      <CardContent className="pt-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {pet.pet_type && (
-            <div className="flex items-start gap-2">
-              <span className="text-xs text-muted-foreground">Tipe</span>
-              <span className="text-xs font-medium">{pet.pet_type.name}</span>
+
+        {/* Details */}
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+          {/* Type / Breed / Weight row */}
+          <div className="grid grid-cols-3 gap-1 pb-1.5 border-b border-[#e8c9a0]">
+            <div>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Type</p>
+              <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
+                {pet.pet_type?.name ?? "—"}
+              </p>
             </div>
-          )}
-          {pet.breed && (
-            <div className="flex items-start gap-2">
-              <span className="text-xs text-muted-foreground">Ras</span>
-              <span className="text-xs font-medium">{pet.breed.name}</span>
+            <div>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Breed</p>
+              <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
+                {pet.breed?.name ?? "—"}
+              </p>
             </div>
-          )}
-          {pet.size && (
-            <div className="flex items-start gap-2">
-              <span className="text-xs text-muted-foreground">Ukuran</span>
-              <span className="text-xs font-medium">{pet.size.name}</span>
+            <div>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Weight</p>
+              <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
+                {pet.weight != null ? `${pet.weight} KG` : "—"}
+              </p>
             </div>
-          )}
-          {pet.weight != null && (
-            <div className="flex items-start gap-2">
-              <Weight className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
-              <span className="text-xs font-medium">{pet.weight} kg</span>
+          </div>
+
+          {/* Info rows */}
+          <div className="space-y-1">
+            <div>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Pawfriends Name</p>
+              <p className="text-[10px] font-bold text-[#c97b3a] uppercase leading-tight">{pet.name}</p>
             </div>
-          )}
-          {pet.member_category && (
-            <div className="flex items-start gap-2 sm:col-span-2">
-              <Tag className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
-              <span className="text-xs font-medium">{pet.member_category.name}</span>
+
+            {pet.birthday && (
+              <div>
+                <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Date of Birth</p>
+                <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
+                  {formatDate(pet.birthday)}
+                </p>
+              </div>
+            )}
+
+            <div>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Pawrents Name</p>
+              <p className="text-[9px] font-bold text-[#c97b3a] leading-tight">{ownerName}</p>
             </div>
-          )}
+
+            <div>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Pawrents Phone Number</p>
+              <p className="text-[9px] font-bold text-[#c97b3a] leading-tight">{ownerPhone}</p>
+            </div>
+
+            {activeMembership && (
+              <div className="grid grid-cols-2 gap-1 pt-0.5">
+                <div>
+                  <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Start Date</p>
+                  <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
+                    {formatDate(activeMembership.start_date)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">End Date</p>
+                  <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
+                    {formatDate(activeMembership.end_date)}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-        {/* {pet.tags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1">
-            {pet.tags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-xs">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        )} */}
-        {activeMembership && (
-          <div className="mt-3 rounded-md bg-primary/5 p-3">
-            <p className="text-xs font-medium text-primary mb-1">Active Membership</p>
-            <p className="text-xs text-muted-foreground">
-              {formatDate(activeMembership.start_date)} – {formatDate(activeMembership.end_date)}
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Footer text */}
+      <div className="px-3 py-1.5 border-t border-[#e8c9a0]">
+        <p className="text-[7px] text-center tracking-[0.18em] text-[#1a2b4a]/50 uppercase leading-relaxed">
+          &lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt; YOUR &lt;&lt;&lt;&lt;&lt; PAWFRIENDS &lt;&lt;&lt;&lt;&lt; DESERVE &gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;
+        </p>
+        <p className="text-[7px] text-center tracking-[0.18em] text-[#1a2b4a]/50 uppercase leading-relaxed">
+          &lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&gt;&gt;&gt;&gt;&gt;THE BEST&gt;&gt;&gt;&gt;&gt;&lt;&lt;&lt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;
+        </p>
+      </div>
+
+      {/* Bottom stripe */}
+      <div
+        className="h-2"
+        style={{
+          background: "repeating-linear-gradient(45deg, #e05a3a 0px, #e05a3a 4px, #f09060 4px, #f09060 8px)",
+          opacity: 0.75,
+        }}
+      />
+    </div>
   )
 }
 
@@ -1070,7 +1136,14 @@ export default function CustomerProfilePage() {
       {profile.pets && profile.pets.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2">
           {profile.pets.map((pet) => (
-            <PetCard key={pet._id} pet={pet} onEdit={openEditPet} onDelete={setDeletingPet} />
+            <PetCard
+              key={pet._id}
+              pet={pet}
+              ownerName={profile.profile?.full_name || profile.username}
+              ownerPhone={profile.phone_number}
+              onEdit={openEditPet}
+              onDelete={setDeletingPet}
+            />
           ))}
         </div>
       ) : (
