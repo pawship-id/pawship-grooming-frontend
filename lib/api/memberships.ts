@@ -137,12 +137,16 @@ export interface BenefitSnapshot {
 
 // ── Pet Membership ─────────────────────────────────────────────────────────
 
+export type MembershipStatus = 'active' | 'pending' | 'expired' | 'cancelled'
+
 export interface PetMembership {
   _id: string
   pet: PetRef
   membership: MembershipRef
   start_date: string
   end_date: string
+  is_active: boolean
+  status: MembershipStatus
   benefits_snapshot: BenefitSnapshot[]
   createdAt: string
   updatedAt: string
@@ -207,6 +211,7 @@ export interface GetPetMembershipsParams {
   pet_id?: string
   membership_plan_id?: string
   is_active?: boolean
+  status?: MembershipStatus
 }
 
 // Benefits summary types
@@ -265,13 +270,23 @@ export interface BenefitsHistoryResponse {
   data: BenefitsHistoryData
 }
 
+export interface PetMembershipCountsResponse {
+  message: string
+  data: Record<MembershipStatus, number>
+}
+
 export async function getPetMemberships(params: GetPetMembershipsParams = {}) {
   const query = new URLSearchParams()
   if (params.pet_id) query.set("pet_id", params.pet_id)
   if (params.membership_plan_id) query.set("membership_plan_id", params.membership_plan_id)
   if (params.is_active !== undefined) query.set("is_active", String(params.is_active))
+  if (params.status) query.set("status", params.status)
   const qs = query.toString()
   return apiAuthRequest<PetMembershipsResponse>(`/pet-memberships${qs ? `?${qs}` : ""}`)
+}
+
+export async function getPetMembershipCounts(petId: string) {
+  return apiAuthRequest<PetMembershipCountsResponse>(`/pet-memberships/${petId}/counts`)
 }
 
 export async function getPetMembershipById(id: string) {
