@@ -65,6 +65,7 @@ type ProfileFormState = {
   full_name: string
   gender: string
   addresses: UserAddress[]
+  existingImageUrl?: string
 }
 
 function EditProfileDialog({
@@ -88,6 +89,9 @@ function EditProfileDialog({
   const [coordInputMode, setCoordInputMode] = useState<"manual" | "map">("manual")
   const [mapOpen, setMapOpen] = useState(false)
   const [isDetectingLocation, setIsDetectingLocation] = useState(false)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const profileImageRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) {
@@ -95,7 +99,10 @@ function EditProfileDialog({
         full_name: profile.profile?.full_name ?? "",
         gender: profile.profile?.gender ?? "",
         addresses: profile.profile?.addresses?.length ? profile.profile.addresses : [],
+        existingImageUrl: profile.profile?.image_url ?? undefined,
       })
+      setImageFile(null)
+      setImagePreview(null)
       setEditingAddressIdx(null)
       setCoordInputMode("manual")
       setMapOpen(false)
@@ -136,11 +143,19 @@ function EditProfileDialog({
     e.preventDefault()
     setSaving(true)
     try {
+      let image_url: string | undefined = undefined
+      let public_id: string | undefined = undefined
+      if (imageFile) {
+        const uploaded = await uploadFile(imageFile, "profiles")
+        image_url = uploaded.image_url
+        public_id = uploaded.public_id
+      }
       const addresses = form.addresses.map((a, i) => ({ ...a, is_main_address: !!a.is_main_address }))
       const payload: UpdateMyProfilePayload = {
         full_name: form.full_name || undefined,
         gender: (form.gender as "Male" | "Female") || undefined,
         addresses,
+        ...(image_url ? { image_url, public_id } : {}),
       }
       const res = await updateMyProfile(payload)
       toast.success("Profil berhasil diperbarui")
@@ -161,6 +176,45 @@ function EditProfileDialog({
           <DialogTitle>Edit Profil</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 overflow-y-auto flex-1 pr-1">
+          {/* Profile Picture Upload */}
+          <div className="flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={() => profileImageRef.current?.click()}
+              className="relative group w-20 h-20 rounded-full overflow-hidden border-2 border-[#e8c9a0] shadow-md focus:outline-none"
+              style={{ background: "linear-gradient(135deg, #c97b3a, #e05a3a)" }}
+            >
+              {imagePreview || form.existingImageUrl ? (
+                <img
+                  src={imagePreview ?? form.existingImageUrl}
+                  alt="Foto profil"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="flex items-center justify-center w-full h-full text-2xl font-bold text-white">
+                  {(form.full_name || profile.username).split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                </span>
+              )}
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-white text-xs font-medium">Ganti</span>
+              </div>
+            </button>
+            <span className="text-xs text-muted-foreground">Klik foto untuk mengganti</span>
+            <input
+              ref={profileImageRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                setImageFile(file)
+                const reader = new FileReader()
+                reader.onload = (ev) => setImagePreview(ev.target?.result as string)
+                reader.readAsDataURL(file)
+              }}
+            />
+          </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="full_name">Nama Lengkap</Label>
             <Input
@@ -1245,104 +1299,122 @@ export default function CustomerProfilePage() {
         <p className="text-sm text-muted-foreground">Informasi akun dan hewan peliharaan Anda</p>
       </div>
 
-      {/* Profile Card */}
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16">
-                <AvatarFallback className="bg-primary text-primary-foreground text-xl">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col gap-1">
-                <CardTitle className="text-xl">
-                  {profile.profile?.full_name || profile.username}
-                </CardTitle>
-                <Badge variant="outline" className="w-fit bg-green-50 text-green-700 border-green-200">
-                  Customer
-                </Badge>
-              </div>
-            </div>
-            <Button variant="default" size="sm" onClick={() => setEditProfileOpen(true)}>
-              <Pencil className="mr-2 h-3.5 w-3.5" />
-              Edit Profil
-            </Button>
-          </div>
-        </CardHeader>
-        <Separator />
-        <CardContent className="pt-6">
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="flex items-start gap-3">
-              <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Username</p>
-                <p className="text-sm font-medium">{profile.username}</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <Mail className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Email</p>
-                <p className="text-sm font-medium">{profile.email}</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <Phone className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Phone Number</p>
-                <p className="text-sm font-medium">{profile.phone_number || "-"}</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <Shield className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Status</p>
-                <p className="text-sm font-medium">{profile.is_active ? "Active" : "Inactive"}</p>
-              </div>
-            </div>
-            {profile.profile?.gender && (
-              <div className="flex items-start gap-3">
-                <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Gender</p>
-                  <p className="text-sm font-medium">{profile.profile.gender}</p>
-                </div>
+      {/* Profile Section */}
+      <div className="rounded-2xl shadow-md border border-[#e8c9a0]">
+        {/* Warm gradient banner */}
+        <div className="relative bg-gradient-to-br from-[#c97b3a] via-[#d9683a] to-[#e05a3a] px-6 pt-5 pb-20 rounded-t-2xl overflow-visible">
+          <div
+            className="absolute inset-0 opacity-10 rounded-t-2xl"
+            style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "16px 16px" }}
+          />
+          <button
+            type="button"
+            onClick={() => setEditProfileOpen(true)}
+            className="absolute top-4 right-4 z-30 flex items-center gap-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 text-white text-xs font-semibold backdrop-blur-sm"
+          >
+            <Pencil className="h-3 w-3" />
+            Edit Profil
+          </button>
+          {/* Profile photo — left side, overflows into body */}
+          <div className="absolute left-6 bottom-0 translate-y-1/2 z-20">
+            {profile.profile?.image_url ? (
+              <img
+                src={profile.profile.image_url}
+                alt="Foto profil"
+                className="rounded-full object-cover border-[3px] border-[#fde8c8] shadow-2xl"
+                style={{ width: 120, height: 120 }}
+              />
+            ) : (
+              <div
+                className="rounded-full border-[3px] border-[#fde8c8] shadow-2xl flex items-center justify-center"
+                style={{ width: 120, height: 120, background: "linear-gradient(135deg, #f0a060, #c97b3a)" }}
+              >
+                <span className="text-xl font-bold text-white">{initials}</span>
               </div>
             )}
-            <div className="flex items-start gap-3">
-              <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Member Since</p>
-                <p className="text-sm font-medium">{formatDate(profile.createdAt)}</p>
+          </div>
+          <div className="relative z-10">
+            <p className="text-[10px] font-bold tracking-[0.35em] text-white/70 uppercase mb-1">Profile by Pawship</p>
+            <h2 className="text-white text-xl font-bold uppercase tracking-wide leading-tight">
+              {profile.profile?.full_name || profile.username}
+            </h2>
+            <span className="inline-block mt-1.5 rounded-full bg-white/25 px-2.5 py-0.5 text-[10px] font-bold tracking-widest text-white uppercase">
+              Customer
+            </span>
+          </div>
+        </div>
+
+        {/* Info body */}
+        <div className="bg-[#fdf6ed] px-6 pb-5 pt-20">
+          <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Username</span>
+              <span className="text-sm font-semibold text-[#5a3a1a]">{profile.username}</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Email</span>
+              <span className="text-sm font-semibold text-[#5a3a1a] break-all">{profile.email}</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Phone Number</span>
+              <span className="text-sm font-semibold text-[#5a3a1a]">{profile.phone_number || "—"}</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Status</span>
+              <span className={`text-sm font-semibold ${profile.is_active ? "text-emerald-600" : "text-rose-500"}`}>
+                {profile.is_active ? "Active" : "Inactive"}
+              </span>
+            </div>
+            {profile.profile?.gender && (
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Gender</span>
+                <span className="text-sm font-semibold text-[#5a3a1a]">{profile.profile.gender}</span>
               </div>
+            )}
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Member Since</span>
+              <span className="text-sm font-semibold text-[#5a3a1a]">{formatDate(profile.createdAt)}</span>
             </div>
           </div>
+
           {profile.profile?.addresses && profile.profile.addresses.length > 0 && (
-            <div className="mt-4 flex flex-col gap-2">
-              <div className="flex items-center gap-2 mb-1">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground font-medium">Alamat</span>
+            <div className="mt-5 flex flex-col gap-2">
+              <div className="flex items-center gap-1.5 mb-1">
+                <MapPin className="h-3.5 w-3.5 text-[#c97b3a]" />
+                <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Alamat</span>
               </div>
               {profile.profile.addresses.map((addr, idx) => (
-                <div key={addr._id || idx} className={`rounded border px-3 py-2 text-xs ${addr.is_main_address ? "border-green-700 bg-green-50" : "border-border bg-muted/30"}`}>
+                <div
+                  key={addr._id || idx}
+                  className={`rounded-xl border px-3 py-2.5 text-xs ${addr.is_main_address ? "border-[#c97b3a] bg-[#fde8c8]/60" : "border-[#e8c9a0] bg-[#fdf6ed]"}`}
+                >
                   <div className="flex items-center gap-2 mb-1">
-                    {addr.is_main_address && <span className="text-green-700 font-semibold mr-1`">Utama</span>}
-                    <span className="font-medium text-gray-700">{addr.label || "Alamat"}</span>
+                    {addr.is_main_address && (
+                      <span className="text-[#c97b3a] font-bold text-[10px] tracking-widest uppercase">Utama</span>
+                    )}
+                    <span className="font-semibold text-[#5a3a1a]">{addr.label || "Alamat"}</span>
                   </div>
-                  <div className="text-gray-700">
+                  <div className="text-[#8a6040]">
                     {[addr.street, addr.subdistrict, addr.district, addr.city, addr.province, addr.postal_code]
                       .filter(Boolean)
                       .join(", ")}
                   </div>
-                  {addr.note && <div className="text-muted-foreground mt-1">{addr.note}</div>}
-                  {/* Optionally: show lat/lng if present */}
+                  {addr.note && <div className="text-[#a07850] mt-1">{addr.note}</div>}
                 </div>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Bottom stripe */}
+        <div
+          className="h-3 rounded-b-2xl"
+          style={{
+            background: "repeating-linear-gradient(45deg, #e05a3a 0px, #e05a3a 4px, #f09060 4px, #f09060 8px)",
+            opacity: 0.75,
+          }}
+        />
+      </div>
 
       {/* Pets Section */}
       <div className="flex items-center justify-between">

@@ -89,6 +89,8 @@ export interface ApiCurrentUser extends ApiUser {
 
 export type UpdateMyProfilePayload = {
   full_name?: string
+  image_url?: string
+  public_id?: string
   gender?: "Male" | "Female"
   tags?: string[]
   addresses?: UserAddress[]
