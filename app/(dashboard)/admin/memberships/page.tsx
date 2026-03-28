@@ -14,6 +14,7 @@ import {
   Tag,
   CalendarDays,
   Check,
+  Trash,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -443,13 +444,24 @@ function BenefitEditor({
                     onSourceTabChange={setEditSourceTab}
                   />
                   {editError && <p className="text-xs text-destructive">{editError}</p>}
-                  <div className="flex gap-2">
-                    <Button type="button" size="sm" className="h-7 text-xs flex-1" onClick={saveEdit}>
+                  <div className="flex items-center w-full justify-end gap-1 shrink-0">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={saveEdit}
+                    >
                       <Check className="h-3.5 w-3.5 mr-1" />
-                      Simpan
                     </Button>
-                    <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={cancelEdit}>
-                      Batal
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-destructive hover:text-destructive"
+                      onClick={cancelEdit}
+                    >
+                      <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
@@ -458,6 +470,15 @@ function BenefitEditor({
                 <div className="flex items-start justify-between gap-2 p-3">
                   <div className="flex flex-col gap-0.5">
                     <span className="font-medium text-foreground">
+                      {b.service_id ? (
+                      <span>
+                        {services.find((s) => s._id === b.service_id)?.name ?? b.service_id}
+                      </span>
+                    ) : b.label ? (
+                      <span>{b.label}</span>
+                    ) : null}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
                       {BENEFIT_TYPE_LABEL[b.type]}
                       {b.type === "discount" && b.value !== undefined && ` — ${b.value}%`}
                     </span>
@@ -491,7 +512,7 @@ function BenefitEditor({
                       className="h-6 w-6 text-destructive hover:text-destructive"
                       onClick={() => removeBenefit(b._localId)}
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <Trash className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>

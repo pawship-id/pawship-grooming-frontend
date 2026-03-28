@@ -25,7 +25,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
 
-import { type ApiCurrentUser, getUser } from "@/lib/api/users"
+import { type ApiCurrentUser, type ApiPet, getUser } from "@/lib/api/users"
 import {
   type MembershipPlan,
   type PetMembership,
@@ -80,6 +80,12 @@ const appliesToLabel: Record<string, string> = {
 
 function isoToDateInput(iso: string) {
   return iso ? iso.split("T")[0] : ""
+}
+
+function addMonths(date: Date, months: number): Date {
+  const d = new Date(date)
+  d.setMonth(d.getMonth() + months)
+  return d
 }
 
 function isPetMembershipActive(pm: { start_date: string; end_date: string }) {
@@ -197,6 +203,8 @@ export default function PetMembershipsPage() {
   const [isLoadingHistory2, setIsLoadingHistory2] = useState(true)
 
   const [availablePlans, setAvailablePlans] = useState<MembershipPlan[]>([])
+  // undefined = not yet resolved, null = no pet type
+  const [petTypeId, setPetTypeId] = useState<string | null | undefined>(undefined)
 
   // Purchase dialog
   const [purchaseOpen, setPurchaseOpen] = useState(false)
@@ -221,19 +229,25 @@ export default function PetMembershipsPage() {
     getUser(userId)
       .then((res) => {
         setUser(res.user)
-        const pet = res.user.pets?.find((p: { _id: string }) => p._id === petId)
-        if (pet) setPetName((pet as { name: string }).name)
+        const pet = (res.user.pets as ApiPet[] | undefined)?.find((p) => p._id === petId)
+        if (pet) {
+          setPetName(pet.name)
+          setPetTypeId(pet.pet_type?._id ?? null)
+        } else {
+          setPetTypeId(null)
+        }
       })
       .catch(() => { })
       .finally(() => setIsLoadingUser(false))
   }, [userId, petId])
 
-  // Load active plans for purchase dropdown
+  // Load active plans filtered by pet type for purchase dropdown
   useEffect(() => {
-    getMemberships({ is_active: true })
+    if (petTypeId === undefined) return // wait until pet type is resolved
+    getMemberships({ is_active: true, ...(petTypeId ? { pet_type_id: petTypeId } : {}) })
       .then((res) => setAvailablePlans(res.data))
       .catch(() => { })
-  }, [])
+  }, [petTypeId])
 
   const loadActiveMembership = useCallback(async () => {
     setIsLoadingActive(true)
@@ -623,86 +637,123 @@ export default function PetMembershipsPage() {
 
       {/* Purchase Dialog */}
       <Dialog open={purchaseOpen} onOpenChange={(open) => { if (!open) { setPurchaseOpen(false); setSelectedPlanId("") } }}>
-        <DialogContent className="sm:max-w-xl">
+        <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="font-display">Beli Membership</DialogTitle>
             <DialogDescription>
               Pilih paket membership untuk <span className="font-medium text-foreground">{petName || "Pet"}</span>
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handlePurchase} className="flex flex-col gap-5">
-            {/* Plan Cards */}
-            <div className="flex flex-col gap-2">
-              <Label>Paket Membership <span className="text-destructive">*</span></Label>
-              {availablePlans.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">Tidak ada paket tersedia</p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {availablePlans.map((p) => {
-                    const isActive = activeMemberships?.some((am) => am.membership._id === p._id)
-                    const isSelected = selectedPlanId === p._id
-                    return (
-                      <button
-                        key={p._id}
-                        type="button"
-                        disabled={isActive}
-                        onClick={() => setSelectedPlanId(p._id)}
-                        className={cn(
-                          "relative flex items-center justify-between rounded-xl border p-4 text-left transition-all",
-                          isActive
-                            ? "cursor-not-allowed opacity-50 bg-muted border-border"
-                            : isSelected
-                            ? "border-foreground bg-foreground/5 shadow-sm"
-                            : "border-border hover:border-foreground/40 hover:bg-muted/40"
-                        )}
-                      >
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-semibold text-sm">{p.name}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {p.duration_months} bulan{p.description ? ` · ${p.description}` : ""}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          {isActive && (
-                            <Badge variant="secondary" className="text-xs">Aktif</Badge>
+          <form onSubmit={handlePurchase} className="flex flex-col flex-1 min-h-0 gap-0">
+            <div className="flex-1 min-h-0 overflow-y-auto pr-4 -mr-4 flex flex-col gap-4 pb-2">
+              {/* Plan Cards */}
+              <div className="flex flex-col gap-2">
+                <Label>Paket Membership <span className="text-destructive">*</span></Label>
+                {availablePlans.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">Tidak ada paket tersedia untuk tipe hewan ini</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {availablePlans.map((p) => {
+                      const isActivePlan = activeMemberships?.some((am) => am.membership._id === p._id)
+                      const isSelected = selectedPlanId === p._id
+                      return (
+                        <button
+                          key={p._id}
+                          type="button"
+                          disabled={isActivePlan}
+                          onClick={() => setSelectedPlanId(p._id)}
+                          className={cn(
+                            "relative flex items-center justify-between rounded-xl border p-4 text-left transition-all",
+                            isActivePlan
+                              ? "cursor-not-allowed opacity-50 bg-muted border-border"
+                              : isSelected
+                              ? "border-foreground bg-foreground/5 shadow-sm"
+                              : "border-border hover:border-foreground/40 hover:bg-muted/40"
                           )}
-                          <span className="font-bold text-sm">Rp {p.price.toLocaleString("id-ID")}</span>
-                          {isSelected && !isActive && (
-                            <CheckCircle2 className="h-4 w-4 text-foreground shrink-0" />
-                          )}
+                        >
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-semibold text-sm">{p.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {p.duration_months} bulan{p.description ? ` · ${p.description}` : ""}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            {isActivePlan && (
+                              <Badge variant="secondary" className="text-xs">Aktif</Badge>
+                            )}
+                            <span className="font-bold text-sm">Rp {p.price.toLocaleString("id-ID")}</span>
+                            {isSelected && !isActivePlan && (
+                              <CheckCircle2 className="h-4 w-4 text-foreground shrink-0" />
+                            )}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Selected Plan Details: Benefits + Summary */}
+              {(() => {
+                const plan = availablePlans.find((p) => p._id === selectedPlanId)
+                if (!plan) return null
+                const startDate = new Date()
+                const endDate = addMonths(startDate, plan.duration_months)
+                return (
+                  <>
+                    {/* Benefits */}
+                    {plan.benefits.length > 0 && (
+                      <div className="rounded-xl border border-border/60 bg-muted/40 p-4 flex flex-col gap-3">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Benefit yang Didapat</p>
+                        <div className="flex flex-col gap-2">
+                          {plan.benefits.map((b) => (
+                            <div key={b._id} className="flex items-start gap-2 text-sm">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                              <span className="text-foreground leading-snug">
+                                {b.label ? (
+                                  b.label
+                                ) : b.type === "discount" ? (
+                                  <>Diskon <span className="font-semibold">{b.value ?? 0}%</span> untuk {appliesToLabel[b.applies_to] ?? b.applies_to}{b.service ? ` (${b.service.name})` : ""}</>
+                                ) : (
+                                  <>Kuota {appliesToLabel[b.applies_to] ?? b.applies_to}{b.service ? ` (${b.service.name})` : ""}{b.limit !== null && b.limit !== undefined ? <> — maks <span className="font-semibold">{b.limit}x</span></> : ""}</>
+                                )}
+                                {b.period !== "unlimited" && (
+                                  <span className="text-muted-foreground"> · {periodLabel[b.period] ?? b.period}</span>
+                                )}
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+                      </div>
+                    )}
+
+                    {/* Purchase Summary */}
+                    <div className="rounded-xl border border-border/60 bg-muted/40 p-4 flex flex-col gap-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ringkasan Pembelian</p>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm">{plan.name}</span>
+                        <span className="text-sm font-semibold">Rp {plan.price.toLocaleString("id-ID")}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">Masa Aktif</span>
+                        <span className="text-xs font-medium text-foreground">{formatDate(startDate.toISOString())} → {formatDate(endDate.toISOString())}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">Durasi</span>
+                        <span className="text-xs text-foreground">{plan.duration_months} bulan</span>
+                      </div>
+                      <Separator className="opacity-50" />
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-semibold">Total</span>
+                        <span className="text-sm font-bold">Rp {plan.price.toLocaleString("id-ID")}</span>
+                      </div>
+                    </div>
+                  </>
+                )
+              })()}
             </div>
 
-            {/* Purchase Summary */}
-            {selectedPlanId && (() => {
-              const plan = availablePlans.find((p) => p._id === selectedPlanId)
-              if (!plan) return null
-              return (
-                <div className="rounded-xl border border-border/60 bg-muted/40 p-4 flex flex-col gap-2">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ringkasan Pembelian</p>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">{plan.name}</span>
-                    <span className="text-sm font-semibold">Rp {plan.price.toLocaleString("id-ID")}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-muted-foreground">
-                    <span className="text-xs">Durasi</span>
-                    <span className="text-xs">{plan.duration_months} bulan</span>
-                  </div>
-                  <Separator className="opacity-50" />
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-semibold">Total</span>
-                    <span className="text-sm font-bold">Rp {plan.price.toLocaleString("id-ID")}</span>
-                  </div>
-                </div>
-              )
-            })()}
-
-            <div className="flex justify-end gap-2">
+            <div className="pt-4 border-t border-border mt-2 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => { setPurchaseOpen(false); setSelectedPlanId("") }}>Batal</Button>
               <Button type="submit" disabled={isPurchasing || !selectedPlanId}>
                 {isPurchasing ? "Memproses..." : "Beli Sekarang"}
