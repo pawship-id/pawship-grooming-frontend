@@ -320,8 +320,11 @@ export async function renewPetMembership(id: string) {
 }
 
 export async function cancelPetMembership(id: string) {
-  return apiAuthRequest<PetMembershipDeleteResponse>(`/pet-memberships/${id}`, {
-    method: "DELETE",
+  // return apiAuthRequest<PetMembershipDeleteResponse>(`/pet-memberships/${id}`, {
+  //   method: "DELETE",
+  // })
+  return apiAuthRequest<PetMembershipDeleteResponse>(`/pet-memberships/${id}/cancelled`, {
+    method: "PATCH",
   })
 }
 
