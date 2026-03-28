@@ -1036,11 +1036,11 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 </div>
                 <div className="flex flex-wrap gap-3">
                   {(booking.media ?? []).filter((m) => m.type === "before").map((m, i) => (
-                    <div key={m._id ?? i} className="relative h-20 w-20">
+                    <div key={m.public_id ?? m._id ?? i} className="relative h-20 w-20">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={m.secure_url ?? m.url ?? ""} alt="before" className="h-20 w-20 rounded-lg border border-border/50 object-cover" />
                       <button
-                        onClick={() => setConfirmDeleteMediaId(m._id!)}
+                        onClick={() => setConfirmDeleteMediaId(m.public_id ?? "")}
                         className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm"
                       >
                         <X className="h-3 w-3" />
@@ -1078,11 +1078,11 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 </div>
                 <div className="flex flex-wrap gap-3">
                   {(booking.media ?? []).filter((m) => m.type === "after").map((m, i) => (
-                    <div key={m._id ?? i} className="relative h-20 w-20">
+                    <div key={m.public_id ?? m._id ?? i} className="relative h-20 w-20">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={m.secure_url ?? m.url ?? ""} alt="after" className="h-20 w-20 rounded-lg border border-border/50 object-cover" />
                       <button
-                        onClick={() => setConfirmDeleteMediaId(m._id!)}
+                        onClick={() => setConfirmDeleteMediaId(m.public_id ?? "")}
                         className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm"
                       >
                         <X className="h-3 w-3" />

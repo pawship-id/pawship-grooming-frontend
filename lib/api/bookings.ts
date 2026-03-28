@@ -428,8 +428,9 @@ export async function uploadBookingMedia(
   })
 }
 
-export async function deleteBookingMedia(bookingId: string, mediaId: string) {
-  return apiAuthRequest<{ message: string }>(`/bookings/${bookingId}/media/${mediaId}`, {
-    method: "DELETE",
-  })
+export async function deleteBookingMedia(bookingId: string, publicId: string) {
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${bookingId}/media?public_id=${encodeURIComponent(publicId)}`,
+    { method: "DELETE" },
+  )
 }
