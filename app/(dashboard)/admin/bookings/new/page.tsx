@@ -250,17 +250,35 @@ export default function NewBookingPage() {
         if (!sel || sel.applies_to !== benefit.applies_to) return false
         // Only quota<->discount pairs conflict (same scope makes the other useless)
         if (benefit.type === sel.type) return false
-        const quotaBenefit  = benefit.type === "quota"  ? benefit : sel
-        const discountBenefit = benefit.type === "discount" ? benefit : sel
         if (benefit.applies_to === "service") {
-          const quotaTarget    = quotaBenefit.service_id  || form.service_id
-          const discountTarget = discountBenefit.service_id || form.service_id
+          const quotaTarget    = (benefit.type === "quota"  ? benefit : sel).service_id || form.service_id
+          const discountTarget = (benefit.type === "discount" ? benefit : sel).service_id || form.service_id
           return quotaTarget === discountTarget
         }
         if (benefit.applies_to === "addon") {
-          // conflict if their addon scopes overlap
-          if (!quotaBenefit.service_id || !discountBenefit.service_id) return true // one covers all addons
-          return quotaBenefit.service_id === discountBenefit.service_id
+          const quotaBenefit    = benefit.type === "quota"    ? benefit : sel
+          const discountBenefit = benefit.type === "discount" ? benefit : sel
+          const quotaTarget    = quotaBenefit.service_id
+          const discountTarget = discountBenefit.service_id
+          // specific-vs-specific: conflict only if same addon ID
+          if (quotaTarget && discountTarget) return quotaTarget === discountTarget
+          // specific quota vs all-addon discount: only conflict if quota NOW makes ALL addons free
+          // (i.e., after adding this quota, there are no uncovered addons left for the discount to act on)
+          if (quotaTarget && !discountTarget) {
+            // new benefit is being added — compute what quotas will cover after this addition
+            // prev already has all currently selected; we're about to add `id` (the quota)
+            const alreadyCoveredByOtherQuotas = prev
+              .filter((sid) => sid !== id)
+              .map((sid) => previewData.pricing.available_benefits.find((x: any) => x._id === sid))
+              .filter((x: any) => x?.type === "quota" && x.applies_to === "addon" && x.service_id)
+              .map((x: any) => x.service_id)
+            const coveredAfter = new Set([...alreadyCoveredByOtherQuotas, quotaTarget])
+            return selectedAddonIds.length > 0 && selectedAddonIds.every((aid) => coveredAfter.has(aid))
+          }
+          // all-addon quota vs specific discount: quota covers all, so discount is always redundant
+          if (!quotaTarget && discountTarget) return true
+          // both null: covers all addons, so they fully conflict
+          return true
         }
         return false
       })
@@ -1065,11 +1083,22 @@ export default function NewBookingPage() {
                                 )
                               }
                               if (benefit.applies_to === "addon") {
-                                return available.some(
-                                  (x: any) => selectedBenefitIds.includes(x._id) && x.type === "quota" &&
-                                    x.applies_to === "addon" &&
-                                    (!x.service_id || !benefit.service_id || x.service_id === benefit.service_id)
+                                const selectedQuotas = available.filter(
+                                  (x: any) => selectedBenefitIds.includes(x._id) && x.type === "quota" && x.applies_to === "addon"
                                 )
+                                if (benefit.service_id) {
+                                  // specific addon discount: blocked if its addon is covered by any quota
+                                  return selectedQuotas.some(
+                                    (x: any) => !x.service_id || x.service_id === benefit.service_id
+                                  )
+                                } else {
+                                  // null-service_id discount: blocked only when ALL selected addons are already quota-covered
+                                  if (selectedAddonIds.length === 0) return false
+                                  const hasAllCoverQuota = selectedQuotas.some((x: any) => !x.service_id)
+                                  if (hasAllCoverQuota) return true
+                                  const coveredIds = new Set(selectedQuotas.filter((x: any) => x.service_id).map((x: any) => x.service_id))
+                                  return selectedAddonIds.every((id) => coveredIds.has(id))
+                                }
                               }
                               return false
                             })()
