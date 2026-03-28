@@ -1,15 +1,15 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import Link from "next/link"
-import { Search, Mail, Phone, ChevronLeft, ChevronRight, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, KeyRound, Eye, EyeOff, PawPrint } from "lucide-react"
+import { Search, Mail, Phone, ChevronLeft, ChevronRight, LayoutGrid, List, Plus, Pencil, Trash2, MoreVertical, KeyRound, Eye, EyeOff, PawPrint, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
@@ -23,6 +23,7 @@ import {
   type ApiUser,
   type CreateUserPayload,
   type UpdateUserPayload,
+  adminUpdateUserProfile,
   createUser,
   deleteUser as deleteUserRequest,
   getUsers,
@@ -30,6 +31,7 @@ import {
   updateUser,
   updateUserPassword,
 } from "@/lib/api/users"
+import { uploadFile } from "@/lib/api/upload"
 import { toast } from "sonner"
 
 // ── Form types ─────────────────────────────────────────────────────────────
@@ -114,6 +116,13 @@ export default function UsersPage() {
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
 
+  const [createImageFile, setCreateImageFile] = useState<File | null>(null)
+  const [createImagePreview, setCreateImagePreview] = useState<string | null>(null)
+  const [editImageFile, setEditImageFile] = useState<File | null>(null)
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null)
+  const createImageRef = useRef<HTMLInputElement>(null)
+  const editImageRef = useRef<HTMLInputElement>(null)
+
   const handleDelete = async () => {
     if (!deleteUser) return
     setIsDeleting(true)
@@ -132,16 +141,24 @@ export default function UsersPage() {
   const openEdit = (user: ApiUser) => {
     setEditUser(user)
     setEditForm({ username: user.username, email: user.email, phone_number: user.phone_number, role: user.role })
+    setEditImageFile(null)
+    setEditImagePreview(user.profile?.image_url ?? null)
   }
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsCreating(true)
     try {
-      await createUser(createForm)
+      const res = await createUser(createForm)
+      if (createImageFile && res.user?._id) {
+        const uploaded = await uploadFile(createImageFile, "profiles")
+        await adminUpdateUserProfile(res.user._id, { image_url: uploaded.image_url, public_id: uploaded.public_id })
+      }
       toast.success("User berhasil dibuat")
       setAddOpen(false)
       setCreateForm(DEFAULT_CREATE)
+      setCreateImageFile(null)
+      setCreateImagePreview(null)
       fetchUsers()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal membuat user.")
@@ -156,8 +173,14 @@ export default function UsersPage() {
     setIsEditing(true)
     try {
       await updateUser(editUser._id, editForm)
+      if (editImageFile) {
+        const uploaded = await uploadFile(editImageFile, "profiles")
+        await adminUpdateUserProfile(editUser._id, { image_url: uploaded.image_url, public_id: uploaded.public_id })
+      }
       toast.success("User berhasil diperbarui")
       setEditUser(null)
+      setEditImageFile(null)
+      setEditImagePreview(null)
       fetchUsers()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal memperbarui user.")
@@ -350,6 +373,7 @@ export default function UsersPage() {
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">
+                          {user.profile?.image_url && <AvatarImage src={user.profile.image_url} alt={user.username} className="object-cover" />}
                           <AvatarFallback className="bg-primary/10 text-primary font-display font-bold">
                             {user.username.slice(0, 2).toUpperCase()}
                           </AvatarFallback>
@@ -489,6 +513,7 @@ export default function UsersPage() {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Avatar className="h-7 w-7 shrink-0">
+                                {user.profile?.image_url && <AvatarImage src={user.profile.image_url} alt={user.username} className="object-cover" />}
                                 <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
                                   {user.username.slice(0, 2).toUpperCase()}
                                 </AvatarFallback>
@@ -619,12 +644,39 @@ export default function UsersPage() {
       </div>
 
       {/* Create User Dialog */}
-      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setCreateForm(DEFAULT_CREATE) }}>
+      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) { setCreateForm(DEFAULT_CREATE); setCreateImageFile(null); setCreateImagePreview(null) } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-display">Tambah User Baru</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreate} className="flex flex-col gap-4">
+            <div className="flex flex-col items-center gap-2">
+              <button type="button" onClick={() => createImageRef.current?.click()}
+                className="relative group w-16 h-16 rounded-full overflow-hidden border-2 border-border focus:outline-none"
+              >
+                {createImagePreview ? (
+                  <img src={createImagePreview} alt="Foto profil" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                    <User className="h-6 w-6 text-primary/50" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-white text-xs font-medium">Upload</span>
+                </div>
+              </button>
+              <span className="text-xs text-muted-foreground">Foto Profil (opsional)</span>
+              <input ref={createImageRef} type="file" accept="image/*" className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  setCreateImageFile(file)
+                  const reader = new FileReader()
+                  reader.onload = (ev) => setCreateImagePreview(ev.target?.result as string)
+                  reader.readAsDataURL(file)
+                }}
+              />
+            </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="c-username">Username</Label>
               <Input id="c-username" placeholder="johndoe" required value={createForm.username} onChange={(e) => setCreateForm((p) => ({ ...p, username: e.target.value }))} />
@@ -664,12 +716,39 @@ export default function UsersPage() {
       </Dialog>
 
       {/* Edit User Dialog */}
-      <Dialog open={!!editUser} onOpenChange={(o) => { if (!o) setEditUser(null) }}>
+      <Dialog open={!!editUser} onOpenChange={(o) => { if (!o) { setEditUser(null); setEditImageFile(null); setEditImagePreview(null) } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="font-display">Edit User</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleEdit} className="flex flex-col gap-4">
+            <div className="flex flex-col items-center gap-2">
+              <button type="button" onClick={() => editImageRef.current?.click()}
+                className="relative group w-16 h-16 rounded-full overflow-hidden border-2 border-border focus:outline-none"
+              >
+                {editImagePreview ? (
+                  <img src={editImagePreview} alt="Foto profil" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                    <User className="h-6 w-6 text-primary/50" />
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-white text-xs font-medium">Ganti</span>
+                </div>
+              </button>
+              <span className="text-xs text-muted-foreground">Klik foto untuk mengganti</span>
+              <input ref={editImageRef} type="file" accept="image/*" className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  setEditImageFile(file)
+                  const reader = new FileReader()
+                  reader.onload = (ev) => setEditImagePreview(ev.target?.result as string)
+                  reader.readAsDataURL(file)
+                }}
+              />
+            </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="e-username">Username</Label>
               <Input id="e-username" placeholder="johndoe" required value={editForm.username} onChange={(e) => setEditForm((p) => ({ ...p, username: e.target.value }))} />

@@ -12,6 +12,11 @@ export interface ApiUser {
   createdAt: string
   updatedAt: string
   pet_count?: number
+  profile?: {
+    image_url?: string
+    public_id?: string
+    full_name?: string
+  }
 }
 
 export interface ApiPetType {
@@ -165,8 +170,15 @@ export async function getUsers(params: GetUsersParams) {
 }
 
 export async function createUser(payload: CreateUserPayload) {
-  return apiAuthRequest<{ message: string }>("/users", {
+  return apiAuthRequest<{ message: string; user?: ApiUser }>("/users", {
     method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function adminUpdateUserProfile(userId: string, payload: Partial<UpdateMyProfilePayload>) {
+  return apiAuthRequest<{ message: string }>(`/users/${userId}/profile`, {
+    method: "PUT",
     body: JSON.stringify(payload),
   })
 }

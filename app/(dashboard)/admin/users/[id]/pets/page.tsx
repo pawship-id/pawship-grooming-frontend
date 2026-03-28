@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft,
@@ -26,9 +26,10 @@ import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Separator } from "@/components/ui/separator"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { type ApiPet, type ApiCurrentUser, getUser } from "@/lib/api/users"
 import { type CreatePetPayload, type UpdatePetPayload, createPet, deletePet, updatePet } from "@/lib/api/pets"
+import { uploadFile } from "@/lib/api/upload"
 import { getOptions, type ApiOption } from "@/lib/api/options"
 import { toast } from "sonner"
 
@@ -127,6 +128,7 @@ function PetCard({
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10">
+              {pet.profile_image?.secure_url && <AvatarImage src={pet.profile_image.secure_url} alt={pet.name} className="object-cover" />}
               <AvatarFallback className="bg-primary/10 text-primary font-bold text-sm">
                 {initials}
               </AvatarFallback>
@@ -228,6 +230,8 @@ function PetFormDialog({
   onSubmit,
   isLoading,
   mode,
+  imagePreview,
+  onImageChange,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -237,8 +241,11 @@ function PetFormDialog({
   onSubmit: (e: React.FormEvent) => void
   isLoading: boolean
   mode: "create" | "edit"
+  imagePreview: string | null
+  onImageChange: (file: File | null, preview: string | null) => void
 }) {
   const [tagInput, setTagInput] = useState("")
+  const petImageRef = useRef<HTMLInputElement>(null)
 
   const addTag = () => {
     const tag = tagInput.trim().toLowerCase()
@@ -261,6 +268,33 @@ function PetFormDialog({
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          {/* Pet Photo */}
+          <div className="flex flex-col items-center gap-2">
+            <button type="button" onClick={() => petImageRef.current?.click()}
+              className="relative group w-20 h-20 rounded-lg overflow-hidden border-2 border-border focus:outline-none"
+            >
+              {imagePreview ? (
+                <img src={imagePreview} alt="Foto pet" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                  <PawPrint className="h-7 w-7 text-primary/50" />
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-white text-xs font-medium">{imagePreview ? "Ganti" : "Upload"}</span>
+              </div>
+            </button>
+            <span className="text-xs text-muted-foreground">Foto Pet (opsional)</span>
+            <input ref={petImageRef} type="file" accept="image/*" className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                const reader = new FileReader()
+                reader.onload = (ev) => onImageChange(file, ev.target?.result as string)
+                reader.readAsDataURL(file)
+              }}
+            />
+          </div>
           {/* Name */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="pet-name">Nama Pet <span className="text-destructive">*</span></Label>
@@ -506,6 +540,11 @@ export default function CustomerPetsPage() {
   const [deletingPet, setDeletingPet] = useState<ApiPet | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const [createImageFile, setCreateImageFile] = useState<File | null>(null)
+  const [createImagePreview, setCreateImagePreview] = useState<string | null>(null)
+  const [editImageFile, setEditImageFile] = useState<File | null>(null)
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null)
+
   const fetchUserWithPets = useCallback(async () => {
     setIsLoading(true)
     setError("")
@@ -547,16 +586,25 @@ export default function CustomerPetsPage() {
   const openEdit = (pet: ApiPet) => {
     setEditPet(pet)
     setEditForm(petToForm(pet))
+    setEditImageFile(null)
+    setEditImagePreview(pet.profile_image?.secure_url ?? null)
   }
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsCreating(true)
     try {
-      await createPet(formToPayload(createForm, userId))
+      const payload = formToPayload(createForm, userId)
+      if (createImageFile) {
+        const uploaded = await uploadFile(createImageFile, "pets")
+        payload.profile_image = { secure_url: uploaded.image_url, public_id: uploaded.public_id }
+      }
+      await createPet(payload)
       toast.success("Pet berhasil ditambahkan")
       setAddOpen(false)
       setCreateForm(DEFAULT_FORM)
+      setCreateImageFile(null)
+      setCreateImagePreview(null)
       fetchUserWithPets()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal menambahkan pet.")
@@ -584,9 +632,15 @@ export default function CustomerPetsPage() {
       is_active: editForm.is_active,
     }
     try {
+      if (editImageFile) {
+        const uploaded = await uploadFile(editImageFile, "pets")
+        payload.profile_image = { secure_url: uploaded.image_url, public_id: uploaded.public_id }
+      }
       await updatePet(editPet._id, payload)
       toast.success("Pet berhasil diperbarui")
       setEditPet(null)
+      setEditImageFile(null)
+      setEditImagePreview(null)
       fetchUserWithPets()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal memperbarui pet.")
@@ -711,25 +765,29 @@ export default function CustomerPetsPage() {
       {/* Create Pet Dialog */}
       <PetFormDialog
         open={addOpen}
-        onOpenChange={(o) => { setAddOpen(o); if (!o) setCreateForm(DEFAULT_FORM) }}
+        onOpenChange={(o) => { setAddOpen(o); if (!o) { setCreateForm(DEFAULT_FORM); setCreateImageFile(null); setCreateImagePreview(null) } }}
         form={createForm}
         setForm={setCreateForm}
         options={options}
         onSubmit={handleCreate}
         isLoading={isCreating}
         mode="create"
+        imagePreview={createImagePreview}
+        onImageChange={(file, preview) => { setCreateImageFile(file); setCreateImagePreview(preview) }}
       />
 
       {/* Edit Pet Dialog */}
       <PetFormDialog
         open={!!editPet}
-        onOpenChange={(o) => { if (!o) setEditPet(null) }}
+        onOpenChange={(o) => { if (!o) { setEditPet(null); setEditImageFile(null); setEditImagePreview(null) } }}
         form={editForm}
         setForm={setEditForm}
         options={options}
         onSubmit={handleEdit}
         isLoading={isEditing}
         mode="edit"
+        imagePreview={editImagePreview}
+        onImageChange={(file, preview) => { setEditImageFile(file); setEditImagePreview(preview) }}
       />
 
       {/* Delete Confirmation */}
