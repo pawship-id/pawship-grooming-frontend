@@ -84,9 +84,11 @@ interface ServiceForm {
   available_store_ids: string[]
   addon_ids: string[]
   include: string[]
+  sessions: string[]
   show_in_homepage: boolean
   order: string
   service_location_type: string
+  is_pick_up_available: boolean
   is_active: boolean
   imageFile: File | null
   imagePreview: string | null
@@ -121,9 +123,11 @@ const DEFAULT_SERVICE_FORM: ServiceForm = {
   available_store_ids: [],
   addon_ids: [],
   include: [],
+  sessions: [],
   show_in_homepage: false,
   order: "0",
   service_location_type: "in store",
+  is_pick_up_available: false,
   is_active: true,
   imageFile: null,
   imagePreview: null,
@@ -361,6 +365,7 @@ function ServiceFormFields({
   stores,
   allServices,
   editingServiceId,
+  onUploadingChange,
 }: {
   form: ServiceForm
   setForm: React.Dispatch<React.SetStateAction<ServiceForm>>
@@ -371,13 +376,19 @@ function ServiceFormFields({
   stores: ApiStore[]
   allServices: AdminService[]
   editingServiceId: string | null
+  onUploadingChange?: (uploading: boolean) => void
 }) {
   const [isUploading, setIsUploading] = useState(false)
+
+  const setUploading = (v: boolean) => {
+    setIsUploading(v)
+    onUploadingChange?.(v)
+  }
 
   const handleImageFile = async (file: File) => {
     const preview = URL.createObjectURL(file)
     setForm((p) => ({ ...p, imageFile: file, imagePreview: preview }))
-    setIsUploading(true)
+    setUploading(true)
     try {
       const res = await uploadFile(file, "services")
       setForm((p) => ({ ...p, image_url: res.image_url, public_id: res.public_id }))
@@ -386,7 +397,7 @@ function ServiceFormFields({
       toast.error(err instanceof Error ? err.message : "Gagal upload gambar")
       setForm((p) => ({ ...p, imageFile: null, imagePreview: null }))
     } finally {
-      setIsUploading(false)
+      setUploading(false)
     }
   }
 
@@ -428,6 +439,8 @@ function ServiceFormFields({
     })
   }
 
+  const isAddonType = selectedTypeName.toLowerCase().includes("addon")
+
   const addonOptions = allServices.filter((s) =>
     s.service_type?.title?.toLowerCase().includes("addon")
   )
@@ -457,7 +470,7 @@ function ServiceFormFields({
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="sv-dur">Durasi (menit) *</Label>
-          <Input id="sv-dur" type="number" min={1} required placeholder="60" value={form.duration} onChange={(e) => setForm((p) => ({ ...p, duration: e.target.value }))} />
+          <Input id="sv-dur" type="number" min={isAddonType ? 0 : 1} required placeholder={isAddonType ? "0" : "60"} value={form.duration} onChange={(e) => setForm((p) => ({ ...p, duration: e.target.value }))} />
         </div>
       </div>
 
@@ -596,6 +609,21 @@ function ServiceFormFields({
         )}
       </div>
 
+      {!isAddonType && (
+        <>
+          <Separator />
+
+          {/* Sessions */}
+          <div className="flex flex-col gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sesi</p>
+            <TagInput
+              tags={form.sessions}
+              onChange={(tags) => setForm((p) => ({ ...p, sessions: tags }))}
+            />
+          </div>
+        </>
+      )}
+
       <Separator />
 
       {/* Stores */}
@@ -608,21 +636,25 @@ function ServiceFormFields({
         />
       </div>
 
-      <Separator />
+      {!isAddonType && (
+        <>
+          <Separator />
 
-      {/* Addons */}
-      <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Addon</p>
-        {addonOptions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Tidak ada layanan tersedia sebagai addon.</p>
-        ) : (
-          <MultiCheck
-            items={addonOptions.map((s) => ({ _id: s._id, name: s.name }))}
-            selected={form.addon_ids}
-            onChange={(ids) => setForm((p) => ({ ...p, addon_ids: ids }))}
-          />
-        )}
-      </div>
+          {/* Addons */}
+          <div className="flex flex-col gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Addon</p>
+            {addonOptions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Tidak ada layanan tersedia sebagai addon.</p>
+            ) : (
+              <MultiCheck
+                items={addonOptions.map((s) => ({ _id: s._id, name: s.name }))}
+                selected={form.addon_ids}
+                onChange={(ids) => setForm((p) => ({ ...p, addon_ids: ids }))}
+              />
+            )}
+          </div>
+        </>
+      )}
 
       <Separator />
 
@@ -650,19 +682,31 @@ function ServiceFormFields({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center gap-3">
-          <Switch id="sv-unlimited" checked={form.available_for_unlimited} onCheckedChange={(v) => setForm((p) => ({ ...p, available_for_unlimited: v }))} />
-          <Label htmlFor="sv-unlimited">Tersedia untuk Unlimited Member</Label>
-        </div>
-        <div className="flex items-center gap-3">
-          <Switch id="sv-hp" checked={form.show_in_homepage} onCheckedChange={(v) => setForm((p) => ({ ...p, show_in_homepage: v }))} />
-          <Label htmlFor="sv-hp">Tampil di Homepage</Label>
-        </div>
-        {form.show_in_homepage && (
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="sv-order">Urutan Tampil</Label>
-            <Input id="sv-order" type="number" min={0} placeholder="0" value={form.order} onChange={(e) => setForm((p) => ({ ...p, order: e.target.value }))} />
+        {!isAddonType && (
+          <div className="flex items-center gap-3">
+            <Switch id="sv-pickup" checked={form.is_pick_up_available} onCheckedChange={(v) => setForm((p) => ({ ...p, is_pick_up_available: v }))} />
+            <Label htmlFor="sv-pickup">Layanan Pick Up Tersedia</Label>
           </div>
+        )}
+        {!isAddonType && (
+          <div className="flex items-center gap-3">
+            <Switch id="sv-unlimited" checked={form.available_for_unlimited} onCheckedChange={(v) => setForm((p) => ({ ...p, available_for_unlimited: v }))} />
+            <Label htmlFor="sv-unlimited">Tersedia untuk Unlimited Member</Label>
+          </div>
+        )}
+        {!isAddonType && (
+          <>
+            <div className="flex items-center gap-3">
+              <Switch id="sv-hp" checked={form.show_in_homepage} onCheckedChange={(v) => setForm((p) => ({ ...p, show_in_homepage: v }))} />
+              <Label htmlFor="sv-hp">Tampil di Homepage</Label>
+            </div>
+            {form.show_in_homepage && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="sv-order">Urutan Tampil</Label>
+                <Input id="sv-order" type="number" min={0} placeholder="0" value={form.order} onChange={(e) => setForm((p) => ({ ...p, order: e.target.value }))} />
+              </div>
+            )}
+          </>
         )}
         <div className="flex items-center gap-3">
           <Switch id="sv-active" checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} />
@@ -711,10 +755,12 @@ export default function ServicesPage() {
   const [serviceAddOpen, setServiceAddOpen] = useState(false)
   const [serviceForm, setServiceForm] = useState<ServiceForm>(DEFAULT_SERVICE_FORM)
   const [isCreatingService, setIsCreatingService] = useState(false)
+  const [isUploadingCreateService, setIsUploadingCreateService] = useState(false)
 
   const [editService, setEditService] = useState<AdminService | null>(null)
   const [editServiceForm, setEditServiceForm] = useState<ServiceForm>(DEFAULT_SERVICE_FORM)
   const [isEditingService, setIsEditingService] = useState(false)
+  const [isUploadingEditService, setIsUploadingEditService] = useState(false)
 
   const [deleteService, setDeleteService] = useState<AdminService | null>(null)
   const [isDeletingService, setIsDeletingService] = useState(false)
@@ -857,7 +903,7 @@ export default function ServicesPage() {
   }
 
   // ── Service Handlers ─────────────────────────────────────────────────────
-  const buildServicePayload = (form: ServiceForm, serviceTypeId: string) => ({
+  const buildServicePayload = (form: ServiceForm, serviceTypeId: string, isAddonType = false) => ({
     code: form.code,
     name: form.name,
     description: form.description || undefined,
@@ -879,15 +925,17 @@ export default function ServicesPage() {
             })),
         }),
     duration: Number(form.duration),
-    available_for_unlimited: form.available_for_unlimited,
+    available_for_unlimited: isAddonType ? false : form.available_for_unlimited,
     available_store_ids: form.available_store_ids.length ? form.available_store_ids : undefined,
-    addon_ids: form.addon_ids.length ? form.addon_ids : undefined,
+    addon_ids: isAddonType ? undefined : (form.addon_ids.length ? form.addon_ids : undefined),
     include: form.include.length ? form.include : undefined,
+    sessions: form.sessions.length ? form.sessions : undefined,
     image_url: form.image_url ?? undefined,
     public_id: form.public_id ?? undefined,
-    show_in_homepage: form.show_in_homepage,
+    show_in_homepage: isAddonType ? false : form.show_in_homepage,
     order: Number(form.order),
     service_location_type: form.service_location_type,
+    is_pick_up_available: isAddonType ? false : form.is_pick_up_available,
     is_active: form.is_active,
   })
 
@@ -895,8 +943,9 @@ export default function ServicesPage() {
     e.preventDefault()
     if (!selectedTypeId) return
     setIsCreatingService(true)
+    const isAddonSvcType = selectedType?.title?.toLowerCase().includes("addon") ?? false
     try {
-      await createAdminService(buildServicePayload(serviceForm, selectedTypeId))
+      await createAdminService(buildServicePayload(serviceForm, selectedTypeId, isAddonSvcType))
       toast.success("Layanan berhasil dibuat")
       setServiceAddOpen(false)
       setServiceForm(DEFAULT_SERVICE_FORM)
@@ -953,9 +1002,11 @@ export default function ServicesPage() {
       available_store_ids: svc.avaiable_store?.map((s) => s._id) ?? [],
       addon_ids: svc.addons?.map((a) => a._id) ?? [],
       include: svc.include ?? [],
+      sessions: svc.sessions ?? [],
       show_in_homepage: svc.show_in_homepage,
       order: String(svc.order),
       service_location_type: svc.service_location_type ?? "in store",
+      is_pick_up_available: svc.is_pick_up_available ?? false,
       is_active: svc.is_active,
       imageFile: null,
       imagePreview: null,
@@ -968,8 +1019,9 @@ export default function ServicesPage() {
     e.preventDefault()
     if (!editService || !selectedTypeId) return
     setIsEditingService(true)
+    const isAddonSvcType = selectedType?.title?.toLowerCase().includes("addon") ?? false
     try {
-      await updateAdminService(editService._id, buildServicePayload(editServiceForm, selectedTypeId))
+      await updateAdminService(editService._id, buildServicePayload(editServiceForm, selectedTypeId, isAddonSvcType))
       toast.success("Layanan berhasil diperbarui")
       setEditService(null)
       fetchServices()
@@ -1384,12 +1436,13 @@ export default function ServicesPage() {
                   stores={stores}
                   allServices={allServices}
                   editingServiceId={null}
+                  onUploadingChange={setIsUploadingCreateService}
                 />
               </div>
             </div>
             <div className="pt-4 border-t border-border mt-4">
-              <Button type="submit" className="w-full" disabled={isCreatingService}>
-                {isCreatingService ? "Menyimpan..." : "Tambah Layanan"}
+              <Button type="submit" className="w-full" disabled={isCreatingService || isUploadingCreateService}>
+                {isUploadingCreateService ? "Mengupload gambar..." : isCreatingService ? "Menyimpan..." : "Tambah Layanan"}
               </Button>
             </div>
           </form>
@@ -1415,12 +1468,13 @@ export default function ServicesPage() {
                   stores={stores}
                   allServices={allServices}
                   editingServiceId={editService?._id ?? null}
+                  onUploadingChange={setIsUploadingEditService}
                 />
               </div>
             </div>
             <div className="pt-4 border-t border-border mt-4">
-              <Button type="submit" className="w-full" disabled={isEditingService}>
-                {isEditingService ? "Menyimpan..." : "Simpan Perubahan"}
+              <Button type="submit" className="w-full" disabled={isEditingService || isUploadingEditService}>
+                {isUploadingEditService ? "Mengupload gambar..." : isEditingService ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>
             </div>
           </form>
@@ -1479,6 +1533,8 @@ export default function ServicesPage() {
                   <span>{viewService.duration} menit</span>
                   <span className="text-muted-foreground">Lokasi</span>
                   <span className="capitalize">{viewService.service_location_type ?? "—"}</span>
+                  <span className="text-muted-foreground">Pick Up</span>
+                  <span>{viewService.is_pick_up_available ? "Tersedia" : "Tidak Tersedia"}</span>
                   <span className="text-muted-foreground">Tipe Harga</span>
                   <Badge variant="outline" className="w-fit text-xs">
                     {viewService.price_type === "single" ? "Single" : "Multiple"}
@@ -1590,6 +1646,19 @@ export default function ServicesPage() {
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Addon</p>
                     <div className="flex flex-wrap gap-1">
                       {viewService.addons!.map((a) => <Badge key={a._id} variant="outline" className="text-xs">{a.name}</Badge>)}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Sessions */}
+              {(viewService.sessions?.length ?? 0) > 0 && (
+                <>
+                  <Separator />
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sesi</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {viewService.sessions!.map((s, i) => <Badge key={i} variant="secondary" className="text-xs">{s}</Badge>)}
                     </div>
                   </div>
                 </>

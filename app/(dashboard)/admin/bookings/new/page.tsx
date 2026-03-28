@@ -4,9 +4,9 @@ import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
-  ArrowLeft, AlertTriangle, Check, Lock, Plus, Trash2,
+  ArrowLeft, AlertTriangle, Check, Lock,
   Mail, Phone, Clock, MapPin, CalendarDays, Tag, Weight, Cake,
-  Scissors, Info, Star,
+  Info, Star, Sparkles, Gift, Truck,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,7 +26,8 @@ import { getAdminServices } from "@/lib/api/services"
 import type { AdminService, AdminServicePrice } from "@/lib/api/services"
 import { getServiceTypes } from "@/lib/api/service-types"
 import type { ApiServiceType } from "@/lib/api/service-types"
-import { createAdminBooking } from "@/lib/api/bookings"
+import { createAdminBooking, getBookingPreview, applyBenefitPreview } from "@/lib/api/bookings"
+import type { BookingPreviewResult, BookingPreviewBenefit, ApplyBenefitPreviewResult } from "@/lib/api/bookings"
 
 const DEFAULT_FORM = {
   store_id: "",
@@ -36,7 +37,6 @@ const DEFAULT_FORM = {
   service_id: "",
   date: "",
   time_range: "",
-  travel_fee: "",
   referal_code: "",
   payment_method: "",
   note: "",
@@ -98,37 +98,43 @@ export default function NewBookingPage() {
   const router = useRouter()
   const [form, setForm] = useState(DEFAULT_FORM)
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([])
+  const [selectedBenefitIds, setSelectedBenefitIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [customPaymentMethod, setCustomPaymentMethod] = useState("")
 
   const [stores, setStores] = useState<ApiStore[]>([])
   const [serviceTypes, setServiceTypes] = useState<ApiServiceType[]>([])
   const [customers, setCustomers] = useState<ApiUser[]>([])
-  const [groomers, setGroomers] = useState<ApiUser[]>([])
   const [sessions, setSessions] = useState<string[]>([])
   const [services, setServices] = useState<AdminService[]>([])
   const [pets, setPets] = useState<ApiPet[]>([])
-  const [sessionRows, setSessionRows] = useState<Array<{ type: string; groomer_id: string }>>([])
   /** Semua service aktif di store yang dipilih — dipakai untuk lookup harga addon */
   const [allStoreServices, setAllStoreServices] = useState<AdminService[]>([])
+
+  const [previewData, setPreviewData] = useState<BookingPreviewResult | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [loadingPreview, setLoadingPreview] = useState(false)
+
+  const [applyBenefitResult, setApplyBenefitResult] = useState<ApplyBenefitPreviewResult | null>(null)
+  const [loadingApplyBenefit, setLoadingApplyBenefit] = useState(false)
 
   const [loadingInit, setLoadingInit] = useState(true)
   const [loadingStore, setLoadingStore] = useState(false)
   const [loadingServices, setLoadingServices] = useState(false)
   const [loadingPets, setLoadingPets] = useState(false)
 
+  const [isPickup, setIsPickup] = useState(false)
+
   useEffect(() => {
     Promise.all([
       getStores({ page: 1, limit: 100, is_active: "true" }),
       getServiceTypes({ is_active: "true" }),
       getUsers({ page: 1, limit: 200, role: "customer" }),
-      getUsers({ page: 1, limit: 200, role: "groomer" }),
     ])
-      .then(([storesRes, typesRes, usersRes, groomersRes]) => {
+      .then(([storesRes, typesRes, usersRes]) => {
         setStores(storesRes.stores)
         setServiceTypes(typesRes.serviceTypes)
         setCustomers(usersRes.users)
-        setGroomers(groomersRes.users)
       })
       .catch(() => toast.error("Gagal memuat data awal"))
       .finally(() => setLoadingInit(false))
@@ -162,6 +168,7 @@ export default function NewBookingPage() {
     setSessions([])
     setServices([])
     setAllStoreServices([])
+    setIsPickup(false)
     if (!storeId) return
     setLoadingStore(true)
     try {
@@ -182,6 +189,7 @@ export default function NewBookingPage() {
     setForm((p) => ({ ...p, service_type_id: typeId, service_id: "" }))
     setSelectedAddonIds([])
     setServices([])
+    setIsPickup(false)
     if (form.store_id && typeId) await fetchServices(form.store_id, typeId)
   }
 
@@ -208,6 +216,14 @@ export default function NewBookingPage() {
   const selectedService     = services.find((s) => s._id === form.service_id)
   const addons              = selectedService?.addons ?? []
 
+  const storeZones                = selectedStore?.zones ?? []
+  const pickupAvailableForStore   = storeZones.length > 0
+  const pickupAvailableForService = selectedService?.is_pick_up_available === true
+
+  const handlePickupToggle = (checked: boolean) => {
+    setIsPickup(checked)
+  }
+
   // ── Step gates ─────────────────────────────────────────────────────────────
   const step1Done = !!form.customer_id && !!form.pet_id
   const step2Done = step1Done && !!form.store_id && !!form.date && !!form.time_range
@@ -215,6 +231,117 @@ export default function NewBookingPage() {
 
   const toggleAddon = (id: string) =>
     setSelectedAddonIds((prev) => prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id])
+
+  const toggleBenefit = (id: string) => {
+    if (!previewData) {
+      setSelectedBenefitIds((prev) => prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id])
+      return
+    }
+    const benefit = previewData.pricing.available_benefits.find((x: any) => x._id === id)
+    if (!benefit) {
+      setSelectedBenefitIds((prev) => prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id])
+      return
+    }
+    setSelectedBenefitIds((prev) => {
+      if (prev.includes(id)) return prev.filter((b) => b !== id)
+      // When adding a benefit, auto-remove conflicting benefits on the same target
+      const conflicts = prev.filter((selId) => {
+        const sel = previewData.pricing.available_benefits.find((x: any) => x._id === selId)
+        if (!sel || sel.applies_to !== benefit.applies_to) return false
+        // Only quota<->discount pairs conflict (same scope makes the other useless)
+        if (benefit.type === sel.type) return false
+        if (benefit.applies_to === "service") {
+          const quotaTarget    = (benefit.type === "quota"  ? benefit : sel).service_id || form.service_id
+          const discountTarget = (benefit.type === "discount" ? benefit : sel).service_id || form.service_id
+          return quotaTarget === discountTarget
+        }
+        if (benefit.applies_to === "addon") {
+          const quotaBenefit    = benefit.type === "quota"    ? benefit : sel
+          const discountBenefit = benefit.type === "discount" ? benefit : sel
+          const quotaTarget    = quotaBenefit.service_id
+          const discountTarget = discountBenefit.service_id
+          // specific-vs-specific: conflict only if same addon ID
+          if (quotaTarget && discountTarget) return quotaTarget === discountTarget
+          // specific quota vs all-addon discount: only conflict if quota NOW makes ALL addons free
+          // (i.e., after adding this quota, there are no uncovered addons left for the discount to act on)
+          if (quotaTarget && !discountTarget) {
+            // new benefit is being added — compute what quotas will cover after this addition
+            // prev already has all currently selected; we're about to add `id` (the quota)
+            const alreadyCoveredByOtherQuotas = prev
+              .filter((sid) => sid !== id)
+              .map((sid) => previewData.pricing.available_benefits.find((x: any) => x._id === sid))
+              .filter((x: any) => x?.type === "quota" && x.applies_to === "addon" && x.service_id)
+              .map((x: any) => x.service_id)
+            const coveredAfter = new Set([...alreadyCoveredByOtherQuotas, quotaTarget])
+            return selectedAddonIds.length > 0 && selectedAddonIds.every((aid) => coveredAfter.has(aid))
+          }
+          // all-addon quota vs specific discount: quota covers all, so discount is always redundant
+          if (!quotaTarget && discountTarget) return true
+          // both null: covers all addons, so they fully conflict
+          return true
+        }
+        return false
+      })
+      return [...prev.filter((b) => !conflicts.includes(b)), id]
+    })
+  }
+
+  // ── Preview: auto-fetch whenever pet / service / addons / date change ───────
+  useEffect(() => {
+    if (!form.pet_id || !form.service_id || !form.date) {
+      setPreviewData(null)
+      setPreviewError(null)
+      setSelectedBenefitIds([])
+      return
+    }
+    let cancelled = false
+    setLoadingPreview(true)
+    setPreviewData(null)
+    setPreviewError(null)
+    setSelectedBenefitIds([])
+    setApplyBenefitResult(null)
+    getBookingPreview({
+      pet_id: form.pet_id,
+      service_id: form.service_id,
+      addon_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
+      date: form.date,
+      time_range: form.time_range || undefined,
+      pick_up: isPickup || undefined,
+      store_id: isPickup ? form.store_id : undefined,
+      customer_id: isPickup ? form.customer_id : undefined,
+    })
+      .then((res) => { if (!cancelled) setPreviewData(res) })
+      .catch((err) => {
+        if (!cancelled) setPreviewError(err instanceof Error ? err.message : "Gagal memuat preview")
+      })
+      .finally(() => { if (!cancelled) setLoadingPreview(false) })
+    return () => { cancelled = true }
+  }, [form.pet_id, form.service_id, form.date, form.time_range, selectedAddonIds, isPickup])
+
+  // ── Apply benefit: auto-fetch whenever benefit selection changes ────────────────
+  useEffect(() => {
+    if (!form.pet_id || !form.service_id) return
+    if (selectedBenefitIds.length === 0) {
+      setApplyBenefitResult(null)
+      setLoadingApplyBenefit(false)
+      return
+    }
+    let cancelled = false
+    setLoadingApplyBenefit(true)
+    applyBenefitPreview({
+      pet_id: form.pet_id,
+      selected_benefit_ids: selectedBenefitIds,
+      service_id: form.service_id,
+      add_on_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
+      store_id: isPickup ? form.store_id : undefined,
+      original_total_price: previewData?.pricing_breakdown?.grand_total,
+      booking_date: form.date || undefined,
+    })
+      .then((res) => { if (!cancelled) setApplyBenefitResult(res) })
+      .catch(() => { if (!cancelled) setApplyBenefitResult(null) })
+      .finally(() => { if (!cancelled) setLoadingApplyBenefit(false) })
+    return () => { cancelled = true }
+  }, [selectedBenefitIds, form.pet_id, form.service_id, selectedAddonIds, isPickup])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -231,15 +358,13 @@ export default function NewBookingPage() {
         date: form.date,
         time_range: form.time_range,
         service_addon_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
-        travel_fee: form.travel_fee ? Number(form.travel_fee) : undefined,
+        pick_up: isPickup || undefined,
+        selected_benefit_ids: selectedBenefitIds.length > 0 ? selectedBenefitIds : undefined,
         referal_code: form.referal_code || undefined,
         payment_method: form.payment_method === "other"
           ? (customPaymentMethod.trim() || undefined)
           : (form.payment_method || undefined),
         note: form.note || undefined,
-        sessions: sessionRows
-          .filter((r) => r.type && r.groomer_id)
-          .map((r, i) => ({ type: r.type, groomer_id: r.groomer_id, order: i })),
       })
       toast.success("Booking berhasil dibuat")
       router.push("/admin/bookings")
@@ -447,18 +572,6 @@ export default function NewBookingPage() {
                   </div>
                 </div>
 
-                {/* Travel fee */}
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="travel_fee">Biaya Perjalanan (IDR, opsional)</Label>
-                  <Input
-                    id="travel_fee"
-                    type="number"
-                    min={0}
-                    placeholder="0"
-                    value={form.travel_fee}
-                    onChange={(e) => setForm((p) => ({ ...p, travel_fee: e.target.value }))}
-                  />
-                </div>
               </CardContent>
             </Card>
           </section>
@@ -498,7 +611,11 @@ export default function NewBookingPage() {
                   <Label>Layanan Utama</Label>
                   <Select
                     value={form.service_id}
-                    onValueChange={(v) => { setForm((p) => ({ ...p, service_id: v })); setSelectedAddonIds([]) }}
+                    onValueChange={(v) => {
+                      setForm((p) => ({ ...p, service_id: v }))
+                      setSelectedAddonIds([])
+                      setIsPickup(false)
+                    }}
                     disabled={services.length === 0 || loadingServices}
                   >
                     <SelectTrigger>
@@ -588,23 +705,6 @@ export default function NewBookingPage() {
                         </div>
                       )}
 
-                      {/* Constraints */}
-                      {/* {((selectedService.pet_types?.length ?? 0) > 0 ||
-                        (selectedService.size_categories?.length ?? 0) > 0 ||
-                        (selectedService.hair_categories?.length ?? 0) > 0) && (
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {selectedService.pet_types?.map((pt) => (
-                            <Badge key={pt._id} variant="secondary" className="text-xs">{pt.name}</Badge>
-                          ))}
-                          {selectedService.size_categories?.map((sc) => (
-                            <Badge key={sc._id} variant="outline" className="text-xs">{sc.name}</Badge>
-                          ))}
-                          {selectedService.hair_categories?.map((hc) => (
-                            <Badge key={hc._id} variant="outline" className="text-xs">{hc.name}</Badge>
-                          ))}
-                        </div>
-                      )} */}
-
                       {/* Include list */}
                       {selectedService.include && selectedService.include.length > 0 && (
                         <div className="mt-3">
@@ -622,6 +722,42 @@ export default function NewBookingPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Pick-up */}
+                {selectedService && (
+                  <div className="flex flex-col gap-3">
+                    <Label>Pickup (opsional)</Label>
+                    {!pickupAvailableForService ? (
+                      <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                        <Truck className="h-4 w-4 shrink-0" />
+                        <span>Layanan ini tidak mendukung pickup.</span>
+                      </div>
+                    ) : !pickupAvailableForStore ? (
+                      <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                        <Truck className="h-4 w-4 shrink-0" />
+                        <span>Store ini belum menyediakan zona pickup.</span>
+                      </div>
+                    ) : (
+                      <label
+                        htmlFor="pickup"
+                        className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
+                          isPickup ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/40"
+                        }`}
+                      >
+                        <Checkbox
+                          id="pickup"
+                          checked={isPickup}
+                          onCheckedChange={(checked) => handlePickupToggle(!!checked)}
+                          className="shrink-0"
+                        />
+                        <div className="flex items-center gap-2">
+                          <Truck className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">Aktifkan Pickup (Jemput / Antar)</span>
+                        </div>
+                      </label>
+                    )}
+                  </div>
+                )}
 
                 {/* Add-ons */}
                 {addons.length > 0 && (
@@ -695,83 +831,346 @@ export default function NewBookingPage() {
 
         <Separator />
 
-        {/* ── Step 4: Session & Groomer ──────────────────────────────────────── */}
-        {!step3Done ? <LockedSection step={4} title="Session & Groomer" /> : (
+        {/* ── Step 4: Preview Harga & Benefit ───────────────────────────── */}
+        {!step3Done ? <LockedSection step={4} title="Preview Harga & Benefit" /> : (
           <section className="flex flex-col gap-4">
             <StepHeader
               step={4}
-              title="Session & Groomer"
-              done={sessionRows.length > 0 && sessionRows.every((r) => r.type && r.groomer_id)}
+              title="Preview Harga & Benefit"
+              done={!!previewData}
             />
             <Card className="border-border/50">
               <CardContent className="flex flex-col gap-4 pt-6">
-                {sessionRows.length === 0 && (
-                  <p className="text-sm text-muted-foreground">Belum ada sesi. Tambahkan sesi grooming jika diperlukan.</p>
+                {loadingPreview && (
+                  <div className="flex flex-col gap-2">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="h-8 animate-pulse rounded-lg bg-muted" />
+                    ))}
+                  </div>
                 )}
-                {sessionRows.map((row, idx) => {
-                  const selectedGroomer = groomers.find((g) => g._id === row.groomer_id)
-                  return (
-                    <div key={idx} className="flex flex-col gap-3 rounded-xl border border-border/50 bg-muted/30 p-4">
-                      <div className="flex items-center justify-between">
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
-                          {idx + 1}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
-                          onClick={() => setSessionRows((prev) => prev.filter((_, i) => i !== idx))}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="flex flex-col gap-1.5">
-                          <Label className="text-xs text-muted-foreground">Tipe Sesi</Label>
-                          <Input
-                            placeholder="washing, drying, cutting..."
-                            value={row.type}
-                            onChange={(e) => setSessionRows((prev) => prev.map((r, i) => i === idx ? { ...r, type: e.target.value } : r))}
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          <Label className="text-xs text-muted-foreground">Groomer</Label>
-                          <Select
-                            value={row.groomer_id}
-                            onValueChange={(v) => setSessionRows((prev) => prev.map((r, i) => i === idx ? { ...r, groomer_id: v } : r))}
+
+                {!loadingPreview && !previewData && (
+                  previewError ? (
+                    previewError.toLowerCase().includes("location") || previewError.toLowerCase().includes("latitude") ? (
+                      <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-700 dark:bg-amber-950/30">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                        <div className="flex flex-col gap-1">
+                          <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Alamat customer belum lengkap</p>
+                          <p className="text-xs text-amber-700 dark:text-amber-400">
+                            Layanan pickup membutuhkan koordinat lokasi (latitude/longitude) pada profil customer.
+                          </p>
+                          <Link
+                            href="/admin/users"
+                            className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900"
                           >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Pilih groomer" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {groomers.map((g) => <SelectItem key={g._id} value={g._id}>{g.username}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
+                            <MapPin className="h-3 w-3" />
+                            Lengkapi alamat di halaman Users
+                          </Link>
                         </div>
                       </div>
-                      {selectedGroomer && (
-                        <div className="flex flex-wrap gap-x-4 gap-y-1.5 rounded-lg border border-border/40 bg-background px-3 py-2">
-                          <DetailRow icon={<Scissors className="h-3.5 w-3.5" />} label="Groomer" value={selectedGroomer.username} />
-                          <DetailRow icon={<Mail className="h-3.5 w-3.5" />} label="Email" value={selectedGroomer.email} />
-                          {selectedGroomer.phone_number && (
-                            <DetailRow icon={<Phone className="h-3.5 w-3.5" />} label="No. HP" value={selectedGroomer.phone_number} />
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    ) : (
+                      <div className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        <span>{previewError}</span>
+                      </div>
+                    )
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Pilih layanan dan tanggal untuk melihat preview harga.</p>
                   )
-                })}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-fit"
-                  onClick={() => setSessionRows((prev) => [...prev, { type: "", groomer_id: "" }])}
-                >
-                  <Plus className="mr-1.5 h-3.5 w-3.5" />
-                  Tambah Sesi
-                </Button>
+                )}
+
+                {!loadingPreview && previewData && (
+                  <div className="flex flex-col gap-5">
+                    {/* Pickup info */}
+                    {isPickup && (
+                      <div className="flex items-center gap-2.5 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+                        <Truck className="h-4 w-4 shrink-0 text-primary" />
+                        <span className="text-sm font-semibold text-primary">Pickup Aktif</span>
+                      </div>
+                    )}
+                    {pickupAvailableForService && pickupAvailableForStore && !isPickup && (
+                      <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                        <Truck className="h-4 w-4 shrink-0" />
+                        <span>Pickup tersedia untuk layanan ini namun belum diaktifkan.</span>
+                      </div>
+                    )}
+                    {/* Pricing breakdown */}
+                    <div className="flex flex-col gap-1.5">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Rincian Harga</p>
+                      <div className="overflow-hidden rounded-xl border border-border/50 bg-card">
+                        {/* Service row */}
+                        {(() => {
+                          const b = previewData.pricing.available_benefits.find(
+                            (x) => selectedBenefitIds.includes(x._id) && x.applies_to === "service" && (!x.service_id || x.service_id === form.service_id) && (x.type === "discount" || x.type === "quota") && x.can_apply
+                          )
+                          const isQuota = b?.type === "quota"
+                          return (
+                            <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">{previewData.pricing_breakdown.service.name}</span>
+                                {b && (
+                                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                    isQuota
+                                      ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                                      : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                                  }`}>
+                                    {isQuota ? "Gratis" : (b.value != null ? `-${b.value}%` : "Diskon")}
+                                  </span>
+                                )}
+                              </div>
+                              {b ? (
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <span className="text-xs line-through text-muted-foreground">{formatPrice(previewData.pricing_breakdown.service.price)}</span>
+                                  <span className="font-semibold text-primary">
+                                    {isQuota ? "Gratis" : formatPrice(Math.max(0, previewData.pricing_breakdown.service.price - (b.amount_discount ?? 0)))}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="font-medium">{formatPrice(previewData.pricing_breakdown.service.price)}</span>
+                              )}
+                            </div>
+                          )
+                        })()}
+                        {/* Addon rows */}
+                        {previewData.pricing_breakdown.addons.map((addon) => {
+                          const b = previewData.pricing.available_benefits.find(
+                            (x) => selectedBenefitIds.includes(x._id) && x.applies_to === "addon" && (!x.service_id || x.service_id === addon._id) && (x.type === "discount" || x.type === "quota") && x.can_apply
+                          )
+                          const isQuota = b?.type === "quota"
+                          // For null-service_id benefits, compute per-addon discount from b.value
+                          const addonDiscountAmount = !b ? 0 : (b.service_id ? (b.amount_discount ?? 0) : (isQuota ? addon.price : addon.price * (b.value ?? 0) / 100))
+                          return (
+                            <div key={addon._id} className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">+ {addon.name}</span>
+                                {b && (
+                                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                    isQuota
+                                      ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                                      : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                                  }`}>
+                                    {isQuota ? "Gratis" : (b.value != null ? `-${b.value}%` : "Diskon")}
+                                  </span>
+                                )}
+                              </div>
+                              {b ? (
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <span className="text-xs line-through text-muted-foreground">{formatPrice(addon.price)}</span>
+                                  <span className="font-semibold text-primary">
+                                    {isQuota ? "Gratis" : formatPrice(Math.max(0, addon.price - addonDiscountAmount))}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="font-medium">{formatPrice(addon.price)}</span>
+                              )}
+                            </div>
+                          )
+                        })}
+                        {/* Travel fee row — strikethrough jika ada pickup benefit */}
+                        {isPickup && previewData.pricing_breakdown.travel_fee != null && previewData.pricing_breakdown.travel_fee > 0 && (() => {
+                          const b = previewData.pricing.available_benefits.find(
+                            (x) => selectedBenefitIds.includes(x._id) && x.can_apply &&
+                                    (x.applies_to === "pick_up" || x.applies_to === "travel_fee" || x.applies_to === "pickup")
+                          )
+                          const isQuota = b?.type === "quota"
+                          const tFee = previewData.pricing_breakdown.travel_fee!
+                          return (
+                            <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                              <div className="flex items-center gap-2">
+                                <span className="flex items-center gap-1.5 text-muted-foreground">
+                                  <Truck className="h-3.5 w-3.5" />
+                                  Biaya Pickup
+                                </span>
+                                {b && (
+                                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                    isQuota
+                                      ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                                      : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                                  }`}>
+                                    {isQuota ? "Gratis" : (b.value != null ? `-${b.value}%` : "Diskon")}
+                                  </span>
+                                )}
+                              </div>
+                              {b ? (
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <span className="text-xs line-through text-muted-foreground">{formatPrice(tFee)}</span>
+                                  <span className="font-semibold text-primary">
+                                    {isQuota ? "Gratis" : formatPrice(Math.max(0, tFee - (b.amount_discount ?? 0)))}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="font-medium">{formatPrice(tFee)}</span>
+                              )}
+                            </div>
+                          )
+                        })()}
+                        {/* Subtotal — total semua item sebelum diskon member */}
+                        <div className="flex items-center justify-between border-t border-border/50 bg-muted/30 px-4 py-2.5 text-sm font-semibold">
+                          <span>Subtotal</span>
+                          <span>{formatPrice(previewData.pricing_breakdown.grand_total)}</span>
+                        </div>
+                        {/* Diskon Member — tampil ketika ada benefit dipilih dan ada nilai diskon */}
+                        {selectedBenefitIds.length > 0 && (loadingApplyBenefit || (applyBenefitResult && applyBenefitResult.total_discount > 0)) && (
+                          <div className="flex flex-col border-t border-primary/20 bg-primary/5">
+                            <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                              <span className="flex items-center gap-1.5 font-medium text-primary">
+                                <Gift className="h-3.5 w-3.5" />
+                                Diskon Member
+                              </span>
+                              {loadingApplyBenefit ? (
+                                <span className="h-4 w-20 animate-pulse rounded bg-primary/20" />
+                              ) : (
+                                <span className="font-semibold text-primary">- {formatPrice(applyBenefitResult!.total_discount)}</span>
+                              )}
+                            </div>
+                            {/* Breakdown per benefit jika lebih dari satu */}
+                            {!loadingApplyBenefit && applyBenefitResult && applyBenefitResult.breakdown.length > 1 && (
+                              <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                                {applyBenefitResult.breakdown.map((item, i) => (
+                                  <div key={i} className="flex items-center justify-between text-xs text-muted-foreground">
+                                    <span className="truncate pr-4">{item.benefit?.label || item.description || item.applies_to}</span>
+                                    <span className="shrink-0">- {formatPrice(item.amount_deducted)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {/* Total Akhir — grand_total dikurangi diskon member jika ada */}
+                        {(() => {
+                          const grandTotal = previewData.pricing_breakdown.grand_total
+                          const hasDiscount = selectedBenefitIds.length > 0 && applyBenefitResult != null && applyBenefitResult.total_discount > 0
+                          const displayTotal = hasDiscount ? applyBenefitResult!.final_price : grandTotal
+                          const showSkeleton = selectedBenefitIds.length > 0 && loadingApplyBenefit
+                          return (
+                            <div className="flex items-center justify-between border-t border-primary/30 bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
+                              <span>Total Akhir</span>
+                              {showSkeleton ? (
+                                <span className="h-5 w-24 animate-pulse rounded bg-primary/20" />
+                              ) : (
+                                <span className="text-base">{formatPrice(Math.max(0, displayTotal))}</span>
+                              )}
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* Benefit selection */}
+                    {previewData.pricing.has_active_membership && previewData.pricing.available_benefits.length > 0 && (
+                      <div className="flex flex-col gap-2.5">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                          <p className="text-sm font-semibold text-foreground">Benefit Membership</p>
+                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                            {previewData.pricing.available_benefits.filter((b) => b.can_apply).length} tersedia
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          {previewData.pricing.available_benefits.map((benefit) => {
+                            const selected = selectedBenefitIds.includes(benefit._id)
+                            const canApply = benefit.can_apply
+
+                            // Determine if this discount is blocked by an already-selected quota on the same target
+                            const blockedByQuota = canApply && benefit.type === "discount" && (() => {
+                              const available = previewData.pricing.available_benefits
+                              if (benefit.applies_to === "service") {
+                                const discountTarget = benefit.service_id || form.service_id
+                                return available.some(
+                                  (x: any) => selectedBenefitIds.includes(x._id) && x.type === "quota" &&
+                                    x.applies_to === "service" &&
+                                    (x.service_id === discountTarget || !x.service_id)
+                                )
+                              }
+                              if (benefit.applies_to === "addon") {
+                                const selectedQuotas = available.filter(
+                                  (x: any) => selectedBenefitIds.includes(x._id) && x.type === "quota" && x.applies_to === "addon"
+                                )
+                                if (benefit.service_id) {
+                                  // specific addon discount: blocked if its addon is covered by any quota
+                                  return selectedQuotas.some(
+                                    (x: any) => !x.service_id || x.service_id === benefit.service_id
+                                  )
+                                } else {
+                                  // null-service_id discount: blocked only when ALL selected addons are already quota-covered
+                                  if (selectedAddonIds.length === 0) return false
+                                  const hasAllCoverQuota = selectedQuotas.some((x: any) => !x.service_id)
+                                  if (hasAllCoverQuota) return true
+                                  const coveredIds = new Set(selectedQuotas.filter((x: any) => x.service_id).map((x: any) => x.service_id))
+                                  return selectedAddonIds.every((id) => coveredIds.has(id))
+                                }
+                              }
+                              return false
+                            })()
+
+                            const isDisabled = !canApply || blockedByQuota
+                            return (
+                              <label
+                                key={benefit._id}
+                                htmlFor={`benefit-${benefit._id}`}
+                                className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
+                                  isDisabled
+                                    ? "cursor-not-allowed border-border/30 bg-muted/20 opacity-50"
+                                    : selected
+                                    ? "border-primary bg-primary/5"
+                                    : "border-border bg-card hover:border-primary/40"
+                                }`}
+                              >
+                                <Checkbox
+                                  id={`benefit-${benefit._id}`}
+                                  checked={selected}
+                                  disabled={isDisabled}
+                                  onCheckedChange={() => !isDisabled && toggleBenefit(benefit._id)}
+                                  className="mt-0.5 shrink-0"
+                                />
+                                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-foreground">
+                                      {benefit.label || benefit.description}
+                                    </span>
+                                    <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                      benefit.type === "discount"
+                                        ? "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                                        : "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                                    }`}>
+                                      {benefit.type === "discount" ? `${benefit.value}% off` : "Kuota gratis"}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                                    <span>{benefit.description}</span>
+                                    {benefit.remaining !== null && (
+                                      <span className={benefit.remaining === 0 ? "text-destructive" : ""}>
+                                        Sisa: {benefit.remaining}/{benefit.limit ?? "∞"}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {!canApply && (
+                                    <span className="text-[11px] text-destructive">Tidak dapat digunakan saat ini</span>
+                                  )}
+                                  {blockedByQuota && (
+                                    <span className="text-[11px] text-amber-600 dark:text-amber-400">Tidak dapat digabung — layanan sudah gratis dari benefit kuota</span>
+                                  )}
+                                </div>
+                                {benefit.type === "discount" && canApply && benefit.amount_discount != null && benefit.amount_discount > 0 && (
+                                  <span className={`shrink-0 text-sm font-bold ${selected ? "text-primary" : "text-muted-foreground"}`}>
+                                    - {formatPrice(benefit.amount_discount)}
+                                  </span>
+                                )}
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {!previewData.pricing.has_active_membership && (
+                      <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                        <Info className="h-4 w-4 shrink-0" />
+                        <span>Hewan ini tidak memiliki membership aktif. Tidak ada benefit yang tersedia.</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </section>

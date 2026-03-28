@@ -22,7 +22,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${nunito.variable} ${nunitoSans.variable}`} suppressHydrationWarning>
       <body className="font-sans antialiased">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
           <AuthProvider>
             {children}
             <Toaster />

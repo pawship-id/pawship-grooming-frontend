@@ -103,6 +103,26 @@ export interface BookingStore {
   name: string
 }
 
+// ── Applied benefit (saved on booking) ─────────────────────────────────────
+
+export interface AdminAppliedBenefit {
+  benefit: {
+    _id: string
+    label: string | null
+    service: { name: string } | null
+  }
+  applies_to: string
+  benefit_type: string       // 'discount' | 'quota'
+  benefit_period: string     // 'weekly' | 'monthly' | 'unlimited'
+  benefit_value: number | null
+  base_price: number
+  amount_deducted: number
+  description: string | null
+  pet_membership_id: string | null
+  service_id: string | null
+  applied_at: string
+}
+
 // ── Main booking shape ───────────────────────────────────────────────────────
 
 export interface AdminBooking {
@@ -110,7 +130,6 @@ export interface AdminBooking {
   customer_id: string
   pet_id: string
   store_id: string
-  service_id: string
   service_type?: string
   pet_snapshot: PetSnapshot
   service_snapshot: ServiceSnapshot
@@ -122,13 +141,20 @@ export interface AdminBooking {
   service_addon_ids: string[]
   travel_fee: number
   sub_total_service: number
-  total_price: number
+  original_total_price: number
+  total_discount: number
+  final_total_price: number
+  pick_up: boolean
+  applied_benefits: AdminAppliedBenefit[]
+  selected_benefit_ids: string[]
   discount_ids: string[]
   sessions: BookingSession[]
+  media?: SessionMedia[]
   grooming_session?: GroomingSession
   referal_code?: string
   note?: string
   payment_method?: string
+  created_by_role?: "customer" | "admin" | null
   isDeleted: boolean
   createdAt: string
   updatedAt: string
@@ -142,11 +168,92 @@ export interface AdminBooking {
 export interface BookingsResponse {
   message: string
   bookings: AdminBooking[]
+  total: number
+  page: number
+  limit: number
 }
 
 export interface BookingDetailResponse {
   message: string
   booking: AdminBooking
+}
+
+// ── Booking preview ──────────────────────────────────────────────────────────
+
+export interface BookingPreviewBenefit {
+  _id: string
+  applies_to: string
+  service_id?: string
+  label?: string
+  service?: any
+  type: string          // "discount" | "quota"
+  period: string        // "weekly" | "monthly" | "unlimited"
+  value?: number
+  limit: number | null
+  used: number
+  remaining: number | null
+  can_apply: boolean
+  period_reset_date: string | null
+  next_reset_date: string | null
+  amount_discount?: number
+  description: string
+}
+
+export interface BookingPreviewResult {
+  pet_id: string
+  pet_name: string
+  service_id: string
+  service_name: string
+  pricing: {
+    original_service_price: number
+    addon_prices: { _id: string; name: string; price: number }[]
+    subtotal_before_benefits: number
+    has_active_membership: boolean
+    available_benefits: BookingPreviewBenefit[]
+    estimated_total_discount: number
+    estimated_final_price: number
+  }
+  pricing_breakdown: {
+    service: { name: string; price: number }
+    addons: { _id: string; name: string; price: number }[]
+    travel_fee?: number
+    subtotal: number
+    grand_total: number
+    discount: number
+    final: number
+  }
+}
+
+// ── Apply benefit preview ────────────────────────────────────────────────────
+
+export interface ApplyBenefitBreakdownItem {
+  benefit: {
+    _id: string
+    label: string | null
+    service: { name: string } | null
+  }
+  applies_to: string
+  benefit_type: string
+  benefit_period: string
+  benefit_value: number | null
+  base_price: number
+  amount_deducted: number
+  description: string | null
+  applied_at: string
+}
+
+export interface ApplyBenefitPreviewResult {
+  applied_benefits: {
+    benefit_id: string
+    benefit_type: string
+    benefit_period: string
+    benefit_value: number | null
+    amount_deducted: number
+    applied_at: string
+  }[]
+  total_discount: number
+  final_price: number
+  breakdown: ApplyBenefitBreakdownItem[]
 }
 
 // ── Request payloads ─────────────────────────────────────────────────────────
@@ -160,9 +267,9 @@ export interface CreateBookingPayload {
   date: string
   time_range: string
   service_addon_ids?: string[]
-  travel_fee?: number
+  pick_up?: boolean
   discount_ids?: string[]
-  sessions?: SessionInput[]
+  selected_benefit_ids?: string[]
   referal_code?: string
   note?: string
   payment_method?: string
@@ -177,6 +284,7 @@ export type UpdateBookingPayload = Partial<
 export interface UpdateSessionPayload {
   notes?: string
   internal_note?: string
+  groomer_id?: string
 }
 
 export interface FinishSessionPayload {
@@ -192,12 +300,60 @@ export interface UpdateBookingStatusPayload {
 
 // ── API functions ─────────────────────────────────────────────────────────────
 
-export async function getAdminBookings() {
-  return apiAuthRequest<BookingsResponse>("/bookings")
+export interface GetAdminBookingsParams {
+  page?: number
+  limit?: number
+  status?: string
+  date_from?: string
+  date_to?: string
+  created_by_role?: string
+}
+
+export async function getAdminBookings(params?: GetAdminBookingsParams) {
+  const qs = new URLSearchParams()
+  if (params?.page) qs.set("page", String(params.page))
+  if (params?.limit) qs.set("limit", String(params.limit))
+  if (params?.status) qs.set("status", params.status)
+  if (params?.date_from) qs.set("date_from", params.date_from)
+  if (params?.date_to) qs.set("date_to", params.date_to)
+  if (params?.created_by_role) qs.set("created_by_role", params.created_by_role)
+  const query = qs.toString()
+  return apiAuthRequest<BookingsResponse>(query ? `/bookings?${query}` : "/bookings")
 }
 
 export async function getAdminBookingById(id: string) {
   return apiAuthRequest<BookingDetailResponse>(`/bookings/${id}`)
+}
+
+export async function getBookingPreview(payload: {
+  pet_id: string
+  service_id: string
+  addon_ids?: string[]
+  date: string
+  time_range?: string
+  pick_up?: boolean
+  store_id?: string
+  customer_id?: string
+}) {
+  return apiAuthRequest<{ message: string } & BookingPreviewResult>("/bookings/preview", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function applyBenefitPreview(payload: {
+  pet_id: string
+  selected_benefit_ids: string[]
+  store_id?: string
+  service_id?: string
+  add_on_ids?: string[]
+  original_total_price?: number
+  booking_date?: string
+}) {
+  return apiAuthRequest<{ message: string } & ApplyBenefitPreviewResult>("/bookings/public/apply-benefit", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
 }
 
 export async function createAdminBooking(payload: CreateBookingPayload) {
@@ -275,4 +431,27 @@ export async function uploadSessionMedia(
     method: "POST",
     body: formData,
   })
+}
+
+export async function uploadBookingMedia(
+  bookingId: string,
+  file: File,
+  type: "before" | "after",
+  note?: string,
+) {
+  const formData = new FormData()
+  formData.append("image", file)
+  formData.append("type", type)
+  if (note) formData.append("note", note)
+  return apiAuthRequest<{ message: string }>(`/bookings/${bookingId}/media`, {
+    method: "POST",
+    body: formData,
+  })
+}
+
+export async function deleteBookingMedia(bookingId: string, publicId: string) {
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${bookingId}/media?public_id=${encodeURIComponent(publicId)}`,
+    { method: "DELETE" },
+  )
 }

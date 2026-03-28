@@ -11,6 +11,7 @@ export interface ApiUser {
   is_active: boolean
   createdAt: string
   updatedAt: string
+  pet_count?: number
 }
 
 export interface ApiPetType {
@@ -54,10 +55,60 @@ export interface ApiPet {
   last_visit_at?: string
 }
 
+
+export interface UserAddress {
+  _id?: string
+  label?: string
+  street?: string
+  subdistrict?: string
+  district?: string
+  city?: string
+  province?: string
+  postal_code?: string
+  note?: string
+  latitude?: number
+  longitude?: number
+  is_main_address?: boolean
+}
+
+export interface UserProfile {
+  full_name?: string
+  image_url?: string
+  public_id?: string
+  gender?: "Male" | "Female"
+  customer_category_id?: string
+  tags?: string[]
+  addresses?: UserAddress[]
+}
+
 export interface ApiCurrentUser extends ApiUser {
   isDeleted: boolean
+  profile?: UserProfile
   pets?: ApiPet[]
 }
+
+export type UpdateMyProfilePayload = {
+  full_name?: string
+  gender?: "Male" | "Female"
+  tags?: string[]
+  addresses?: UserAddress[]
+}
+
+export type CreateMyPetPayload = {
+  name: string
+  description?: string
+  pet_type_id: string
+  hair_category_id?: string
+  birthday?: string
+  size_category_id: string
+  breed_category_id: string
+  weight?: number
+  member_category_id?: string
+  tags?: string[]
+  is_active?: boolean
+}
+
+export type UpdateMyPetPayload = Partial<CreateMyPetPayload>
 
 export interface MeResponse {
   message: string
@@ -146,6 +197,33 @@ export async function updateUserPassword(userId: string, password: string) {
 
 export async function getCurrentUser() {
   return apiAuthRequest<MeResponse>("/users/me")
+}
+
+export async function updateMyProfile(payload: UpdateMyProfilePayload) {
+  return apiAuthRequest<{ message: string; user: ApiCurrentUser }>("/users/me/profile", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function createMyPet(payload: CreateMyPetPayload) {
+  return apiAuthRequest<{ message: string; pet: ApiPet }>("/users/me/pets", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateMyPet(petId: string, payload: UpdateMyPetPayload) {
+  return apiAuthRequest<{ message: string }>(`/users/me/pets/${petId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function deleteMyPet(petId: string) {
+  return apiAuthRequest<{ message: string }>(`/users/me/pets/${petId}`, {
+    method: "DELETE",
+  })
 }
 
 export interface UserDetailResponse {

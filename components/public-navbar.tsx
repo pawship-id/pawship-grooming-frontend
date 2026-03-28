@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { LogOut, Menu, Moon, Sun, X } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
@@ -34,8 +34,15 @@ const ROLE_LABEL: Record<string, string> = {
 
 export function PublicNavbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const { theme, setTheme } = useTheme()
   const { user, isAuthenticated, logout } = useAuth()
+
+  useEffect(() => { setMounted(true) }, [])
+
+  // Avoid hydration mismatch: render neutral placeholders until client is ready
+  const isDark = mounted && theme === "dark"
+  const showAuth = mounted
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/50 bg-card/80 backdrop-blur-md">
@@ -62,13 +69,13 @@ export function PublicNavbar() {
             Contact
           </Link>
           <button
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            onClick={() => setTheme(isDark ? "light" : "dark")}
             className="rounded-md p-2 text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
             aria-label="Toggle dark mode"
           >
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
-          {isAuthenticated && user ? (
+          {showAuth && isAuthenticated && user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
@@ -105,11 +112,11 @@ export function PublicNavbar() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          ) : (
+          ) : showAuth ? (
             <Button asChild size="sm">
               <Link href="/login">Login</Link>
             </Button>
-          )}
+          ) : null}
         </nav>
 
         <button
@@ -145,14 +152,14 @@ export function PublicNavbar() {
             Contact
           </Link>
           <button
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            onClick={() => setTheme(isDark ? "light" : "dark")}
             className="flex items-center gap-2 text-sm font-medium text-foreground/70 transition-colors hover:text-foreground"
             aria-label="Toggle dark mode"
           >
-            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            {theme === "dark" ? "Light Mode" : "Dark Mode"}
+            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {isDark ? "Light Mode" : "Dark Mode"}
           </button>
-          {isAuthenticated && user ? (
+          {showAuth && isAuthenticated && user ? (
             <>
               <div className="flex items-center gap-3 py-1">
                 <Avatar className="h-8 w-8">
@@ -189,11 +196,11 @@ export function PublicNavbar() {
                 Logout
               </button>
             </>
-          ) : (
+          ) : showAuth ? (
             <Button asChild size="sm" className="w-fit">
               <Link href="/login">Staff Login</Link>
             </Button>
-          )}
+          ) : null}
         </nav>
       )}
     </header>

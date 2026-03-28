@@ -46,9 +46,11 @@ export interface AdminService {
   avaiable_store?: AdminServiceRef[]
   addons?: AdminServiceAddon[]
   include?: string[]
+  sessions?: string[]
   show_in_homepage: boolean
   order: number
   service_location_type?: string
+  is_pick_up_available?: boolean
   is_active: boolean
   isDeleted: boolean
   createdAt: string
@@ -87,11 +89,13 @@ export type ServicePayload = {
   available_store_ids?: string[]
   addon_ids?: string[]
   include?: string[]
+  sessions?: string[]
   image_url?: string
   public_id?: string
   show_in_homepage?: boolean
   order?: number
   service_location_type?: string
+  is_pick_up_available?: boolean
   is_active?: boolean
 }
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { use } from "react"
 import Link from "next/link"
-import { ArrowLeft, User, Calendar, Clock, ClipboardList, Plus, Trash2, Play, CheckCircle, Loader2, Camera } from "lucide-react"
+import { ArrowLeft, User, Calendar, Clock, ClipboardList, Plus, Trash2, Play, CheckCircle, Loader2, Truck, Gift, ImagePlus, PawPrint, Scissors, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,7 +31,8 @@ import {
   startBookingSession,
   finishBookingSession,
   deleteBookingSession,
-  uploadSessionMedia,
+  uploadBookingMedia,
+  deleteBookingMedia,
 } from "@/lib/api/bookings"
 import type { AdminBooking } from "@/lib/api/bookings"
 import { getStoreById } from "@/lib/api/stores"
@@ -40,7 +41,10 @@ import type { ApiUser } from "@/lib/api/users"
 
 const statusColors: Record<string, string> = {
   requested: "bg-accent/20 text-accent-foreground",
+  waitlist: "bg-yellow-100 text-yellow-800",
   confirmed: "bg-secondary/60 text-secondary-foreground",
+  "driver on the way": "bg-blue-100 text-blue-700",
+  "groomer on the way": "bg-blue-100 text-blue-700",
   arrived: "bg-primary/10 text-primary",
   "in progress": "bg-primary/10 text-primary",
   completed: "bg-secondary/60 text-secondary-foreground",
@@ -50,7 +54,10 @@ const statusColors: Record<string, string> = {
 
 const ALL_STATUSES = [
   "requested",
+  "waitlist",
   "confirmed",
+  "driver on the way",
+  "groomer on the way",
   "arrived",
   "in progress",
   "completed",
@@ -58,12 +65,39 @@ const ALL_STATUSES = [
   "cancelled",
 ]
 
-const MAIN_FLOW = ["requested", "confirmed", "arrived", "in progress", "completed"]
+const IN_STORE_MAIN_FLOW = ["requested", "confirmed", "arrived", "in progress", "completed"]
+const IN_STORE_PICKUP_MAIN_FLOW = ["requested", "confirmed", "driver on the way", "arrived", "in progress", "completed"]
+const IN_HOME_MAIN_FLOW = ["requested", "confirmed", "groomer on the way", "arrived", "in progress", "completed"]
 
-const ALLOWED_TRANSITIONS: Record<string, string[]> = {
+const IN_STORE_TRANSITIONS: Record<string, string[]> = {
+  waitlist: ["confirmed", "cancelled"],
   requested: ["confirmed", "rescheduled", "cancelled"],
   rescheduled: ["confirmed", "rescheduled", "cancelled"],
   confirmed: ["arrived", "rescheduled", "cancelled"],
+  arrived: ["in progress", "rescheduled", "cancelled"],
+  "in progress": ["completed", "cancelled"],
+  completed: [],
+  cancelled: [],
+}
+
+const IN_STORE_PICKUP_TRANSITIONS: Record<string, string[]> = {
+  waitlist: ["confirmed", "cancelled"],
+  requested: ["confirmed", "rescheduled", "cancelled"],
+  rescheduled: ["confirmed", "rescheduled", "cancelled"],
+  confirmed: ["driver on the way", "rescheduled", "cancelled"],
+  "driver on the way": ["arrived", "rescheduled", "cancelled"],
+  arrived: ["in progress", "rescheduled", "cancelled"],
+  "in progress": ["completed", "cancelled"],
+  completed: [],
+  cancelled: [],
+}
+
+const IN_HOME_TRANSITIONS: Record<string, string[]> = {
+  waitlist: ["confirmed", "cancelled"],
+  requested: ["confirmed", "rescheduled", "cancelled"],
+  rescheduled: ["confirmed", "rescheduled", "cancelled"],
+  confirmed: ["groomer on the way", "rescheduled", "cancelled"],
+  "groomer on the way": ["arrived", "rescheduled", "cancelled"],
   arrived: ["in progress", "rescheduled", "cancelled"],
   "in progress": ["completed", "cancelled"],
   completed: [],
@@ -123,8 +157,15 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
   const [internalNoteDraft, setInternalNoteDraft] = useState("")
   const [savingNotes, setSavingNotes] = useState(false)
 
-  // Per-session media upload
-  const [uploadingMedia, setUploadingMedia] = useState<Record<string, boolean>>({})
+  // Assign groomer modal
+  const [assignGroomerSessionId, setAssignGroomerSessionId] = useState<string | null>(null)
+  const [assignGroomerValue, setAssignGroomerValue] = useState("")
+  const [savingGroomer, setSavingGroomer] = useState(false)
+
+  // Booking-level media upload/delete
+  const [uploadingMediaType, setUploadingMediaType] = useState<"before" | "after" | null>(null)
+  const [deletingBookingMediaId, setDeletingBookingMediaId] = useState<string | null>(null)
+  const [confirmDeleteMediaId, setConfirmDeleteMediaId] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -227,16 +268,46 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  const handleUploadMedia = async (sessionId: string, file: File, type: "before" | "after") => {
-    setUploadingMedia((prev) => ({ ...prev, [sessionId]: true }))
+  const handleAssignGroomer = async () => {
+    if (!assignGroomerSessionId || !assignGroomerValue) return
+    setSavingGroomer(true)
     try {
-      await uploadSessionMedia(id, sessionId, file, type)
+      await updateBookingSession(id, assignGroomerSessionId, { groomer_id: assignGroomerValue })
+      await refreshBooking()
+      setAssignGroomerSessionId(null)
+      setAssignGroomerValue("")
+      toast.success("Groomer berhasil di-assign")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal assign groomer")
+    } finally {
+      setSavingGroomer(false)
+    }
+  }
+
+  const handleUploadBookingMedia = async (file: File, type: "before" | "after") => {
+    setUploadingMediaType(type)
+    try {
+      await uploadBookingMedia(id, file, type)
       await refreshBooking()
       toast.success(`Foto ${type} berhasil diupload`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal mengupload foto")
     } finally {
-      setUploadingMedia((prev) => ({ ...prev, [sessionId]: false }))
+      setUploadingMediaType(null)
+    }
+  }
+
+  const handleDeleteBookingMedia = async (mediaId: string) => {
+    setDeletingBookingMediaId(mediaId)
+    try {
+      await deleteBookingMedia(id, mediaId)
+      await refreshBooking()
+      toast.success("Foto berhasil dihapus")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus foto")
+    } finally {
+      setDeletingBookingMediaId(null)
+      setConfirmDeleteMediaId(null)
     }
   }
 
@@ -282,6 +353,10 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
     )
   }
 
+  const isInHome = booking.type === "in home"
+  const isInStorePickup = !isInHome && booking.pick_up === true
+  const MAIN_FLOW = isInHome ? IN_HOME_MAIN_FLOW : isInStorePickup ? IN_STORE_PICKUP_MAIN_FLOW : IN_STORE_MAIN_FLOW
+  const ALLOWED_TRANSITIONS = isInHome ? IN_HOME_TRANSITIONS : isInStorePickup ? IN_STORE_PICKUP_TRANSITIONS : IN_STORE_TRANSITIONS
   const allowedNextStatuses = ALLOWED_TRANSITIONS[booking.booking_status] ?? []
   const hasInProgressSession = booking.sessions.some((s) => s.status === "in progress")
   const allSessionsFinished =
@@ -346,12 +421,12 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                     </div>
                   )
                 })}
-                {(booking.booking_status === "cancelled" || booking.booking_status === "rescheduled") && (
+                {(booking.booking_status === "cancelled" || booking.booking_status === "rescheduled" || booking.booking_status === "waitlist") && (
                   <>
                     <div className="mx-2 h-px w-4 shrink-0 bg-border/50" />
                     <div
                       className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium capitalize ring-1
-                      ${booking.booking_status === "cancelled" ? "bg-destructive/10 text-destructive ring-destructive/30" : "bg-accent/20 text-accent-foreground ring-accent/30"}
+                      ${booking.booking_status === "cancelled" ? "bg-destructive/10 text-destructive ring-destructive/30" : booking.booking_status === "waitlist" ? "bg-yellow-100 text-yellow-800 ring-yellow-300" : "bg-accent/20 text-accent-foreground ring-accent/30"}
                     `}
                     >
                       {booking.booking_status}
@@ -460,39 +535,141 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 )}
               </div>
 
-              <div>
-                <span className="text-xs text-muted-foreground">Layanan</span>
-                <p className="font-medium text-foreground">
-                  {booking.service_snapshot.name}
-                  <span className="ml-2 text-xs text-muted-foreground">({booking.service_snapshot.code})</span>
-                </p>
-              </div>
-
-              {booking.service_snapshot.addons.length > 0 && (
-                <div>
-                  <span className="text-xs text-muted-foreground">Add-ons</span>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {booking.service_snapshot.addons.map((addon) => (
-                      <Badge key={addon._id} variant="outline" className="text-xs">
-                        {addon.name} ({formatPrice(addon.price)})
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <span className="text-muted-foreground">Subtotal layanan</span>
-                  <span className="text-right font-medium">{formatPrice(booking.sub_total_service)}</span>
-                  {booking.travel_fee > 0 && (
-                    <>
-                      <span className="text-muted-foreground">Biaya perjalanan</span>
-                      <span className="text-right font-medium">{formatPrice(booking.travel_fee)}</span>
-                    </>
-                  )}
-                  <span className="font-medium text-foreground">Total</span>
-                  <span className="text-right font-bold text-foreground">{formatPrice(booking.total_price)}</span>
+              <div className="overflow-hidden rounded-xl border border-border/50 bg-card">
+                {/* Service row */}
+                {(() => {
+                  const b = booking.applied_benefits?.find(
+                    (ab) =>
+                      ab.applies_to === "service" ||
+                      (ab.service_id != null && ab.service_id === booking.service_snapshot._id)
+                  )
+                  const isQuota = b?.benefit_type === "quota"
+                  return (
+                    <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">{booking.service_snapshot.name}</span>
+                        {b && (
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                            isQuota
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                              : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                          }`}>
+                            {isQuota ? "Gratis" : (b.benefit_value != null ? `-${b.benefit_value}%` : "Diskon")}
+                          </span>
+                        )}
+                      </div>
+                      {b ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-xs line-through text-muted-foreground">{formatPrice(booking.service_snapshot.price)}</span>
+                          <span className="font-semibold text-primary">
+                            {isQuota ? "Gratis" : formatPrice(Math.max(0, booking.service_snapshot.price - b.amount_deducted))}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-medium">{formatPrice(booking.service_snapshot.price)}</span>
+                      )}
+                    </div>
+                  )
+                })()}
+                {/* Addon rows */}
+                {booking.service_snapshot.addons?.map((addon) => {
+                  const b = booking.applied_benefits?.find((ab) => ab.service_id === addon._id)
+                  const isQuota = b?.benefit_type === "quota"
+                  return (
+                    <div key={addon._id} className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">+ {addon.name}</span>
+                        {b && (
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                            isQuota
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                              : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                          }`}>
+                            {isQuota ? "Gratis" : (b.benefit_value != null ? `-${b.benefit_value}%` : "Diskon")}
+                          </span>
+                        )}
+                      </div>
+                      {b ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-xs line-through text-muted-foreground">{formatPrice(addon.price)}</span>
+                          <span className="font-semibold text-primary">
+                            {isQuota ? "Gratis" : formatPrice(Math.max(0, addon.price - b.amount_deducted))}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-medium">{formatPrice(addon.price)}</span>
+                      )}
+                    </div>
+                  )
+                })}
+                {/* Travel fee row */}
+                {booking.travel_fee > 0 && (() => {
+                  const b = booking.applied_benefits?.find(
+                    (ab) => ab.applies_to === "pick_up" || ab.applies_to === "travel_fee" || ab.applies_to === "pickup"
+                  )
+                  const isQuota = b?.benefit_type === "quota"
+                  return (
+                    <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Truck className="h-3.5 w-3.5" />
+                          Biaya Pickup
+                        </span>
+                        {b && (
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                            isQuota
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                              : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                          }`}>
+                            {isQuota ? "Gratis" : (b.benefit_value != null ? `-${b.benefit_value}%` : "Diskon")}
+                          </span>
+                        )}
+                      </div>
+                      {b ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-xs line-through text-muted-foreground">{formatPrice(booking.travel_fee)}</span>
+                          <span className="font-semibold text-primary">
+                            {isQuota ? "Gratis" : formatPrice(Math.max(0, booking.travel_fee - b.amount_deducted))}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-medium">{formatPrice(booking.travel_fee)}</span>
+                      )}
+                    </div>
+                  )
+                })()}
+                {/* Subtotal + Diskon Member — hanya jika ada diskon */}
+                {booking.total_discount > 0 && (
+                  <>
+                    <div className="flex items-center justify-between border-t border-border/50 bg-muted/30 px-4 py-2.5 text-sm font-semibold">
+                      <span>Subtotal</span>
+                      <span>{formatPrice(booking.original_total_price)}</span>
+                    </div>
+                    <div className="flex flex-col border-t border-primary/20 bg-primary/5">
+                      <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                        <span className="flex items-center gap-1.5 font-medium text-primary">
+                          <Gift className="h-3.5 w-3.5" />
+                          Diskon Member
+                        </span>
+                        <span className="font-semibold text-primary">- {formatPrice(booking.total_discount)}</span>
+                      </div>
+                      {booking.applied_benefits?.length > 1 && (
+                        <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                          {booking.applied_benefits.map((ab, i) => (
+                            <div key={i} className="flex items-center justify-between text-xs text-muted-foreground">
+                              <span className="truncate pr-4">{ab.benefit?.label || ab.description || ab.applies_to}</span>
+                              <span className="shrink-0">- {formatPrice(ab.amount_deducted)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+                {/* Total Akhir */}
+                <div className="flex items-center justify-between border-t border-primary/30 bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
+                  <span>Total Akhir</span>
+                  <span className="text-base">{formatPrice(booking.final_total_price ?? booking.original_total_price)}</span>
                 </div>
               </div>
 
@@ -522,33 +699,40 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
               {booking.customer && (
-                <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Customer</p>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <span className="text-muted-foreground">Nama</span>
-                    <span className="font-medium">{booking.customer.username}</span>
-                    <span className="text-muted-foreground">Email</span>
-                    <span className="font-medium">{booking.customer.email}</span>
-                    <span className="text-muted-foreground">Telepon</span>
-                    <span className="font-medium">{booking.customer.phone_number}</span>
+                <div className="flex items-start gap-3 rounded-xl bg-muted/40 p-4">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                    {booking.customer.username.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <p className="font-semibold text-foreground">{booking.customer.username}</p>
+                    <p className="text-xs text-muted-foreground">{booking.customer.email}</p>
+                    <p className="text-xs text-muted-foreground">{booking.customer.phone_number}</p>
                   </div>
                 </div>
               )}
-              <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hewan Peliharaan</p>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <span className="text-muted-foreground">Nama</span>
-                  <span className="font-medium">{booking.pet_snapshot.name}</span>
-                  <span className="text-muted-foreground">Jenis</span>
-                  <span className="font-medium">{booking.pet_snapshot.pet_type?.name ?? "-"}</span>
-                  <span className="text-muted-foreground">Ukuran</span>
-                  <span className="font-medium">{booking.pet_snapshot.size?.name ?? "-"}</span>
-                  <span className="text-muted-foreground">Bulu</span>
-                  <span className="font-medium">{booking.pet_snapshot.hair?.name ?? "-"}</span>
-                  <span className="text-muted-foreground">Ras</span>
-                  <span className="font-medium">{booking.pet_snapshot.breed?.name ?? "-"}</span>
-                  <span className="text-muted-foreground">Member</span>
-                  <span className="font-medium">{booking.pet_snapshot.member_type?.name ?? "-"}</span>
+              <div className="flex items-start gap-3 rounded-xl bg-muted/40 p-4">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <PawPrint className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div>
+                    <p className="font-semibold text-foreground">{booking.pet_snapshot.name}</p>
+                    <p className="text-xs text-muted-foreground">{booking.pet_snapshot.breed?.name ?? "-"}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {booking.pet_snapshot.pet_type && (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-foreground">{booking.pet_snapshot.pet_type.name}</span>
+                    )}
+                    {booking.pet_snapshot.size && (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-foreground">{booking.pet_snapshot.size.name}</span>
+                    )}
+                    {booking.pet_snapshot.hair && (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-foreground">{booking.pet_snapshot.hair.name}</span>
+                    )}
+                    {booking.pet_snapshot.member_type && (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{booking.pet_snapshot.member_type.name}</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -600,9 +784,9 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              {booking.booking_status !== "in progress" && booking.sessions.some((s) => s.status === "not started") && (
+              {["requested", "waitlist", "rescheduled"].includes(booking.booking_status) && booking.sessions.some((s) => s.status === "not started") && (
                 <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-                  Sesi grooming hanya dapat dimulai saat status booking berubah menjadi <span className="font-medium text-foreground">in progress</span>.
+                  Sesi grooming hanya dapat dimulai setelah booking <span className="font-medium text-foreground">dikonfirmasi</span>.
                 </p>
               )}
               {hasInProgressSession && booking.sessions.some((s) => s.status === "not started") && (
@@ -614,12 +798,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                 <p className="text-sm text-muted-foreground">Belum ada sesi grooming.</p>
               )}
               {booking.sessions.map((session, idx) => {
-                const hasBeforeMedia = session.media.some((m) => m.type === "before")
-                const hasAfterMedia = session.media.some((m) => m.type === "after")
                 const isEditingNotes = editingNoteSessionId === session._id
-                const isUploadingThisSession = uploadingMedia[session._id ?? ""] ?? false
-                const beforePhotos = session.media.filter((m) => m.type === "before")
-                const afterPhotos = session.media.filter((m) => m.type === "after")
 
                 return (
                   <div key={session._id ?? idx} className="flex flex-col gap-3 rounded-lg border border-border/50 bg-muted/30 p-3">
@@ -648,10 +827,9 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                                 variant="outline"
                                 onClick={() => handleStartSession(session._id!)}
                                 disabled={
-                                  booking.booking_status !== "in progress" ||
+                                  ["requested", "waitlist", "rescheduled", "cancelled", "completed"].includes(booking.booking_status) ||
                                   hasInProgressSession ||
-                                  booking.sessions.slice(0, idx).some((s) => s.status !== "finished") ||
-                                  !hasBeforeMedia
+                                  booking.sessions.slice(0, idx).some((s) => s.status !== "finished")
                                 }
                               >
                                 <Play className="mr-1.5 h-3.5 w-3.5" />
@@ -674,7 +852,6 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                               size="sm"
                               variant="outline"
                               onClick={() => handleFinishSession(session._id!)}
-                              disabled={!hasAfterMedia}
                             >
                               <CheckCircle className="mr-1.5 h-3.5 w-3.5" />
                               Selesai
@@ -684,102 +861,53 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                       )}
                     </div>
 
-                    {/* Groomer & timestamps */}
-                    {session.groomer_detail && (
-                      <span className="text-xs text-muted-foreground">Groomer: {session.groomer_detail.username}</span>
-                    )}
+                    {/* Groomer assignment */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {session.groomer_detail ? (
+                        <>
+                          <span className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground">
+                            <Scissors className="h-3 w-3" />
+                            {session.groomer_detail.username}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => {
+                              setAssignGroomerSessionId(session._id!)
+                              setAssignGroomerValue(session.groomer_id ?? "")
+                            }}
+                          >
+                            Ganti Groomer
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-400">
+                            Belum ada groomer
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => {
+                              setAssignGroomerSessionId(session._id!)
+                              setAssignGroomerValue("")
+                            }}
+                          >
+                            Assign Groomer
+                          </Button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Timestamps */}
                     {(session.started_at || session.finished_at) && (
                       <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                         {session.started_at && <span>Mulai: {formatDateTime(session.started_at)}</span>}
                         {session.finished_at && <span>Selesai: {formatDateTime(session.finished_at)}</span>}
-                      </div>
-                    )}
-
-                    {/* Before photos */}
-                    <div className="flex flex-col gap-1.5">
-                      <p className="text-xs font-medium text-muted-foreground">Foto Before</p>
-                      <div className="flex flex-wrap gap-2">
-                        {beforePhotos.map((m, photoIdx) => (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            key={m._id ?? m.public_id ?? photoIdx}
-                            src={m.secure_url ?? m.url ?? ""}
-                            alt="before"
-                            className="h-16 w-16 rounded-md border border-border/50 object-cover"
-                          />
-                        ))}
-                        {session.status === "not started" && session._id && (
-                          <label
-                            className={`flex h-16 w-16 cursor-pointer items-center justify-center rounded-md border border-dashed border-border/50 bg-muted/40 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${isUploadingThisSession ? "pointer-events-none opacity-60" : ""}`}
-                          >
-                            {isUploadingThisSession ? (
-                              <Loader2 className="h-5 w-5 animate-spin" />
-                            ) : (
-                              <Camera className="h-5 w-5" />
-                            )}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0]
-                                if (file && session._id) handleUploadMedia(session._id, file, "before")
-                                e.target.value = ""
-                              }}
-                            />
-                          </label>
-                        )}
-                        {beforePhotos.length === 0 && session.status !== "not started" && (
-                          <span className="text-xs italic text-muted-foreground">Tidak ada foto</span>
-                        )}
-                      </div>
-                      {session.status === "not started" && !hasBeforeMedia && (
-                        <p className="text-xs text-amber-600 dark:text-amber-400">Upload foto before sebelum memulai sesi.</p>
-                      )}
-                    </div>
-
-                    {/* After photos */}
-                    {(session.status === "in progress" || session.status === "finished") && (
-                      <div className="flex flex-col gap-1.5">
-                        <p className="text-xs font-medium text-muted-foreground">Foto After</p>
-                        <div className="flex flex-wrap gap-2">
-                          {afterPhotos.map((m, photoIdx) => (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              key={m._id ?? m.public_id ?? photoIdx}
-                              src={m.secure_url ?? m.url ?? ""}
-                              alt="after"
-                              className="h-16 w-16 rounded-md border border-border/50 object-cover"
-                            />
-                          ))}
-                          {session.status === "in progress" && session._id && (
-                            <label
-                              className={`flex h-16 w-16 cursor-pointer items-center justify-center rounded-md border border-dashed border-border/50 bg-muted/40 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ${isUploadingThisSession ? "pointer-events-none opacity-60" : ""}`}
-                            >
-                              {isUploadingThisSession ? (
-                                <Loader2 className="h-5 w-5 animate-spin" />
-                              ) : (
-                                <Camera className="h-5 w-5" />
-                              )}
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0]
-                                  if (file && session._id) handleUploadMedia(session._id, file, "after")
-                                  e.target.value = ""
-                                }}
-                              />
-                            </label>
-                          )}
-                          {afterPhotos.length === 0 && session.status === "finished" && (
-                            <span className="text-xs italic text-muted-foreground">Tidak ada foto</span>
-                          )}
-                        </div>
-                        {session.status === "in progress" && !hasAfterMedia && (
-                          <p className="text-xs text-amber-600 dark:text-amber-400">Upload foto after sebelum menyelesaikan sesi.</p>
-                        )}
                       </div>
                     )}
 
@@ -886,6 +1014,101 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               )}
             </CardContent>
           </Card>
+
+          {/* Foto Grooming */}
+          <Card className="border-border/50 lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 font-display text-lg">
+                <ImagePlus className="h-5 w-5 text-primary" />
+                Foto Grooming
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-6">
+              {/* Before photos */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-foreground">Foto Before</p>
+                  <label className={`cursor-pointer ${uploadingMediaType === "before" ? "pointer-events-none opacity-60" : ""}`}>
+                    <Button type="button" size="sm" variant="outline" asChild>
+                      <span>
+                        {uploadingMediaType === "before" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="mr-1.5 h-3.5 w-3.5" />}
+                        Upload Before
+                      </span>
+                    </Button>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleUploadBookingMedia(file, "before")
+                        e.target.value = ""
+                      }}
+                    />
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {(booking.media ?? []).filter((m) => m.type === "before").map((m, i) => (
+                    <div key={m.public_id ?? m._id ?? i} className="relative h-20 w-20">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={m.secure_url ?? m.url ?? ""} alt="before" className="h-20 w-20 rounded-lg border border-border/50 object-cover" />
+                      <button
+                        onClick={() => setConfirmDeleteMediaId(m.public_id ?? "")}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {(booking.media ?? []).filter((m) => m.type === "before").length === 0 && (
+                    <p className="text-sm italic text-muted-foreground">Belum ada foto before</p>
+                  )}
+                </div>
+              </div>
+
+              {/* After photos */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-foreground">Foto After</p>
+                  <label className={`cursor-pointer ${uploadingMediaType === "after" ? "pointer-events-none opacity-60" : ""}`}>
+                    <Button type="button" size="sm" variant="outline" asChild>
+                      <span>
+                        {uploadingMediaType === "after" ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="mr-1.5 h-3.5 w-3.5" />}
+                        Upload After
+                      </span>
+                    </Button>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleUploadBookingMedia(file, "after")
+                        e.target.value = ""
+                      }}
+                    />
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {(booking.media ?? []).filter((m) => m.type === "after").map((m, i) => (
+                    <div key={m.public_id ?? m._id ?? i} className="relative h-20 w-20">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={m.secure_url ?? m.url ?? ""} alt="after" className="h-20 w-20 rounded-lg border border-border/50 object-cover" />
+                      <button
+                        onClick={() => setConfirmDeleteMediaId(m.public_id ?? "")}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                  {(booking.media ?? []).filter((m) => m.type === "after").length === 0 && (
+                    <p className="text-sm italic text-muted-foreground">Belum ada foto after</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -931,6 +1154,60 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               }}
             >
               Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!assignGroomerSessionId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAssignGroomerSessionId(null)
+            setAssignGroomerValue("")
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Assign Groomer</AlertDialogTitle>
+            <AlertDialogDescription>Pilih groomer untuk sesi ini</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Select value={assignGroomerValue} onValueChange={setAssignGroomerValue}>
+              <SelectTrigger>
+                <SelectValue placeholder="Pilih groomer..." />
+              </SelectTrigger>
+              <SelectContent>
+                {groomers.map((g) => (
+                  <SelectItem key={g._id} value={g._id}>{g.username}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleAssignGroomer} disabled={savingGroomer || !assignGroomerValue}>
+              {savingGroomer ? "Menyimpan..." : "Simpan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!confirmDeleteMediaId} onOpenChange={(open) => { if (!open) setConfirmDeleteMediaId(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Foto?</AlertDialogTitle>
+            <AlertDialogDescription>Foto ini akan dihapus secara permanen dan tidak dapat dikembalikan.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (confirmDeleteMediaId) handleDeleteBookingMedia(confirmDeleteMediaId) }}
+              disabled={!!deletingBookingMediaId}
+            >
+              {deletingBookingMediaId ? "Menghapus..." : "Hapus"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
