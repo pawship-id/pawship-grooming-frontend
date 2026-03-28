@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import dynamic from "next/dynamic"
-import { Mail, Phone, Shield, Calendar, User, Weight, Tag, Pencil, Plus, Trash2, MapPin, LocateFixed } from "lucide-react"
+import { Mail, Phone, Shield, Calendar, User, Weight, Tag, Pencil, Plus, Trash2, MapPin, LocateFixed, Eye } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -37,6 +37,7 @@ import {
   type CreateMyPetPayload,
 } from "@/lib/api/users"
 import { getOptions, type ApiOption } from "@/lib/api/options"
+import { uploadFile } from "@/lib/api/upload"
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("id-ID", {
@@ -563,10 +564,19 @@ function PetFormDialog({
   const [breeds, setBreeds] = useState<ApiOption[]>([])
   const [hairs, setHairs] = useState<ApiOption[]>([])
   const [loadingOptions, setLoadingOptions] = useState(false)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      setImageFile(null)
+      setImagePreview(null)
+      return
+    }
     setForm(editingPet ? petToForm(editingPet) : EMPTY_PET_FORM)
+    setImageFile(null)
+    setImagePreview(editingPet?.profile_image?.secure_url ?? null)
     setLoadingOptions(true)
     Promise.all([
       getOptions("pet type"),
@@ -588,6 +598,14 @@ function PetFormDialog({
     setForm((f) => ({ ...f, [field]: value }))
   }
 
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImageFile(file)
+    const url = URL.createObjectURL(file)
+    setImagePreview(url)
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.name.trim()) return toast.error("Nama pet wajib diisi")
@@ -597,6 +615,15 @@ function PetFormDialog({
 
     setSaving(true)
     try {
+      let profileImage = editingPet?.profile_image
+        ? { secure_url: editingPet.profile_image.secure_url!, public_id: editingPet.profile_image.public_id! }
+        : undefined
+
+      if (imageFile) {
+        const uploaded = await uploadFile(imageFile, "pets")
+        profileImage = { secure_url: uploaded.image_url, public_id: uploaded.public_id }
+      }
+
       const payload: CreateMyPetPayload = {
         name: form.name.trim(),
         description: form.description || undefined,
@@ -607,6 +634,7 @@ function PetFormDialog({
         weight: form.weight ? Number(form.weight) : undefined,
         birthday: form.birthday || undefined,
         is_active: form.is_active,
+        profile_image: profileImage,
       }
 
       if (editingPet) {
@@ -633,6 +661,45 @@ function PetFormDialog({
           <DialogTitle>{editingPet ? "Edit Pet" : "Tambah Pet"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {/* Image Upload */}
+          <div className="flex flex-col gap-1.5">
+            <Label>Foto Pet</Label>
+            <div className="flex items-center gap-4">
+              <div
+                className="w-20 h-20 rounded-lg border-2 border-dashed border-border bg-muted flex items-center justify-center overflow-hidden cursor-pointer shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {imagePreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-3xl select-none">🐾</span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {imagePreview ? "Ganti Foto" : "Upload Foto"}
+                </Button>
+                {imageFile && (
+                  <p className="text-xs text-muted-foreground">{imageFile.name}</p>
+                )}
+                <p className="text-xs text-muted-foreground">Maks. 2 MB (JPG/PNG)</p>
+              </div>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleImageChange}
+            />
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="pet-name">
               Nama <span className="text-destructive">*</span>
@@ -772,6 +839,151 @@ function PetFormDialog({
   )
 }
 
+// ── Pet Detail Dialog ────────────────────────────────────────────────────────
+
+function PetDetailDialog({ pet, open, onOpenChange }: { pet: ApiPet; open: boolean; onOpenChange: (v: boolean) => void }) {
+  const activeMembership = pet.memberships?.find((m) => m.status === "active")
+
+  function InfoChip({ label, value }: { label: string; value?: string | null }) {
+    if (!value) return null
+    return (
+      <div className="flex flex-col gap-0.5 rounded-lg bg-muted/60 px-3 py-2">
+        <span className="text-[9px] font-extrabold tracking-widest text-muted-foreground uppercase">{label}</span>
+        <span className="text-xs font-semibold leading-tight">{value}</span>
+      </div>
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md p-0 overflow-hidden">
+        {/* Header — warm gradient matching card accent palette */}
+        <div className="relative bg-gradient-to-br from-[#c97b3a] via-[#d9683a] to-[#e05a3a]">
+          {/* Decorative dot pattern */}
+          <div
+            className="absolute inset-0 opacity-10"
+            style={{
+              backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)",
+              backgroundSize: "18px 18px",
+            }}
+          />
+
+          {/* Text area — leaves room on right for photo */}
+            <p className="text-[8px] font-extrabold tracking-[0.22em] text-white/60 uppercase mb-1 relative px-5 pt-5">
+              Pawssport by Pawship
+            </p>
+          <div className="relative px-5 pb-7 pl-[150px]">
+            <h2 className="text-xl font-black text-white uppercase leading-tight line-clamp-2">{pet.name}</h2>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <Badge
+                variant="outline"
+                className={
+                  pet.is_active
+                    ? "border-white/40 text-white bg-white/15 text-[10px]"
+                    : "border-white/20 text-white/50 bg-white/5 text-[10px]"
+                }
+              >
+                {pet.is_active ? "Aktif" : "Tidak Aktif"}
+              </Badge>
+              {/* {pet.member_category && (
+                <Badge variant="outline" className="border-[#fde8c8] text-[#fde8c8] bg-white/10 text-[10px]">
+                  {pet.member_category.name}
+                </Badge>
+              )} */}
+            </div>
+          </div>
+
+          {/* Photo — anchored to right, overflowing downward for 3D effect */}
+          <div
+            className="absolute left-5 bottom-0 translate-y-[45%] z-10"
+            style={{ width: "110px", aspectRatio: "117/143" }}
+          >
+            <div className="w-full h-full border-[3px] border-[#fde8c8] rounded-xl overflow-hidden bg-[#ede0cc] shadow-2xl flex items-center justify-center">
+              {pet.profile_image?.secure_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={pet.profile_image.secure_url}
+                  alt={pet.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-5xl select-none">🐾</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Body — padding-top clears the overflowing photo (110 * 143/117 * 0.45 ≈ 61px + 16px gap) */}
+        <div className="px-5 pb-4 flex flex-col gap-4 max-h-[55vh] overflow-y-auto" style={{ paddingTop: "77px" }}>
+          {/* Primary info grid */}
+          <div className="grid grid-cols-3 gap-2">
+            <InfoChip label="Type" value={pet.pet_type?.name} />
+            <InfoChip label="Breed" value={pet.breed?.name} />
+            <InfoChip label="Weight" value={pet.weight != null ? `${pet.weight} kg` : null} />
+            <InfoChip label="Size" value={pet.size?.name} />
+            <InfoChip label="Hair Type" value={pet.hair?.name} />
+            <InfoChip label="Date of Birth" value={pet.birthday ? formatDate(pet.birthday) : null} />
+          </div>
+
+          {/* Description */}
+          {pet.description && (
+            <div className="rounded-lg bg-muted/60 px-3 py-2">
+              <p className="text-[9px] font-extrabold tracking-widest text-muted-foreground uppercase mb-1">Deskripsi</p>
+              <p className="text-xs leading-relaxed">{pet.description}</p>
+            </div>
+          )}
+
+          {/* Tags */}
+          {/* {pet.tags && pet.tags.length > 0 && (
+            <div>
+              <p className="text-[9px] font-extrabold tracking-widest text-muted-foreground uppercase mb-1.5">Tags</p>
+              <div className="flex flex-wrap gap-1">
+                {pet.tags.map((t) => (
+                  <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>
+                ))}
+              </div>
+            </div>
+          )} */}
+
+          {/* Membership */}
+          {activeMembership && (
+            <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex flex-col gap-1">
+              <p className="text-[9px] font-extrabold tracking-widest text-primary uppercase">Membership Aktif</p>
+              <p className="text-sm font-semibold">
+                {formatDate(activeMembership.start_date)} – {formatDate(activeMembership.end_date)}
+              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <div className="flex-1 h-1.5 rounded-full bg-primary/20 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{
+                      width: activeMembership.max_usage > 0
+                        ? `${Math.min(100, (activeMembership.usage_count / activeMembership.max_usage) * 100)}%`
+                        : "0%",
+                    }}
+                  />
+                </div>
+                <span className="text-[10px] text-muted-foreground shrink-0">
+                  {activeMembership.usage_count}/{activeMembership.max_usage} sesi
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Bottom stripe */}
+        <div
+          className="h-1.5"
+          style={{
+            background: "repeating-linear-gradient(45deg, #e05a3a 0px, #e05a3a 4px, #f09060 4px, #f09060 8px)",
+            opacity: 0.75,
+          }}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Pet Card ─────────────────────────────────────────────────────────────────
 
 function PetCard({
@@ -788,8 +1000,10 @@ function PetCard({
   onDelete: (pet: ApiPet) => void
 }) {
   const activeMembership = pet.memberships?.find((m) => m.status === "active")
+  const [detailOpen, setDetailOpen] = useState(false)
 
   return (
+    <>
     <div className="relative rounded-xl overflow-hidden border border-[#e8c9a0] bg-[#fdf6ed] shadow-sm">
       {/* Header */}
       <div className="px-4 pt-3 pb-2 text-center border-b border-[#e8c9a0]">
@@ -807,6 +1021,14 @@ function PetCard({
           onClick={() => onEdit(pet)}
         >
           <Pencil className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-[#1a2b4a]/50 hover:text-[#1a2b4a] hover:bg-[#e8c9a0]/40"
+          onClick={() => setDetailOpen(true)}
+        >
+          <Eye className="h-3 w-3" />
         </Button>
         <Button
           variant="ghost"
@@ -867,14 +1089,12 @@ function PetCard({
               <p className="text-[10px] font-bold text-[#c97b3a] uppercase leading-tight">{pet.name}</p>
             </div>
 
-            {pet.birthday && (
-              <div>
-                <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Date of Birth</p>
-                <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
-                  {formatDate(pet.birthday)}
-                </p>
-              </div>
-            )}
+            <div>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Date of Birth</p>
+              <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
+                {pet.birthday ? formatDate(pet.birthday) : "—"}
+              </p>
+            </div>
 
             <div>
               <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] uppercase">Pawrents Name</p>
@@ -925,6 +1145,8 @@ function PetCard({
         }}
       />
     </div>
+    <PetDetailDialog pet={pet} open={detailOpen} onOpenChange={setDetailOpen} />
+    </>
   )
 }
 

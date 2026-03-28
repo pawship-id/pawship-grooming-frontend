@@ -106,6 +106,7 @@ export type CreateMyPetPayload = {
   member_category_id?: string
   tags?: string[]
   is_active?: boolean
+  profile_image?: { secure_url: string; public_id: string }
 }
 
 export type UpdateMyPetPayload = Partial<CreateMyPetPayload>
