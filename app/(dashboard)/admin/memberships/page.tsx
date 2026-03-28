@@ -9,7 +9,6 @@ import {
   Search,
   X,
   CreditCard,
-  Ban,
   Eye,
   Tag,
   CalendarDays,
@@ -27,7 +26,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
@@ -42,16 +40,11 @@ import {
   type BenefitType,
   type BenefitAppliesTo,
   type BenefitPeriod,
-  type PetMembership,
-  type PurchasePetMembershipPayload,
   getMemberships,
   getMembershipById,
   createMembership,
   updateMembership,
   deleteMembership,
-  getPetMemberships,
-  purchasePetMembership,
-  cancelPetMembership,
 } from "@/lib/api/memberships"
 import { getOptions, type ApiOption } from "@/lib/api/options"
 import { getAdminServices, type AdminService } from "@/lib/api/services"
@@ -62,14 +55,6 @@ function formatRupiah(value: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value)
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
-}
-
-function isPetMembershipActive(pm: { start_date: string; end_date: string }) {
-  const now = Date.now()
-  return new Date(pm.start_date).getTime() <= now && now <= new Date(pm.end_date).getTime()
-}
 
 // ── Benefit form ───────────────────────────────────────────────────────────
 
@@ -1129,232 +1114,6 @@ function MembershipsTab() {
   )
 }
 
-// ── Pet Memberships Tab ────────────────────────────────────────────────────
-
-interface PurchaseForm {
-  pet_id: string
-  membership_plan_id: string
-}
-
-const DEFAULT_PURCHASE_FORM: PurchaseForm = {
-  pet_id: "",
-  membership_plan_id: "",
-}
-
-function PetMembershipsTab() {
-  const [petMemberships, setPetMemberships] = useState<PetMembership[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all")
-  const [memberships, setMemberships] = useState<MembershipPlan[]>([])
-
-  const [purchaseOpen, setPurchaseOpen] = useState(false)
-  const [purchaseForm, setPurchaseForm] = useState<PurchaseForm>(DEFAULT_PURCHASE_FORM)
-  const [isPurchasing, setIsPurchasing] = useState(false)
-  const [cancelTarget, setCancelTarget] = useState<PetMembership | null>(null)
-
-  const loadPetMemberships = useCallback(async () => {
-    setIsLoading(true)
-    try {
-      const params = filterActive !== "all" ? { is_active: filterActive === "active" } : {}
-      const res = await getPetMemberships(params)
-      setPetMemberships(res.data)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal memuat pet memberships")
-    } finally {
-      setIsLoading(false)
-    }
-  }, [filterActive])
-
-  useEffect(() => {
-    loadPetMemberships()
-  }, [loadPetMemberships])
-
-  useEffect(() => {
-    getMemberships({ is_active: true }).then((res) => setMemberships(res.data)).catch(() => {})
-  }, [])
-
-  const handlePurchase = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!purchaseForm.pet_id || !purchaseForm.membership_plan_id) {
-      toast.error("Isi semua field yang diperlukan")
-      return
-    }
-    setIsPurchasing(true)
-    try {
-      await purchasePetMembership(purchaseForm as PurchasePetMembershipPayload)
-      toast.success("Membership berhasil dibeli")
-      setPurchaseOpen(false)
-      setPurchaseForm(DEFAULT_PURCHASE_FORM)
-      loadPetMemberships()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal membeli membership")
-    } finally {
-      setIsPurchasing(false)
-    }
-  }
-
-  const handleCancel = async () => {
-    if (!cancelTarget) return
-    try {
-      await cancelPetMembership(cancelTarget._id)
-      toast.success("Membership berhasil dibatalkan")
-      setCancelTarget(null)
-      loadPetMemberships()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal membatalkan membership")
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-4">
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Select value={filterActive} onValueChange={(v) => setFilterActive(v as typeof filterActive)}>
-          <SelectTrigger className="w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua Status</SelectItem>
-            <SelectItem value="active">Aktif</SelectItem>
-            <SelectItem value="inactive">Nonaktif</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button onClick={() => { setPurchaseForm(DEFAULT_PURCHASE_FORM); setPurchaseOpen(true) }}>
-          <Plus className="h-4 w-4 mr-2" />
-          Beli Membership
-        </Button>
-      </div>
-
-      {/* Table */}
-      <Card className="border-border/50">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Pet</TableHead>
-              <TableHead>Paket</TableHead>
-              <TableHead>Mulai</TableHead>
-              <TableHead>Berakhir</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-24" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              Array.from({ length: 4 }).map((_, i) => (
-                <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((__, j) => (
-                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : petMemberships.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  Belum ada pet membership
-                </TableCell>
-              </TableRow>
-            ) : (
-              petMemberships.map((pm) => {                
-                return (
-                  <TableRow key={pm._id}>
-                    <TableCell className="text-xs font-mono text-muted-foreground">{`${pm.pet.name} (${pm.pet.pet_type.name}) - ${pm.pet.owner.username}`}</TableCell>
-                    <TableCell className="text-sm">{pm.membership.name}</TableCell>
-                    <TableCell className="text-sm">{formatDate(pm.start_date)}</TableCell>
-                    <TableCell className="text-sm">{formatDate(pm.end_date)}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={isPetMembershipActive(pm) ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}
-                      >
-                        {isPetMembershipActive(pm) ? "Aktif" : "Tidak aktif"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {isPetMembershipActive(pm) && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-xs text-destructive hover:text-destructive"
-                          onClick={() => setCancelTarget(pm)}
-                        >
-                          <Ban className="h-3.5 w-3.5 mr-1" />
-                          Batalkan
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              })
-            )}
-          </TableBody>
-        </Table>
-      </Card>
-
-      {/* Purchase Dialog */}
-      <Dialog open={purchaseOpen} onOpenChange={setPurchaseOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="font-display">Beli Membership untuk Pet</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handlePurchase} className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="purchase-pet-id">Pet ID <span className="text-destructive">*</span></Label>
-              <Input
-                id="purchase-pet-id"
-                placeholder="MongoDB ObjectId"
-                required
-                value={purchaseForm.pet_id}
-                onChange={(e) => setPurchaseForm((p) => ({ ...p, pet_id: e.target.value }))}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="purchase-plan">Paket Membership <span className="text-destructive">*</span></Label>
-              <Select
-                value={purchaseForm.membership_plan_id}
-                onValueChange={(v) => setPurchaseForm((p) => ({ ...p, membership_plan_id: v }))}
-                required
-              >
-                <SelectTrigger id="purchase-plan">
-                  <SelectValue placeholder="Pilih paket" />
-                </SelectTrigger>
-                <SelectContent>
-                  {memberships.map((m) => (
-                    <SelectItem key={m._id} value={m._id}>{m.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setPurchaseOpen(false)}>Batal</Button>
-              <Button type="submit" disabled={isPurchasing}>
-                {isPurchasing ? "Memproses..." : "Beli"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Cancel Confirmation */}
-      <AlertDialog open={!!cancelTarget} onOpenChange={(open) => !open && setCancelTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Batalkan Pet Membership</AlertDialogTitle>
-            <AlertDialogDescription>
-              Yakin ingin membatalkan membership ini? Semua benefit tidak akan lagi bisa digunakan.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Kembali</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleCancel}>
-              Batalkan Membership
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  )
-}
-
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default function MembershipsPage() {
@@ -1364,22 +1123,12 @@ export default function MembershipsPage() {
         <CreditCard className="h-6 w-6 text-primary" />
         <div>
           <h1 className="font-display text-2xl font-bold text-foreground">Memberships</h1>
-          <p className="text-sm text-muted-foreground">Kelola paket membership dan langganan pet</p>
+          <p className="text-sm text-muted-foreground">Kelola paket membership</p>
         </div>
       </div>
-
-      <Tabs defaultValue="plans">
-        <TabsList>
-          <TabsTrigger value="plans">Paket Membership</TabsTrigger>
-          <TabsTrigger value="pet-memberships">Pet Memberships</TabsTrigger>
-        </TabsList>
-        <TabsContent value="plans" className="mt-4">
-          <MembershipsTab />
-        </TabsContent>
-        <TabsContent value="pet-memberships" className="mt-4">
-          <PetMembershipsTab />
-        </TabsContent>
-      </Tabs>
+      <MembershipsTab />
     </div>
   )
 }
+
+

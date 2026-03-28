@@ -784,9 +784,9 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              {booking.booking_status !== "in progress" && booking.sessions.some((s) => s.status === "not started") && (
+              {["requested", "waitlist", "rescheduled"].includes(booking.booking_status) && booking.sessions.some((s) => s.status === "not started") && (
                 <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
-                  Sesi grooming hanya dapat dimulai saat status booking berubah menjadi <span className="font-medium text-foreground">in progress</span>.
+                  Sesi grooming hanya dapat dimulai setelah booking <span className="font-medium text-foreground">dikonfirmasi</span>.
                 </p>
               )}
               {hasInProgressSession && booking.sessions.some((s) => s.status === "not started") && (
@@ -827,7 +827,7 @@ export default function BookingDetailPage({ params }: { params: Promise<{ id: st
                                 variant="outline"
                                 onClick={() => handleStartSession(session._id!)}
                                 disabled={
-                                  booking.booking_status !== "in progress" ||
+                                  ["requested", "waitlist", "rescheduled", "cancelled", "completed"].includes(booking.booking_status) ||
                                   hasInProgressSession ||
                                   booking.sessions.slice(0, idx).some((s) => s.status !== "finished")
                                 }
