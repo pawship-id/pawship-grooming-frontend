@@ -284,6 +284,7 @@ export default function NewBookingPage() {
       add_on_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
       store_id: isPickup ? form.store_id : undefined,
       original_total_price: previewData?.pricing_breakdown?.grand_total,
+      booking_date: form.date || undefined,
     })
       .then((res) => { if (!cancelled) setApplyBenefitResult(res) })
       .catch(() => { if (!cancelled) setApplyBenefitResult(null) })

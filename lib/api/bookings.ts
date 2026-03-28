@@ -325,6 +325,7 @@ export async function applyBenefitPreview(payload: {
   service_id?: string
   add_on_ids?: string[]
   original_total_price?: number
+  booking_date?: string
 }) {
   return apiAuthRequest<{ message: string } & ApplyBenefitPreviewResult>("/bookings/public/apply-benefit", {
     method: "POST",
