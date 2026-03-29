@@ -1,10 +1,12 @@
 "use client"
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react"
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
+import { toast } from "sonner"
 import type { AuthUser } from "./types"
 import { authUsers } from "./mock-data"
 import { clearAuthTokens, loginRequest, setAuthTokens } from "./api/index"
+import { SESSION_EXPIRED_EVENT } from "./api/client"
 
 const AUTH_STORAGE_KEY = "pawship-auth"
 
@@ -116,6 +118,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(AUTH_STORAGE_KEY)
     clearAuthTokens()
     router.push("/login")
+  }, [router])
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setUser(null)
+      localStorage.removeItem(AUTH_STORAGE_KEY)
+      toast.error("Sesi login berakhir, silakan login kembali")
+      router.push("/login")
+    }
+
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired)
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired)
   }, [router])
 
   return (
