@@ -231,6 +231,9 @@ export default function PetMembershipsPage() {
   // Purchase dialog
   const [purchaseOpen, setPurchaseOpen] = useState(false)
   const [selectedPlanId, setSelectedPlanId] = useState("")
+  const [purchaseStartDate, setPurchaseStartDate] = useState<string>(
+    () => new Date().toISOString().split("T")[0]
+  )
   const [isPurchasing, setIsPurchasing] = useState(false)
 
   // Cancel dialog
@@ -329,10 +332,15 @@ export default function PetMembershipsPage() {
     }
     setIsPurchasing(true)
     try {
-      await purchasePetMembership({ pet_id: petId, membership_plan_id: selectedPlanId })
+      await purchasePetMembership({
+        pet_id: petId,
+        membership_plan_id: selectedPlanId,
+        start_date: new Date(purchaseStartDate).toISOString(),
+      })
       toast.success("Membership berhasil dibeli")
       setPurchaseOpen(false)
       setSelectedPlanId("")
+      setPurchaseStartDate(new Date().toISOString().split("T")[0])
       loadMemberships()
       loadTabCounts()
       loadMembershipHistory()
@@ -437,7 +445,7 @@ export default function PetMembershipsPage() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-display font-semibold text-lg">Membership</h2>
-            <Button variant="outline" size="sm" onClick={() => { setSelectedPlanId(""); setPurchaseOpen(true) }}>
+            <Button variant="outline" size="sm" onClick={() => { setSelectedPlanId(""); setPurchaseStartDate(new Date().toISOString().split("T")[0]); setPurchaseOpen(true) }}>
               <CreditCard className="h-4 w-4 mr-2" />
               Beli Membership
             </Button>
@@ -526,7 +534,7 @@ export default function PetMembershipsPage() {
                          "Tidak ada membership yang dibatalkan"}
                       </p>
                       {tab === "active" && (
-                        <Button onClick={() => { setSelectedPlanId(""); setPurchaseOpen(true) }}>
+                        <Button onClick={() => { setSelectedPlanId(""); setPurchaseStartDate(new Date().toISOString().split("T")[0]); setPurchaseOpen(true) }}>
                           <CreditCard className="h-4 w-4 mr-2" />
                           Beli Membership
                         </Button>
@@ -736,7 +744,7 @@ export default function PetMembershipsPage() {
       </div>
 
       {/* Purchase Dialog */}
-      <Dialog open={purchaseOpen} onOpenChange={(open) => { if (!open) { setPurchaseOpen(false); setSelectedPlanId("") } }}>
+      <Dialog open={purchaseOpen} onOpenChange={(open) => { if (!open) { setPurchaseOpen(false); setSelectedPlanId(""); setPurchaseStartDate(new Date().toISOString().split("T")[0]) } }}>
         <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="font-display">Beli Membership</DialogTitle>
@@ -793,11 +801,24 @@ export default function PetMembershipsPage() {
                 )}
               </div>
 
+              {/* Start Date */}
+              {selectedPlanId && (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="purchase-start-date">Tanggal Mulai</Label>
+                  <Input
+                    id="purchase-start-date"
+                    type="date"
+                    value={purchaseStartDate}
+                    onChange={(e) => setPurchaseStartDate(e.target.value)}
+                  />
+                </div>
+              )}
+
               {/* Selected Plan Details: Benefits + Summary */}
               {(() => {
                 const plan = availablePlans.find((p) => p._id === selectedPlanId)
                 if (!plan) return null
-                const startDate = new Date()
+                const startDate = purchaseStartDate ? new Date(purchaseStartDate) : new Date()
                 const endDate = addMonths(startDate, plan.duration_months)
                 return (
                   <>
@@ -854,7 +875,7 @@ export default function PetMembershipsPage() {
             </div>
 
             <div className="pt-4 border-t border-border mt-2 flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => { setPurchaseOpen(false); setSelectedPlanId("") }}>Batal</Button>
+              <Button type="button" variant="outline" onClick={() => { setPurchaseOpen(false); setSelectedPlanId(""); setPurchaseStartDate(new Date().toISOString().split("T")[0]) }}>Batal</Button>
               <Button type="submit" disabled={isPurchasing || !selectedPlanId}>
                 {isPurchasing ? "Memproses..." : "Beli Sekarang"}
               </Button>

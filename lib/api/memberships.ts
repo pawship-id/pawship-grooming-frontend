@@ -198,6 +198,7 @@ export interface PetMembershipDeleteResponse {
 export interface PurchasePetMembershipPayload {
   pet_id: string
   membership_plan_id: string
+  start_date?: string
 }
 
 export interface UpdatePetMembershipPayload {
