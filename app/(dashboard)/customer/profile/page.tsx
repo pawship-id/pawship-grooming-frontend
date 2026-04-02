@@ -939,11 +939,7 @@ function PetDetailDialog({ pet, open, onOpenChange }: { pet: ApiPet; open: boole
               >
                 {pet.is_active ? "Aktif" : "Tidak Aktif"}
               </Badge>
-              {/* {pet.member_category && (
-                <Badge variant="outline" className="border-[#fde8c8] text-[#fde8c8] bg-white/10 text-[10px]">
-                  {pet.member_category.name}
-                </Badge>
-              )} */}
+
             </div>
           </div>
 

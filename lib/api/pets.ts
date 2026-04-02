@@ -20,7 +20,6 @@ export interface CreatePetPayload {
   size_category_id: string
   breed_category_id: string
   weight?: number
-  member_category_id?: string
   tags?: string[]
   last_grooming_at?: string
   last_visit_at?: string

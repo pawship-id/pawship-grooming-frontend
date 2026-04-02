@@ -55,7 +55,6 @@ export interface ApiPet {
   hair: ApiPetType | null
   size: ApiPetType | null
   breed: ApiPetType | null
-  member_category: ApiPetType | null
   last_grooming_at?: string
   last_visit_at?: string
 }
@@ -110,7 +109,6 @@ export type CreateMyPetPayload = {
   size_category_id: string
   breed_category_id: string
   weight?: number
-  member_category_id?: string
   tags?: string[]
   is_active?: boolean
   profile_image?: { secure_url: string; public_id: string }

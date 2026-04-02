@@ -42,7 +42,6 @@ type PetForm = {
   hair_category_id: string
   size_category_id: string
   breed_category_id: string
-  member_category_id: string
   birthday: string
   weight: string
   tags: string[]
@@ -57,7 +56,6 @@ const DEFAULT_FORM: PetForm = {
   hair_category_id: "",
   size_category_id: "",
   breed_category_id: "",
-  member_category_id: "",
   birthday: "",
   weight: "",
   tags: [],
@@ -73,7 +71,6 @@ function petToForm(pet: ApiPet): PetForm {
     hair_category_id: pet.hair?._id ?? "",
     size_category_id: pet.size?._id ?? "",
     breed_category_id: pet.breed?._id ?? "",
-    member_category_id: pet.member_category?._id ?? "",
     birthday: pet.birthday ? pet.birthday.slice(0, 10) : "",
     weight: pet.weight != null ? String(pet.weight) : "",
     tags: pet.tags ?? [],
@@ -90,7 +87,6 @@ function formToPayload(form: PetForm, customerId: string): CreatePetPayload {
     hair_category_id: form.hair_category_id,
     size_category_id: form.size_category_id,
     breed_category_id: form.breed_category_id,
-    member_category_id: form.member_category_id || undefined,
     birthday: form.birthday || undefined,
     weight: form.weight ? Number(form.weight) : undefined,
     tags: form.tags.length > 0 ? form.tags : undefined,
@@ -105,7 +101,6 @@ interface OptionGroups {
   hairCategories: ApiOption[]
   sizeCategories: ApiOption[]
   breedCategories: ApiOption[]
-  memberCategories: ApiOption[]
 }
 
 // ── Pet Card ──────────────────────────────────────────────────────────────
@@ -201,9 +196,6 @@ function PetCard({
         </div>
         {pet.hair && (
           <span className="text-xs">Bulu: {pet.hair.name}</span>
-        )}
-        {pet.member_category && (
-          <span className="text-xs">Member: {pet.member_category.name}</span>
         )}
         {pet.tags && pet.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
@@ -408,25 +400,6 @@ function PetFormDialog({
             </div>
           </div>
 
-          {/* Member Category */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="pet-member">Kategori Member</Label>
-            <Select
-              value={form.member_category_id || "none"}
-              onValueChange={(v) => setForm((p) => ({ ...p, member_category_id: v === "none" ? "" : v }))}
-            >
-              <SelectTrigger id="pet-member">
-                <SelectValue placeholder="Pilih kategori member" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Tidak ada —</SelectItem>
-                {options.memberCategories.map((o) => (
-                  <SelectItem key={o._id} value={o._id}>{o.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* Description */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="pet-desc">Deskripsi</Label>
@@ -523,7 +496,6 @@ export default function CustomerPetsPage() {
     hairCategories: [],
     sizeCategories: [],
     breedCategories: [],
-    memberCategories: [],
   })
 
   // Create dialog state
@@ -569,14 +541,12 @@ export default function CustomerPetsPage() {
       getOptions("hair category"),
       getOptions("size category"),
       getOptions("breed category"),
-      getOptions("member category"),
-    ]).then(([petTypes, hair, size, breed, member]) => {
+    ]).then(([petTypes, hair, size, breed]) => {
       setOptions({
         petTypes: petTypes.options,
         hairCategories: hair.options,
         sizeCategories: size.options,
         breedCategories: breed.options,
-        memberCategories: member.options,
       })
     }).catch(() => {
       // Options failing silently is acceptable — user sees empty selects
@@ -625,7 +595,6 @@ export default function CustomerPetsPage() {
       hair_category_id: editForm.hair_category_id,
       size_category_id: editForm.size_category_id,
       breed_category_id: editForm.breed_category_id,
-      member_category_id: editForm.member_category_id || undefined,
       birthday: editForm.birthday || undefined,
       weight: editForm.weight ? Number(editForm.weight) : undefined,
       tags: editForm.tags.length > 0 ? editForm.tags : undefined,
