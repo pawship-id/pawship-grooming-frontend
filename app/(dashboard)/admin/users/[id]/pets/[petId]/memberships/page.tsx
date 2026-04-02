@@ -217,6 +217,8 @@ export default function PetMembershipsPage() {
   const [membershipTab, setMembershipTab] = useState<MembershipStatus>("active")
   const [isLoadingMemberships, setIsLoadingMemberships] = useState(true)
   const [tabCounts, setTabCounts] = useState<Record<MembershipStatus, number>>({ active: 0, pending: 0, expired: 0, cancelled: 0 })
+  // All non-cancelled memberships (is_active=true): active, pending, expired — used to disable already-owned plans in purchase dialog
+  const [nonCancelledMemberships, setNonCancelledMemberships] = useState<PetMembership[]>([])
 
   const [benefitsHistory, setBenefitsHistory] = useState<BenefitsHistoryData | null>(null)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
@@ -293,6 +295,15 @@ export default function PetMembershipsPage() {
     } catch { /* non-critical */ }
   }, [petId])
 
+  const loadNonCancelledMemberships = useCallback(async () => {
+    try {
+      const res = await getPetMemberships({ pet_id: petId })
+      setNonCancelledMemberships(res.data)
+    } catch {
+      setNonCancelledMemberships([])
+    }
+  }, [petId])
+
   const loadBenefitsHistory = useCallback(async () => {
     setIsLoadingHistory(true)
     try {
@@ -320,9 +331,10 @@ export default function PetMembershipsPage() {
   useEffect(() => {
     loadMemberships()
     loadTabCounts()
+    loadNonCancelledMemberships()
     loadBenefitsHistory()
     loadMembershipHistory()
-  }, [loadMemberships, loadTabCounts, loadBenefitsHistory, loadMembershipHistory])
+  }, [loadMemberships, loadTabCounts, loadNonCancelledMemberships, loadBenefitsHistory, loadMembershipHistory])
 
   const handlePurchase = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -343,6 +355,7 @@ export default function PetMembershipsPage() {
       setPurchaseStartDate(new Date().toISOString().split("T")[0])
       loadMemberships()
       loadTabCounts()
+      loadNonCancelledMemberships()
       loadMembershipHistory()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal membeli membership")
@@ -359,6 +372,7 @@ export default function PetMembershipsPage() {
       setCancelTarget(null)
       loadMemberships()
       loadTabCounts()
+      loadNonCancelledMemberships()
       loadMembershipHistory()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal membatalkan membership")
@@ -762,7 +776,8 @@ export default function PetMembershipsPage() {
                 ) : (
                   <div className="flex flex-col gap-2">
                     {availablePlans.map((p) => {
-                      const isActivePlan = membershipTab === "active" && memberships.some((am) => am.membership._id === p._id)
+                      const matchedNonCancelled = nonCancelledMemberships.find((am) => am.membership._id === p._id)
+                      const isActivePlan = !!matchedNonCancelled
                       const isSelected = selectedPlanId === p._id
                       return (
                         <button
@@ -787,7 +802,11 @@ export default function PetMembershipsPage() {
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
                             {isActivePlan && (
-                              <Badge variant="secondary" className="text-xs">Aktif</Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                {matchedNonCancelled?.status === "active" ? "Aktif" :
+                                 matchedNonCancelled?.status === "pending" ? "Menunggu" :
+                                 "Berakhir"}
+                              </Badge>
                             )}
                             <span className="font-bold text-sm">Rp {p.price.toLocaleString("id-ID")}</span>
                             {isSelected && !isActivePlan && (
