@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { getAdminBookings, type AdminBooking } from "@/lib/api/bookings";
 import { Badge } from "@/components/ui/badge";
@@ -117,6 +118,7 @@ const statusOptions = [
 
 // ── Booking Card ─────────────────────────────────────────────────────────────
 function BookingCard({ booking }: { booking: AdminBooking }) {
+  const router = useRouter();
   const cfg = statusConfig[booking.booking_status] ?? {
     label: booking.booking_status,
     className: "bg-muted text-muted-foreground border-border",
@@ -133,7 +135,10 @@ function BookingCard({ booking }: { booking: AdminBooking }) {
   ];
 
   return (
-    <Card className="overflow-hidden border-border/50">
+    <Card
+      className="cursor-pointer overflow-hidden border-border/50 transition-shadow hover:shadow-md"
+      onClick={() => router.push(`/customer/order/${booking._id}`)}
+    >
       {/* Header bar */}
       <div
         className={`flex items-center justify-between gap-3 border-b px-5 py-3 ${
