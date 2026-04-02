@@ -206,6 +206,7 @@ export interface UpdatePetMembershipPayload {
   membership_plan_id?: string
   start_date?: string
   end_date?: string
+  note?: string
 }
 
 export interface GetPetMembershipsParams {

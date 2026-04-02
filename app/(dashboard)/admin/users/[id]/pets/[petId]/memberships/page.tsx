@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
@@ -93,11 +94,13 @@ function isoToDateInput(iso: string) {
 interface UpdateMembershipForm {
   start_date: string
   end_date: string
+  note: string
 }
 
 const DEFAULT_UPDATE_FORM: UpdateMembershipForm = {
   start_date: "",
   end_date: "",
+  note: "",
 }
 
 // ── Sub-Components ─────────────────────────────────────────────────────────
@@ -387,6 +390,7 @@ export default function PetMembershipsPage() {
       const payload: Record<string, string> = {}
       if (updateForm.start_date) payload.start_date = new Date(updateForm.start_date).toISOString()
       if (updateForm.end_date) payload.end_date = new Date(updateForm.end_date).toISOString()
+      if (updateForm.note.trim()) payload.note = updateForm.note.trim()
       await updatePetMembership(updateTarget._id, payload)
       toast.success("Membership berhasil diperbarui")
       setUpdateTarget(null)
@@ -530,6 +534,7 @@ export default function PetMembershipsPage() {
                           setUpdateForm({
                             start_date: isoToDateInput(pm.start_date),
                             end_date: isoToDateInput(pm.end_date),
+                            note: "",
                           })
                         }}
                         onCancel={() => setCancelTarget(pm)}
@@ -929,6 +934,16 @@ export default function PetMembershipsPage() {
                   onChange={(e) => setUpdateForm((p) => ({ ...p, end_date: e.target.value }))}
                 />
               </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="update-note">Catatan <span className="text-muted-foreground">(opsional)</span></Label>
+              <Textarea
+                id="update-note"
+                placeholder="Masukkan catatan perubahan..."
+                value={updateForm.note}
+                onChange={(e) => setUpdateForm((p) => ({ ...p, note: e.target.value }))}
+                rows={3}
+              />
             </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => { setUpdateTarget(null); setUpdateForm(DEFAULT_UPDATE_FORM) }}>Batal</Button>
