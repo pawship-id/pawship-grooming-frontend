@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react";
 import {
   Plus,
   Pencil,
@@ -10,21 +10,21 @@ import {
   X,
   Percent,
   CalendarDays,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -32,8 +32,13 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+} from "@/components/ui/table";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,7 +48,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,8 +56,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { toast } from "sonner"
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 
 import {
   type Promotion,
@@ -63,8 +68,8 @@ import {
   createPromotion,
   updatePromotion,
   deletePromotion,
-} from "@/lib/api/promotions"
-import { getAdminServices, type AdminService } from "@/lib/api/services"
+} from "@/lib/api/promotions";
+import { getAdminServices, type AdminService } from "@/lib/api/services";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -73,16 +78,16 @@ function formatRupiah(value: number) {
     style: "currency",
     currency: "IDR",
     maximumFractionDigits: 0,
-  }).format(value)
+  }).format(value);
 }
 
 function formatDate(iso: string | null | undefined) {
-  if (!iso) return "—"
+  if (!iso) return "—";
   return new Date(iso).toLocaleDateString("id-ID", {
     day: "2-digit",
     month: "short",
     year: "numeric",
-  })
+  });
 }
 
 const APPLIES_TO_LABEL: Record<AppliesTo, string> = {
@@ -90,30 +95,31 @@ const APPLIES_TO_LABEL: Record<AppliesTo, string> = {
   addon: "Addon",
   pickup: "Pickup",
   booking: "Booking",
-}
+};
 
 const APPLIES_TO_COLOR: Record<AppliesTo, string> = {
   service: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-  addon: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
+  addon:
+    "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300",
   pickup: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
   booking: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
-}
+};
 
 // ── Form interfaces & defaults ─────────────────────────────────────────────
 
 interface PromotionForm {
-  code: string
-  name: string
-  description: string
-  applies_to: AppliesTo
-  service_id: string
-  discount_type: DiscountType
-  value: string
-  start_date: string
-  end_date: string
-  is_available_to_membership: boolean
-  is_stackable: boolean
-  is_active: boolean
+  code: string;
+  name: string;
+  description: string;
+  applies_to: AppliesTo;
+  service_id: string;
+  discount_type: DiscountType;
+  value: string;
+  start_date: string;
+  end_date: string;
+  is_available_to_membership: boolean;
+  is_stackable: boolean;
+  is_active: boolean;
 }
 
 const DEFAULT_FORM: PromotionForm = {
@@ -129,7 +135,7 @@ const DEFAULT_FORM: PromotionForm = {
   is_available_to_membership: false,
   is_stackable: false,
   is_active: true,
-}
+};
 
 function promotionToForm(p: Promotion): PromotionForm {
   return {
@@ -145,12 +151,12 @@ function promotionToForm(p: Promotion): PromotionForm {
     is_available_to_membership: p.is_available_to_membership,
     is_stackable: p.is_stackable,
     is_active: p.is_active,
-  }
+  };
 }
 
 function formToPayload(form: PromotionForm): PromotionPayload {
   const needsService =
-    form.applies_to === "service" || form.applies_to === "addon"
+    form.applies_to === "service" || form.applies_to === "addon";
   return {
     code: form.code,
     name: form.name,
@@ -164,143 +170,169 @@ function formToPayload(form: PromotionForm): PromotionPayload {
     is_available_to_membership: form.is_available_to_membership,
     is_stackable: form.is_stackable,
     is_active: form.is_active,
-  }
+  };
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────
 
 export default function PromotionsPage() {
-  const [promotions, setPromotions] = useState<Promotion[]>([])
-  const [loading, setLoading] = useState(true)
-  const [services, setServices] = useState<AdminService[]>([])
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [services, setServices] = useState<AdminService[]>([]);
 
   // Filters
-  const [search, setSearch] = useState("")
-  const [filterAppliesTo, setFilterAppliesTo] = useState<AppliesTo | "all">("all")
-  const [filterDiscountType, setFilterDiscountType] = useState<DiscountType | "all">("all")
-  const [filterActive, setFilterActive] = useState<"all" | "true" | "false">("all")
+  const [search, setSearch] = useState("");
+  const [filterAppliesTo, setFilterAppliesTo] = useState<AppliesTo | "all">(
+    "all",
+  );
+  const [filterDiscountType, setFilterDiscountType] = useState<
+    DiscountType | "all"
+  >("all");
+  const [filterActive, setFilterActive] = useState<"all" | "true" | "false">(
+    "all",
+  );
 
   // Pagination
-  const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [total, setTotal] = useState(0)
-  const LIMIT = 10
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const LIMIT = 10;
 
   // Sheet (create / edit)
-  const [sheetOpen, setSheetOpen] = useState(false)
-  const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null)
-  const [form, setForm] = useState<PromotionForm>(DEFAULT_FORM)
-  const [submitting, setSubmitting] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(
+    null,
+  );
+  const [form, setForm] = useState<PromotionForm>(DEFAULT_FORM);
+  const [submitting, setSubmitting] = useState(false);
 
   // Delete dialog
-  const [deleteTarget, setDeleteTarget] = useState<Promotion | null>(null)
-  const [deleting, setDeleting] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Promotion | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // ── Fetch ──────────────────────────────────────────────────────────────
 
   const fetchPromotions = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       const res = await getPromotions({
         page,
         limit: LIMIT,
         search: search || undefined,
         applies_to: filterAppliesTo !== "all" ? filterAppliesTo : undefined,
-        discount_type: filterDiscountType !== "all" ? filterDiscountType : undefined,
+        discount_type:
+          filterDiscountType !== "all" ? filterDiscountType : undefined,
         is_active:
           filterActive === "true"
             ? true
             : filterActive === "false"
               ? false
               : undefined,
-      })
-      setPromotions(res.promotions)
-      setTotalPages(res.pagination.totalPages)
-      setTotal(res.pagination.total)
+      });
+      setPromotions(res.promotions);
+      setTotalPages(res.pagination.totalPages);
+      setTotal(res.pagination.total);
     } catch {
-      toast.error("Gagal memuat data promosi")
+      toast.error("Gagal memuat data promosi");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [page, search, filterAppliesTo, filterDiscountType, filterActive])
+  }, [page, search, filterAppliesTo, filterDiscountType, filterActive]);
 
   useEffect(() => {
-    fetchPromotions()
-  }, [fetchPromotions])
+    fetchPromotions();
+  }, [fetchPromotions]);
 
   useEffect(() => {
     getAdminServices({ limit: 200, is_active: "true" })
       .then((res) => setServices(res.services))
-      .catch(() => {})
-  }, [])
+      .catch(() => {});
+  }, []);
 
   // Reset to page 1 when filters change
   useEffect(() => {
-    setPage(1)
-  }, [search, filterAppliesTo, filterDiscountType, filterActive])
+    setPage(1);
+  }, [search, filterAppliesTo, filterDiscountType, filterActive]);
 
   // ── Sheet helpers ──────────────────────────────────────────────────────
 
   function openCreate() {
-    setEditingPromotion(null)
-    setForm(DEFAULT_FORM)
-    setSheetOpen(true)
+    setEditingPromotion(null);
+    setForm(DEFAULT_FORM);
+    setSheetOpen(true);
   }
 
   function openEdit(p: Promotion) {
-    setEditingPromotion(p)
-    setForm(promotionToForm(p))
-    setSheetOpen(true)
+    setEditingPromotion(p);
+    setForm(promotionToForm(p));
+    setSheetOpen(true);
   }
 
-  function setField<K extends keyof PromotionForm>(key: K, value: PromotionForm[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
+  function setField<K extends keyof PromotionForm>(
+    key: K,
+    value: PromotionForm[K],
+  ) {
+    setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setSubmitting(true)
+    e.preventDefault();
+    setSubmitting(true);
     try {
-      const payload = formToPayload(form)
+      const payload = formToPayload(form);
       if (editingPromotion) {
-        await updatePromotion(editingPromotion._id, payload)
-        toast.success("Promosi berhasil diperbarui")
+        await updatePromotion(editingPromotion._id, payload);
+        toast.success("Promosi berhasil diperbarui");
       } else {
-        await createPromotion(payload)
-        toast.success("Promosi berhasil dibuat")
+        await createPromotion(payload);
+        toast.success("Promosi berhasil dibuat");
       }
-      setSheetOpen(false)
-      fetchPromotions()
+      setSheetOpen(false);
+      fetchPromotions();
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "Terjadi kesalahan"
-      toast.error(msg)
+      const msg = err instanceof Error ? err.message : "Terjadi kesalahan";
+      toast.error(msg);
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
   }
 
   // ── Delete ─────────────────────────────────────────────────────────────
 
   async function handleDelete() {
-    if (!deleteTarget) return
-    setDeleting(true)
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await deletePromotion(deleteTarget._id)
-      toast.success("Promosi berhasil dihapus")
-      setDeleteTarget(null)
-      fetchPromotions()
+      await deletePromotion(deleteTarget._id);
+      toast.success("Promosi berhasil dihapus");
+      setDeleteTarget(null);
+      fetchPromotions();
     } catch {
-      toast.error("Gagal menghapus promosi")
+      toast.error("Gagal menghapus promosi");
     } finally {
-      setDeleting(false)
+      setDeleting(false);
     }
   }
 
   // ── Render ─────────────────────────────────────────────────────────────
 
   const needsService =
-    form.applies_to === "service" || form.applies_to === "addon"
+    form.applies_to === "service" || form.applies_to === "addon";
+
+  // Filter services based on applies_to
+  const filteredServices = services.filter((service) => {
+    if (!service.service_type?.title) return true;
+    const isAddonType = service.service_type.title
+      .toLowerCase()
+      .includes("addon");
+
+    if (form.applies_to === "addon") {
+      return isAddonType;
+    } else if (form.applies_to === "service") {
+      return !isAddonType;
+    }
+    return true;
+  });
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -356,7 +388,9 @@ export default function PromotionsPage() {
 
         <Select
           value={filterDiscountType}
-          onValueChange={(v) => setFilterDiscountType(v as DiscountType | "all")}
+          onValueChange={(v) =>
+            setFilterDiscountType(v as DiscountType | "all")
+          }
         >
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="Tipe diskon" />
@@ -413,7 +447,10 @@ export default function PromotionsPage() {
               ))
             ) : promotions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
+                <TableCell
+                  colSpan={10}
+                  className="text-center py-12 text-muted-foreground"
+                >
                   <Percent className="h-8 w-8 mx-auto mb-2 opacity-30" />
                   <p className="text-sm">Tidak ada promosi ditemukan</p>
                 </TableCell>
@@ -421,7 +458,9 @@ export default function PromotionsPage() {
             ) : (
               promotions.map((p) => (
                 <TableRow key={p._id}>
-                  <TableCell className="font-mono text-xs font-semibold">{p.code}</TableCell>
+                  <TableCell className="font-mono text-xs font-semibold">
+                    {p.code}
+                  </TableCell>
                   <TableCell>
                     <div className="font-medium text-sm">{p.name}</div>
                     {p.description && (
@@ -439,7 +478,9 @@ export default function PromotionsPage() {
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {p.service ? (
-                      <span className="text-foreground font-medium">{p.service.name}</span>
+                      <span className="text-foreground font-medium">
+                        {p.service.name}
+                      </span>
                     ) : (
                       <span className="italic">
                         {p.applies_to === "service" || p.applies_to === "addon"
@@ -459,21 +500,31 @@ export default function PromotionsPage() {
                       <span>{formatDate(p.start_date)}</span>
                     </div>
                     <div className="text-xs">
-                      {p.end_date ? `s/d ${formatDate(p.end_date)}` : "Tidak ada batas"}
+                      {p.end_date
+                        ? `s/d ${formatDate(p.end_date)}`
+                        : "Tidak ada batas"}
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
                     {p.is_available_to_membership ? (
-                      <span className="text-green-600 text-xs font-medium">Ya</span>
+                      <span className="text-green-600 text-xs font-medium">
+                        Ya
+                      </span>
                     ) : (
-                      <span className="text-muted-foreground text-xs">Tidak</span>
+                      <span className="text-muted-foreground text-xs">
+                        Tidak
+                      </span>
                     )}
                   </TableCell>
                   <TableCell className="text-center">
                     {p.is_stackable ? (
-                      <span className="text-green-600 text-xs font-medium">Ya</span>
+                      <span className="text-green-600 text-xs font-medium">
+                        Ya
+                      </span>
                     ) : (
-                      <span className="text-muted-foreground text-xs">Tidak</span>
+                      <span className="text-muted-foreground text-xs">
+                        Tidak
+                      </span>
                     )}
                   </TableCell>
                   <TableCell>
@@ -598,21 +649,27 @@ export default function PromotionsPage() {
               <Select
                 value={form.applies_to}
                 onValueChange={(v) => {
-                  setField("applies_to", v as AppliesTo)
-                  // Clear service_id when switching away from service/addon
-                  if (v !== "service" && v !== "addon") {
-                    setField("service_id", "")
-                  }
+                  setField("applies_to", v as AppliesTo);
+                  // Clear service_id when switching scope (different services apply)
+                  setField("service_id", "");
                 }}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="service">Layanan — diskon pada harga layanan</SelectItem>
-                  <SelectItem value="addon">Addon — diskon pada harga add-on</SelectItem>
-                  <SelectItem value="pickup">Pickup — diskon pada biaya travel pickup</SelectItem>
-                  <SelectItem value="booking">Booking — diskon dari total pembayaran</SelectItem>
+                  <SelectItem value="service">
+                    Layanan — diskon pada harga layanan
+                  </SelectItem>
+                  <SelectItem value="addon">
+                    Addon — diskon pada harga add-on
+                  </SelectItem>
+                  <SelectItem value="pickup">
+                    Pickup — diskon pada biaya travel pickup
+                  </SelectItem>
+                  <SelectItem value="booking">
+                    Booking — diskon dari total pembayaran
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -628,14 +685,16 @@ export default function PromotionsPage() {
                 </Label>
                 <Select
                   value={form.service_id || "__all__"}
-                  onValueChange={(v) => setField("service_id", v === "__all__" ? "" : v)}
+                  onValueChange={(v) =>
+                    setField("service_id", v === "__all__" ? "" : v)
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Pilih layanan..." />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__all__">Semua Layanan</SelectItem>
-                    {services.map((s) => (
+                    {filteredServices.map((s) => (
                       <SelectItem key={s._id} value={s._id}>
                         {s.name}
                       </SelectItem>
@@ -653,7 +712,9 @@ export default function PromotionsPage() {
                 </Label>
                 <Select
                   value={form.discount_type}
-                  onValueChange={(v) => setField("discount_type", v as DiscountType)}
+                  onValueChange={(v) =>
+                    setField("discount_type", v as DiscountType)
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -676,7 +737,9 @@ export default function PromotionsPage() {
                   step={form.discount_type === "percent" ? 0.01 : 1}
                   value={form.value}
                   onChange={(e) => setField("value", e.target.value)}
-                  placeholder={form.discount_type === "percent" ? "10" : "20000"}
+                  placeholder={
+                    form.discount_type === "percent" ? "10" : "20000"
+                  }
                   required
                 />
               </div>
@@ -719,12 +782,15 @@ export default function PromotionsPage() {
                 <div>
                   <p className="text-sm font-medium">Tersedia untuk Member</p>
                   <p className="text-xs text-muted-foreground">
-                    Aktifkan agar promo ini bisa digunakan oleh pemilik hewan yang berlangganan membership
+                    Aktifkan agar promo ini bisa digunakan oleh pemilik hewan
+                    yang berlangganan membership
                   </p>
                 </div>
                 <Switch
                   checked={form.is_available_to_membership}
-                  onCheckedChange={(v) => setField("is_available_to_membership", v)}
+                  onCheckedChange={(v) =>
+                    setField("is_available_to_membership", v)
+                  }
                 />
               </div>
 
@@ -805,5 +871,5 @@ export default function PromotionsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
+  );
 }
