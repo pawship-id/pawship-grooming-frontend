@@ -676,10 +676,7 @@ export default function BookingDetailPage({
                 {/* Service row */}
                 {(() => {
                   const b = booking.applied_benefits?.find(
-                    (ab) =>
-                      ab.applies_to === "service" ||
-                      (ab.service_id != null &&
-                        ab.service_id === booking.service_snapshot._id),
+                    (ab) => ab.applies_to === "service",
                   );
                   const isQuota = b?.benefit_type === "quota";
                   return (
@@ -731,11 +728,13 @@ export default function BookingDetailPage({
                 })()}
                 {/* Addon rows */}
                 {booking.service_snapshot.addons?.map((addon) => {
-                  const b = booking.applied_benefits?.find(
-                    (ab) =>
-                      ab.applies_to === "addon" &&
-                      (!ab.service_id || ab.service_id === addon._id),
-                  );
+                  // Prefer exact service_id match, fall back to null (catch-all)
+                  const addonBenefits = booking.applied_benefits?.filter(
+                    (ab) => ab.applies_to === "addon",
+                  ) ?? [];
+                  const b =
+                    addonBenefits.find((ab) => ab.service_id === addon._id) ??
+                    addonBenefits.find((ab) => !ab.service_id);
                   const isQuota = b?.benefit_type === "quota";
                   return (
                     <div

@@ -628,11 +628,13 @@ export default function CustomerOrderDetailPage() {
               {booking.service_snapshot.addons &&
                 booking.service_snapshot.addons.length > 0 &&
                 booking.service_snapshot.addons.map((addon) => {
-                  const b = booking.applied_benefits.find(
-                    (ab) =>
-                      ab.applies_to === "addon" &&
-                      (!ab.service_id || ab.service_id === addon._id),
+                  // Prefer exact service_id match, fall back to null (catch-all)
+                  const addonBenefits = booking.applied_benefits.filter(
+                    (ab) => ab.applies_to === "addon",
                   );
+                  const b =
+                    addonBenefits.find((ab) => ab.service_id === addon._id) ??
+                    addonBenefits.find((ab) => !ab.service_id);
                   const isQuota = b?.benefit_type === "quota";
                   return (
                     <div
