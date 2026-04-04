@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
-  ArrowLeft, AlertTriangle, Check, Lock,
+  ArrowLeft, AlertTriangle, Check, Lock, ChevronsUpDown, Loader2,
   Mail, Phone, Clock, MapPin, CalendarDays, Tag, Weight, Cake,
   Info, Star, Sparkles, Gift, Truck,
 } from "lucide-react"
@@ -17,6 +17,8 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { toast } from "sonner"
 import { getStores, getStoreById } from "@/lib/api/stores"
 import type { ApiStore } from "@/lib/api/stores"
@@ -52,6 +54,21 @@ function isPriceMatchingPet(price: AdminServicePrice, pet: ApiPet): boolean {
   const sizeMatch    = !price.size_id    || price.size_id    === pet.size?._id
   const hairMatch    = !price.hair_id    || price.hair_id    === pet.hair?._id
   return petTypeMatch && sizeMatch && hairMatch
+}
+
+function HighlightText({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const parts = text.split(new RegExp(`(${escaped})`, "gi"))
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase()
+          ? <mark key={i} className="rounded-sm bg-primary/20 text-foreground">{part}</mark>
+          : part
+      )}
+    </>
+  )
 }
 
 function DetailRow({ icon, label, value }: { icon?: React.ReactNode; label: string; value: React.ReactNode }) {
@@ -105,6 +122,9 @@ export default function NewBookingPage() {
   const [stores, setStores] = useState<ApiStore[]>([])
   const [serviceTypes, setServiceTypes] = useState<ApiServiceType[]>([])
   const [customers, setCustomers] = useState<ApiUser[]>([])
+  const [customerSearch, setCustomerSearch] = useState("")
+  const [customerOpen, setCustomerOpen] = useState(false)
+  const [loadingCustomers, setLoadingCustomers] = useState(false)
   const [sessions, setSessions] = useState<string[]>([])
   const [services, setServices] = useState<AdminService[]>([])
   const [pets, setPets] = useState<ApiPet[]>([])
@@ -129,16 +149,26 @@ export default function NewBookingPage() {
     Promise.all([
       getStores({ page: 1, limit: 100, is_active: "true" }),
       getServiceTypes({ is_active: "true" }),
-      getUsers({ page: 1, limit: 200, role: "customer" }),
     ])
-      .then(([storesRes, typesRes, usersRes]) => {
+      .then(([storesRes, typesRes]) => {
         setStores(storesRes.stores)
         setServiceTypes(typesRes.serviceTypes)
-        setCustomers(usersRes.users)
       })
       .catch(() => toast.error("Gagal memuat data awal"))
       .finally(() => setLoadingInit(false))
   }, [])
+
+  // ── Customer search with debounce ──────────────────────────────────────────
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoadingCustomers(true)
+      getUsers({ page: 1, limit: 20, role: "customer", search: customerSearch || undefined })
+        .then((res) => setCustomers(res.users))
+        .catch(() => {})
+        .finally(() => setLoadingCustomers(false))
+    }, customerSearch ? 400 : 0)
+    return () => clearTimeout(timer)
+  }, [customerSearch])
 
   const fetchServices = async (storeId: string, typeId: string) => {
     setLoadingServices(true)
@@ -401,16 +431,63 @@ export default function NewBookingPage() {
               {/* Customer */}
               <div className="flex flex-col gap-2">
                 <Label>Customer</Label>
-                <Select value={form.customer_id} onValueChange={handleCustomerChange} disabled={loadingInit}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={loadingInit ? "Memuat..." : "Pilih customer"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customers.map((c) => (
-                      <SelectItem key={c._id} value={c._id}>{c.username} — {c.phone_number}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={customerOpen} onOpenChange={setCustomerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={customerOpen}
+                      disabled={loadingInit}
+                      className="w-full justify-between font-normal"
+                    >
+                      {selectedCustomer
+                        ? `${selectedCustomer.username} — ${selectedCustomer.phone_number}`
+                        : loadingInit ? "Memuat..." : "Cari customer..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput
+                        placeholder="Cari nama, telepon, atau email..."
+                        value={customerSearch}
+                        onValueChange={setCustomerSearch}
+                      />
+                      <CommandList>
+                        {loadingCustomers && (
+                          <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Mencari...
+                          </div>
+                        )}
+                        {!loadingCustomers && <CommandEmpty>Customer tidak ditemukan.</CommandEmpty>}
+                        {!loadingCustomers && customers.length > 0 && (
+                          <CommandGroup>
+                            {customers.map((c) => (
+                              <CommandItem
+                                key={c._id}
+                                value={c._id}
+                                onSelect={() => {
+                                  handleCustomerChange(c._id)
+                                  setCustomerOpen(false)
+                                }}
+                                className="flex flex-col items-start gap-0.5"
+                              >
+                                <div className="flex w-full items-center gap-2">
+                                  <Check className={`h-4 w-4 shrink-0 ${form.customer_id === c._id ? "opacity-100" : "opacity-0"}`} />
+                                  <span className="font-medium"><HighlightText text={c.username} query={customerSearch} /></span>
+                                </div>
+                                <span className="ml-6 text-xs text-muted-foreground">
+                                  <HighlightText text={c.phone_number} query={customerSearch} /> · <HighlightText text={c.email} query={customerSearch} />
+                                </span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 {selectedCustomer && (
                   <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1.5 rounded-xl border border-border/40 bg-muted/40 px-4 py-3">
                     <DetailRow icon={<Mail className="h-3.5 w-3.5" />} label="Email" value={selectedCustomer.email} />
