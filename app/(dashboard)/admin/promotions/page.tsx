@@ -10,6 +10,7 @@ import {
   X,
   Percent,
   CalendarDays,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Separator } from "@/components/ui/separator";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -198,13 +206,17 @@ export default function PromotionsPage() {
   const [total, setTotal] = useState(0);
   const LIMIT = 10;
 
-  // Sheet (create / edit)
-  const [sheetOpen, setSheetOpen] = useState(false);
+  // Dialog (create / edit)
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(
     null,
   );
   const [form, setForm] = useState<PromotionForm>(DEFAULT_FORM);
   const [submitting, setSubmitting] = useState(false);
+
+  // Detail Sheet
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [viewTarget, setViewTarget] = useState<Promotion | null>(null);
 
   // Delete dialog
   const [deleteTarget, setDeleteTarget] = useState<Promotion | null>(null);
@@ -259,13 +271,18 @@ export default function PromotionsPage() {
   function openCreate() {
     setEditingPromotion(null);
     setForm(DEFAULT_FORM);
-    setSheetOpen(true);
+    setDialogOpen(true);
   }
 
   function openEdit(p: Promotion) {
     setEditingPromotion(p);
     setForm(promotionToForm(p));
-    setSheetOpen(true);
+    setDialogOpen(true);
+  }
+
+  function openDetail(p: Promotion) {
+    setViewTarget(p);
+    setDetailOpen(true);
   }
 
   function setField<K extends keyof PromotionForm>(
@@ -287,7 +304,7 @@ export default function PromotionsPage() {
         await createPromotion(payload);
         toast.success("Promosi berhasil dibuat");
       }
-      setSheetOpen(false);
+      setDialogOpen(false);
       fetchPromotions();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan";
@@ -457,7 +474,11 @@ export default function PromotionsPage() {
               </TableRow>
             ) : (
               promotions.map((p) => (
-                <TableRow key={p._id}>
+                <TableRow
+                  key={p._id}
+                  className="cursor-pointer"
+                  onClick={() => openDetail(p)}
+                >
                   <TableCell className="font-mono text-xs font-semibold">
                     {p.code}
                   </TableCell>
@@ -532,7 +553,7 @@ export default function PromotionsPage() {
                       {p.is_active ? "Aktif" : "Nonaktif"}
                     </Badge>
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -542,6 +563,10 @@ export default function PromotionsPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Aksi</DropdownMenuLabel>
                         <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => openDetail(p)}>
+                          <Eye className="mr-2 h-4 w-4" />
+                          Lihat Detail
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => openEdit(p)}>
                           <Pencil className="mr-2 h-4 w-4" />
                           Edit
@@ -591,18 +616,18 @@ export default function PromotionsPage() {
         </div>
       )}
 
-      {/* Create / Edit Sheet */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-          <SheetHeader className="mb-4">
-            <SheetTitle>
+      {/* Create / Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
               {editingPromotion ? "Edit Promosi" : "Tambah Promosi"}
-            </SheetTitle>
-          </SheetHeader>
+            </DialogTitle>
+          </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {/* Code */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="code">
                 Kode Promo <span className="text-destructive">*</span>
               </Label>
@@ -616,7 +641,7 @@ export default function PromotionsPage() {
             </div>
 
             {/* Name */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="name">
                 Nama <span className="text-destructive">*</span>
               </Label>
@@ -630,7 +655,7 @@ export default function PromotionsPage() {
             </div>
 
             {/* Description */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="description">Deskripsi</Label>
               <Textarea
                 id="description"
@@ -642,7 +667,7 @@ export default function PromotionsPage() {
             </div>
 
             {/* Applies To */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="applies_to">
                 Berlaku Untuk <span className="text-destructive">*</span>
               </Label>
@@ -650,7 +675,6 @@ export default function PromotionsPage() {
                 value={form.applies_to}
                 onValueChange={(v) => {
                   setField("applies_to", v as AppliesTo);
-                  // Clear service_id when switching scope (different services apply)
                   setField("service_id", "");
                 }}
               >
@@ -676,7 +700,7 @@ export default function PromotionsPage() {
 
             {/* Service (conditional) */}
             {needsService && (
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="service_id">
                   Layanan Spesifik{" "}
                   <span className="text-muted-foreground text-xs font-normal">
@@ -706,7 +730,7 @@ export default function PromotionsPage() {
 
             {/* Discount Type + Value */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="discount_type">
                   Tipe Diskon <span className="text-destructive">*</span>
                 </Label>
@@ -726,7 +750,7 @@ export default function PromotionsPage() {
                 </Select>
               </div>
 
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="value">
                   Nilai <span className="text-destructive">*</span>
                 </Label>
@@ -747,7 +771,7 @@ export default function PromotionsPage() {
 
             {/* Start Date + End Date */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="start_date">
                   Mulai <span className="text-destructive">*</span>
                 </Label>
@@ -760,7 +784,7 @@ export default function PromotionsPage() {
                 />
               </div>
 
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="end_date">
                   Berakhir{" "}
                   <span className="text-muted-foreground text-xs font-normal">
@@ -822,17 +846,16 @@ export default function PromotionsPage() {
             </div>
 
             {/* Submit */}
-            <div className="flex gap-3 pt-1">
+            <div className="flex justify-end gap-2 pt-1">
               <Button
                 type="button"
                 variant="outline"
-                className="flex-1"
-                onClick={() => setSheetOpen(false)}
+                onClick={() => setDialogOpen(false)}
                 disabled={submitting}
               >
                 Batal
               </Button>
-              <Button type="submit" className="flex-1" disabled={submitting}>
+              <Button type="submit" disabled={submitting}>
                 {submitting
                   ? "Menyimpan..."
                   : editingPromotion
@@ -841,6 +864,141 @@ export default function PromotionsPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Detail Sheet */}
+      <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
+        <SheetContent className="sm:max-w-md overflow-y-auto">
+          {viewTarget && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2">
+                  <Percent className="h-5 w-5" />
+                  {viewTarget.name}
+                </SheetTitle>
+              </SheetHeader>
+
+              <div className="flex flex-col gap-5 mt-4">
+                {/* Status badges */}
+                <div className="flex flex-wrap gap-2">
+                  <Badge
+                    variant="outline"
+                    className={
+                      viewTarget.is_active
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-gray-100 text-gray-500 border-gray-200"
+                    }
+                  >
+                    {viewTarget.is_active ? "Aktif" : "Nonaktif"}
+                  </Badge>
+                  <span
+                    className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
+                      {
+                        service:
+                          "bg-blue-50 text-blue-700 border-blue-200",
+                        addon:
+                          "bg-purple-50 text-purple-700 border-purple-200",
+                        pickup:
+                          "bg-amber-50 text-amber-700 border-amber-200",
+                        booking:
+                          "bg-green-50 text-green-700 border-green-200",
+                      }[viewTarget.applies_to]
+                    }`}
+                  >
+                    {APPLIES_TO_LABEL[viewTarget.applies_to]}
+                  </span>
+                  {viewTarget.is_stackable && (
+                    <Badge variant="secondary" className="text-xs">
+                      Stackable
+                    </Badge>
+                  )}
+                  {viewTarget.is_available_to_membership && (
+                    <Badge variant="secondary" className="text-xs">
+                      Untuk Member
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Code + Discount */}
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs text-muted-foreground">Kode</span>
+                    <span className="font-mono font-semibold">
+                      {viewTarget.code}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs text-muted-foreground">Diskon</span>
+                    <span className="font-medium">
+                      {viewTarget.discount_type === "percent"
+                        ? `${viewTarget.value}%`
+                        : formatRupiah(viewTarget.value)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Period */}
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs text-muted-foreground">Mulai</span>
+                    <span className="font-medium flex items-center gap-1">
+                      <CalendarDays className="h-3.5 w-3.5" />
+                      {formatDate(viewTarget.start_date)}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs text-muted-foreground">Berakhir</span>
+                    <span className="font-medium">
+                      {viewTarget.end_date
+                        ? formatDate(viewTarget.end_date)
+                        : "Tidak ada batas"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Service target */}
+                {(viewTarget.applies_to === "service" ||
+                  viewTarget.applies_to === "addon") && (
+                  <div className="flex flex-col gap-0.5 text-sm">
+                    <span className="text-xs text-muted-foreground">Layanan</span>
+                    <span className="font-medium">
+                      {viewTarget.service
+                        ? viewTarget.service.name
+                        : "Semua Layanan"}
+                    </span>
+                  </div>
+                )}
+
+                {viewTarget.description && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs text-muted-foreground font-medium">
+                        Deskripsi
+                      </span>
+                      <p className="text-sm">{viewTarget.description}</p>
+                    </div>
+                  </>
+                )}
+
+                <Separator />
+
+                {/* Edit button */}
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    setDetailOpen(false);
+                    openEdit(viewTarget);
+                  }}
+                >
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit Promosi
+                </Button>
+              </div>
+            </>
+          )}
         </SheetContent>
       </Sheet>
 
