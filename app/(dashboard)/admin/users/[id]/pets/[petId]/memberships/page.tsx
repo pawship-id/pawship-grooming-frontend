@@ -607,7 +607,8 @@ export default function PetMembershipsPage() {
                                   <TableCell className="text-sm">{b.service?.name ?? b.label ?? "-"}</TableCell>
                                   <TableCell className="text-sm">{periodLabel[b.period] ?? b.period}</TableCell>
                                   <TableCell className="text-sm">
-                                    {b.type === "discount" ? `${b.value}%` : b.limit === null ? <Infinity className="h-4 w-4" /> : `${b.limit}x`}
+                                    {b.type === "discount" ? `${b.value}%` : null}
+                                    {b.limit === null ? <Infinity className="h-4 w-4" /> : `${b.type === "discount" ? " · " : ""}${b.limit}x`}
                                   </TableCell>
                                   <TableCell className="text-sm">{b.used}x</TableCell>
                                   <TableCell className={`text-sm font-medium ${canApply ? "text-emerald-600" : "text-destructive"}`}>
@@ -858,7 +859,7 @@ export default function PetMembershipsPage() {
                                 {b.label ? (
                                   b.label
                                 ) : b.type === "discount" ? (
-                                  <>Diskon <span className="font-semibold">{b.value ?? 0}%</span> untuk {appliesToLabel[b.applies_to] ?? b.applies_to}{b.service ? ` (${b.service.name})` : ""}</>
+                                  <>Diskon <span className="font-semibold">{b.value ?? 0}%</span> untuk {appliesToLabel[b.applies_to] ?? b.applies_to}{b.service ? ` (${b.service.name})` : ""}{b.limit !== null && b.limit !== undefined ? <> — maks <span className="font-semibold">{b.limit}x</span></> : ""}</>
                                 ) : (
                                   <>Kuota {appliesToLabel[b.applies_to] ?? b.applies_to}{b.service ? ` (${b.service.name})` : ""}{b.limit !== null && b.limit !== undefined ? <> — maks <span className="font-semibold">{b.limit}x</span></> : ""}</>
                                 )}
