@@ -732,7 +732,9 @@ export default function BookingDetailPage({
                 {/* Addon rows */}
                 {booking.service_snapshot.addons?.map((addon) => {
                   const b = booking.applied_benefits?.find(
-                    (ab) => ab.service_id === addon._id,
+                    (ab) =>
+                      ab.applies_to === "addon" &&
+                      (!ab.service_id || ab.service_id === addon._id),
                   );
                   const isQuota = b?.benefit_type === "quota";
                   return (
