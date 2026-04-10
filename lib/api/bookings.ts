@@ -163,7 +163,11 @@ export interface AdminBooking {
   edited_service_discount?: number | null;
   edited_travel_fee?: number | null;
   edited_travel_fee_discount?: number | null;
-  edited_addon_prices?: { addon_id: string; price: number; discount?: number }[];
+  edited_addon_prices?: {
+    addon_id: string;
+    price: number;
+    discount?: number;
+  }[];
   isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
@@ -344,6 +348,26 @@ export async function getAdminBookings(params?: GetAdminBookingsParams) {
   );
 }
 
+/**
+ * Get all bookings for export (without pagination limit)
+ * Respects the same filters as getAdminBookings
+ */
+export async function getAllAdminBookingsForExport(
+  params?: Omit<GetAdminBookingsParams, "page" | "limit">,
+) {
+  const qs = new URLSearchParams();
+  qs.set("limit", "10000"); // Large limit to get all bookings
+  if (params?.status) qs.set("status", params.status);
+  if (params?.date_from) qs.set("date_from", params.date_from);
+  if (params?.date_to) qs.set("date_to", params.date_to);
+  if (params?.created_by_role)
+    qs.set("created_by_role", params.created_by_role);
+  if (params?.customer_id) qs.set("customer_id", params.customer_id);
+  const query = qs.toString();
+  const response = await apiAuthRequest<BookingsResponse>(`/bookings?${query}`);
+  return response.bookings;
+}
+
 export async function getAdminBookingById(id: string) {
   return apiAuthRequest<BookingDetailResponse>(`/bookings/${id}`);
 }
@@ -418,7 +442,13 @@ export async function getPetBenefitsSummary(petId: string) {
   return apiAuthRequest<{
     message: string;
     data: Array<{
-      membership: { _id: string; membership_plan_id: string | null; membership_name: string | null; start_date: string; end_date: string };
+      membership: {
+        _id: string;
+        membership_plan_id: string | null;
+        membership_name: string | null;
+        start_date: string;
+        end_date: string;
+      };
       benefits: Array<{
         _id: string;
         pet_membership_id: string;
