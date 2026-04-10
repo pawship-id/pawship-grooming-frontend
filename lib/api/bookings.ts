@@ -560,3 +560,50 @@ export async function deleteBookingMedia(bookingId: string, publicId: string) {
     { method: "DELETE" },
   );
 }
+
+// ── Groomer API functions ────────────────────────────────────────────────────
+
+export interface GetGroomerMyJobsParams {
+  page?: number;
+  limit?: number;
+  session_status?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
+export async function getGroomerMyJobs(params?: GetGroomerMyJobsParams) {
+  const qs = new URLSearchParams();
+  if (params?.page) qs.set("page", String(params.page));
+  if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.session_status) qs.set("session_status", params.session_status);
+  if (params?.date_from) qs.set("date_from", params.date_from);
+  if (params?.date_to) qs.set("date_to", params.date_to);
+  const query = qs.toString();
+  return apiAuthRequest<BookingsResponse>(
+    query ? `/bookings/groomer/my-jobs?${query}` : "/bookings/groomer/my-jobs",
+  );
+}
+
+export interface GetGroomerOpenJobsParams {
+  page?: number;
+  limit?: number;
+}
+
+export async function getGroomerOpenJobs(params?: GetGroomerOpenJobsParams) {
+  const qs = new URLSearchParams();
+  if (params?.page) qs.set("page", String(params.page));
+  if (params?.limit) qs.set("limit", String(params.limit));
+  const query = qs.toString();
+  return apiAuthRequest<BookingsResponse>(
+    query
+      ? `/bookings/groomer/open-jobs?${query}`
+      : "/bookings/groomer/open-jobs",
+  );
+}
+
+export async function claimSession(bookingId: string, sessionId: string) {
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${bookingId}/session/${sessionId}/claim`,
+    { method: "PATCH" },
+  );
+}
