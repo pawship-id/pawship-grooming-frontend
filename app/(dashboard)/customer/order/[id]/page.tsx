@@ -25,6 +25,7 @@ import {
   Tag,
   ImageIcon,
   Gift,
+  Truck,
 } from "lucide-react";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -295,11 +296,10 @@ export default function CustomerOrderDetailPage() {
                 </label>
                 <Badge
                   variant="outline"
-                  className={`gap-1 text-xs ${
-                    booking.type === "home_service"
-                      ? "border-violet-200 bg-violet-50 text-violet-700"
-                      : "border-sky-200 bg-sky-50 text-sky-700"
-                  }`}
+                  className={`gap-1 text-xs ${booking.type === "home_service"
+                    ? "border-violet-200 bg-violet-50 text-violet-700"
+                    : "border-sky-200 bg-sky-50 text-sky-700"
+                    }`}
                 >
                   {booking.type === "home_service" ? (
                     <>
@@ -326,140 +326,292 @@ export default function CustomerOrderDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Booking Details */}
+          {/* Price Breakdown */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <Calendar className="h-4 w-4" />
-                Booking Details
+                <CreditCard className="h-4 w-4" />
+                Payment Summary
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground">
-                    Date
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-primary/60" />
-                    <span className="font-medium text-sm">
-                      {formatDate(booking.date)}
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground">
-                    Time
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-primary/60" />
-                    <span className="font-medium text-sm">
-                      {booking.time_range}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">
-                  Groomer
-                </label>
-                <div className="flex items-center gap-2">
-                  <Scissors className="h-4 w-4 text-primary/60" />
-                  <span className="font-medium text-sm">{groomerName}</span>
-                </div>
-              </div>
-
-              {booking.store && (
-                <>
-                  <Separator />
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground">
-                      Store Location
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <Store className="h-4 w-4 text-primary/60" />
-                      <span className="font-medium text-sm">
-                        {booking.store.name}
-                      </span>
+            <CardContent className="space-y-3">
+              <div className="overflow-hidden rounded-xl border border-border/50 bg-card">
+                {/* Service row */}
+                {(() => {
+                  const b = booking.applied_benefits?.find(
+                    (ab) => ab.applies_to === "service",
+                  );
+                  const isQuota = b?.benefit_type === "quota";
+                  const svcBase = booking.edited_service_price ?? booking.service_snapshot.price;
+                  const svcItemDisc = booking.edited_service_discount ?? 0;
+                  const svcEffective = Math.max(0, svcBase - svcItemDisc);
+                  const hasItemDisc = svcItemDisc > 0;
+                  return (
+                    <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">
+                          {booking.service_snapshot.name}
+                        </span>
+                        {hasItemDisc && (
+                          <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-700 dark:bg-orange-950/50 dark:text-orange-400">
+                            -{formatPrice(svcItemDisc)}
+                          </span>
+                        )}
+                        {b && (
+                          <span
+                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isQuota
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                              : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                              }`}
+                          >
+                            {isQuota
+                              ? "Gratis"
+                              : b.benefit_value != null
+                                ? `-${b.benefit_value}%`
+                                : "Diskon"}
+                          </span>
+                        )}
+                      </div>
+                      {(hasItemDisc || b) ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-xs line-through text-muted-foreground">
+                            {formatPrice(svcBase)}
+                          </span>
+                          {hasItemDisc && b ? (
+                            <>
+                              <span className="text-xs line-through text-muted-foreground">
+                                {formatPrice(svcEffective)}
+                              </span>
+                              <span className="font-semibold text-primary">
+                                {isQuota ? "Gratis" : formatPrice(Math.max(0, svcEffective - b.amount_deducted))}
+                              </span>
+                            </>
+                          ) : hasItemDisc ? (
+                            <span className="font-semibold text-foreground">{formatPrice(svcEffective)}</span>
+                          ) : (
+                            <span className="font-semibold text-primary">
+                              {isQuota
+                                ? "Gratis"
+                                : formatPrice(Math.max(0, svcEffective - b!.amount_deducted))}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="font-medium">
+                          {formatPrice(svcBase)}
+                        </span>
+                      )}
                     </div>
-                  </div>
-                </>
+                  );
+                })()}
+                {/* Addon rows */}
+                {booking.service_snapshot.addons?.map((addon) => {
+                  const addonBenefits = booking.applied_benefits?.filter(
+                    (ab) => ab.applies_to === "addon",
+                  ) ?? [];
+                  const b =
+                    addonBenefits.find((ab) => ab.service_id === addon._id) ??
+                    addonBenefits.find((ab) => !ab.service_id);
+                  const isQuota = b?.benefit_type === "quota";
+                  const addonOverride = booking.edited_addon_prices?.find(
+                    (a) => a.addon_id === addon._id,
+                  );
+                  const addonBase = addonOverride?.price ?? addon.price;
+                  const addonItemDisc = addonOverride?.discount ?? 0;
+                  const addonEffective = Math.max(0, addonBase - addonItemDisc);
+                  const hasItemDisc = addonItemDisc > 0;
+                  return (
+                    <div
+                      key={addon._id}
+                      className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">+ {addon.name}</span>
+                        {hasItemDisc && (
+                          <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-700 dark:bg-orange-950/50 dark:text-orange-400">
+                            -{formatPrice(addonItemDisc)}
+                          </span>
+                        )}
+                        {b && (
+                          <span
+                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isQuota
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                              : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                              }`}
+                          >
+                            {isQuota
+                              ? "Gratis"
+                              : b.benefit_value != null
+                                ? `-${b.benefit_value}%`
+                                : "Diskon"}
+                          </span>
+                        )}
+                      </div>
+                      {(hasItemDisc || b) ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-xs line-through text-muted-foreground">
+                            {formatPrice(addonBase)}
+                          </span>
+                          {hasItemDisc && b ? (
+                            <>
+                              <span className="text-xs line-through text-muted-foreground">
+                                {formatPrice(addonEffective)}
+                              </span>
+                              <span className="font-semibold text-primary">
+                                {isQuota ? "Gratis" : formatPrice(Math.max(0, addonEffective - b.amount_deducted))}
+                              </span>
+                            </>
+                          ) : hasItemDisc ? (
+                            <span className="font-semibold text-foreground">{formatPrice(addonEffective)}</span>
+                          ) : (
+                            <span className="font-semibold text-primary">
+                              {isQuota
+                                ? "Gratis"
+                                : formatPrice(Math.max(0, addonEffective - b!.amount_deducted))}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="font-medium">{formatPrice(addonBase)}</span>
+                      )}
+                    </div>
+                  );
+                })}
+                {/* Travel fee row */}
+                {(booking.edited_travel_fee != null || booking.travel_fee > 0) &&
+                  (() => {
+                    const b = booking.applied_benefits?.find(
+                      (ab) =>
+                        ab.applies_to === "pick_up" ||
+                        ab.applies_to === "travel_fee" ||
+                        ab.applies_to === "pickup",
+                    );
+                    const isQuota = b?.benefit_type === "quota";
+                    const tFeeBase = booking.edited_travel_fee ?? booking.travel_fee;
+                    const tFeeItemDisc = booking.edited_travel_fee_discount ?? 0;
+                    const tFeeEffective = Math.max(0, tFeeBase - tFeeItemDisc);
+                    const hasItemDisc = tFeeItemDisc > 0;
+                    if (tFeeBase <= 0) return null;
+                    return (
+                      <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="flex items-center gap-1.5 text-muted-foreground">
+                            <Truck className="h-3.5 w-3.5" />
+                            {booking.pick_up ? "Biaya Pickup" : "Travel Fee"}
+                          </span>
+                          {hasItemDisc && (
+                            <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-700 dark:bg-orange-950/50 dark:text-orange-400">
+                              -{formatPrice(tFeeItemDisc)}
+                            </span>
+                          )}
+                          {b && (
+                            <span
+                              className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isQuota
+                                ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                                : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                                }`}
+                            >
+                              {isQuota
+                                ? "Gratis"
+                                : b.benefit_value != null
+                                  ? `-${b.benefit_value}%`
+                                  : "Diskon"}
+                            </span>
+                          )}
+                        </div>
+                        {(hasItemDisc || b) ? (
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="text-xs line-through text-muted-foreground">
+                              {formatPrice(tFeeBase)}
+                            </span>
+                            {hasItemDisc && b ? (
+                              <>
+                                <span className="text-xs line-through text-muted-foreground">
+                                  {formatPrice(tFeeEffective)}
+                                </span>
+                                <span className="font-semibold text-primary">
+                                  {isQuota ? "Gratis" : formatPrice(Math.max(0, tFeeEffective - b.amount_deducted))}
+                                </span>
+                              </>
+                            ) : hasItemDisc ? (
+                              <span className="font-semibold text-foreground">{formatPrice(tFeeEffective)}</span>
+                            ) : (
+                              <span className="font-semibold text-primary">
+                                {isQuota
+                                  ? "Gratis"
+                                  : formatPrice(Math.max(0, tFeeEffective - b!.amount_deducted))}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="font-medium">{formatPrice(tFeeBase)}</span>
+                        )}
+                      </div>
+                    );
+                  })()}
+                {/* Subtotal + Diskon — hanya jika ada diskon */}
+                {booking.total_discount > 0 && (
+                  <>
+                    <div className="flex items-center justify-between border-t border-border/50 bg-muted/30 px-4 py-2.5 text-sm font-semibold">
+                      <span>Subtotal</span>
+                      <span>{formatPrice(booking.original_total_price)}</span>
+                    </div>
+                    <div className="flex flex-col border-t border-primary/20 bg-primary/5">
+                      <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                        <span className="flex items-center gap-1.5 font-medium text-primary">
+                          <Gift className="h-3.5 w-3.5" />
+                          Diskon Member
+                        </span>
+                        <span className="font-semibold text-primary">
+                          - {formatPrice(booking.total_discount)}
+                        </span>
+                      </div>
+                      {booking.applied_benefits?.length > 1 && (
+                        <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                          {booking.applied_benefits.map((ab, i) => (
+                            <div
+                              key={i}
+                              className="flex items-center justify-between text-xs text-muted-foreground"
+                            >
+                              <span className="truncate pr-4">
+                                {ab.benefit?.label || ab.description || ab.applies_to}
+                              </span>
+                              <span className="shrink-0">- {formatPrice(ab.amount_deducted)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+                {/* Total Akhir */}
+                <div className="flex items-center justify-between border-t border-primary/30 bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
+                  <span>Total Akhir</span>
+                  <span className="text-base">
+                    {formatPrice(booking.final_total_price ?? booking.original_total_price)}
+                  </span>
+                </div>
+              </div>
+
+              {booking.payment_method && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Metode Pembayaran</span>
+                  <p className="font-medium capitalize text-foreground">
+                    {booking.payment_method}
+                  </p>
+                </div>
               )}
 
-              {booking.travel_fee > 0 && (
-                <>
-                  <Separator />
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground">
-                      Travel Fee
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-primary/60" />
-                      <span className="font-medium text-sm">
-                        {formatPrice(booking.travel_fee)}
-                      </span>
-                    </div>
-                  </div>
-                </>
+              {booking.note && (
+                <div>
+                  <span className="text-xs text-muted-foreground">Catatan</span>
+                  <p className="mt-1 rounded-md bg-muted/50 p-3 text-sm text-foreground">
+                    {booking.note}
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>
-
-          {/* Notes & Pre-conditions */}
-          {(preConditions.length > 0 ||
-            booking.pet_snapshot.internal_note ||
-            booking.note) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <AlertCircle className="h-4 w-4" />
-                  Notes & Special Instructions
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {preConditions.length > 0 && (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                    <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-amber-700">
-                      <AlertCircle className="h-3.5 w-3.5" />
-                      Catatan dari groomer
-                    </div>
-                    <ul className="flex flex-col gap-1">
-                      {preConditions.map((pc) => (
-                        <li key={pc.id} className="text-xs text-amber-800">
-                          • {pc.description}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {booking.pet_snapshot.internal_note && (
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground">
-                      Pet Internal Note
-                    </label>
-                    <p className="mt-1 rounded-lg bg-muted/40 px-3.5 py-2.5 text-sm italic text-muted-foreground">
-                      "{booking.pet_snapshot.internal_note}"
-                    </p>
-                  </div>
-                )}
-
-                {booking.note && (
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground">
-                      Booking Note
-                    </label>
-                    <p className="mt-1 rounded-lg bg-muted/40 px-3.5 py-2.5 text-sm text-muted-foreground">
-                      {booking.note}
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
 
           {/* Status History */}
           {booking.status_logs && booking.status_logs.length > 0 && (
@@ -557,262 +709,85 @@ export default function CustomerOrderDetailPage() {
 
         {/* Right Column - Pricing & Payment */}
         <div className="space-y-6">
-          {/* Price Breakdown */}
+          {/* Booking Details */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
-                <CreditCard className="h-4 w-4" />
-                Payment Summary
+                <Calendar className="h-4 w-4" />
+                Booking Details
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {/* Service */}
-              {(() => {
-                const b = booking.applied_benefits.find(
-                  (ab) => ab.applies_to === "service",
-                );
-                const isQuota = b?.benefit_type === "quota";
-                return (
-                  <div className="flex items-start justify-between gap-3 border-b border-border/40 pb-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">
-                          {booking.service_snapshot.name}
-                        </span>
-                        {b && (
-                          <span
-                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                              isQuota
-                                ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
-                                : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
-                            }`}
-                          >
-                            {isQuota
-                              ? "Gratis"
-                              : b.benefit_value != null
-                                ? `-${b.benefit_value}%`
-                                : "Diskon"}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      {b ? (
-                        <>
-                          <div className="text-xs text-muted-foreground line-through">
-                            {formatPrice(booking.service_snapshot.price)}
-                          </div>
-                          <div className="font-semibold text-sm text-primary">
-                            {isQuota
-                              ? "Gratis"
-                              : formatPrice(
-                                  Math.max(
-                                    0,
-                                    booking.service_snapshot.price -
-                                      b.amount_deducted,
-                                  ),
-                                )}
-                          </div>
-                        </>
-                      ) : (
-                        <span className="font-medium text-sm">
-                          {formatPrice(booking.service_snapshot.price)}
-                        </span>
-                      )}
-                    </div>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Date
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-primary/60" />
+                    <span className="font-medium text-sm">
+                      {formatDate(booking.date)}
+                    </span>
                   </div>
-                );
-              })()}
-
-              {/* Add-ons */}
-              {booking.service_snapshot.addons &&
-                booking.service_snapshot.addons.length > 0 &&
-                booking.service_snapshot.addons.map((addon) => {
-                  // Prefer exact service_id match, fall back to null (catch-all)
-                  const addonBenefits = booking.applied_benefits.filter(
-                    (ab) => ab.applies_to === "addon",
-                  );
-                  const b =
-                    addonBenefits.find((ab) => ab.service_id === addon._id) ??
-                    addonBenefits.find((ab) => !ab.service_id);
-                  const isQuota = b?.benefit_type === "quota";
-                  return (
-                    <div
-                      key={addon._id}
-                      className="flex items-start justify-between gap-3 border-b border-border/40 pb-2"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground">
-                            + {addon.name}
-                          </span>
-                          {b && (
-                            <span
-                              className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                isQuota
-                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
-                                  : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
-                              }`}
-                            >
-                              {isQuota
-                                ? "Gratis"
-                                : b.benefit_value != null
-                                  ? `-${b.benefit_value}%`
-                                  : "Diskon"}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        {b ? (
-                          <>
-                            <div className="text-xs text-muted-foreground line-through">
-                              {formatPrice(addon.price)}
-                            </div>
-                            <div className="font-semibold text-sm text-primary">
-                              {isQuota
-                                ? "Gratis"
-                                : formatPrice(
-                                    Math.max(
-                                      0,
-                                      addon.price - b.amount_deducted,
-                                    ),
-                                  )}
-                            </div>
-                          </>
-                        ) : (
-                          <span className="font-medium text-sm">
-                            {formatPrice(addon.price)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-
-              {/* Travel/Pickup Fee */}
-              {booking.travel_fee > 0 &&
-                (() => {
-                  const b = booking.applied_benefits.find(
-                    (ab) =>
-                      ab.applies_to === "pick_up" ||
-                      ab.applies_to === "travel_fee" ||
-                      ab.applies_to === "pickup",
-                  );
-                  const isQuota = b?.benefit_type === "quota";
-                  return (
-                    <div className="flex items-start justify-between gap-3 border-b border-border/40 pb-2">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground">
-                            {booking.pick_up ? "Biaya Pickup" : "Travel Fee"}
-                          </span>
-                          {b && (
-                            <span
-                              className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                isQuota
-                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
-                                  : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
-                              }`}
-                            >
-                              {isQuota
-                                ? "Gratis"
-                                : b.benefit_value != null
-                                  ? `-${b.benefit_value}%`
-                                  : "Diskon"}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        {b ? (
-                          <>
-                            <div className="text-xs text-muted-foreground line-through">
-                              {formatPrice(b.base_price)}
-                            </div>
-                            <div className="font-semibold text-sm text-primary">
-                              {isQuota
-                                ? "Gratis"
-                                : formatPrice(
-                                    Math.max(
-                                      0,
-                                      b.base_price - b.amount_deducted,
-                                    ),
-                                  )}
-                            </div>
-                          </>
-                        ) : (
-                          <span className="font-medium text-sm">
-                            {formatPrice(booking.travel_fee)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-              {/* Subtotal */}
-              <div
-                className={`flex justify-between text-sm ${booking.total_discount > 0 ? "border-b border-border/40 pb-2.5" : ""}`}
-              >
-                <span className="font-bold">Subtotal</span>
-                <span className="font-bold">
-                  {formatPrice(booking.original_total_price)}
-                </span>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Time
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-primary/60" />
+                    <span className="font-medium text-sm">
+                      {booking.time_range}
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              {/* Discount Breakdown */}
-              {booking.total_discount > 0 && (
-                <div className="flex flex-col">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="flex items-center gap-1.5 font-medium text-primary">
-                      <Gift className="h-3.5 w-3.5" />
-                      Diskon Member
-                    </span>
-                    <span className="font-semibold text-primary">
-                      - {formatPrice(booking.total_discount)}
-                    </span>
-                  </div>
-                  {booking.applied_benefits?.length > 1 && (
-                    <div className="flex flex-col mt-1">
-                      {booking.applied_benefits.map((ab, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center justify-between text-xs text-muted-foreground py-0.5"
-                        >
-                          <span className="truncate pr-4">
-                            {ab.benefit?.label ||
-                              ab.description ||
-                              ab.applies_to}
-                          </span>
-                          <span className="shrink-0">
-                            - {formatPrice(ab.amount_deducted)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+              <Separator />
+
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">
+                  Groomer
+                </label>
+                <div className="flex items-center gap-2">
+                  <Scissors className="h-4 w-4 text-primary/60" />
+                  <span className="font-medium text-sm">{groomerName}</span>
                 </div>
+              </div>
+
+              {booking.store && (
+                <>
+                  <Separator />
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Store Location
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <Store className="h-4 w-4 text-primary/60" />
+                      <span className="font-medium text-sm">
+                        {booking.store.name}
+                      </span>
+                    </div>
+                  </div>
+                </>
               )}
 
-              {/* Total Akhir */}
-              <div className="border-border/40 border-y py-3">
-                <div className="flex justify-between bg-red-50 px-3 py-3 rounded-md border border-red-200">
-                  <span className="font-bold text-red-600 text-md ">
-                    Total Akhir
-                  </span>
-                  <span className="font-display text-md font-bold text-red-600">
-                    {formatPrice(booking.final_total_price)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Payment Method</span>
-                <span className="font-medium capitalize">
-                  {booking.payment_method ? booking.payment_method : "-"}
-                </span>
-              </div>
+              {booking.travel_fee > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Travel Fee
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-primary/60" />
+                      <span className="font-medium text-sm">
+                        {formatPrice(booking.travel_fee)}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -854,39 +829,60 @@ export default function CustomerOrderDetailPage() {
             </Card>
           )}
 
-          {/* Metadata */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Clock className="h-4 w-4" />
-                Metadata
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Created</span>
-                <span>{formatDateTime(booking.createdAt)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Last Updated</span>
-                <span>{formatDateTime(booking.updatedAt)}</span>
-              </div>
-              {booking.created_by_role && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Created By</span>
-                  <Badge variant="outline" className="text-xs">
-                    {booking.created_by_role}
-                  </Badge>
-                </div>
-              )}
-              {booking.referal_code && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Referral Code</span>
-                  <span className="font-mono">{booking.referal_code}</span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+
+
+          {/* Notes & Pre-conditions */}
+          {(preConditions.length > 0 ||
+            booking.pet_snapshot.internal_note ||
+            booking.note) && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <AlertCircle className="h-4 w-4" />
+                    Notes & Special Instructions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {preConditions.length > 0 && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-amber-700">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        Catatan dari groomer
+                      </div>
+                      <ul className="flex flex-col gap-1">
+                        {preConditions.map((pc) => (
+                          <li key={pc.id} className="text-xs text-amber-800">
+                            • {pc.description}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* {booking.pet_snapshot.internal_note && (
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">
+                        Pet Internal Note
+                      </label>
+                      <p className="mt-1 rounded-lg bg-muted/40 px-3.5 py-2.5 text-sm italic text-muted-foreground">
+                        "{booking.pet_snapshot.internal_note}"
+                      </p>
+                    </div>
+                  )} */}
+
+                  {booking.note && (
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground">
+                        Booking Note
+                      </label>
+                      <p className="mt-1 rounded-lg bg-muted/40 px-3.5 py-2.5 text-sm text-muted-foreground">
+                        {booking.note}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
         </div>
       </div>
     </div>

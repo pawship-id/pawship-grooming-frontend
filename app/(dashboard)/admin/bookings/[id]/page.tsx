@@ -1202,31 +1202,52 @@ export default function BookingDetailPage({
                       <div className="flex flex-col gap-2">
                         {pricePreviewData.pricing.available_benefits.map((benefit) => {
                           const isSelected = editBenefitIds.includes(benefit._id);
-                          const isDiscount = benefit.type === "discount";
                           const isQuotaBenefit = benefit.type === "quota";
-                          const hasQuotaSelected = editBenefitIds.some((bid) => {
-                            const b = pricePreviewData.pricing.available_benefits.find(
-                              (x) => x._id === bid,
-                            );
-                            return b?.type === "quota";
-                          });
-                          const blockedByQuota = isDiscount && hasQuotaSelected && !isSelected;
-                          const canApply = benefit.can_apply && !blockedByQuota;
+                          const canApply = benefit.can_apply;
+                          const addonIds = booking?.service_addon_ids ?? [];
+                          const available = pricePreviewData.pricing.available_benefits;
+                          const blockedByQuota = canApply && benefit.type === "discount" && !isSelected && (() => {
+                            if (benefit.applies_to === "service") {
+                              const discountTarget = (benefit as any).service_id || booking?.service_snapshot._id;
+                              return available.some(
+                                (x: any) => editBenefitIds.includes(x._id) && x.type === "quota" &&
+                                  x.applies_to === "service" &&
+                                  (x.service_id === discountTarget || !x.service_id),
+                              );
+                            }
+                            if (benefit.applies_to === "addon") {
+                              const selectedQuotas = available.filter(
+                                (x: any) => editBenefitIds.includes(x._id) && x.type === "quota" && x.applies_to === "addon",
+                              );
+                              if ((benefit as any).service_id) {
+                                return selectedQuotas.some(
+                                  (x: any) => !x.service_id || x.service_id === (benefit as any).service_id,
+                                );
+                              } else {
+                                if (addonIds.length === 0) return false;
+                                if (selectedQuotas.some((x: any) => !x.service_id)) return true;
+                                const coveredIds = new Set(selectedQuotas.filter((x: any) => x.service_id).map((x: any) => x.service_id));
+                                return addonIds.every((id) => coveredIds.has(id));
+                              }
+                            }
+                            return false;
+                          })();
+                          const isDisabled = !canApply || blockedByQuota;
                           return (
                             <label
                               key={benefit._id}
                               className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
                                 isSelected
                                   ? "border-primary bg-primary/10"
-                                  : canApply
-                                    ? "border-border/50 bg-card hover:border-primary/40"
-                                    : "cursor-not-allowed border-border/30 bg-muted/30 opacity-60"
+                                  : isDisabled
+                                    ? "cursor-not-allowed border-border/30 bg-muted/30 opacity-60"
+                                    : "border-border/50 bg-card hover:border-primary/40"
                               }`}
                             >
                               <Checkbox
                                 checked={isSelected}
-                                onCheckedChange={() => toggleEditBenefit(benefit._id)}
-                                disabled={!canApply && !isSelected}
+                                onCheckedChange={() => !isDisabled && toggleEditBenefit(benefit._id)}
+                                disabled={isDisabled && !isSelected}
                                 className="mt-0.5 shrink-0"
                               />
                               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
