@@ -11,9 +11,9 @@ import { LogOut, Scissors } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const NAV_ITEMS = [
-  { label: "My Jobs", href: "/groomer/dashboard", dummy: false },
-  { label: "Open Jobs", href: "/groomer/open-jobs", dummy: true },
-  { label: "My Profile", href: "/groomer/profile", dummy: false },
+  { label: "My Jobs", href: "/groomer/dashboard" },
+  { label: "Open Jobs", href: "/groomer/open-jobs" },
+  { label: "My Profile", href: "/groomer/profile" },
 ]
 
 export default function GroomerLayout({ children }: { children: React.ReactNode }) {
@@ -81,12 +81,9 @@ export default function GroomerLayout({ children }: { children: React.ReactNode 
                   isActive
                     ? "border-primary text-primary"
                     : "border-transparent text-muted-foreground hover:text-foreground"
-                } ${item.dummy ? "text-red-400 hover:text-red-500" : ""}`}
+                }`}
               >
                 {item.label}
-                {item.dummy && (
-                  <span className="ml-1 text-[10px] text-red-400">(dummy)</span>
-                )}
               </Link>
             )
           })}

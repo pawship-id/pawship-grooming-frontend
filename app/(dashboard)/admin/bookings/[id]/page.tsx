@@ -205,6 +205,7 @@ export default function BookingDetailPage({
   const [newSessionType, setNewSessionType] = useState("");
   const [newSessionGroomerId, setNewSessionGroomerId] = useState("");
   const [addingSession, setAddingSession] = useState(false);
+  const [confirmingOpenJob, setConfirmingOpenJob] = useState(false);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(
     null,
   );
@@ -598,21 +599,29 @@ export default function BookingDetailPage({
     }
   };
 
-  const handleAddSession = async () => {
-    if (!newSessionType.trim() || !newSessionGroomerId) {
-      toast.error("Isi tipe sesi dan pilih groomer");
+  const handleAddSession = async (skipGroomerCheck = false) => {
+    if (!newSessionType.trim()) {
+      toast.error("Isi tipe sesi");
+      return;
+    }
+    if (!newSessionGroomerId && !skipGroomerCheck) {
+      setConfirmingOpenJob(true);
       return;
     }
     setAddingSession(true);
     try {
       await createBookingSession(id, {
         type: newSessionType.trim(),
-        groomer_id: newSessionGroomerId,
+        ...(newSessionGroomerId ? { groomer_id: newSessionGroomerId } : {}),
       });
       await refreshBooking();
       setNewSessionType("");
       setNewSessionGroomerId("");
-      toast.success("Sesi berhasil ditambahkan");
+      toast.success(
+        newSessionGroomerId
+          ? "Sesi berhasil ditambahkan"
+          : "Sesi berhasil ditambahkan sebagai Open Job",
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal menambah sesi");
     } finally {
@@ -2074,7 +2083,7 @@ export default function BookingDetailPage({
                       />
                     </div>
                     <div className="flex flex-1 flex-col gap-1">
-                      <Label className="text-xs">Groomer</Label>
+                      <Label className="text-xs">Groomer (opsional)</Label>
                       <Select
                         value={newSessionGroomerId}
                         onValueChange={setNewSessionGroomerId}
@@ -2094,7 +2103,7 @@ export default function BookingDetailPage({
                     <Button
                       type="button"
                       size="sm"
-                      onClick={handleAddSession}
+                      onClick={() => handleAddSession()}
                       disabled={addingSession}
                       className="shrink-0"
                     >
@@ -2252,6 +2261,30 @@ export default function BookingDetailPage({
           </Card>
         </div>
       </div>
+
+      <AlertDialog open={confirmingOpenJob} onOpenChange={setConfirmingOpenJob}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tambah sebagai Open Job?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sesi ini akan ditambahkan tanpa groomer yang ditugaskan dan masuk
+              ke <span className="font-semibold text-foreground">Open Jobs</span>.
+              Semua groomer akan dapat melihat dan mengklaim sesi ini.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmingOpenJob(false);
+                handleAddSession(true);
+              }}
+            >
+              Ya, Tambah Open Job
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmingStatus} onOpenChange={setConfirmingStatus}>
         <AlertDialogContent>
