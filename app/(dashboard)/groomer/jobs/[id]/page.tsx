@@ -5,7 +5,7 @@ import Link from "next/link"
 import {
   ArrowLeft, Play, CheckCircle, Camera, Calendar, Clock,
   User, MapPin, Loader2, ChevronDown, ChevronUp,
-  X,
+  X, Scissors, UserPlus,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,6 +23,7 @@ import {
   finishBookingSession,
   uploadBookingMedia,
   updateBookingSession,
+  claimSession,
   type AdminBooking,
   type BookingSession,
 } from "@/lib/api/bookings"
@@ -46,6 +47,7 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
   const [noteSessionId, setNoteSessionId] = useState<string | null>(null)
   const [noteValue, setNoteValue] = useState("")
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
+  const [claimingId, setClaimingId] = useState<string | null>(null)
 
   const fetchBooking = useCallback(async () => {
     try {
@@ -103,6 +105,20 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
       toast.error(err.message || "Gagal menyelesaikan session")
     } finally {
       setActionLoading(null)
+    }
+  }
+
+  const handleClaimSession = async (sessionId: string) => {
+    if (!booking) return
+    setClaimingId(sessionId)
+    try {
+      await claimSession(booking._id, sessionId)
+      toast.success("Session berhasil diklaim!")
+      await fetchBooking()
+    } catch (err: any) {
+      toast.error(err.message || "Gagal mengklaim session")
+    } finally {
+      setClaimingId(null)
     }
   }
 
@@ -304,16 +320,17 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
         <h2 className="font-display text-lg font-bold text-foreground">
           Sessions ({sessions.length})
         </h2>
-        {sessions.map((session) => {
+        {sessions.map((session, idx) => {
           const isExpanded = expandedSessions.has(session._id || "")
-          const canStart =
-            session.status === "not started" &&
-            sessions
-              .filter((s) => s.order < session.order)
-              .every((s) => s.status === "finished")
+          const previousAllFinished = sessions
+            .filter((s) => s.order < session.order)
+            .every((s) => s.status === "finished")
+          const canStart = session.status === "not started" && previousAllFinished
           const canFinish = session.status === "in progress"
 
           const isMySession = !!(user?.id && (session.groomer_id === user.id || session.groomer_detail?._id === user.id))
+          const isUnassigned = !session.groomer_id && !session.groomer_detail
+          const isOtherGroomer = !isMySession && !isUnassigned
 
           return (
             <Card key={session._id} className="border-border/50">
@@ -330,11 +347,19 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                     </span>
                     <div>
                       <span className="font-medium capitalize text-foreground">{session.type}</span>
-                      {session.groomer_detail && (
-                        <p className="text-xs text-muted-foreground">
-                          {session.groomer_detail.username}
-                          {isMySession && " (You)"}
+                      {isMySession && session.groomer_detail && (
+                        <p className="text-xs text-primary font-medium">
+                          {session.groomer_detail.username} (You)
                         </p>
+                      )}
+                      {isOtherGroomer && session.groomer_detail && (
+                        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Scissors className="h-3 w-3" />
+                          {session.groomer_detail.username}
+                        </p>
+                      )}
+                      {isUnassigned && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Open — belum ada groomer</p>
                       )}
                     </div>
                   </div>
@@ -353,54 +378,81 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                 {/* Session body — expandable */}
                 {isExpanded && (
                   <div className="border-t border-border/50 p-4 flex flex-col gap-4">
-                    {/* Action Buttons — only for assigned groomer */}
+                    {/* Action Buttons — assigned to current groomer */}
                     {isMySession && (
-                      <div className="flex flex-wrap gap-2">
-                        {canStart && (
-                          <Button
-                            size="sm"
-                            onClick={() => session._id && handleStartSession(session._id)}
-                            disabled={actionLoading === `start-${session._id}`}
-                          >
-                            {actionLoading === `start-${session._id}` ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                              <Play className="mr-2 h-4 w-4" />
-                            )}
-                            Start
-                          </Button>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex flex-wrap gap-2">
+                          {session.status === "not started" && (
+                            <Button
+                              size="sm"
+                              onClick={() => session._id && handleStartSession(session._id)}
+                              disabled={!canStart || actionLoading === `start-${session._id}`}
+                            >
+                              {actionLoading === `start-${session._id}` ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Play className="mr-2 h-4 w-4" />
+                              )}
+                              Start
+                            </Button>
+                          )}
+                          {canFinish && (
+                            <Button
+                              size="sm"
+                              onClick={() => session._id && handleFinishSession(session._id)}
+                              disabled={actionLoading === `finish-${session._id}`}
+                            >
+                              {actionLoading === `finish-${session._id}` ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <CheckCircle className="mr-2 h-4 w-4" />
+                              )}
+                              Finish
+                            </Button>
+                          )}
+                          {noteSessionId !== session._id ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setNoteSessionId(session._id || null)
+                                setNoteValue(session.notes || "")
+                              }}
+                            >
+                              Add Note
+                            </Button>
+                          ) : null}
+                        </div>
+                        {session.status === "not started" && !previousAllFinished && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400">
+                            Selesaikan session sebelumnya terlebih dahulu untuk memulai session ini.
+                          </p>
                         )}
-                        {canFinish && (
-                          <Button
-                            size="sm"
-                            onClick={() => session._id && handleFinishSession(session._id)}
-                            disabled={actionLoading === `finish-${session._id}`}
-                          >
-                            {actionLoading === `finish-${session._id}` ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                              <CheckCircle className="mr-2 h-4 w-4" />
-                            )}
-                            Finish
-                          </Button>
-                        )}
-                        {noteSessionId !== session._id ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setNoteSessionId(session._id || null)
-                              setNoteValue(session.notes || "")
-                            }}
-                          >
-                            Add Note
-                          </Button>
-                        ) : null}
                       </div>
                     )}
 
-                    {!isMySession && (
-                      <p className="text-xs text-muted-foreground italic">Sesi ini ditangani groomer lain — hanya bisa dilihat.</p>
+                    {/* Unassigned session — show claim button */}
+                    {isUnassigned && (
+                      <div className="flex items-center gap-3">
+                        <Button
+                          size="sm"
+                          onClick={() => session._id && handleClaimSession(session._id)}
+                          disabled={claimingId === session._id}
+                        >
+                          {claimingId === session._id ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <UserPlus className="mr-2 h-4 w-4" />
+                          )}
+                          Claim Session
+                        </Button>
+                        <span className="text-xs text-muted-foreground">Klaim session ini untuk ditangani oleh Anda</span>
+                      </div>
+                    )}
+
+                    {/* Other groomer's session — read only */}
+                    {isOtherGroomer && (
+                      <p className="text-xs text-muted-foreground italic">Sesi ini ditangani oleh {session.groomer_detail?.username} — hanya bisa dilihat.</p>
                     )}
 
                     {/* Note editor — only for assigned groomer */}

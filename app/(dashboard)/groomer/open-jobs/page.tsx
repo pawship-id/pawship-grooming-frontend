@@ -1,11 +1,20 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { Calendar, Clock, MapPin, Store, Loader2, RefreshCw, UserPlus } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Calendar, Clock, MapPin, Store, Loader2, RefreshCw, UserPlus, Scissors, CheckCircle } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 import {
   getGroomerOpenJobs,
@@ -15,10 +24,12 @@ import {
 } from "@/lib/api/bookings"
 
 export default function OpenJobsPage() {
+  const router = useRouter()
   const [bookings, setBookings] = useState<AdminBooking[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [claimingId, setClaimingId] = useState<string | null>(null)
+  const [claimedBookingId, setClaimedBookingId] = useState<string | null>(null)
 
   const fetchOpenJobs = useCallback(async () => {
     try {
@@ -42,6 +53,7 @@ export default function OpenJobsPage() {
     try {
       await claimSession(bookingId, sessionId)
       toast.success("Session berhasil diklaim!")
+      setClaimedBookingId(bookingId)
       await fetchOpenJobs()
     } catch (err: any) {
       toast.error(err.message || "Gagal mengklaim session")
@@ -100,8 +112,12 @@ export default function OpenJobsPage() {
       ) : (
         <div className="flex flex-col gap-4">
           {bookings.map((booking) => {
-            const unclaimedSessions = (booking.sessions || []).filter(
+            const sessions = booking.sessions || []
+            const unclaimedSessions = sessions.filter(
               (s) => !s.groomer_id && !s.groomer_detail,
+            )
+            const claimedSessions = sessions.filter(
+              (s) => s.groomer_id || s.groomer_detail,
             )
 
             return (
@@ -164,16 +180,20 @@ export default function OpenJobsPage() {
                     </div>
                   )}
 
-                  {/* Unclaimed Sessions */}
-                  {unclaimedSessions.length > 0 && (
-                    <div className="flex flex-col gap-2 rounded-lg border border-border/50 p-3">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        Available Sessions
-                      </span>
-                      {unclaimedSessions.map((session) => (
+                  {/* All Sessions */}
+                  <div className="flex flex-col gap-2 rounded-lg border border-border/50 p-3">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Sessions ({unclaimedSessions.length} available)
+                    </span>
+                    {sessions.map((session) => {
+                      const isClaimed = !!(session.groomer_id || session.groomer_detail)
+
+                      return (
                         <div
                           key={session._id}
-                          className="flex items-center justify-between rounded-md bg-muted/50 p-2"
+                          className={`flex items-center justify-between rounded-md p-2 ${
+                            isClaimed ? "bg-secondary/30" : "bg-muted/50"
+                          }`}
                         >
                           <div className="flex items-center gap-2">
                             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-background text-xs font-bold">
@@ -182,31 +202,78 @@ export default function OpenJobsPage() {
                             <span className="text-sm capitalize text-foreground">
                               {session.type}
                             </span>
-                          </div>
-                          <Button
-                            size="sm"
-                            onClick={() =>
-                              session._id && handleClaim(booking._id, session._id)
-                            }
-                            disabled={claimingId === session._id}
-                          >
-                            {claimingId === session._id ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            {isClaimed ? (
+                              <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                                <Scissors className="h-3 w-3" />
+                                {session.groomer_detail?.username ?? "Assigned"}
+                              </span>
                             ) : (
-                              <UserPlus className="mr-2 h-4 w-4" />
+                              <Badge className="bg-amber-100 text-xs text-amber-800 dark:bg-amber-950/50 dark:text-amber-400">
+                                Open
+                              </Badge>
                             )}
-                            Claim
-                          </Button>
+                          </div>
+                          {!isClaimed && (
+                            <Button
+                              size="sm"
+                              onClick={() =>
+                                session._id && handleClaim(booking._id, session._id)
+                              }
+                              disabled={claimingId === session._id}
+                            >
+                              {claimingId === session._id ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <UserPlus className="mr-2 h-4 w-4" />
+                              )}
+                              Claim
+                            </Button>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      )
+                    })}
+                  </div>
                 </CardContent>
               </Card>
             )
           })}
         </div>
       )}
+
+      {/* Post-claim navigation dialog */}
+      <AlertDialog
+        open={!!claimedBookingId}
+        onOpenChange={(open) => { if (!open) setClaimedBookingId(null) }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-primary" />
+              Session Berhasil Diklaim!
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Mau langsung ke detail booking atau tetap di sini untuk klaim session lain?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => setClaimedBookingId(null)}
+            >
+              Tetap di Sini
+            </Button>
+            <Button
+              onClick={() => {
+                const id = claimedBookingId
+                setClaimedBookingId(null)
+                router.push(`/groomer/jobs/${id}`)
+              }}
+            >
+              Lihat Detail Booking
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
