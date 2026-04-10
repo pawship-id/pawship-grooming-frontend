@@ -20,6 +20,9 @@ import {
   PawPrint,
   Scissors,
   X,
+  Pencil,
+  Sparkles,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,8 +59,14 @@ import {
   deleteBookingSession,
   uploadBookingMedia,
   deleteBookingMedia,
+  getBookingPreview,
+  getPetBenefitsSummary,
+  applyBenefitPreview,
+  updateBookingPricing,
 } from "@/lib/api/bookings";
-import type { AdminBooking } from "@/lib/api/bookings";
+import type { AdminBooking, BookingPreviewResult, ApplyBenefitPreviewResult } from "@/lib/api/bookings";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
 import { applyGroomingFrame } from "@/lib/frame-compositor";
 import { getStoreById } from "@/lib/api/stores";
 import { getUsers } from "@/lib/api/users";
@@ -227,6 +236,309 @@ export default function BookingDetailPage({
     string | null
   >(null);
   const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null);
+
+  // Price edit state
+  const [editingPrice, setEditingPrice] = useState(false);
+  const [editBenefitIds, setEditBenefitIds] = useState<string[]>([]);
+  const [editServicePrice, setEditServicePrice] = useState("");
+  const [editServiceDiscount, setEditServiceDiscount] = useState("");
+  const [editServiceDiscountType, setEditServiceDiscountType] = useState<"nominal" | "pct">("nominal");
+  const [editTravelFee, setEditTravelFee] = useState("");
+  const [editTravelFeeDiscount, setEditTravelFeeDiscount] = useState("");
+  const [editTravelFeeDiscountType, setEditTravelFeeDiscountType] = useState<"nominal" | "pct">("nominal");
+  const [editAddonPrices, setEditAddonPrices] = useState<Record<string, string>>({});
+  const [editAddonDiscounts, setEditAddonDiscounts] = useState<Record<string, string>>({});
+  const [editAddonDiscountTypes, setEditAddonDiscountTypes] = useState<Record<string, "nominal" | "pct">>({});
+  const [pricePreviewData, setPricePreviewData] = useState<BookingPreviewResult | null>(null);
+  const [priceApplyResult, setPriceApplyResult] = useState<ApplyBenefitPreviewResult | null>(null);
+  const [loadingPricePreview, setLoadingPricePreview] = useState(false);
+  const [loadingPriceApply, setLoadingPriceApply] = useState(false);
+  const [savingPrice, setSavingPrice] = useState(false);
+
+  // ── Price edit: open handler ──────────────────────────────────────────────
+  const handleOpenPriceEdit = async () => {
+    if (!booking) return;
+    setEditBenefitIds(booking.selected_benefit_ids ?? []);
+    setEditServicePrice(String(booking.edited_service_price ?? booking.service_snapshot.price ?? ""));
+    setEditServiceDiscount(String(booking.edited_service_discount ?? 0));
+    setEditTravelFee(booking.pick_up ? String(booking.edited_travel_fee ?? booking.travel_fee ?? "") : "");
+    setEditTravelFeeDiscount(booking.pick_up ? String(booking.edited_travel_fee_discount ?? 0) : "0");
+    const addonPriceMap: Record<string, string> = {};
+    const addonDiscountMap: Record<string, string> = {};
+    (booking.service_snapshot.addons ?? []).forEach((addon) => {
+      const override = (booking.edited_addon_prices ?? []).find(
+        (a) => a.addon_id === addon._id,
+      );
+      addonPriceMap[addon._id!] = String(override ? override.price : addon.price);
+      addonDiscountMap[addon._id!] = String(override?.discount ?? 0);
+    });
+    setEditAddonPrices(addonPriceMap);
+    setEditAddonDiscounts(addonDiscountMap);
+    setEditServiceDiscountType("nominal");
+    setEditTravelFeeDiscountType("nominal");
+    const addonDiscTypeMap: Record<string, "nominal" | "pct"> = {};
+    (booking.service_snapshot.addons ?? []).forEach((addon) => {
+      addonDiscTypeMap[addon._id!] = "nominal";
+    });
+    setEditAddonDiscountTypes(addonDiscTypeMap);
+    setPricePreviewData(null);
+    setPriceApplyResult(null);
+    setEditingPrice(true);
+    setLoadingPricePreview(true);
+    try {
+      const addonIds = (booking.service_addon_ids ?? []).filter(Boolean);
+      const res = await getBookingPreview({
+        pet_id: booking.pet_id,
+        service_id: booking.service_snapshot._id!,
+        addon_ids: addonIds.length > 0 ? addonIds : undefined,
+        date: new Date().toISOString().split("T")[0],
+        pick_up: booking.pick_up || undefined,
+        store_id: booking.pick_up ? booking.store_id : undefined,
+        customer_id: booking.pick_up ? booking.customer_id : undefined,
+      });
+      setPricePreviewData(res);
+    } catch {
+      // Fallback: getBookingPreview can fail if service/addon was soft-deleted or
+      // if pet attributes no longer match the price matrix. Fetch benefits directly.
+      try {
+        const summary = await getPetBenefitsSummary(booking.pet_id);
+        const addonIdSet = new Set(booking.service_addon_ids ?? []);
+        const addonsTotal = (booking.service_snapshot.addons ?? []).reduce(
+          (sum, a) => sum + (a.price ?? 0), 0,
+        );
+        const allBenefits = (summary.data ?? []).flatMap((m) => m.benefits);
+        const available_benefits = allBenefits
+          .filter((b) => {
+            if (b.applies_to === "service")
+              return !b.service_id || b.service_id === booking.service_snapshot._id;
+            if (b.applies_to === "addon")
+              return (
+                (booking.service_addon_ids ?? []).length > 0 &&
+                (!b.service_id || addonIdSet.has(b.service_id))
+              );
+            if (b.applies_to === "pickup") return booking.pick_up === true;
+            return false;
+          })
+          .map((b) => {
+            let discountBase = 0;
+            if (b.applies_to === "service") {
+              discountBase = booking.service_snapshot.price ?? 0;
+            } else if (b.applies_to === "addon") {
+              if (b.service_id) {
+                const addonSnap = (booking.service_snapshot.addons ?? []).find(
+                  (a) => a._id === b.service_id,
+                );
+                discountBase = addonSnap?.price ?? 0;
+              } else {
+                discountBase = addonsTotal;
+              }
+            } else if (b.applies_to === "pickup") {
+              discountBase = booking.travel_fee ?? 0;
+            }
+            const amount_discount = b.can_apply
+              ? b.type === "discount"
+                ? ((b.value ?? 0) / 100) * discountBase
+                : discountBase
+              : 0;
+            return { ...b, description: b.label ?? b.applies_to, amount_discount };
+          });
+        setPricePreviewData({
+          pet_id: booking.pet_id,
+          pet_name: booking.pet_snapshot?.name ?? "",
+          service_id: booking.service_snapshot._id ?? "",
+          service_name: booking.service_snapshot.name ?? "",
+          pricing: {
+            original_service_price: booking.service_snapshot.price ?? 0,
+            addon_prices: (booking.service_snapshot.addons ?? []).map((a) => ({
+              _id: a._id!,
+              name: a.name,
+              price: a.price,
+            })),
+            subtotal_before_benefits: booking.original_total_price ?? 0,
+            has_active_membership: allBenefits.length > 0,
+            available_benefits: available_benefits as any,
+            estimated_total_discount: available_benefits
+              .filter((b) => b.can_apply && b.type === "discount")
+              .reduce((sum, b) => sum + (b.amount_discount ?? 0), 0),
+            estimated_final_price: booking.original_total_price ?? 0,
+          },
+          pricing_breakdown: {
+            service: {
+              name: booking.service_snapshot.name,
+              price: booking.service_snapshot.price ?? 0,
+            },
+            addons: (booking.service_snapshot.addons ?? []).map((a) => ({
+              _id: a._id!,
+              name: a.name,
+              price: a.price,
+            })),
+            travel_fee: booking.travel_fee,
+            subtotal: booking.original_total_price ?? 0,
+            grand_total: booking.original_total_price ?? 0,
+            discount: 0,
+            final: booking.original_total_price ?? 0,
+          },
+        } as any);
+      } catch {
+        // Benefits genuinely unavailable
+      }
+    } finally {
+      setLoadingPricePreview(false);
+    }
+  };
+
+  const handleClosePriceEdit = () => {
+    setEditingPrice(false);
+    setPricePreviewData(null);
+    setPriceApplyResult(null);
+    setEditBenefitIds([]);
+    setEditServicePrice("");
+    setEditServiceDiscount("");
+    setEditServiceDiscountType("nominal");
+    setEditTravelFee("");
+    setEditTravelFeeDiscount("");
+    setEditTravelFeeDiscountType("nominal");
+    setEditAddonPrices({});
+    setEditAddonDiscounts({});
+    setEditAddonDiscountTypes({});
+  };
+
+  // ── Price edit: benefit toggle (conflict resolution as in new booking) ────
+  const toggleEditBenefit = (benefitId: string) => {
+    if (!pricePreviewData) {
+      setEditBenefitIds((prev) =>
+        prev.includes(benefitId) ? prev.filter((b) => b !== benefitId) : [...prev, benefitId],
+      );
+      return;
+    }
+    const benefit = pricePreviewData.pricing.available_benefits.find(
+      (x: any) => x._id === benefitId,
+    );
+    if (!benefit) {
+      setEditBenefitIds((prev) =>
+        prev.includes(benefitId) ? prev.filter((b) => b !== benefitId) : [...prev, benefitId],
+      );
+      return;
+    }
+    setEditBenefitIds((prev) => {
+      if (prev.includes(benefitId)) return prev.filter((b) => b !== benefitId);
+      const addonIds = booking?.service_addon_ids ?? [];
+      const conflicts = prev.filter((selId) => {
+        const sel = pricePreviewData.pricing.available_benefits.find(
+          (x: any) => x._id === selId,
+        );
+        if (!sel || sel.applies_to !== benefit.applies_to) return false;
+        if (benefit.type === sel.type) return false;
+        if (benefit.applies_to === "service") {
+          const quotaTarget    = (benefit.type === "quota"    ? benefit : sel).service_id || booking?.service_snapshot._id;
+          const discountTarget = (benefit.type === "discount" ? benefit : sel).service_id || booking?.service_snapshot._id;
+          return quotaTarget === discountTarget;
+        }
+        if (benefit.applies_to === "addon") {
+          const quotaBenefit    = benefit.type === "quota"    ? benefit : sel;
+          const discountBenefit = benefit.type === "discount" ? benefit : sel;
+          const quotaTarget    = quotaBenefit.service_id;
+          const discountTarget = discountBenefit.service_id;
+          if (quotaTarget && discountTarget) return quotaTarget === discountTarget;
+          if (quotaTarget && !discountTarget) {
+            const alreadyCovered = prev
+              .filter((sid) => sid !== benefitId)
+              .map((sid) => pricePreviewData.pricing.available_benefits.find((x: any) => x._id === sid))
+              .filter((x: any) => x?.type === "quota" && x.applies_to === "addon" && x.service_id)
+              .map((x: any) => x.service_id);
+            const coveredAfter = new Set([...alreadyCovered, quotaTarget]);
+            return addonIds.length > 0 && addonIds.every((aid) => coveredAfter.has(aid));
+          }
+          if (!quotaTarget && discountTarget) return true;
+          return true;
+        }
+        return false;
+      });
+      return [...prev.filter((b) => !conflicts.includes(b)), benefitId];
+    });
+  };
+
+  // ── Price edit: auto-fetch apply-benefit preview ──────────────────────────
+  useEffect(() => {
+    if (!editingPrice || !booking) return;
+    if (editBenefitIds.length === 0) {
+      setPriceApplyResult(null);
+      setLoadingPriceApply(false);
+      return;
+    }
+    // Compute effective subtotal (base prices minus item discounts) for benefit calculation
+    const svcBase = parseFloat(editServicePrice) || booking.service_snapshot.price || 0;
+    const rawSvcDisc = parseFloat(editServiceDiscount) || 0;
+    const svcDisc = editServiceDiscountType === "pct" ? Math.min(svcBase, (rawSvcDisc / 100) * svcBase) : Math.min(svcBase, rawSvcDisc);
+    const tFeeBase = booking.pick_up ? (parseFloat(editTravelFee) || booking.travel_fee || 0) : 0;
+    const rawTFeeDisc = booking.pick_up ? (parseFloat(editTravelFeeDiscount) || 0) : 0;
+    const tFeeDisc = editTravelFeeDiscountType === "pct" ? Math.min(tFeeBase, (rawTFeeDisc / 100) * tFeeBase) : Math.min(tFeeBase, rawTFeeDisc);
+    const addonTotal = (booking.service_snapshot.addons ?? []).reduce((sum, addon) => {
+      const base = parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0;
+      const rawDisc = parseFloat(editAddonDiscounts[addon._id!] ?? "0") || 0;
+      const discType = editAddonDiscountTypes[addon._id!] ?? "nominal";
+      const disc = discType === "pct" ? Math.min(base, (rawDisc / 100) * base) : Math.min(base, rawDisc);
+      return sum + Math.max(0, base - disc);
+    }, 0);
+    const editedSubtotal = Math.max(0, svcBase - svcDisc) + Math.max(0, tFeeBase - tFeeDisc) + addonTotal;
+
+    let cancelled = false;
+    setLoadingPriceApply(true);
+    applyBenefitPreview({
+      pet_id: booking.pet_id,
+      selected_benefit_ids: editBenefitIds,
+      service_id: booking.service_snapshot._id,
+      add_on_ids: (booking.service_addon_ids ?? []).length > 0 ? booking.service_addon_ids : undefined,
+      store_id: booking.pick_up ? booking.store_id : undefined,
+      original_total_price: editedSubtotal,
+      booking_date: booking.date,
+    })
+      .then((res) => { if (!cancelled) setPriceApplyResult(res); })
+      .catch(() => { if (!cancelled) setPriceApplyResult(null); })
+      .finally(() => { if (!cancelled) setLoadingPriceApply(false); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editBenefitIds, editServicePrice, editServiceDiscount, editServiceDiscountType, editTravelFee, editTravelFeeDiscount, editTravelFeeDiscountType, editAddonPrices, editAddonDiscounts, editAddonDiscountTypes, editingPrice]);
+
+  // ── Price edit: save ──────────────────────────────────────────────────────
+  const handleSavePricing = async () => {
+    if (!booking) return;
+    setSavingPrice(true);
+    try {
+      const svcPriceNum = parseFloat(editServicePrice);
+      const svcBase = !isNaN(svcPriceNum) ? svcPriceNum : (booking.service_snapshot.price || 0);
+      const rawSvcDisc = parseFloat(editServiceDiscount) || 0;
+      const svcDiscNominal = editServiceDiscountType === "pct" ? Math.min(svcBase, (rawSvcDisc / 100) * svcBase) : Math.min(svcBase, rawSvcDisc);
+
+      const tFeeNum = parseFloat(editTravelFee);
+      const tFeeBase = !isNaN(tFeeNum) ? tFeeNum : (booking.travel_fee || 0);
+      const rawTFeeDisc = parseFloat(editTravelFeeDiscount) || 0;
+      const tFeeDiscNominal = editTravelFeeDiscountType === "pct" ? Math.min(tFeeBase, (rawTFeeDisc / 100) * tFeeBase) : Math.min(tFeeBase, rawTFeeDisc);
+
+      const addonPricesPayload = (booking.service_snapshot.addons ?? []).map((addon) => {
+        const base = parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0;
+        const rawDisc = parseFloat(editAddonDiscounts[addon._id!] ?? "0") || 0;
+        const discType = editAddonDiscountTypes[addon._id!] ?? "nominal";
+        const discNominal = discType === "pct" ? Math.min(base, (rawDisc / 100) * base) : Math.min(base, rawDisc);
+        return { addon_id: addon._id!, price: base, discount: discNominal };
+      });
+      await updateBookingPricing(id, {
+        selected_benefit_ids: editBenefitIds,
+        service_price: !isNaN(svcPriceNum) ? svcPriceNum : undefined,
+        service_discount: svcDiscNominal > 0 ? svcDiscNominal : undefined,
+        travel_fee: booking.pick_up && !isNaN(tFeeNum) ? tFeeNum : undefined,
+        travel_fee_discount: booking.pick_up && tFeeDiscNominal > 0 ? tFeeDiscNominal : undefined,
+        addon_prices: addonPricesPayload.length > 0 ? addonPricesPayload : undefined,
+      });
+      await refreshBooking();
+      handleClosePriceEdit();
+      toast.success("Harga booking berhasil diperbarui");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal memperbarui harga");
+    } finally {
+      setSavingPrice(false);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -636,11 +948,33 @@ export default function BookingDetailPage({
 
           {/* Appointment Details */}
           <Card className="border-border/50">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="flex items-center gap-2 font-display text-lg">
                 <Calendar className="h-5 w-5 text-primary" />
                 Detail Appointment
               </CardTitle>
+              {editingPrice ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleClosePriceEdit}
+                  disabled={savingPrice}
+                  className="h-8 gap-1.5 text-muted-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Batal
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleOpenPriceEdit}
+                  className="h-8 gap-1.5"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit Harga
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-4">
@@ -672,6 +1006,372 @@ export default function BookingDetailPage({
                 )}
               </div>
 
+              {/* ── Edit Harga Panel ── */}
+              {editingPrice && (
+                <div className="flex flex-col gap-4 rounded-xl border border-primary/30 bg-primary/5 p-4">
+
+                  {/* Per-item price overrides */}
+                  <div>
+                    <p className="mb-3 text-sm font-semibold">Harga per Item</p>
+                    <div className="flex flex-col gap-2">
+                      {/* Service */}
+                      {(() => {
+                        const svcBase = parseFloat(editServicePrice) || booking.service_snapshot.price || 0;
+                        const rawDisc = parseFloat(editServiceDiscount) || 0;
+                        const svcDiscNominal = editServiceDiscountType === "pct" ? Math.min(svcBase, (rawDisc / 100) * svcBase) : Math.min(svcBase, rawDisc);
+                        const svcEff = Math.max(0, svcBase - svcDiscNominal);
+                        return (
+                          <div className="flex flex-col gap-1.5 rounded-lg border border-border/50 bg-card p-3">
+                            <span className="text-sm font-medium text-foreground">
+                              {booking.service_snapshot.name}
+                            </span>
+                            <div className="flex items-end gap-2">
+                              <div className="flex flex-1 flex-col gap-1">
+                                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Harga Dasar</span>
+                                <Input
+                                  type="number" min={0}
+                                  className="h-8 bg-background"
+                                  placeholder="Harga dasar"
+                                  value={editServicePrice}
+                                  onChange={(e) => setEditServicePrice(e.target.value)}
+                                />
+                              </div>
+                              <span className="mb-1.5 shrink-0 text-sm text-muted-foreground">−</span>
+                              <div className="flex flex-1 flex-col gap-1">
+                                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Diskon Item</span>
+                                <div className="flex gap-1">
+                                  <Input
+                                    type="number" min={0} max={editServiceDiscountType === "pct" ? 100 : undefined}
+                                    className="h-8 min-w-0 flex-1 bg-background"
+                                    placeholder={editServiceDiscountType === "pct" ? "0–100" : "0"}
+                                    value={editServiceDiscount}
+                                    onChange={(e) => setEditServiceDiscount(e.target.value)}
+                                  />
+                                  <div className="flex h-8 shrink-0 overflow-hidden rounded-md border border-border">
+                                    <button type="button" onClick={() => { setEditServiceDiscountType("nominal"); setEditServiceDiscount(""); }}
+                                      className={`px-1.5 text-xs font-semibold transition-colors ${editServiceDiscountType === "nominal" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}>
+                                      Rp
+                                    </button>
+                                    <button type="button" onClick={() => { setEditServiceDiscountType("pct"); setEditServiceDiscount(""); }}
+                                      className={`border-l border-border px-1.5 text-xs font-semibold transition-colors ${editServiceDiscountType === "pct" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}>
+                                      %
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                              <span className="mb-1.5 shrink-0 text-sm text-muted-foreground">=</span>
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Efektif</span>
+                                <span className="mb-0.5 text-sm font-semibold text-primary">{formatPrice(svcEff)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      {/* Addons */}
+                      {(booking.service_snapshot.addons ?? []).map((addon) => {
+                        const addonBase = parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0;
+                        const rawDisc = parseFloat(editAddonDiscounts[addon._id!] ?? "0") || 0;
+                        const discType = editAddonDiscountTypes[addon._id!] ?? "nominal";
+                        const addonDiscNominal = discType === "pct" ? Math.min(addonBase, (rawDisc / 100) * addonBase) : Math.min(addonBase, rawDisc);
+                        const addonEff = Math.max(0, addonBase - addonDiscNominal);
+                        return (
+                          <div key={addon._id} className="flex flex-col gap-1.5 rounded-lg border border-border/50 bg-card p-3">
+                            <span className="text-sm font-medium text-foreground">+ {addon.name}</span>
+                            <div className="flex items-end gap-2">
+                              <div className="flex flex-1 flex-col gap-1">
+                                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Harga Dasar</span>
+                                <Input
+                                  type="number" min={0}
+                                  className="h-8 bg-background"
+                                  placeholder="Harga dasar"
+                                  value={editAddonPrices[addon._id!] ?? String(addon.price)}
+                                  onChange={(e) =>
+                                    setEditAddonPrices((prev) => ({ ...prev, [addon._id!]: e.target.value }))
+                                  }
+                                />
+                              </div>
+                              <span className="mb-1.5 shrink-0 text-sm text-muted-foreground">−</span>
+                              <div className="flex flex-1 flex-col gap-1">
+                                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Diskon Item</span>
+                                <div className="flex gap-1">
+                                  <Input
+                                    type="number" min={0} max={discType === "pct" ? 100 : undefined}
+                                    className="h-8 min-w-0 flex-1 bg-background"
+                                    placeholder={discType === "pct" ? "0–100" : "0"}
+                                    value={editAddonDiscounts[addon._id!] ?? ""}
+                                    onChange={(e) =>
+                                      setEditAddonDiscounts((prev) => ({ ...prev, [addon._id!]: e.target.value }))
+                                    }
+                                  />
+                                  <div className="flex h-8 shrink-0 overflow-hidden rounded-md border border-border">
+                                    <button type="button" onClick={() => { setEditAddonDiscountTypes((prev) => ({ ...prev, [addon._id!]: "nominal" })); setEditAddonDiscounts((prev) => ({ ...prev, [addon._id!]: "" })); }}
+                                      className={`px-1.5 text-xs font-semibold transition-colors ${discType === "nominal" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}>
+                                      Rp
+                                    </button>
+                                    <button type="button" onClick={() => { setEditAddonDiscountTypes((prev) => ({ ...prev, [addon._id!]: "pct" })); setEditAddonDiscounts((prev) => ({ ...prev, [addon._id!]: "" })); }}
+                                      className={`border-l border-border px-1.5 text-xs font-semibold transition-colors ${discType === "pct" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}>
+                                      %
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                              <span className="mb-1.5 shrink-0 text-sm text-muted-foreground">=</span>
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Efektif</span>
+                                <span className="mb-0.5 text-sm font-semibold text-primary">{formatPrice(addonEff)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {/* Travel fee */}
+                      {booking.pick_up && (() => {
+                        const tFeeBase = parseFloat(editTravelFee) || booking.travel_fee || 0;
+                        const rawDisc = parseFloat(editTravelFeeDiscount) || 0;
+                        const tFeeDiscNominal = editTravelFeeDiscountType === "pct" ? Math.min(tFeeBase, (rawDisc / 100) * tFeeBase) : Math.min(tFeeBase, rawDisc);
+                        const tFeeEff = Math.max(0, tFeeBase - tFeeDiscNominal);
+                        return (
+                          <div className="flex flex-col gap-1.5 rounded-lg border border-border/50 bg-card p-3">
+                            <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                              <Truck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                              Biaya Pickup
+                            </span>
+                            <div className="flex items-end gap-2">
+                              <div className="flex flex-1 flex-col gap-1">
+                                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Harga Dasar</span>
+                                <Input
+                                  type="number" min={0}
+                                  className="h-8 bg-background"
+                                  placeholder="Harga dasar"
+                                  value={editTravelFee}
+                                  onChange={(e) => setEditTravelFee(e.target.value)}
+                                />
+                              </div>
+                              <span className="mb-1.5 shrink-0 text-sm text-muted-foreground">−</span>
+                              <div className="flex flex-1 flex-col gap-1">
+                                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Diskon Item</span>
+                                <div className="flex gap-1">
+                                  <Input
+                                    type="number" min={0} max={editTravelFeeDiscountType === "pct" ? 100 : undefined}
+                                    className="h-8 min-w-0 flex-1 bg-background"
+                                    placeholder={editTravelFeeDiscountType === "pct" ? "0–100" : "0"}
+                                    value={editTravelFeeDiscount}
+                                    onChange={(e) => setEditTravelFeeDiscount(e.target.value)}
+                                  />
+                                  <div className="flex h-8 shrink-0 overflow-hidden rounded-md border border-border">
+                                    <button type="button" onClick={() => { setEditTravelFeeDiscountType("nominal"); setEditTravelFeeDiscount(""); }}
+                                      className={`px-1.5 text-xs font-semibold transition-colors ${editTravelFeeDiscountType === "nominal" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}>
+                                      Rp
+                                    </button>
+                                    <button type="button" onClick={() => { setEditTravelFeeDiscountType("pct"); setEditTravelFeeDiscount(""); }}
+                                      className={`border-l border-border px-1.5 text-xs font-semibold transition-colors ${editTravelFeeDiscountType === "pct" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}>
+                                      %
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                              <span className="mb-1.5 shrink-0 text-sm text-muted-foreground">=</span>
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Efektif</span>
+                                <span className="mb-0.5 text-sm font-semibold text-primary">{formatPrice(tFeeEff)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Benefit Membership */}
+                  <div>
+                    <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      Benefit Membership
+                    </p>
+                    {loadingPricePreview ? (
+                      <div className="flex flex-col gap-2">
+                        {[1, 2].map((i) => (
+                          <div
+                            key={i}
+                            className="h-14 animate-pulse rounded-lg bg-muted/60"
+                          />
+                        ))}
+                      </div>
+                    ) : pricePreviewData?.pricing?.available_benefits?.length ? (
+                      <div className="flex flex-col gap-2">
+                        {pricePreviewData.pricing.available_benefits.map((benefit) => {
+                          const isSelected = editBenefitIds.includes(benefit._id);
+                          const isDiscount = benefit.type === "discount";
+                          const isQuotaBenefit = benefit.type === "quota";
+                          const hasQuotaSelected = editBenefitIds.some((bid) => {
+                            const b = pricePreviewData.pricing.available_benefits.find(
+                              (x) => x._id === bid,
+                            );
+                            return b?.type === "quota";
+                          });
+                          const blockedByQuota = isDiscount && hasQuotaSelected && !isSelected;
+                          const canApply = benefit.can_apply && !blockedByQuota;
+                          return (
+                            <label
+                              key={benefit._id}
+                              className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                                isSelected
+                                  ? "border-primary bg-primary/10"
+                                  : canApply
+                                    ? "border-border/50 bg-card hover:border-primary/40"
+                                    : "cursor-not-allowed border-border/30 bg-muted/30 opacity-60"
+                              }`}
+                            >
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleEditBenefit(benefit._id)}
+                                disabled={!canApply && !isSelected}
+                                className="mt-0.5 shrink-0"
+                              />
+                              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-sm font-medium text-foreground">
+                                    {benefit.label || benefit.description}
+                                  </span>
+                                  <span
+                                    className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                      isQuotaBenefit
+                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                                        : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                                    }`}
+                                  >
+                                    {isQuotaBenefit
+                                      ? "Quota gratis"
+                                      : benefit.value != null
+                                        ? `${benefit.value}% off`
+                                        : "Diskon"}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                                  <span>{benefit.description}</span>
+                                  {benefit.remaining !== null && (
+                                    <span className={benefit.remaining === 0 ? "text-destructive" : ""}>
+                                      Sisa: {benefit.remaining}/{benefit.limit ?? "∞"}
+                                    </span>
+                                  )}
+                                  {benefit.amount_discount != null && benefit.amount_discount > 0 && (
+                                    <span className="font-medium text-green-600">
+                                      -{formatPrice(benefit.amount_discount)}
+                                    </span>
+                                  )}
+                                </div>
+                                {!benefit.can_apply && !isSelected && (
+                                  <span className="text-[11px] text-destructive">Tidak dapat digunakan saat ini</span>
+                                )}
+                                {blockedByQuota && (
+                                  <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                                    Tidak dapat digabung — sudah ada benefit kuota
+                                  </span>
+                                )}
+                              </div>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        Tidak ada benefit membership yang tersedia.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Live Preview */}
+                  {(() => {
+                    const svcBase = parseFloat(editServicePrice) || booking.service_snapshot.price || 0;
+                    const rawSvcDisc = parseFloat(editServiceDiscount) || 0;
+                    const svcDisc = editServiceDiscountType === "pct" ? Math.min(svcBase, (rawSvcDisc / 100) * svcBase) : Math.min(svcBase, rawSvcDisc);
+                    const tFeeBase = booking.pick_up ? (parseFloat(editTravelFee) || booking.travel_fee || 0) : 0;
+                    const rawTFeeDisc = booking.pick_up ? (parseFloat(editTravelFeeDiscount) || 0) : 0;
+                    const tFeeDisc = editTravelFeeDiscountType === "pct" ? Math.min(tFeeBase, (rawTFeeDisc / 100) * tFeeBase) : Math.min(tFeeBase, rawTFeeDisc);
+                    const addonBase = (booking.service_snapshot.addons ?? []).reduce((sum, addon) => {
+                      return sum + (parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0);
+                    }, 0);
+                    const addonItemDisc = (booking.service_snapshot.addons ?? []).reduce((sum, addon) => {
+                      const base = parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0;
+                      const rawDisc = parseFloat(editAddonDiscounts[addon._id!] ?? "0") || 0;
+                      const discType = editAddonDiscountTypes[addon._id!] ?? "nominal";
+                      return sum + (discType === "pct" ? Math.min(base, (rawDisc / 100) * base) : Math.min(base, rawDisc));
+                    }, 0);
+                    const originalTotal = svcBase + tFeeBase + addonBase;
+                    const itemDiscountTotal = svcDisc + tFeeDisc + addonItemDisc;
+                    const effectiveSubtotal = Math.max(0, originalTotal - itemDiscountTotal);
+                    const benefitDiscount = priceApplyResult?.total_discount ?? 0;
+                    const previewTotal = Math.max(0, effectiveSubtotal - benefitDiscount);
+                    return (
+                      <div className="divide-y divide-border/40 overflow-hidden rounded-lg border border-border/50 bg-card">
+                        <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                          <span className="text-muted-foreground">Subtotal Harga Dasar</span>
+                          <span className="font-medium">{formatPrice(originalTotal)}</span>
+                        </div>
+                        {itemDiscountTotal > 0 && (
+                          <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                            <span className="text-orange-600 dark:text-orange-400">Diskon Item</span>
+                            <span className="font-medium text-orange-600 dark:text-orange-400">
+                              - {formatPrice(itemDiscountTotal)}
+                            </span>
+                          </div>
+                        )}
+                        {itemDiscountTotal > 0 && (
+                          <div className="flex items-center justify-between px-4 py-2.5 text-sm font-semibold">
+                            <span>Subtotal Setelah Diskon</span>
+                            <span>{formatPrice(effectiveSubtotal)}</span>
+                          </div>
+                        )}
+                        {(editBenefitIds.length > 0) && (loadingPriceApply || benefitDiscount > 0) && (
+                          <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                            <span className="flex items-center gap-1.5 text-green-600">
+                              <Gift className="h-3.5 w-3.5" />
+                              Diskon Benefit
+                            </span>
+                            {loadingPriceApply ? (
+                              <span className="h-4 w-20 animate-pulse rounded bg-primary/20" />
+                            ) : (
+                              <span className="font-medium text-green-600">
+                                - {formatPrice(benefitDiscount)}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
+                          <span>Total Baru</span>
+                          {loadingPriceApply && editBenefitIds.length > 0 ? (
+                            <span className="h-5 w-24 animate-pulse rounded bg-primary/20" />
+                          ) : (
+                            <span className="text-base">{formatPrice(previewTotal)}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Save / Cancel buttons */}
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleClosePriceEdit}
+                      disabled={savingPrice}
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleSavePricing}
+                      disabled={savingPrice}
+                    >
+                      {savingPrice && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                      Simpan Harga
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <div className="overflow-hidden rounded-xl border border-border/50 bg-card">
                 {/* Service row */}
                 {(() => {
@@ -679,12 +1379,26 @@ export default function BookingDetailPage({
                     (ab) => ab.applies_to === "service",
                   );
                   const isQuota = b?.benefit_type === "quota";
+                  const svcBase = booking.edited_service_price ?? booking.service_snapshot.price;
+                  const svcItemDisc = booking.edited_service_discount ?? 0;
+                  const svcEffective = Math.max(0, svcBase - svcItemDisc);
+                  const hasItemDisc = svcItemDisc > 0;
                   return (
                     <div className="flex items-center justify-between px-4 py-2.5 text-sm">
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground">
                           {booking.service_snapshot.name}
                         </span>
+                        {booking.edited_service_price != null && (
+                          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
+                            Diedit
+                          </span>
+                        )}
+                        {hasItemDisc && (
+                          <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-700 dark:bg-orange-950/50 dark:text-orange-400">
+                            -{formatPrice(svcItemDisc)}
+                          </span>
+                        )}
                         {b && (
                           <span
                             className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
@@ -701,26 +1415,33 @@ export default function BookingDetailPage({
                           </span>
                         )}
                       </div>
-                      {b ? (
+                      {(hasItemDisc || b) ? (
                         <div className="flex flex-col items-end gap-0.5">
                           <span className="text-xs line-through text-muted-foreground">
-                            {formatPrice(booking.service_snapshot.price)}
+                            {formatPrice(svcBase)}
                           </span>
-                          <span className="font-semibold text-primary">
-                            {isQuota
-                              ? "Gratis"
-                              : formatPrice(
-                                  Math.max(
-                                    0,
-                                    booking.service_snapshot.price -
-                                      b.amount_deducted,
-                                  ),
-                                )}
-                          </span>
+                          {hasItemDisc && b ? (
+                            <>
+                              <span className="text-xs line-through text-muted-foreground">
+                                {formatPrice(svcEffective)}
+                              </span>
+                              <span className="font-semibold text-primary">
+                                {isQuota ? "Gratis" : formatPrice(Math.max(0, svcEffective - b.amount_deducted))}
+                              </span>
+                            </>
+                          ) : hasItemDisc ? (
+                            <span className="font-semibold text-foreground">{formatPrice(svcEffective)}</span>
+                          ) : (
+                            <span className="font-semibold text-primary">
+                              {isQuota
+                                ? "Gratis"
+                                : formatPrice(Math.max(0, svcEffective - b!.amount_deducted))}
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <span className="font-medium">
-                          {formatPrice(booking.service_snapshot.price)}
+                          {formatPrice(svcBase)}
                         </span>
                       )}
                     </div>
@@ -728,7 +1449,6 @@ export default function BookingDetailPage({
                 })()}
                 {/* Addon rows */}
                 {booking.service_snapshot.addons?.map((addon) => {
-                  // Prefer exact service_id match, fall back to null (catch-all)
                   const addonBenefits = booking.applied_benefits?.filter(
                     (ab) => ab.applies_to === "addon",
                   ) ?? [];
@@ -736,6 +1456,13 @@ export default function BookingDetailPage({
                     addonBenefits.find((ab) => ab.service_id === addon._id) ??
                     addonBenefits.find((ab) => !ab.service_id);
                   const isQuota = b?.benefit_type === "quota";
+                  const addonOverride = booking.edited_addon_prices?.find(
+                    (a) => a.addon_id === addon._id,
+                  );
+                  const addonBase = addonOverride?.price ?? addon.price;
+                  const addonItemDisc = addonOverride?.discount ?? 0;
+                  const addonEffective = Math.max(0, addonBase - addonItemDisc);
+                  const hasItemDisc = addonItemDisc > 0;
                   return (
                     <div
                       key={addon._id}
@@ -745,6 +1472,16 @@ export default function BookingDetailPage({
                         <span className="text-muted-foreground">
                           + {addon.name}
                         </span>
+                        {addonOverride?.price != null && (
+                          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
+                            Diedit
+                          </span>
+                        )}
+                        {hasItemDisc && (
+                          <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-700 dark:bg-orange-950/50 dark:text-orange-400">
+                            -{formatPrice(addonItemDisc)}
+                          </span>
+                        )}
                         {b && (
                           <span
                             className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
@@ -761,29 +1498,40 @@ export default function BookingDetailPage({
                           </span>
                         )}
                       </div>
-                      {b ? (
+                      {(hasItemDisc || b) ? (
                         <div className="flex flex-col items-end gap-0.5">
                           <span className="text-xs line-through text-muted-foreground">
-                            {formatPrice(addon.price)}
+                            {formatPrice(addonBase)}
                           </span>
-                          <span className="font-semibold text-primary">
-                            {isQuota
-                              ? "Gratis"
-                              : formatPrice(
-                                  Math.max(0, addon.price - b.amount_deducted),
-                                )}
-                          </span>
+                          {hasItemDisc && b ? (
+                            <>
+                              <span className="text-xs line-through text-muted-foreground">
+                                {formatPrice(addonEffective)}
+                              </span>
+                              <span className="font-semibold text-primary">
+                                {isQuota ? "Gratis" : formatPrice(Math.max(0, addonEffective - b.amount_deducted))}
+                              </span>
+                            </>
+                          ) : hasItemDisc ? (
+                            <span className="font-semibold text-foreground">{formatPrice(addonEffective)}</span>
+                          ) : (
+                            <span className="font-semibold text-primary">
+                              {isQuota
+                                ? "Gratis"
+                                : formatPrice(Math.max(0, addonEffective - b!.amount_deducted))}
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <span className="font-medium">
-                          {formatPrice(addon.price)}
+                          {formatPrice(addonBase)}
                         </span>
                       )}
                     </div>
                   );
                 })}
                 {/* Travel fee row */}
-                {booking.travel_fee > 0 &&
+                {(booking.edited_travel_fee != null || booking.travel_fee > 0) &&
                   (() => {
                     const b = booking.applied_benefits?.find(
                       (ab) =>
@@ -792,6 +1540,11 @@ export default function BookingDetailPage({
                         ab.applies_to === "pickup",
                     );
                     const isQuota = b?.benefit_type === "quota";
+                    const tFeeBase = booking.edited_travel_fee ?? booking.travel_fee;
+                    const tFeeItemDisc = booking.edited_travel_fee_discount ?? 0;
+                    const tFeeEffective = Math.max(0, tFeeBase - tFeeItemDisc);
+                    const hasItemDisc = tFeeItemDisc > 0;
+                    if (tFeeBase <= 0) return null;
                     return (
                       <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
                         <div className="flex items-center gap-2">
@@ -799,6 +1552,16 @@ export default function BookingDetailPage({
                             <Truck className="h-3.5 w-3.5" />
                             Biaya Pickup
                           </span>
+                          {booking.edited_travel_fee != null && (
+                            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
+                              Diedit
+                            </span>
+                          )}
+                          {hasItemDisc && (
+                            <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-700 dark:bg-orange-950/50 dark:text-orange-400">
+                              -{formatPrice(tFeeItemDisc)}
+                            </span>
+                          )}
                           {b && (
                             <span
                               className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
@@ -815,67 +1578,75 @@ export default function BookingDetailPage({
                             </span>
                           )}
                         </div>
-                        {b ? (
+                        {(hasItemDisc || b) ? (
                           <div className="flex flex-col items-end gap-0.5">
                             <span className="text-xs line-through text-muted-foreground">
-                              {formatPrice(booking.travel_fee)}
+                              {formatPrice(tFeeBase)}
                             </span>
-                            <span className="font-semibold text-primary">
-                              {isQuota
-                                ? "Gratis"
-                                : formatPrice(
-                                    Math.max(
-                                      0,
-                                      booking.travel_fee - b.amount_deducted,
-                                    ),
-                                  )}
-                            </span>
+                            {hasItemDisc && b ? (
+                              <>
+                                <span className="text-xs line-through text-muted-foreground">
+                                  {formatPrice(tFeeEffective)}
+                                </span>
+                                <span className="font-semibold text-primary">
+                                  {isQuota ? "Gratis" : formatPrice(Math.max(0, tFeeEffective - b.amount_deducted))}
+                                </span>
+                              </>
+                            ) : hasItemDisc ? (
+                              <span className="font-semibold text-foreground">{formatPrice(tFeeEffective)}</span>
+                            ) : (
+                              <span className="font-semibold text-primary">
+                                {isQuota
+                                  ? "Gratis"
+                                  : formatPrice(Math.max(0, tFeeEffective - b!.amount_deducted))}
+                              </span>
+                            )}
                           </div>
                         ) : (
-                          <span className="font-medium">
-                            {formatPrice(booking.travel_fee)}
-                          </span>
+                          <span className="font-medium">{formatPrice(tFeeBase)}</span>
                         )}
                       </div>
                     );
                   })()}
-                {/* Subtotal + Diskon Member — hanya jika ada diskon */}
+                {/* Subtotal + Diskon — hanya jika ada diskon */}
                 {booking.total_discount > 0 && (
                   <>
                     <div className="flex items-center justify-between border-t border-border/50 bg-muted/30 px-4 py-2.5 text-sm font-semibold">
                       <span>Subtotal</span>
                       <span>{formatPrice(booking.original_total_price)}</span>
                     </div>
-                    <div className="flex flex-col border-t border-primary/20 bg-primary/5">
-                      <div className="flex items-center justify-between px-4 py-2.5 text-sm">
-                        <span className="flex items-center gap-1.5 font-medium text-primary">
-                          <Gift className="h-3.5 w-3.5" />
-                          Diskon Member
-                        </span>
-                        <span className="font-semibold text-primary">
-                          - {formatPrice(booking.total_discount)}
-                        </span>
-                      </div>
-                      {booking.applied_benefits?.length > 1 && (
-                        <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
-                          {booking.applied_benefits.map((ab, i) => (
-                            <div
-                              key={i}
-                              className="flex items-center justify-between text-xs text-muted-foreground"
-                            >
-                              <span className="truncate pr-4">
-                                {ab.benefit?.label ||
-                                  ab.description ||
-                                  ab.applies_to}
-                              </span>
-                              <span className="shrink-0">
-                                - {formatPrice(ab.amount_deducted)}
-                              </span>
-                            </div>
-                          ))}
+                    {booking.total_discount > 0 && (
+                      <div className="flex flex-col border-t border-primary/20 bg-primary/5">
+                        <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                          <span className="flex items-center gap-1.5 font-medium text-primary">
+                            <Gift className="h-3.5 w-3.5" />
+                            Diskon Member
+                          </span>
+                          <span className="font-semibold text-primary">
+                            - {formatPrice(booking.total_discount)}
+                          </span>
                         </div>
-                      )}
-                    </div>
+                        {booking.applied_benefits?.length > 1 && (
+                          <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                            {booking.applied_benefits.map((ab, i) => (
+                              <div
+                                key={i}
+                                className="flex items-center justify-between text-xs text-muted-foreground"
+                              >
+                                <span className="truncate pr-4">
+                                  {ab.benefit?.label ||
+                                    ab.description ||
+                                    ab.applies_to}
+                                </span>
+                                <span className="shrink-0">
+                                  - {formatPrice(ab.amount_deducted)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
                 {/* Total Akhir */}

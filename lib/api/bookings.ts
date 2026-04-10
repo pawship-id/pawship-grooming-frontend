@@ -157,6 +157,13 @@ export interface AdminBooking {
   note?: string;
   payment_method?: string;
   created_by_role?: "customer" | "admin" | null;
+  manual_discount_type?: string | null; // kept for legacy display
+  manual_discount_amount?: number; // kept for legacy display
+  edited_service_price?: number | null;
+  edited_service_discount?: number | null;
+  edited_travel_fee?: number | null;
+  edited_travel_fee_discount?: number | null;
+  edited_addon_prices?: { addon_id: string; price: number; discount?: number }[];
   isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
@@ -283,6 +290,15 @@ export type UpdateBookingPayload = Partial<
   booking_status?: string;
 };
 
+export interface UpdateBookingPricingPayload {
+  service_price?: number;
+  service_discount?: number;
+  travel_fee?: number;
+  travel_fee_discount?: number;
+  addon_prices?: { addon_id: string; price?: number; discount?: number }[];
+  selected_benefit_ids?: string[];
+}
+
 export interface UpdateSessionPayload {
   notes?: string;
   internal_note?: string;
@@ -384,6 +400,44 @@ export async function updateAdminBooking(
     method: "PUT",
     body: JSON.stringify(payload),
   });
+}
+
+export async function updateBookingPricing(
+  id: string,
+  payload: UpdateBookingPricingPayload,
+) {
+  return apiAuthRequest<{ message: string }>(`/bookings/${id}/pricing`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+// Fetches membership benefits directly for a pet, bypassing service price lookups.
+// Used as a fallback when getBookingPreview fails (e.g. service is soft-deleted).
+export async function getPetBenefitsSummary(petId: string) {
+  return apiAuthRequest<{
+    message: string;
+    data: Array<{
+      membership: { _id: string; membership_plan_id: string | null; membership_name: string | null; start_date: string; end_date: string };
+      benefits: Array<{
+        _id: string;
+        pet_membership_id: string;
+        applies_to: string;
+        service_id: string | null;
+        label: string | null;
+        service: any | null;
+        type: string;
+        period: string;
+        limit: number | null;
+        value: number | null;
+        used: number;
+        remaining: number | null;
+        can_apply: boolean;
+        period_reset_date: string | null;
+        next_reset_date: string | null;
+      }>;
+    }>;
+  }>(`/pet-memberships/${petId}/benefits-summary`);
 }
 
 export async function updateBookingStatus(
