@@ -953,28 +953,6 @@ export default function BookingDetailPage({
                 <Calendar className="h-5 w-5 text-primary" />
                 Detail Appointment
               </CardTitle>
-              {editingPrice ? (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleClosePriceEdit}
-                  disabled={savingPrice}
-                  className="h-8 gap-1.5 text-muted-foreground"
-                >
-                  <X className="h-3.5 w-3.5" />
-                  Batal
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleOpenPriceEdit}
-                  className="h-8 gap-1.5"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                  Edit Harga
-                </Button>
-              )}
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-4">
@@ -1680,6 +1658,18 @@ export default function BookingDetailPage({
                   </span>
                 </div>
               </div>
+
+              {!editingPrice && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleOpenPriceEdit}
+                  className="h-8 gap-1.5"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit Harga
+                </Button>
+              )}
 
               {booking.payment_method && (
                 <div>
