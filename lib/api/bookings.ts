@@ -77,7 +77,7 @@ export interface BookingSession {
 
 export interface SessionInput {
   type: string;
-  groomer_id: string;
+  groomer_id?: string;
   order?: number;
 }
 
