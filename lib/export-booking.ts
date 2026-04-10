@@ -87,10 +87,13 @@ export function exportBookingsToExcel(bookings: AdminBooking[]): void {
     "Waktu Selesai",
     "Total Grooming",
     "Membership Benefit Grooming",
+    "Discount Service by Admin",
     "Total Add On",
     "Membership Benefit Add On",
+    "Discount Add On by Admin",
     "Total Pick-Up",
     "Membership Benefit Pick-Up",
+    "Discount Pick-Up by Admin",
     "Total Harga",
   ];
 
@@ -159,7 +162,7 @@ export function exportBookingsToExcel(bookings: AdminBooking[]): void {
       ? (booking.edited_travel_fee ?? booking.travel_fee ?? 0)
       : 0;
 
-    // Calculate benefits
+    // Calculate benefits (membership)
     const serviceBenefit = calculateBenefitByType(
       booking.applied_benefits || [],
       "service",
@@ -173,12 +176,32 @@ export function exportBookingsToExcel(bookings: AdminBooking[]): void {
       "pickup",
     );
 
+    // Calculate manual discounts by admin
+    const serviceDiscountByAdmin = booking.edited_service_discount ?? 0;
+
+    let addonDiscountByAdmin = 0;
+    addons.forEach((addon) => {
+      const editedAddon = booking.edited_addon_prices?.find(
+        (ea) => ea.addon_id === addon._id,
+      );
+      if (editedAddon?.discount) {
+        addonDiscountByAdmin += editedAddon.discount;
+      }
+    });
+
+    const pickupDiscountByAdmin = booking.pick_up
+      ? (booking.edited_travel_fee_discount ?? 0)
+      : 0;
+
     row["Total Grooming"] = servicePrice;
     row["Membership Benefit Grooming"] = serviceBenefit;
+    row["Discount Service by Admin"] = serviceDiscountByAdmin;
     row["Total Add On"] = addonPrices;
     row["Membership Benefit Add On"] = addonBenefit;
+    row["Discount Add On by Admin"] = addonDiscountByAdmin;
     row["Total Pick-Up"] = travelFee;
     row["Membership Benefit Pick-Up"] = pickupBenefit;
+    row["Discount Pick-Up by Admin"] = pickupDiscountByAdmin;
     row["Total Harga"] = booking.final_total_price || 0;
 
     return row;
@@ -195,6 +218,8 @@ export function exportBookingsToExcel(bookings: AdminBooking[]): void {
       return { wch: 25 };
     if (header.includes("Add On")) return { wch: 20 };
     if (header.includes("Waktu")) return { wch: 18 };
+    if (header.includes("Discount") && header.includes("Admin"))
+      return { wch: 22 };
     if (header.includes("Total") || header.includes("Benefit"))
       return { wch: 15 };
     return { wch: 15 };
