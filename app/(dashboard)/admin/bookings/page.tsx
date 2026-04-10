@@ -1,18 +1,51 @@
-"use client"
+"use client";
 
-import { useEffect, useState, useCallback } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { Plus, Search, ChevronLeft, ChevronRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Skeleton } from "@/components/ui/skeleton"
-import { getAdminBookings } from "@/lib/api/bookings"
-import type { AdminBooking } from "@/lib/api/bookings"
+import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  Plus,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  FileSpreadsheet,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  getAdminBookings,
+  getAllAdminBookingsForExport,
+} from "@/lib/api/bookings";
+import type { AdminBooking } from "@/lib/api/bookings";
+import { exportBookingsToExcel } from "@/lib/export-booking";
+import { useToast } from "@/hooks/use-toast";
 
 const statusColors: Record<string, string> = {
   requested: "bg-accent/20 text-accent-foreground",
@@ -25,14 +58,14 @@ const statusColors: Record<string, string> = {
   completed: "bg-secondary/60 text-secondary-foreground",
   rescheduled: "bg-accent/20 text-accent-foreground",
   cancelled: "bg-destructive/10 text-destructive",
-}
+};
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
     minimumFractionDigits: 0,
-  }).format(price)
+  }).format(price);
 }
 
 function formatDate(iso: string) {
@@ -40,61 +73,81 @@ function formatDate(iso: string) {
     day: "2-digit",
     month: "short",
     year: "numeric",
-  })
+  });
 }
 
 function toYMD(d: Date) {
-  return d.toISOString().slice(0, 10)
+  return d.toISOString().slice(0, 10);
 }
 
-type DatePreset = "today" | "week" | "month" | "custom" | ""
+type DatePreset = "today" | "week" | "month" | "custom" | "";
 
-function getPresetRange(preset: DatePreset): { from: string; to: string } | null {
-  const now = new Date()
+function getPresetRange(
+  preset: DatePreset,
+): { from: string; to: string } | null {
+  const now = new Date();
   if (preset === "today") {
-    const d = toYMD(now)
-    return { from: d, to: d }
+    const d = toYMD(now);
+    return { from: d, to: d };
   }
   if (preset === "week") {
-    const day = now.getDay()
-    const diffToMon = (day === 0 ? -6 : 1 - day)
-    const mon = new Date(now)
-    mon.setDate(now.getDate() + diffToMon)
-    const sun = new Date(mon)
-    sun.setDate(mon.getDate() + 6)
-    return { from: toYMD(mon), to: toYMD(sun) }
+    const day = now.getDay();
+    const diffToMon = day === 0 ? -6 : 1 - day;
+    const mon = new Date(now);
+    mon.setDate(now.getDate() + diffToMon);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    return { from: toYMD(mon), to: toYMD(sun) };
   }
   if (preset === "month") {
-    const first = new Date(now.getFullYear(), now.getMonth(), 1)
-    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-    return { from: toYMD(first), to: toYMD(last) }
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { from: toYMD(first), to: toYMD(last) };
   }
-  return null
+  return null;
 }
 
-const LIMIT = 20
+const LIMIT = 20;
 
 export default function BookingsPage() {
-  const router = useRouter()
-  const [bookings, setBookings] = useState<AdminBooking[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [createdByFilter, setCreatedByFilter] = useState<string>("all")
-  const [datePreset, setDatePreset] = useState<DatePreset>("")
-  const [dateFrom, setDateFrom] = useState("")
-  const [dateTo, setDateTo] = useState("")
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalCount, setTotalCount] = useState(0)
+  const router = useRouter();
+  const { toast } = useToast();
+  const [bookings, setBookings] = useState<AdminBooking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [createdByFilter, setCreatedByFilter] = useState<string>("all");
+  const [datePreset, setDatePreset] = useState<DatePreset>("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / LIMIT))
+  // Export preview modal state
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportPreviewData, setExportPreviewData] = useState<AdminBooking[]>(
+    [],
+  );
+  const [loadingPreview, setLoadingPreview] = useState(false);
+
+  // Modal filter state
+  const [modalSearch, setModalSearch] = useState("");
+  const [modalStatusFilter, setModalStatusFilter] = useState<string>("all");
+  const [modalCreatedByFilter, setModalCreatedByFilter] =
+    useState<string>("all");
+  const [modalDateFrom, setModalDateFrom] = useState("");
+  const [modalDateTo, setModalDateTo] = useState("");
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / LIMIT));
 
   const fetchBookings = useCallback(
     (page: number) => {
-      setLoading(true)
-      const presetRange = getPresetRange(datePreset)
-      const from = datePreset === "custom" ? dateFrom : (presetRange?.from ?? "")
-      const to = datePreset === "custom" ? dateTo : (presetRange?.to ?? "")
+      setLoading(true);
+      const presetRange = getPresetRange(datePreset);
+      const from =
+        datePreset === "custom" ? dateFrom : (presetRange?.from ?? "");
+      const to = datePreset === "custom" ? dateTo : (presetRange?.to ?? "");
 
       getAdminBookings({
         page,
@@ -102,54 +155,185 @@ export default function BookingsPage() {
         status: statusFilter === "all" ? undefined : statusFilter,
         date_from: from || undefined,
         date_to: to || undefined,
-        created_by_role: createdByFilter === "all" ? undefined : createdByFilter,
+        created_by_role:
+          createdByFilter === "all" ? undefined : createdByFilter,
       })
         .then((res) => {
-          setBookings(res.bookings)
-          setTotalCount(res.total ?? 0)
+          setBookings(res.bookings);
+          setTotalCount(res.total ?? 0);
         })
         .catch(() => {})
-        .finally(() => setLoading(false))
+        .finally(() => setLoading(false));
     },
     [statusFilter, createdByFilter, datePreset, dateFrom, dateTo],
-  )
+  );
 
   // Reset to page 1 when filters change
   useEffect(() => {
-    setCurrentPage(1)
-  }, [statusFilter, createdByFilter, datePreset, dateFrom, dateTo])
+    setCurrentPage(1);
+  }, [statusFilter, createdByFilter, datePreset, dateFrom, dateTo]);
 
   useEffect(() => {
-    fetchBookings(currentPage)
-  }, [fetchBookings, currentPage])
+    fetchBookings(currentPage);
+  }, [fetchBookings, currentPage]);
 
   const filtered = bookings.filter((b) => {
-    if (!search) return true
-    const q = search.toLowerCase()
+    if (!search) return true;
+    const q = search.toLowerCase();
     return (
       (b.customer?.username ?? "").toLowerCase().includes(q) ||
       b.pet_snapshot.name.toLowerCase().includes(q) ||
       b.service_snapshot.name.toLowerCase().includes(q)
-    )
-  })
+    );
+  });
 
   function handlePreset(preset: DatePreset) {
-    setDatePreset((prev) => (prev === preset ? "" : preset))
+    setDatePreset((prev) => (prev === preset ? "" : preset));
+  }
+
+  async function handleExport() {
+    try {
+      setLoadingPreview(true);
+      setShowExportModal(true);
+
+      // Fetch all bookings without any filters
+      const bookingsToExport = await getAllAdminBookingsForExport({});
+
+      if (!bookingsToExport || bookingsToExport.length === 0) {
+        setShowExportModal(false);
+        toast({
+          title: "Tidak ada data",
+          description: "Tidak ada booking untuk diexport.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setExportPreviewData(bookingsToExport);
+    } catch (error) {
+      setShowExportModal(false);
+      toast({
+        title: "Gagal memuat preview",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat memuat data.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingPreview(false);
+    }
+  }
+
+  function confirmExport() {
+    try {
+      setExporting(true);
+      const filteredData = getFilteredModalData();
+      exportBookingsToExcel(filteredData);
+
+      toast({
+        title: "Export berhasil",
+        description: `${filteredData.length} booking berhasil diexport ke Excel.`,
+      });
+
+      setShowExportModal(false);
+    } catch (error) {
+      toast({
+        title: "Export gagal",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan saat export data.",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function getFilteredModalData() {
+    return exportPreviewData.filter((booking) => {
+      // Search filter
+      if (modalSearch) {
+        const q = modalSearch.toLowerCase();
+        const matchesSearch =
+          (booking.customer?.username ?? "").toLowerCase().includes(q) ||
+          booking.pet_snapshot.name.toLowerCase().includes(q) ||
+          booking.service_snapshot.name.toLowerCase().includes(q);
+        if (!matchesSearch) return false;
+      }
+
+      // Status filter
+      if (
+        modalStatusFilter !== "all" &&
+        booking.booking_status !== modalStatusFilter
+      ) {
+        return false;
+      }
+
+      // Created by filter
+      if (
+        modalCreatedByFilter !== "all" &&
+        booking.created_by_role !== modalCreatedByFilter
+      ) {
+        return false;
+      }
+
+      // Date range filter
+      const bookingDate = new Date(booking.date);
+      if (modalDateFrom) {
+        const fromDate = new Date(modalDateFrom);
+        if (bookingDate < fromDate) return false;
+      }
+      if (modalDateTo) {
+        const toDate = new Date(modalDateTo);
+        if (bookingDate > toDate) return false;
+      }
+
+      return true;
+    });
+  }
+
+  function resetModalFilters() {
+    setModalSearch("");
+    setModalStatusFilter("all");
+    setModalCreatedByFilter("all");
+    setModalDateFrom("");
+    setModalDateTo("");
+  }
+
+  function handleCloseModal() {
+    setShowExportModal(false);
+    resetModalFilters();
   }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">Bookings</h1>
-          <p className="text-sm text-muted-foreground">Manage all grooming appointments</p>
+          <h1 className="font-display text-2xl font-bold text-foreground">
+            Bookings
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Manage all grooming appointments
+          </p>
         </div>
-        <Button asChild>
-          <Link href="/admin/bookings/new">
-            <Plus className="mr-2 h-4 w-4" />
-            New Booking
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={exporting || loading}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            {exporting ? "Exporting..." : "Download Data Booking"}
+          </Button>
+          <Button asChild>
+            <Link href="/admin/bookings/new">
+              <Plus className="mr-2 h-4 w-4" />
+              New Booking
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Card className="border-border/50">
@@ -169,7 +353,9 @@ export default function BookingsPage() {
             {/* Filters row */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-muted-foreground">Status</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  Status
+                </label>
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger>
                     <SelectValue placeholder="Semua status" />
@@ -179,8 +365,12 @@ export default function BookingsPage() {
                     <SelectItem value="requested">Requested</SelectItem>
                     <SelectItem value="waitlist">Waitlist</SelectItem>
                     <SelectItem value="confirmed">Confirmed</SelectItem>
-                    <SelectItem value="driver on the way">Driver on the Way</SelectItem>
-                    <SelectItem value="groomer on the way">Groomer on the Way</SelectItem>
+                    <SelectItem value="driver on the way">
+                      Driver on the Way
+                    </SelectItem>
+                    <SelectItem value="groomer on the way">
+                      Groomer on the Way
+                    </SelectItem>
                     <SelectItem value="arrived">Arrived</SelectItem>
                     <SelectItem value="in progress">In Progress</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
@@ -191,8 +381,13 @@ export default function BookingsPage() {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-muted-foreground">Dibuat Oleh</label>
-                <Select value={createdByFilter} onValueChange={setCreatedByFilter}>
+                <label className="text-xs font-medium text-muted-foreground">
+                  Dibuat Oleh
+                </label>
+                <Select
+                  value={createdByFilter}
+                  onValueChange={setCreatedByFilter}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Semua" />
                   </SelectTrigger>
@@ -205,19 +400,29 @@ export default function BookingsPage() {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-muted-foreground">Tanggal Booking</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  Tanggal Booking
+                </label>
                 <div className="flex flex-wrap gap-1">
-                  {(["today", "week", "month", "custom"] as DatePreset[]).map((preset) => (
-                    <Button
-                      key={preset}
-                      variant={datePreset === preset ? "default" : "outline"}
-                      size="sm"
-                      className="flex-1 text-xs"
-                      onClick={() => handlePreset(preset)}
-                    >
-                      {preset === "today" ? "Hari Ini" : preset === "week" ? "Minggu Ini" : preset === "month" ? "Bulan Ini" : "Custom"}
-                    </Button>
-                  ))}
+                  {(["today", "week", "month", "custom"] as DatePreset[]).map(
+                    (preset) => (
+                      <Button
+                        key={preset}
+                        variant={datePreset === preset ? "default" : "outline"}
+                        size="sm"
+                        className="flex-1 text-xs"
+                        onClick={() => handlePreset(preset)}
+                      >
+                        {preset === "today"
+                          ? "Hari Ini"
+                          : preset === "week"
+                            ? "Minggu Ini"
+                            : preset === "month"
+                              ? "Bulan Ini"
+                              : "Custom"}
+                      </Button>
+                    ),
+                  )}
                 </div>
               </div>
             </div>
@@ -226,7 +431,9 @@ export default function BookingsPage() {
             {datePreset === "custom" && (
               <div className="flex flex-wrap items-center gap-3 border-t pt-3">
                 <div className="flex items-center gap-2">
-                  <label className="text-xs font-medium text-muted-foreground">Dari</label>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Dari
+                  </label>
                   <Input
                     type="date"
                     value={dateFrom}
@@ -235,7 +442,9 @@ export default function BookingsPage() {
                   />
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="text-xs font-medium text-muted-foreground">Sampai</label>
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Sampai
+                  </label>
                   <Input
                     type="date"
                     value={dateTo}
@@ -247,18 +456,28 @@ export default function BookingsPage() {
             )}
 
             {/* Active filter summary + reset */}
-            {(statusFilter !== "all" || createdByFilter !== "all" || datePreset !== "") && (
+            {(statusFilter !== "all" ||
+              createdByFilter !== "all" ||
+              datePreset !== "") && (
               <div className="flex items-center justify-between border-t pt-2">
                 <div className="flex flex-wrap gap-1">
                   {statusFilter !== "all" && (
-                    <Badge variant="secondary" className="text-xs capitalize">{statusFilter}</Badge>
+                    <Badge variant="secondary" className="text-xs capitalize">
+                      {statusFilter}
+                    </Badge>
                   )}
                   {createdByFilter !== "all" && (
-                    <Badge variant="secondary" className="text-xs capitalize">{createdByFilter}</Badge>
+                    <Badge variant="secondary" className="text-xs capitalize">
+                      {createdByFilter}
+                    </Badge>
                   )}
                   {datePreset !== "" && datePreset !== "custom" && (
                     <Badge variant="secondary" className="text-xs">
-                      {datePreset === "today" ? "Hari Ini" : datePreset === "week" ? "Minggu Ini" : "Bulan Ini"}
+                      {datePreset === "today"
+                        ? "Hari Ini"
+                        : datePreset === "week"
+                          ? "Minggu Ini"
+                          : "Bulan Ini"}
                     </Badge>
                   )}
                   {datePreset === "custom" && (dateFrom || dateTo) && (
@@ -272,11 +491,11 @@ export default function BookingsPage() {
                   size="sm"
                   className="h-6 text-xs text-muted-foreground"
                   onClick={() => {
-                    setStatusFilter("all")
-                    setCreatedByFilter("all")
-                    setDatePreset("")
-                    setDateFrom("")
-                    setDateTo("")
+                    setStatusFilter("all");
+                    setCreatedByFilter("all");
+                    setDatePreset("");
+                    setDateFrom("");
+                    setDateTo("");
                   }}
                 >
                   Reset semua
@@ -305,13 +524,18 @@ export default function BookingsPage() {
                   Array.from({ length: 8 }).map((_, i) => (
                     <TableRow key={i}>
                       {Array.from({ length: 8 }).map((__, j) => (
-                        <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                        <TableCell key={j}>
+                          <Skeleton className="h-4 w-full" />
+                        </TableCell>
                       ))}
                     </TableRow>
                   ))
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    <TableCell
+                      colSpan={8}
+                      className="py-8 text-center text-muted-foreground"
+                    >
                       Tidak ada booking ditemukan
                     </TableCell>
                   </TableRow>
@@ -320,33 +544,59 @@ export default function BookingsPage() {
                     <TableRow
                       key={booking._id}
                       className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => router.push(`/admin/bookings/${booking._id}`)}
+                      onClick={() =>
+                        router.push(`/admin/bookings/${booking._id}`)
+                      }
                     >
                       <TableCell>{formatDate(booking.date)}</TableCell>
-                      <TableCell className="whitespace-nowrap">{booking.time_range}</TableCell>
-                      <TableCell className="font-medium">{booking.customer?.username ?? "-"}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {booking.time_range}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {booking.customer?.username ?? "-"}
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
                           <span>{booking.pet_snapshot.name}</span>
-                          <span className="text-xs text-muted-foreground capitalize">{booking.type}</span>
+                          <span className="text-xs text-muted-foreground capitalize">
+                            {booking.type}
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell>{booking.service_snapshot.name}</TableCell>
                       <TableCell>
-                        <Badge className={statusColors[booking.booking_status] ?? "bg-muted text-muted-foreground"}>
-                          <span className="capitalize">{booking.booking_status}</span>
+                        <Badge
+                          className={
+                            statusColors[booking.booking_status] ??
+                            "bg-muted text-muted-foreground"
+                          }
+                        >
+                          <span className="capitalize">
+                            {booking.booking_status}
+                          </span>
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-0.5">
                           {booking.created_by_role === "admin" ? (
-                            <Badge variant="secondary" className="w-fit text-xs">Admin</Badge>
+                            <Badge
+                              variant="secondary"
+                              className="w-fit text-xs"
+                            >
+                              Admin
+                            </Badge>
                           ) : booking.created_by_role === "customer" ? (
-                            <Badge variant="outline" className="w-fit text-xs">Customer</Badge>
+                            <Badge variant="outline" className="w-fit text-xs">
+                              Customer
+                            </Badge>
                           ) : (
-                            <span className="text-xs text-muted-foreground">-</span>
+                            <span className="text-xs text-muted-foreground">
+                              -
+                            </span>
                           )}
-                          <span className="text-xs text-muted-foreground">{formatDate(booking.createdAt)}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDate(booking.createdAt)}
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell className="text-right whitespace-nowrap">
@@ -392,6 +642,279 @@ export default function BookingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Export Preview Modal */}
+      <Dialog open={showExportModal} onOpenChange={handleCloseModal}>
+        <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5" />
+              Preview Export Data Booking
+            </DialogTitle>
+            <DialogDescription>
+              Filter dan periksa data yang akan diexport
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-auto space-y-4">
+            {loadingPreview ? (
+              <div className="space-y-3">
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-48 w-full" />
+              </div>
+            ) : (
+              <>
+                {/* Modal Filters */}
+                <div className="rounded-lg border bg-accent/5 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-sm">Filter Data</h3>
+                    {(modalSearch ||
+                      modalStatusFilter !== "all" ||
+                      modalCreatedByFilter !== "all" ||
+                      modalDateFrom ||
+                      modalDateTo) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs"
+                        onClick={resetModalFilters}
+                      >
+                        Reset Filter
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Search */}
+                    <div className="relative md:col-span-2">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        placeholder="Cari customer, hewan, atau layanan..."
+                        value={modalSearch}
+                        onChange={(e) => setModalSearch(e.target.value)}
+                        className="pl-9"
+                      />
+                    </div>
+
+                    {/* Status Filter */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        Status
+                      </label>
+                      <Select
+                        value={modalStatusFilter}
+                        onValueChange={setModalStatusFilter}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Semua status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Semua Status</SelectItem>
+                          <SelectItem value="requested">Requested</SelectItem>
+                          <SelectItem value="waitlist">Waitlist</SelectItem>
+                          <SelectItem value="confirmed">Confirmed</SelectItem>
+                          <SelectItem value="driver on the way">
+                            Driver on the Way
+                          </SelectItem>
+                          <SelectItem value="groomer on the way">
+                            Groomer on the Way
+                          </SelectItem>
+                          <SelectItem value="arrived">Arrived</SelectItem>
+                          <SelectItem value="in progress">
+                            In Progress
+                          </SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="rescheduled">
+                            Rescheduled
+                          </SelectItem>
+                          <SelectItem value="cancelled">Cancelled</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Created By Filter */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        Dibuat Oleh
+                      </label>
+                      <Select
+                        value={modalCreatedByFilter}
+                        onValueChange={setModalCreatedByFilter}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Semua" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Semua</SelectItem>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="customer">Customer</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Date From */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        Tanggal Dari
+                      </label>
+                      <Input
+                        type="date"
+                        value={modalDateFrom}
+                        onChange={(e) => setModalDateFrom(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+
+                    {/* Date To */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-muted-foreground">
+                        Tanggal Sampai
+                      </label>
+                      <Input
+                        type="date"
+                        value={modalDateTo}
+                        onChange={(e) => setModalDateTo(e.target.value)}
+                        className="h-9"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Data Count */}
+                <div className="rounded-lg border bg-primary/5 p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold">
+                        Total Data yang Akan Diexport
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {getFilteredModalData().length} dari{" "}
+                        {exportPreviewData.length} booking
+                      </p>
+                    </div>
+                    <div className="text-3xl font-bold text-primary">
+                      {getFilteredModalData().length}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Preview Table */}
+                <div className="rounded-lg border">
+                  <div className="bg-muted/30 p-3 border-b">
+                    <h3 className="font-semibold text-sm">
+                      Preview Data (maksimal 10 baris pertama)
+                    </h3>
+                  </div>
+                  <div className="overflow-auto max-h-64">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="whitespace-nowrap">
+                            Tanggal
+                          </TableHead>
+                          <TableHead className="whitespace-nowrap">
+                            Waktu
+                          </TableHead>
+                          <TableHead className="whitespace-nowrap">
+                            Customer
+                          </TableHead>
+                          <TableHead className="whitespace-nowrap">
+                            Hewan
+                          </TableHead>
+                          <TableHead className="whitespace-nowrap">
+                            Layanan
+                          </TableHead>
+                          <TableHead className="whitespace-nowrap">
+                            Status
+                          </TableHead>
+                          <TableHead className="whitespace-nowrap text-right">
+                            Harga
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {getFilteredModalData().length === 0 ? (
+                          <TableRow>
+                            <TableCell
+                              colSpan={7}
+                              className="text-center py-8 text-muted-foreground"
+                            >
+                              Tidak ada data yang sesuai dengan filter
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          getFilteredModalData()
+                            .slice(0, 10)
+                            .map((booking) => (
+                              <TableRow key={booking._id}>
+                                <TableCell className="whitespace-nowrap">
+                                  {formatDate(booking.date)}
+                                </TableCell>
+                                <TableCell className="whitespace-nowrap">
+                                  {booking.time_range}
+                                </TableCell>
+                                <TableCell className="whitespace-nowrap">
+                                  {booking.customer?.username ?? "-"}
+                                </TableCell>
+                                <TableCell className="whitespace-nowrap">
+                                  {booking.pet_snapshot.name}
+                                </TableCell>
+                                <TableCell className="whitespace-nowrap">
+                                  {booking.service_snapshot.name}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge
+                                    className={
+                                      statusColors[booking.booking_status] ??
+                                      "bg-muted text-muted-foreground"
+                                    }
+                                  >
+                                    <span className="capitalize text-xs">
+                                      {booking.booking_status}
+                                    </span>
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right whitespace-nowrap">
+                                  {formatPrice(booking.final_total_price)}
+                                </TableCell>
+                              </TableRow>
+                            ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  {getFilteredModalData().length > 10 && (
+                    <div className="bg-muted/20 p-2 border-t text-center text-xs text-muted-foreground">
+                      ... dan {getFilteredModalData().length - 10} data lainnya
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleCloseModal}
+              disabled={exporting}
+            >
+              Batal
+            </Button>
+            <Button
+              onClick={confirmExport}
+              disabled={
+                exporting ||
+                loadingPreview ||
+                getFilteredModalData().length === 0
+              }
+            >
+              <Download className="mr-2 h-4 w-4" />
+              {exporting ? "Mengexport..." : "Export ke Excel"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
-  )
+  );
 }
