@@ -5,6 +5,7 @@ import Link from "next/link"
 import {
   ArrowLeft, Play, CheckCircle, Camera, Calendar, Clock,
   User, MapPin, Loader2, ChevronDown, ChevronUp,
+  X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,11 +21,12 @@ import {
   getAdminBookingById,
   startBookingSession,
   finishBookingSession,
-  uploadSessionMedia,
+  uploadBookingMedia,
   updateBookingSession,
   type AdminBooking,
   type BookingSession,
 } from "@/lib/api/bookings"
+import { useAuth } from "@/lib/auth-context"
 
 const sessionStatusColors: Record<string, string> = {
   "not started": "bg-accent/20 text-accent-foreground",
@@ -34,12 +36,13 @@ const sessionStatusColors: Record<string, string> = {
 
 export default function GroomerJobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
+  const { user } = useAuth()
   const [booking, setBooking] = useState<AdminBooking | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [uploadOpen, setUploadOpen] = useState(false)
-  const [uploadSessionId, setUploadSessionId] = useState<string | null>(null)
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [noteSessionId, setNoteSessionId] = useState<string | null>(null)
   const [noteValue, setNoteValue] = useState("")
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
@@ -121,7 +124,7 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
 
   const handleUploadMedia = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!booking || !uploadSessionId) return
+    if (!booking) return
     const formData = new FormData(e.currentTarget)
     const type = formData.get("mediaType") as "before" | "after"
     const rawFile = formData.get("photo") as File | null
@@ -129,13 +132,12 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
       toast.error("Pilih foto terlebih dahulu")
       return
     }
-    setActionLoading(`upload-${uploadSessionId}`)
+    setActionLoading("upload-booking")
     try {
       const framedFile = await applyGroomingFrame(rawFile, type)
-      await uploadSessionMedia(booking._id, uploadSessionId, framedFile, type)
+      await uploadBookingMedia(booking._id, framedFile, type)
       toast.success(`Foto ${type} berhasil diupload`)
       setUploadOpen(false)
-      setUploadSessionId(null)
       await fetchBooking()
     } catch (err: any) {
       toast.error(err.message || "Gagal mengupload foto")
@@ -253,6 +255,50 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
         </Card>
       </div>
 
+      {/* Before / After Photos (Booking Level) */}
+      <Card className="border-border/50">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="font-display text-lg">Before &amp; After Photos</CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setUploadOpen(true)}
+          >
+            <Camera className="mr-2 h-4 w-4" />
+            Upload Photo
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {booking.media && booking.media.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {booking.media.map((m, idx) => (
+                <div key={m._id || idx} className="flex flex-col gap-1">
+                  <Badge variant="outline" className="w-fit text-[10px] capitalize">
+                    {m.type}
+                  </Badge>
+                  <button
+                    type="button"
+                    className="aspect-[9/16] overflow-hidden rounded-lg border border-border/50 bg-muted cursor-pointer transition-opacity hover:opacity-80"
+                    onClick={() => setPreviewImage(m.secure_url || m.url || null)}
+                  >
+                    <img
+                      src={m.secure_url || m.url || "/placeholder.svg"}
+                      alt={`${m.type} photo`}
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                  {m.note && (
+                    <span className="text-[10px] text-muted-foreground">{m.note}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Belum ada foto.</p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Sessions */}
       <div className="flex flex-col gap-3">
         <h2 className="font-display text-lg font-bold text-foreground">
@@ -266,6 +312,8 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
               .filter((s) => s.order < session.order)
               .every((s) => s.status === "finished")
           const canFinish = session.status === "in progress"
+
+          const isMySession = !!(user?.id && (session.groomer_id === user.id || session.groomer_detail?._id === user.id))
 
           return (
             <Card key={session._id} className="border-border/50">
@@ -283,7 +331,10 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                     <div>
                       <span className="font-medium capitalize text-foreground">{session.type}</span>
                       {session.groomer_detail && (
-                        <p className="text-xs text-muted-foreground">{session.groomer_detail.username}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {session.groomer_detail.username}
+                          {isMySession && " (You)"}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -302,63 +353,58 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                 {/* Session body — expandable */}
                 {isExpanded && (
                   <div className="border-t border-border/50 p-4 flex flex-col gap-4">
-                    {/* Action Buttons */}
-                    <div className="flex flex-wrap gap-2">
-                      {canStart && (
-                        <Button
-                          size="sm"
-                          onClick={() => session._id && handleStartSession(session._id)}
-                          disabled={actionLoading === `start-${session._id}`}
-                        >
-                          {actionLoading === `start-${session._id}` ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <Play className="mr-2 h-4 w-4" />
-                          )}
-                          Start
-                        </Button>
-                      )}
-                      {canFinish && (
-                        <Button
-                          size="sm"
-                          onClick={() => session._id && handleFinishSession(session._id)}
-                          disabled={actionLoading === `finish-${session._id}`}
-                        >
-                          {actionLoading === `finish-${session._id}` ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                          )}
-                          Finish
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setUploadSessionId(session._id || null)
-                          setUploadOpen(true)
-                        }}
-                      >
-                        <Camera className="mr-2 h-4 w-4" />
-                        Upload Photo
-                      </Button>
-                      {noteSessionId !== session._id ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setNoteSessionId(session._id || null)
-                            setNoteValue(session.notes || "")
-                          }}
-                        >
-                          Add Note
-                        </Button>
-                      ) : null}
-                    </div>
+                    {/* Action Buttons — only for assigned groomer */}
+                    {isMySession && (
+                      <div className="flex flex-wrap gap-2">
+                        {canStart && (
+                          <Button
+                            size="sm"
+                            onClick={() => session._id && handleStartSession(session._id)}
+                            disabled={actionLoading === `start-${session._id}`}
+                          >
+                            {actionLoading === `start-${session._id}` ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <Play className="mr-2 h-4 w-4" />
+                            )}
+                            Start
+                          </Button>
+                        )}
+                        {canFinish && (
+                          <Button
+                            size="sm"
+                            onClick={() => session._id && handleFinishSession(session._id)}
+                            disabled={actionLoading === `finish-${session._id}`}
+                          >
+                            {actionLoading === `finish-${session._id}` ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                            )}
+                            Finish
+                          </Button>
+                        )}
+                        {noteSessionId !== session._id ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setNoteSessionId(session._id || null)
+                              setNoteValue(session.notes || "")
+                            }}
+                          >
+                            Add Note
+                          </Button>
+                        ) : null}
+                      </div>
+                    )}
 
-                    {/* Note editor */}
-                    {noteSessionId === session._id && (
+                    {!isMySession && (
+                      <p className="text-xs text-muted-foreground italic">Sesi ini ditangani groomer lain — hanya bisa dilihat.</p>
+                    )}
+
+                    {/* Note editor — only for assigned groomer */}
+                    {isMySession && noteSessionId === session._id && (
                       <div className="flex flex-col gap-2">
                         <Textarea
                           value={noteValue}
@@ -391,7 +437,7 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                       </div>
                     )}
 
-                    {/* Existing notes */}
+                    {/* Existing notes (read-only for all) */}
                     {session.notes && noteSessionId !== session._id && (
                       <div className="rounded-md bg-muted/50 p-3">
                         <span className="text-xs font-medium text-muted-foreground">Note:</span>
@@ -408,34 +454,6 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                         <span>Finished: {new Date(session.finished_at).toLocaleString()}</span>
                       )}
                     </div>
-
-                    {/* Media gallery */}
-                    {session.media && session.media.length > 0 && (
-                      <div>
-                        <span className="text-xs font-medium text-muted-foreground">
-                          Photos ({session.media.length})
-                        </span>
-                        <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                          {session.media.map((m, idx) => (
-                            <div key={m._id || idx} className="flex flex-col gap-1">
-                              <Badge variant="outline" className="w-fit text-[10px] capitalize">
-                                {m.type}
-                              </Badge>
-                              <div className="aspect-square overflow-hidden rounded-lg border border-border/50 bg-muted">
-                                <img
-                                  src={m.secure_url || m.url || "/placeholder.svg"}
-                                  alt={`${m.type} photo`}
-                                  className="h-full w-full object-cover"
-                                />
-                              </div>
-                              {m.note && (
-                                <span className="text-[10px] text-muted-foreground">{m.note}</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </CardContent>
@@ -443,6 +461,33 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
           )
         })}
       </div>
+
+      {previewImage && (
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          onClick={() => setPreviewImage(null)}
+        >
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+          <div
+            className="relative flex max-h-full items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewImage}
+              alt="preview"
+              className="max-h-[90vh] w-auto max-w-full rounded-xl object-contain shadow-2xl"
+            />
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -right-3 -top-3 flex h-7 w-7 items-center justify-center rounded-full bg-foreground/80 text-background shadow-lg"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Upload Photo Dialog */}
       <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
@@ -468,8 +513,8 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
               <Label htmlFor="photo">Photo</Label>
               <Input id="photo" name="photo" type="file" accept="image/*" />
             </div>
-            <Button type="submit" className="font-display font-bold" disabled={!!actionLoading}>
-              {actionLoading?.startsWith("upload-") ? (
+            <Button type="submit" className="font-display font-bold" disabled={actionLoading === "upload-booking"}>
+              {actionLoading === "upload-booking" ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
               Upload
