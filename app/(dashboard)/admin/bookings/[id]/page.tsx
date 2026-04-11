@@ -2108,8 +2108,15 @@ export default function BookingDetailPage({
                           </SelectTrigger>
                           <SelectContent>
                             {storeGroomers.map((g) => (
-                              <SelectItem key={g._id} value={g._id}>
-                                {g.username}
+                              <SelectItem key={g._id} value={g._id} className="px-2">
+                                <div className="flex flex-col">
+                                  <span>{g.username}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {g.profile?.groomer_skills && g.profile.groomer_skills.length > 0
+                                      ? g.profile.groomer_skills.join(", ")
+                                      : "Belum set skills"}
+                                  </span>
+                                </div>
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -2388,8 +2395,15 @@ export default function BookingDetailPage({
                 </SelectTrigger>
                 <SelectContent>
                   {storeGroomers.map((g) => (
-                    <SelectItem key={g._id} value={g._id}>
-                      {g.username}
+                    <SelectItem key={g._id} value={g._id} className="px-2">
+                      <div className="flex flex-col">
+                        <span>{g.username}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {g.profile?.groomer_skills && g.profile.groomer_skills.length > 0
+                            ? g.profile.groomer_skills.join(", ")
+                            : "Belum set skills"}
+                        </span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>

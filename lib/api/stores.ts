@@ -376,3 +376,57 @@ export async function addPublicPet(payload: AddPublicPetPayload) {
     body: JSON.stringify(payload),
   })
 }
+
+// ── Public homepage endpoints ────────────────────────────────────────────────
+
+export interface HomepageServiceType {
+  _id: string
+  title: string
+  description?: string
+  image_url?: string
+}
+
+export interface HomepageServiceTypeResponse {
+  message: string
+  serviceTypes: HomepageServiceType[]
+}
+
+export interface HomepageServicePrice {
+  pet_type_id?: { _id: string; name: string } | string
+  pet_name?: string
+  size_id?: { _id: string; name: string } | string
+  size_name?: string
+  hair_id?: { _id: string; name: string } | string
+  hair_name?: string
+  price: number
+}
+
+export interface HomepageService {
+  _id: string
+  code: string
+  name: string
+  description?: string
+  image_url?: string
+  service_type?: { _id: string; title: string }
+  pet_types?: { _id: string; name: string }[]
+  price_type?: "single" | "multiple"
+  price?: number
+  prices?: HomepageServicePrice[]
+  duration: number
+  include?: string[]
+  show_in_homepage: boolean
+  order: number
+}
+
+export interface HomepageServiceResponse {
+  message: string
+  services: HomepageService[]
+}
+
+export async function getHomepageServiceTypes() {
+  return apiRequest<HomepageServiceTypeResponse>("/service-types/public/homepage")
+}
+
+export async function getHomepageServices() {
+  return apiRequest<HomepageServiceResponse>("/services/public/homepage")
+}
