@@ -330,6 +330,8 @@ function StepHeader({ step, title, done }: { step: number; title: string; done: 
 function BookingContent() {
   const searchParams = useSearchParams()
   const serviceIdFromQuery = searchParams.get("serviceId")
+  const storeIdFromQuery = searchParams.get("storeId")
+  const serviceTypeIdFromQuery = searchParams.get("serviceTypeId")
 
   // Stores from API
   const [stores, setStores] = useState<PublicStore[]>([])
@@ -338,7 +340,30 @@ function BookingContent() {
 
   useEffect(() => {
     getPublicStores()
-      .then((res) => setStores(res.stores.filter((s) => s.is_active)))
+      .then((res) => {
+        const activeStores = res.stores
+          .filter((s) => s.is_active)
+          .sort((a, b) => {
+            if (a.is_default_store && !b.is_default_store) return -1
+            if (!a.is_default_store && b.is_default_store) return 1
+            return 0
+          })
+        setStores(activeStores)
+
+        // Auto-select store and service type from query params
+        if (storeIdFromQuery) {
+          const store = activeStores.find((s) => s._id === storeIdFromQuery)
+          if (store) {
+            setSelectedStoreId(store._id)
+            if (serviceTypeIdFromQuery) {
+              const hasType = store.serviceTypes.some((st) => st._id === serviceTypeIdFromQuery)
+              if (hasType) {
+                setSelectedServiceTypeId(serviceTypeIdFromQuery)
+              }
+            }
+          }
+        }
+      })
       .catch(() => setStoresError("Gagal memuat daftar store. Silakan coba lagi."))
       .finally(() => setStoresLoading(false))
   }, [])
@@ -373,7 +398,14 @@ function BookingContent() {
     setSelectedAddonIds([])
     setShowAddons(false)
     getPublicServices(selectedStoreId, selectedServiceTypeId)
-      .then((res) => setServices(res.services.filter((s) => s.is_active)))
+      .then((res) => {
+        const active = res.services.filter((s) => s.is_active)
+        setServices(active)
+        // Auto-select service from query param if available
+        if (serviceIdFromQuery && active.some((s) => s._id === serviceIdFromQuery)) {
+          setSelectedServiceId(serviceIdFromQuery)
+        }
+      })
       .catch(() => setServicesError("Gagal memuat layanan. Silakan coba lagi."))
       .finally(() => setServicesLoading(false))
   }, [selectedStoreId, selectedServiceTypeId])

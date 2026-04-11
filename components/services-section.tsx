@@ -16,8 +16,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 import {
   getHomepageServiceTypes,
   getHomepageServices,
+  getPublicStores,
   type HomepageServiceType,
   type HomepageService,
+  type PublicStore,
 } from "@/lib/api/stores"
 
 function formatPrice(price: number) {
@@ -38,7 +40,7 @@ function getLowestPrice(service: HomepageService): number {
   return service.price ?? 0
 }
 
-function ServiceTypeCard({ serviceType }: { serviceType: HomepageServiceType }) {
+function ServiceTypeCard({ serviceType, bookingUrl }: { serviceType: HomepageServiceType; bookingUrl: string }) {
   const [detailOpen, setDetailOpen] = useState(false)
 
   return (
@@ -83,7 +85,7 @@ function ServiceTypeCard({ serviceType }: { serviceType: HomepageServiceType }) 
               </p>
             )}
             <Button asChild className="w-full font-display font-bold">
-              <Link href="/booking">Booking Sekarang</Link>
+              <Link href={bookingUrl}>Booking Sekarang</Link>
             </Button>
           </div>
         </DialogContent>
@@ -92,7 +94,7 @@ function ServiceTypeCard({ serviceType }: { serviceType: HomepageServiceType }) 
   )
 }
 
-function HomepageServiceCard({ service }: { service: HomepageService }) {
+function HomepageServiceCard({ service, bookingUrl }: { service: HomepageService; bookingUrl: string }) {
   const [includesModalOpen, setIncludesModalOpen] = useState(false)
   const lowestPrice = getLowestPrice(service)
   const hasMultiplePrices = service.price_type === "multiple" && service.prices && service.prices.length > 1
@@ -156,7 +158,7 @@ function HomepageServiceCard({ service }: { service: HomepageService }) {
               )}
             </div>
             <Button asChild className="font-display font-bold">
-              <Link href="/booking">Booking Sekarang</Link>
+              <Link href={bookingUrl}>Booking Sekarang</Link>
             </Button>
           </div>
         </CardContent>
@@ -212,17 +214,20 @@ function ServiceSkeleton() {
 export function ServicesSection() {
   const [serviceTypes, setServiceTypes] = useState<HomepageServiceType[]>([])
   const [services, setServices] = useState<HomepageService[]>([])
+  const [publicStores, setPublicStores] = useState<PublicStore[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [stRes, svcRes] = await Promise.all([
+        const [stRes, svcRes, storesRes] = await Promise.all([
           getHomepageServiceTypes(),
           getHomepageServices(),
+          getPublicStores(),
         ])
         setServiceTypes(stRes.serviceTypes ?? [])
         setServices(svcRes.services ?? [])
+        setPublicStores(storesRes.stores?.filter((s) => s.is_active) ?? [])
       } catch (err) {
         console.error("Failed to fetch homepage services:", err)
       } finally {
@@ -231,6 +236,24 @@ export function ServicesSection() {
     }
     fetchData()
   }, [])
+
+  function buildBookingUrl(serviceTypeId: string, serviceId?: string): string {
+    // Find default store that has this service type
+    const defaultStore = publicStores.find(
+      (s) => s.is_default_store && s.serviceTypes.some((st) => st._id === serviceTypeId)
+    )
+    // Fallback: any store that has this service type
+    const fallbackStore = !defaultStore
+      ? publicStores.find((s) => s.serviceTypes.some((st) => st._id === serviceTypeId))
+      : null
+    const storeId = defaultStore?._id ?? fallbackStore?._id
+    const params = new URLSearchParams()
+    if (storeId) params.set("storeId", storeId)
+    params.set("serviceTypeId", serviceTypeId)
+    if (serviceId) params.set("serviceId", serviceId)
+    const qs = params.toString()
+    return `/booking${qs ? `?${qs}` : ""}`
+  }
 
   if (!loading && serviceTypes.length === 0 && services.length === 0) {
     return null
@@ -254,7 +277,7 @@ export function ServicesSection() {
         <div className="flex flex-wrap justify-center gap-3">
           {loading
             ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="w-[calc(50%-6px)] sm:w-[calc(33.333%-8px)] lg:w-[calc(25%-9px)]"><ServiceTypeSkeleton /></div>)
-            : serviceTypes.map((st) => <div key={st._id} className="w-[calc(50%-6px)] sm:w-[calc(33.333%-8px)] lg:w-[calc(25%-9px)]"><ServiceTypeCard serviceType={st} /></div>)
+            : serviceTypes.map((st) => <div key={st._id} className="w-[calc(50%-6px)] sm:w-[calc(33.333%-8px)] lg:w-[calc(25%-9px)]"><ServiceTypeCard serviceType={st} bookingUrl={buildBookingUrl(st._id)} /></div>)
           }
         </div>
 
@@ -274,7 +297,7 @@ export function ServicesSection() {
             <div className="flex flex-wrap justify-center gap-4">
               {loading
                 ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="w-full sm:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] xl:w-[calc(25%-12px)]"><ServiceSkeleton /></div>)
-                : services.map((svc) => <div key={svc._id} className="w-full sm:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] xl:w-[calc(25%-12px)]"><HomepageServiceCard service={svc} /></div>)
+                : services.map((svc) => <div key={svc._id} className="w-full sm:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] xl:w-[calc(25%-12px)]"><HomepageServiceCard service={svc} bookingUrl={svc.service_type ? buildBookingUrl(svc.service_type._id, svc._id) : "/booking"} /></div>)
               }
             </div>
           </div>

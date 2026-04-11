@@ -243,6 +243,7 @@ export interface PublicStore {
   operational?: PublicStoreOperational
   sessions?: string[]
   is_active: boolean
+  is_default_store?: boolean
   serviceTypes: PublicServiceType[]
 }
 
