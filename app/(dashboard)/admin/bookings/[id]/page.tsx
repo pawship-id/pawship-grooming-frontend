@@ -756,6 +756,12 @@ export default function BookingDetailPage({
 
   const isInHome = booking.type === "in home";
   const isInStorePickup = !isInHome && booking.pick_up === true;
+
+  // Filter groomers by booking's store
+  const storeGroomers = booking.store_id
+    ? groomers.filter((g) => g.profile?.placement === booking.store_id)
+    : groomers;
+
   const MAIN_FLOW = isInHome
     ? IN_HOME_MAIN_FLOW
     : isInStorePickup
@@ -1882,7 +1888,7 @@ export default function BookingDetailPage({
                               <Button
                                 type="button"
                                 size="sm"
-                                variant="outline"
+                                // variant="outline"
                                 onClick={() => handleStartSession(session._id!)}
                                 disabled={
                                   [
@@ -1918,7 +1924,7 @@ export default function BookingDetailPage({
                             <Button
                               type="button"
                               size="sm"
-                              variant="outline"
+                              // variant="outline"
                               onClick={() => handleFinishSession(session._id!)}
                             >
                               <CheckCircle className="mr-1.5 h-3.5 w-3.5" />
@@ -1937,36 +1943,40 @@ export default function BookingDetailPage({
                             <Scissors className="h-3 w-3" />
                             {session.groomer_detail.username}
                           </span>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 px-2 text-xs"
-                            onClick={() => {
-                              setAssignGroomerSessionId(session._id!);
-                              setAssignGroomerValue(session.groomer_id ?? "");
-                            }}
-                          >
-                            Ganti Groomer
-                          </Button>
+                          {session.status === "not started" && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 text-xs"
+                              onClick={() => {
+                                setAssignGroomerSessionId(session._id!);
+                                setAssignGroomerValue(session.groomer_id ?? "");
+                              }}
+                            >
+                              Ganti Groomer
+                            </Button>
+                          )}
                         </>
                       ) : (
                         <>
                           <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-400">
                             Belum ada groomer
                           </span>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-6 px-2 text-xs"
-                            onClick={() => {
-                              setAssignGroomerSessionId(session._id!);
-                              setAssignGroomerValue("");
-                            }}
-                          >
-                            Assign Groomer
-                          </Button>
+                          {session.status === "not started" && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-xs"
+                              onClick={() => {
+                                setAssignGroomerSessionId(session._id!);
+                                setAssignGroomerValue("");
+                              }}
+                            >
+                              Assign Groomer
+                            </Button>
+                          )}
                         </>
                       )}
                     </div>
@@ -2084,21 +2094,27 @@ export default function BookingDetailPage({
                     </div>
                     <div className="flex flex-1 flex-col gap-1">
                       <Label className="text-xs">Groomer (opsional)</Label>
-                      <Select
-                        value={newSessionGroomerId}
-                        onValueChange={setNewSessionGroomerId}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih groomer" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {groomers.map((g) => (
-                            <SelectItem key={g._id} value={g._id}>
-                              {g.username}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {storeGroomers.length === 0 && booking.store_id ? (
+                        <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-400">
+                          Belum ada groomer yang bertugas di store ini. Atur placement melalui edit profile groomer.
+                        </p>
+                      ) : (
+                        <Select
+                          value={newSessionGroomerId}
+                          onValueChange={setNewSessionGroomerId}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih groomer" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {storeGroomers.map((g) => (
+                              <SelectItem key={g._id} value={g._id}>
+                                {g.username}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                     <Button
                       type="button"
@@ -2358,21 +2374,27 @@ export default function BookingDetailPage({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-2">
-            <Select
-              value={assignGroomerValue}
-              onValueChange={setAssignGroomerValue}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Pilih groomer..." />
-              </SelectTrigger>
-              <SelectContent>
-                {groomers.map((g) => (
-                  <SelectItem key={g._id} value={g._id}>
-                    {g.username}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {storeGroomers.length === 0 && booking.store_id ? (
+              <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-400">
+                Belum ada groomer yang bertugas di store ini. Atur placement melalui edit profile groomer.
+              </p>
+            ) : (
+              <Select
+                value={assignGroomerValue}
+                onValueChange={setAssignGroomerValue}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih groomer..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {storeGroomers.map((g) => (
+                    <SelectItem key={g._id} value={g._id}>
+                      {g.username}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
