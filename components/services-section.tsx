@@ -39,34 +39,56 @@ function getLowestPrice(service: HomepageService): number {
 }
 
 function ServiceTypeCard({ serviceType }: { serviceType: HomepageServiceType }) {
+  const [detailOpen, setDetailOpen] = useState(false)
+
   return (
-    <Card className="group flex h-full flex-col border-border/50 bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-md overflow-hidden">
-      {serviceType.image_url && (
-        <div className="relative h-48 w-full overflow-hidden">
+    <>
+      <button
+        onClick={() => setDetailOpen(true)}
+        className="group relative flex h-32 w-full items-center justify-center overflow-hidden rounded-xl border border-border/50 bg-muted transition-all duration-200 hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        {serviceType.image_url && (
           <img
             src={serviceType.image_url}
             alt={serviceType.title}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-        </div>
-      )}
-      <CardContent className="flex flex-1 flex-col gap-4 p-6">
-        <h3 className="font-display text-lg font-bold text-foreground group-hover:text-primary transition-colors">
+        )}
+        <div className="absolute inset-0 bg-black/50 transition-colors group-hover:bg-black/40" />
+        <h3 className="relative z-10 font-display text-xl font-extrabold uppercase tracking-wider text-white drop-shadow-md sm:text-2xl">
           {serviceType.title}
         </h3>
-        {serviceType.description && (
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            {serviceType.description}
-          </p>
-        )}
-        <div className="mt-auto pt-2 border-t border-border/50">
-          <Button asChild className="w-full font-display font-bold">
-            <Link href="/booking">Booking Sekarang</Link>
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      </button>
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl font-bold">
+              {serviceType.title}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            {serviceType.image_url && (
+              <div className="relative h-48 w-full overflow-hidden rounded-lg">
+                <img
+                  src={serviceType.image_url}
+                  alt={serviceType.title}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            )}
+            {serviceType.description && (
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {serviceType.description}
+              </p>
+            )}
+            <Button asChild className="w-full font-display font-bold">
+              <Link href="/booking">Booking Sekarang</Link>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
@@ -78,16 +100,6 @@ function HomepageServiceCard({ service }: { service: HomepageService }) {
   return (
     <>
       <Card className="group flex h-full flex-col border-border/50 bg-card transition-all duration-200 hover:border-primary/30 hover:shadow-md overflow-hidden">
-        {service.image_url && (
-          <div className="relative h-48 w-full overflow-hidden">
-            <img
-              src={service.image_url}
-              alt={service.name}
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
-          </div>
-        )}
         <CardContent className="flex flex-1 flex-col gap-4 p-6">
           <div className="flex items-start justify-between gap-2">
             {service.service_type && (
@@ -175,19 +187,7 @@ function HomepageServiceCard({ service }: { service: HomepageService }) {
 }
 
 function ServiceTypeSkeleton() {
-  return (
-    <Card className="flex h-full flex-col overflow-hidden">
-      <Skeleton className="h-48 w-full" />
-      <CardContent className="flex flex-1 flex-col gap-4 p-6">
-        <Skeleton className="h-6 w-3/4" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-2/3" />
-        <div className="mt-auto pt-2">
-          <Skeleton className="h-10 w-full" />
-        </div>
-      </CardContent>
-    </Card>
-  )
+  return <Skeleton className="h-32 w-full rounded-xl" />
 }
 
 function ServiceSkeleton() {
@@ -251,10 +251,10 @@ export function ServicesSection() {
           </p>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
+        <div className="flex flex-wrap justify-center gap-3">
           {loading
-            ? Array.from({ length: 4 }).map((_, i) => <ServiceTypeSkeleton key={i} />)
-            : serviceTypes.map((st) => <ServiceTypeCard key={st._id} serviceType={st} />)
+            ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="w-[calc(50%-6px)] sm:w-[calc(33.333%-8px)] lg:w-[calc(25%-9px)]"><ServiceTypeSkeleton /></div>)
+            : serviceTypes.map((st) => <div key={st._id} className="w-[calc(50%-6px)] sm:w-[calc(33.333%-8px)] lg:w-[calc(25%-9px)]"><ServiceTypeCard serviceType={st} /></div>)
           }
         </div>
 
@@ -271,10 +271,10 @@ export function ServicesSection() {
                 Layanan terbaik yang kami tawarkan untuk hewan kesayanganmu
               </p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="flex flex-wrap justify-center gap-4">
               {loading
-                ? Array.from({ length: 4 }).map((_, i) => <ServiceSkeleton key={i} />)
-                : services.map((svc) => <HomepageServiceCard key={svc._id} service={svc} />)
+                ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="w-full sm:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] xl:w-[calc(25%-12px)]"><ServiceSkeleton /></div>)
+                : services.map((svc) => <div key={svc._id} className="w-full sm:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] xl:w-[calc(25%-12px)]"><HomepageServiceCard service={svc} /></div>)
               }
             </div>
           </div>
