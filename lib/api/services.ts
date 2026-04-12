@@ -50,7 +50,7 @@ export interface AdminService {
   show_in_homepage: boolean;
   order: number;
   service_location_type?: string[];
-  is_pick_up_available?: boolean;
+  is_pickup_delivery_available?: boolean;
   is_active: boolean;
   isDeleted: boolean;
   createdAt: string;
@@ -100,7 +100,7 @@ export type ServicePayload = {
   show_in_homepage?: boolean;
   order?: number;
   service_location_type?: string[];
-  is_pick_up_available?: boolean;
+  is_pickup_delivery_available?: boolean;
   is_active?: boolean;
 };
 

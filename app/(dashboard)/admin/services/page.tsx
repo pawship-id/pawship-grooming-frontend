@@ -127,7 +127,7 @@ interface ServiceForm {
   show_in_homepage: boolean;
   order: string;
   service_location_type: string[];
-  is_pick_up_available: boolean;
+  is_pickup_delivery_available: boolean;
   is_active: boolean;
   imageFile: File | null;
   imagePreview: string | null;
@@ -166,7 +166,7 @@ const DEFAULT_SERVICE_FORM: ServiceForm = {
   show_in_homepage: false,
   order: "0",
   service_location_type: ["in store"],
-  is_pick_up_available: false,
+  is_pickup_delivery_available: false,
   is_active: true,
   imageFile: null,
   imagePreview: null,
@@ -1015,12 +1015,18 @@ function ServiceFormFields({
           <div className="flex items-center gap-3">
             <Switch
               id="sv-pickup"
-              checked={form.is_pick_up_available}
+              checked={form.is_pickup_delivery_available}
               onCheckedChange={(v) =>
-                setForm((p) => ({ ...p, is_pick_up_available: v }))
+                setForm((p) => ({ ...p, is_pickup_delivery_available: v }))
               }
             />
-            <Label htmlFor="sv-pickup">Layanan Pick Up Tersedia</Label>
+            <Label htmlFor="sv-pickup" className="flex flex-col">
+              <span>Layanan Pickup & Delivery</span>
+              <span className="text-xs font-normal text-muted-foreground">
+                Aktifkan jika service ini bisa digunakan untuk pickup/delivery
+                pet
+              </span>
+            </Label>
           </div>
         )}
         {!isAddonType && (
@@ -1341,7 +1347,9 @@ export default function ServicesPage() {
     show_in_homepage: isAddonType ? false : form.show_in_homepage,
     order: Number(form.order),
     service_location_type: form.service_location_type,
-    is_pick_up_available: isAddonType ? false : form.is_pick_up_available,
+    is_pickup_delivery_available: isAddonType
+      ? false
+      : form.is_pickup_delivery_available,
     is_active: form.is_active,
   });
 
@@ -1420,7 +1428,7 @@ export default function ServicesPage() {
         svc.service_location_type && svc.service_location_type.length > 0
           ? svc.service_location_type
           : ["in store"],
-      is_pick_up_available: svc.is_pick_up_available ?? false,
+      is_pickup_delivery_available: svc.is_pickup_delivery_available ?? false,
       is_active: svc.is_active,
       imageFile: null,
       imagePreview: null,
@@ -2198,9 +2206,11 @@ export default function ServicesPage() {
                       <span>—</span>
                     )}
                   </div>
-                  <span className="text-muted-foreground">Pick Up</span>
+                  <span className="text-muted-foreground">
+                    Pickup & Delivery
+                  </span>
                   <span>
-                    {viewService.is_pick_up_available
+                    {viewService.is_pickup_delivery_available
                       ? "Tersedia"
                       : "Tidak Tersedia"}
                   </span>

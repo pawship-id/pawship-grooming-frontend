@@ -147,6 +147,7 @@ export interface AdminBooking {
   total_discount: number;
   final_total_price: number;
   pick_up: boolean;
+  delivery: boolean;
   applied_benefits: AdminAppliedBenefit[];
   selected_benefit_ids: string[];
   discount_ids: string[];
@@ -282,6 +283,7 @@ export interface CreateBookingPayload {
   type: "in home" | "in store";
   service_addon_ids?: string[];
   pick_up?: boolean;
+  delivery?: boolean;
   discount_ids?: string[];
   selected_benefit_ids?: string[];
   referal_code?: string;
@@ -379,7 +381,9 @@ export async function getBookingPreview(payload: {
   addon_ids?: string[];
   date: string;
   time_range?: string;
+  service_location_type?: string;
   pick_up?: boolean;
+  delivery?: boolean;
   store_id?: string;
   customer_id?: string;
 }) {
@@ -400,6 +404,8 @@ export async function applyBenefitPreview(payload: {
   add_on_ids?: string[];
   original_total_price?: number;
   booking_date?: string;
+  pick_up?: boolean;
+  delivery?: boolean;
 }) {
   return apiAuthRequest<{ message: string } & ApplyBenefitPreviewResult>(
     "/bookings/public/apply-benefit",

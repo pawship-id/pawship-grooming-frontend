@@ -1,24 +1,67 @@
-"use client"
+"use client";
 
-import { useEffect, useState, useCallback } from "react"
-import dynamic from "next/dynamic"
-import { useRouter } from "next/navigation"
-import { Search, Plus, Pencil, Trash2, MoreVertical, MapPin, Phone, Clock } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { Separator } from "@/components/ui/separator"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Textarea } from "@/components/ui/textarea"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useEffect, useState, useCallback } from "react";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
+import {
+  Search,
+  Plus,
+  Pencil,
+  Trash2,
+  MoreVertical,
+  MapPin,
+  Phone,
+  Clock,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   createStore,
   deleteStore as deleteStoreRequest,
@@ -31,8 +74,9 @@ import {
   type StorePayload,
   updateStore,
   updateStoreStatus,
-} from "@/lib/api/stores"
-import { toast } from "sonner"
+} from "@/lib/api/stores";
+import { getOptions, type ApiOption } from "@/lib/api/options";
+import { toast } from "sonner";
 
 const StoreLocationMap = dynamic(
   () => import("./store-location-map").then((mod) => mod.StoreLocationMap),
@@ -41,87 +85,155 @@ const StoreLocationMap = dynamic(
     loading: () => (
       <div className="h-[420px] w-full rounded-md border border-border bg-muted/40 animate-pulse" />
     ),
-  }
-)
+  },
+);
 
 // ── Types ──────────────────────────────────────────────────────────────────
-interface ZoneForm {
-  area_name: string
-  min_radius_km: string
-  max_radius_km: string
-  travel_time_minutes: string
-  travel_fee: string
+interface ZonePriceItemForm {
+  size_category_id: string;
+  price: string;
+}
+
+interface HomeServiceZoneForm {
+  area_name: string;
+  min_radius_km: string;
+  max_radius_km: string;
+  travel_time_minutes: string;
+  price: string;
+}
+
+interface PickupDeliveryZoneForm {
+  area_name: string;
+  min_radius_km: string;
+  max_radius_km: string;
+  travel_time_minutes: string;
+  prices: ZonePriceItemForm[];
 }
 
 interface StoreForm {
-  code: string
-  name: string
-  description: string
-  location: Required<StoreLocation>
-  contact: Required<StoreContact>
+  code: string;
+  name: string;
+  description: string;
+  location: Required<StoreLocation>;
+  contact: Required<StoreContact>;
   operational: {
-    opening_time: string
-    closing_time: string
-    operational_days: string[]
-    timezone: string
-  }
+    opening_time: string;
+    closing_time: string;
+    operational_days: string[];
+    timezone: string;
+  };
   capacity: {
-    default_daily_capacity_minutes: string
-    overbooking_limit_minutes: string
-  }
-  sessions: string[]
-  zones: ZoneForm[]
-  is_active: boolean
+    default_daily_capacity_minutes: string;
+    overbooking_limit_minutes: string;
+  };
+  sessions: string[];
+  home_service_zones: HomeServiceZoneForm[];
+  pickup_delivery_zones: PickupDeliveryZoneForm[];
+  is_pickup_delivery_available: boolean;
+  is_active: boolean;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+const DAYS_OF_WEEK = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
 const DAY_LABELS: Record<string, string> = {
-  Monday: "Sen", Tuesday: "Sel", Wednesday: "Rab",
-  Thursday: "Kam", Friday: "Jum", Saturday: "Sab", Sunday: "Min",
-}
+  Monday: "Sen",
+  Tuesday: "Sel",
+  Wednesday: "Rab",
+  Thursday: "Kam",
+  Friday: "Jum",
+  Saturday: "Sab",
+  Sunday: "Min",
+};
 const INDONESIA_TIMEZONES = [
   { value: "Asia/Jakarta", label: "WIB (Asia/Jakarta)" },
   { value: "Asia/Makassar", label: "WITA (Asia/Makassar)" },
   { value: "Asia/Jayapura", label: "WIT (Asia/Jayapura)" },
-]
-const LIMIT = 10
+];
+const LIMIT = 10;
 
-const DEFAULT_ZONE: ZoneForm = {
+const DEFAULT_PRICE_ITEM: ZonePriceItemForm = {
+  size_category_id: "",
+  price: "",
+};
+
+const DEFAULT_HOME_SERVICE_ZONE: HomeServiceZoneForm = {
   area_name: "",
   min_radius_km: "",
   max_radius_km: "",
   travel_time_minutes: "",
-  travel_fee: "",
-}
+  price: "",
+};
+
+const DEFAULT_PICKUP_DELIVERY_ZONE: PickupDeliveryZoneForm = {
+  area_name: "",
+  min_radius_km: "",
+  max_radius_km: "",
+  travel_time_minutes: "",
+  prices: [],
+};
 
 const DEFAULT_FORM: StoreForm = {
   code: "",
   name: "",
   description: "",
-  location: { address: "", city: "", province: "", postal_code: "", latitude: null, longitude: null },
+  location: {
+    address: "",
+    city: "",
+    province: "",
+    postal_code: "",
+    latitude: null,
+    longitude: null,
+  },
   contact: { phone_number: "", whatsapp: "", email: "" },
-  operational: { opening_time: "09:00", closing_time: "18:00", operational_days: ["Monday","Tuesday","Wednesday","Thursday","Friday"], timezone: "Asia/Jakarta" },
-  capacity: { default_daily_capacity_minutes: "", overbooking_limit_minutes: "" },
+  operational: {
+    opening_time: "09:00",
+    closing_time: "18:00",
+    operational_days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    timezone: "Asia/Jakarta",
+  },
+  capacity: {
+    default_daily_capacity_minutes: "",
+    overbooking_limit_minutes: "",
+  },
   sessions: [],
-  zones: [],
+  home_service_zones: [],
+  pickup_delivery_zones: [],
+  is_pickup_delivery_available: false,
   is_active: true,
-}
+};
 
 // ── Highlight helper ──────────────────────────────────────────────────────
 function Highlight({ text, query }: { text: string; query: string }) {
-  if (!query.trim() || !text) return <>{text}</>
-  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi")
-  const parts = text.split(regex)
+  if (!query.trim() || !text) return <>{text}</>;
+  const regex = new RegExp(
+    `(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
+    "gi",
+  );
+  const parts = text.split(regex);
   return (
     <>
       {parts.map((part, i) =>
         regex.test(part) ? (
-          <mark key={i} className="bg-yellow-200 text-yellow-900 rounded-[2px] px-[1px]">{part}</mark>
-        ) : part
+          <mark
+            key={i}
+            className="bg-yellow-200 text-yellow-900 rounded-[2px] px-[1px]"
+          >
+            {part}
+          </mark>
+        ) : (
+          part
+        ),
       )}
     </>
-  )
+  );
 }
 
 // ── Store Form Component ───────────────────────────────────────────────────
@@ -129,18 +241,37 @@ function StoreFormFields({
   form,
   setForm,
 }: {
-  form: StoreForm
-  setForm: React.Dispatch<React.SetStateAction<StoreForm>>
+  form: StoreForm;
+  setForm: React.Dispatch<React.SetStateAction<StoreForm>>;
 }) {
-  const [mapOpen, setMapOpen] = useState(false)
-  const [locationInputMode, setLocationInputMode] = useState<"manual" | "map">("manual")
-  const [isDetectingLocation, setIsDetectingLocation] = useState(false)
+  const [mapOpen, setMapOpen] = useState(false);
+  const [locationInputMode, setLocationInputMode] = useState<"manual" | "map">(
+    "manual",
+  );
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [sizeCategories, setSizeCategories] = useState<ApiOption[]>([]);
+  const [loadingSizes, setLoadingSizes] = useState(true);
+
+  // Fetch size categories
+  useEffect(() => {
+    getOptions("size category")
+      .then((res) => {
+        setSizeCategories(res.options.filter((opt) => opt.is_active));
+        setLoadingSizes(false);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch size categories:", err);
+        toast.error("Gagal memuat kategori ukuran");
+        setLoadingSizes(false);
+      });
+  }, []);
 
   useEffect(() => {
-    if (form.location.latitude != null && form.location.longitude != null) return
-    if (typeof navigator === "undefined" || !navigator.geolocation) return
+    if (form.location.latitude != null && form.location.longitude != null)
+      return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
 
-    setIsDetectingLocation(true)
+    setIsDetectingLocation(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setForm((p) => ({
@@ -150,15 +281,15 @@ function StoreFormFields({
             latitude: Number(position.coords.latitude.toFixed(6)),
             longitude: Number(position.coords.longitude.toFixed(6)),
           },
-        }))
-        setIsDetectingLocation(false)
+        }));
+        setIsDetectingLocation(false);
       },
       () => {
-        setIsDetectingLocation(false)
+        setIsDetectingLocation(false);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
-    )
-  }, [form.location.latitude, form.location.longitude, setForm])
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }, [form.location.latitude, form.location.longitude, setForm]);
 
   const toggleDay = (day: string) => {
     setForm((p) => ({
@@ -169,27 +300,49 @@ function StoreFormFields({
           ? p.operational.operational_days.filter((d) => d !== day)
           : [...p.operational.operational_days, day],
       },
-    }))
-  }
+    }));
+  };
 
   return (
     <div className="flex flex-col gap-5 px-1">
       {/* Basic Info */}
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Informasi Dasar</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Informasi Dasar
+        </p>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="f-code">Kode Toko *</Label>
-            <Input id="f-code" placeholder="STR001" required value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))} />
+            <Input
+              id="f-code"
+              placeholder="STR001"
+              required
+              value={form.code}
+              onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="f-name">Nama Toko *</Label>
-            <Input id="f-name" placeholder="Pawship Store Jakarta" required value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
+            <Input
+              id="f-name"
+              placeholder="Pawship Store Jakarta"
+              required
+              value={form.name}
+              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+            />
           </div>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="f-desc">Deskripsi</Label>
-          <Textarea id="f-desc" placeholder="Deskripsi singkat toko..." rows={2} value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
+          <Textarea
+            id="f-desc"
+            placeholder="Deskripsi singkat toko..."
+            rows={2}
+            value={form.description}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, description: e.target.value }))
+            }
+          />
         </div>
       </div>
 
@@ -197,25 +350,67 @@ function StoreFormFields({
 
       {/* Location */}
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lokasi</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Lokasi
+        </p>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="f-address">Alamat</Label>
-          <Input id="f-address" placeholder="Jl. Sudirman No. 123" value={form.location.address ?? ""} onChange={(e) => setForm((p) => ({ ...p, location: { ...p.location, address: e.target.value } }))} />
+          <Input
+            id="f-address"
+            placeholder="Jl. Sudirman No. 123"
+            value={form.location.address ?? ""}
+            onChange={(e) =>
+              setForm((p) => ({
+                ...p,
+                location: { ...p.location, address: e.target.value },
+              }))
+            }
+          />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="f-city">Kota</Label>
-            <Input id="f-city" placeholder="Jakarta" value={form.location.city ?? ""} onChange={(e) => setForm((p) => ({ ...p, location: { ...p.location, city: e.target.value } }))} />
+            <Input
+              id="f-city"
+              placeholder="Jakarta"
+              value={form.location.city ?? ""}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  location: { ...p.location, city: e.target.value },
+                }))
+              }
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="f-province">Provinsi</Label>
-            <Input id="f-province" placeholder="DKI Jakarta" value={form.location.province ?? ""} onChange={(e) => setForm((p) => ({ ...p, location: { ...p.location, province: e.target.value } }))} />
+            <Input
+              id="f-province"
+              placeholder="DKI Jakarta"
+              value={form.location.province ?? ""}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  location: { ...p.location, province: e.target.value },
+                }))
+              }
+            />
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="f-postal">Kode Pos</Label>
-            <Input id="f-postal" placeholder="12345" value={form.location.postal_code ?? ""} onChange={(e) => setForm((p) => ({ ...p, location: { ...p.location, postal_code: e.target.value } }))} />
+            <Input
+              id="f-postal"
+              placeholder="12345"
+              value={form.location.postal_code ?? ""}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  location: { ...p.location, postal_code: e.target.value },
+                }))
+              }
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Mode Input Koordinat</Label>
@@ -246,28 +441,70 @@ function StoreFormFields({
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="f-lat">Latitude</Label>
-              <Input id="f-lat" type="number" step="any" placeholder="-6.208" value={form.location.latitude ?? ""} onChange={(e) => setForm((p) => ({ ...p, location: { ...p.location, latitude: e.target.value ? parseFloat(e.target.value) : null } }))} />
+              <Input
+                id="f-lat"
+                type="number"
+                step="any"
+                placeholder="-6.208"
+                value={form.location.latitude ?? ""}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    location: {
+                      ...p.location,
+                      latitude: e.target.value
+                        ? parseFloat(e.target.value)
+                        : null,
+                    },
+                  }))
+                }
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="f-lng">Longitude</Label>
-              <Input id="f-lng" type="number" step="any" placeholder="106.845" value={form.location.longitude ?? ""} onChange={(e) => setForm((p) => ({ ...p, location: { ...p.location, longitude: e.target.value ? parseFloat(e.target.value) : null } }))} />
+              <Input
+                id="f-lng"
+                type="number"
+                step="any"
+                placeholder="106.845"
+                value={form.location.longitude ?? ""}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    location: {
+                      ...p.location,
+                      longitude: e.target.value
+                        ? parseFloat(e.target.value)
+                        : null,
+                    },
+                  }))
+                }
+              />
             </div>
           </div>
         ) : (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Button type="button" variant="outline" onClick={() => setMapOpen(true)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setMapOpen(true)}
+            >
               Pilih dari Peta
             </Button>
-            {form.location.latitude != null && form.location.longitude != null && (
-              <p className="text-xs text-muted-foreground">
-                Koordinat terpilih: {form.location.latitude}, {form.location.longitude}
-              </p>
-            )}
+            {form.location.latitude != null &&
+              form.location.longitude != null && (
+                <p className="text-xs text-muted-foreground">
+                  Koordinat terpilih: {form.location.latitude},{" "}
+                  {form.location.longitude}
+                </p>
+              )}
           </div>
         )}
 
         {isDetectingLocation && (
-          <p className="text-xs text-muted-foreground">Mendeteksi lokasi saat ini...</p>
+          <p className="text-xs text-muted-foreground">
+            Mendeteksi lokasi saat ini...
+          </p>
         )}
       </div>
 
@@ -275,10 +512,14 @@ function StoreFormFields({
 
       {/* Capacity */}
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Kapasitas</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Kapasitas
+        </p>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="f-default-capacity">Kapasitas Harian Default (menit) *</Label>
+            <Label htmlFor="f-default-capacity">
+              Kapasitas Harian Default (menit) *
+            </Label>
             <Input
               id="f-default-capacity"
               type="number"
@@ -286,11 +527,21 @@ function StoreFormFields({
               required
               placeholder="600"
               value={form.capacity.default_daily_capacity_minutes}
-              onChange={(e) => setForm((p) => ({ ...p, capacity: { ...p.capacity, default_daily_capacity_minutes: e.target.value } }))}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  capacity: {
+                    ...p.capacity,
+                    default_daily_capacity_minutes: e.target.value,
+                  },
+                }))
+              }
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="f-overbooking-limit">Batas Overbooking (menit) *</Label>
+            <Label htmlFor="f-overbooking-limit">
+              Batas Overbooking (menit) *
+            </Label>
             <Input
               id="f-overbooking-limit"
               type="number"
@@ -298,7 +549,15 @@ function StoreFormFields({
               required
               placeholder="120"
               value={form.capacity.overbooking_limit_minutes}
-              onChange={(e) => setForm((p) => ({ ...p, capacity: { ...p.capacity, overbooking_limit_minutes: e.target.value } }))}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  capacity: {
+                    ...p.capacity,
+                    overbooking_limit_minutes: e.target.value,
+                  },
+                }))
+              }
             />
           </div>
         </div>
@@ -308,20 +567,53 @@ function StoreFormFields({
 
       {/* Contact */}
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Kontak</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Kontak
+        </p>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="f-phone">Nomor Telepon</Label>
-            <Input id="f-phone" placeholder="+628123456789" value={form.contact.phone_number ?? ""} onChange={(e) => setForm((p) => ({ ...p, contact: { ...p.contact, phone_number: e.target.value } }))} />
+            <Input
+              id="f-phone"
+              placeholder="+628123456789"
+              value={form.contact.phone_number ?? ""}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  contact: { ...p.contact, phone_number: e.target.value },
+                }))
+              }
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="f-wa">WhatsApp</Label>
-            <Input id="f-wa" placeholder="+628123456789" value={form.contact.whatsapp ?? ""} onChange={(e) => setForm((p) => ({ ...p, contact: { ...p.contact, whatsapp: e.target.value } }))} />
+            <Input
+              id="f-wa"
+              placeholder="+628123456789"
+              value={form.contact.whatsapp ?? ""}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  contact: { ...p.contact, whatsapp: e.target.value },
+                }))
+              }
+            />
           </div>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="f-email">Email</Label>
-          <Input id="f-email" type="email" placeholder="store@pawship.com" value={form.contact.email ?? ""} onChange={(e) => setForm((p) => ({ ...p, contact: { ...p.contact, email: e.target.value } }))} />
+          <Input
+            id="f-email"
+            type="email"
+            placeholder="store@pawship.com"
+            value={form.contact.email ?? ""}
+            onChange={(e) =>
+              setForm((p) => ({
+                ...p,
+                contact: { ...p.contact, email: e.target.value },
+              }))
+            }
+          />
         </div>
       </div>
 
@@ -329,12 +621,17 @@ function StoreFormFields({
 
       {/* Operational */}
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Operasional</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Operasional
+        </p>
         <div className="flex flex-col gap-1.5">
           <Label>Hari Operasional</Label>
           <div className="flex flex-wrap gap-2 pt-1">
             {DAYS_OF_WEEK.map((day) => (
-              <label key={day} className="flex items-center gap-1.5 cursor-pointer">
+              <label
+                key={day}
+                className="flex items-center gap-1.5 cursor-pointer"
+              >
                 <Checkbox
                   checked={form.operational.operational_days.includes(day)}
                   onCheckedChange={() => toggleDay(day)}
@@ -347,18 +644,49 @@ function StoreFormFields({
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="f-open">Jam Buka</Label>
-            <Input id="f-open" type="time" value={form.operational.opening_time} onChange={(e) => setForm((p) => ({ ...p, operational: { ...p.operational, opening_time: e.target.value } }))} />
+            <Input
+              id="f-open"
+              type="time"
+              value={form.operational.opening_time}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  operational: {
+                    ...p.operational,
+                    opening_time: e.target.value,
+                  },
+                }))
+              }
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="f-close">Jam Tutup</Label>
-            <Input id="f-close" type="time" value={form.operational.closing_time} onChange={(e) => setForm((p) => ({ ...p, operational: { ...p.operational, closing_time: e.target.value } }))} />
+            <Input
+              id="f-close"
+              type="time"
+              value={form.operational.closing_time}
+              onChange={(e) =>
+                setForm((p) => ({
+                  ...p,
+                  operational: {
+                    ...p.operational,
+                    closing_time: e.target.value,
+                  },
+                }))
+              }
+            />
           </div>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="f-tz">Timezone</Label>
           <Select
             value={form.operational.timezone}
-            onValueChange={(value) => setForm((p) => ({ ...p, operational: { ...p.operational, timezone: value } }))}
+            onValueChange={(value) =>
+              setForm((p) => ({
+                ...p,
+                operational: { ...p.operational, timezone: value },
+              }))
+            }
           >
             <SelectTrigger id="f-tz">
               <SelectValue placeholder="Pilih timezone" />
@@ -379,32 +707,44 @@ function StoreFormFields({
       {/* Sessions */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sesi</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Sesi
+          </p>
           <Button
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => setForm((p) => ({ ...p, sessions: [...p.sessions, p.sessions.length === 0 ? "09:00 - 12:00" : "13:00 - 17:00"] }))}
+            onClick={() =>
+              setForm((p) => ({
+                ...p,
+                sessions: [
+                  ...p.sessions,
+                  p.sessions.length === 0 ? "09:00 - 12:00" : "13:00 - 17:00",
+                ],
+              }))
+            }
           >
             + Tambah Sesi
           </Button>
         </div>
         {form.sessions.length === 0 && (
-          <p className="text-sm text-muted-foreground">Belum ada sesi. Klik "Tambah Sesi" untuk menambahkan.</p>
+          <p className="text-sm text-muted-foreground">
+            Belum ada sesi. Klik "Tambah Sesi" untuk menambahkan.
+          </p>
         )}
         {form.sessions.map((session, idx) => {
-          const parts = session.split(" - ")
-          const start = parts[0] ?? ""
-          const end = parts[1] ?? ""
+          const parts = session.split(" - ");
+          const start = parts[0] ?? "";
+          const end = parts[1] ?? "";
           return (
             <div key={idx} className="flex items-center gap-2">
               <Input
                 type="time"
                 value={start}
                 onChange={(e) => {
-                  const next = [...form.sessions]
-                  next[idx] = `${e.target.value} - ${end}`
-                  setForm((p) => ({ ...p, sessions: next }))
+                  const next = [...form.sessions];
+                  next[idx] = `${e.target.value} - ${end}`;
+                  setForm((p) => ({ ...p, sessions: next }));
                 }}
                 className="flex-1"
               />
@@ -413,9 +753,9 @@ function StoreFormFields({
                 type="time"
                 value={end}
                 onChange={(e) => {
-                  const next = [...form.sessions]
-                  next[idx] = `${start} - ${e.target.value}`
-                  setForm((p) => ({ ...p, sessions: next }))
+                  const next = [...form.sessions];
+                  next[idx] = `${start} - ${e.target.value}`;
+                  setForm((p) => ({ ...p, sessions: next }));
                 }}
                 className="flex-1"
               />
@@ -424,43 +764,77 @@ function StoreFormFields({
                 size="icon"
                 variant="ghost"
                 className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={() => setForm((p) => ({ ...p, sessions: p.sessions.filter((_, i) => i !== idx) }))}
+                onClick={() =>
+                  setForm((p) => ({
+                    ...p,
+                    sessions: p.sessions.filter((_, i) => i !== idx),
+                  }))
+                }
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
-          )
+          );
         })}
       </div>
 
       <Separator />
 
-      {/* Zones */}
+      {/* Home Service Zones */}
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Zona</p>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Zona Home Service
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Zona untuk layanan grooming di rumah customer
+            </p>
+          </div>
           <Button
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => setForm((p) => ({ ...p, zones: [...p.zones, { ...DEFAULT_ZONE }] }))}
+            onClick={() =>
+              setForm((p) => ({
+                ...p,
+                home_service_zones: [
+                  ...p.home_service_zones,
+                  { ...DEFAULT_HOME_SERVICE_ZONE },
+                ],
+              }))
+            }
           >
             + Tambah Zona
           </Button>
         </div>
-        {form.zones.length === 0 && (
-          <p className="text-sm text-muted-foreground">Belum ada zona. Klik "Tambah Zona" untuk menambahkan.</p>
+        {form.home_service_zones.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            Belum ada zona home service.
+          </p>
         )}
-        {form.zones.map((zone, idx) => (
-          <div key={idx} className="flex flex-col gap-2 rounded-lg border border-border/60 p-3">
+        {form.home_service_zones.map((zone, idx) => (
+          <div
+            key={idx}
+            className="flex flex-col gap-3 rounded-lg border border-border/60 p-3 bg-muted/20"
+          >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">Zona {idx + 1}</span>
+              <span className="text-sm font-medium">
+                Zona Home Service {idx + 1}
+              </span>
               <Button
                 type="button"
                 size="icon"
                 variant="ghost"
                 className="h-7 w-7 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={() => setForm((p) => ({ ...p, zones: p.zones.filter((_, i) => i !== idx) }))}
+                onClick={() =>
+                  setForm((p) => ({
+                    ...p,
+                    home_service_zones: p.home_service_zones.filter(
+                      (_, i) => i !== idx,
+                    ),
+                  }))
+                }
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -468,12 +842,12 @@ function StoreFormFields({
             <div className="flex flex-col gap-1.5">
               <Label>Nama Area *</Label>
               <Input
-                placeholder="contoh: Area A"
+                placeholder="contoh: Zona Jakarta Selatan"
                 value={zone.area_name}
                 onChange={(e) => {
-                  const next = [...form.zones]
-                  next[idx] = { ...next[idx], area_name: e.target.value }
-                  setForm((p) => ({ ...p, zones: next }))
+                  const next = [...form.home_service_zones];
+                  next[idx] = { ...next[idx], area_name: e.target.value };
+                  setForm((p) => ({ ...p, home_service_zones: next }));
                 }}
               />
             </div>
@@ -487,9 +861,9 @@ function StoreFormFields({
                   placeholder="0"
                   value={zone.min_radius_km}
                   onChange={(e) => {
-                    const next = [...form.zones]
-                    next[idx] = { ...next[idx], min_radius_km: e.target.value }
-                    setForm((p) => ({ ...p, zones: next }))
+                    const next = [...form.home_service_zones];
+                    next[idx] = { ...next[idx], min_radius_km: e.target.value };
+                    setForm((p) => ({ ...p, home_service_zones: next }));
                   }}
                 />
               </div>
@@ -502,42 +876,266 @@ function StoreFormFields({
                   placeholder="5"
                   value={zone.max_radius_km}
                   onChange={(e) => {
-                    const next = [...form.zones]
-                    next[idx] = { ...next[idx], max_radius_km: e.target.value }
-                    setForm((p) => ({ ...p, zones: next }))
+                    const next = [...form.home_service_zones];
+                    next[idx] = { ...next[idx], max_radius_km: e.target.value };
+                    setForm((p) => ({ ...p, home_service_zones: next }));
                   }}
                 />
               </div>
             </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Waktu Perjalanan (menit) *</Label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="15"
+                value={zone.travel_time_minutes}
+                onChange={(e) => {
+                  const next = [...form.home_service_zones];
+                  next[idx] = {
+                    ...next[idx],
+                    travel_time_minutes: e.target.value,
+                  };
+                  setForm((p) => ({ ...p, home_service_zones: next }));
+                }}
+              />
+            </div>
+
+            {/* Flat price for home service */}
+            <div className="flex flex-col gap-1.5">
+              <Label>Harga (Rp) *</Label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="50000"
+                value={zone.price}
+                onChange={(e) => {
+                  const next = [...form.home_service_zones];
+                  next[idx] = { ...next[idx], price: e.target.value };
+                  setForm((p) => ({ ...p, home_service_zones: next }));
+                }}
+              />
+              <p className="text-xs text-muted-foreground">
+                Harga flat untuk home service tidak dibedakan berdasarkan ukuran
+                pet
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Separator />
+
+      {/* Pickup/Delivery Zones */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Zona Pickup & Delivery
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Zona untuk antar-jemput pet in-store
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              setForm((p) => ({
+                ...p,
+                pickup_delivery_zones: [
+                  ...p.pickup_delivery_zones,
+                  { ...DEFAULT_PICKUP_DELIVERY_ZONE },
+                ],
+              }))
+            }
+          >
+            + Tambah Zona
+          </Button>
+        </div>
+        {form.pickup_delivery_zones.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            Belum ada zona pickup/delivery.
+          </p>
+        )}
+        {form.pickup_delivery_zones.map((zone, idx) => (
+          <div
+            key={idx}
+            className="flex flex-col gap-3 rounded-lg border border-border/60 p-3 bg-muted/20"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">
+                Zona Pickup/Delivery {idx + 1}
+              </span>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="h-7 w-7 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() =>
+                  setForm((p) => ({
+                    ...p,
+                    pickup_delivery_zones: p.pickup_delivery_zones.filter(
+                      (_, i) => i !== idx,
+                    ),
+                  }))
+                }
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Nama Area *</Label>
+              <Input
+                placeholder="contoh: Zona Jakarta Pusat"
+                value={zone.area_name}
+                onChange={(e) => {
+                  const next = [...form.pickup_delivery_zones];
+                  next[idx] = { ...next[idx], area_name: e.target.value };
+                  setForm((p) => ({ ...p, pickup_delivery_zones: next }));
+                }}
+              />
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="flex flex-col gap-1.5">
-                <Label>Waktu Perjalanan (menit) *</Label>
+                <Label>Min Radius (km) *</Label>
                 <Input
                   type="number"
                   min={0}
-                  placeholder="15"
-                  value={zone.travel_time_minutes}
+                  step="any"
+                  placeholder="0"
+                  value={zone.min_radius_km}
                   onChange={(e) => {
-                    const next = [...form.zones]
-                    next[idx] = { ...next[idx], travel_time_minutes: e.target.value }
-                    setForm((p) => ({ ...p, zones: next }))
+                    const next = [...form.pickup_delivery_zones];
+                    next[idx] = { ...next[idx], min_radius_km: e.target.value };
+                    setForm((p) => ({ ...p, pickup_delivery_zones: next }));
                   }}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label>Biaya Perjalanan (Rp) *</Label>
+                <Label>Max Radius (km) *</Label>
                 <Input
                   type="number"
                   min={0}
-                  placeholder="25000"
-                  value={zone.travel_fee}
+                  step="any"
+                  placeholder="5"
+                  value={zone.max_radius_km}
                   onChange={(e) => {
-                    const next = [...form.zones]
-                    next[idx] = { ...next[idx], travel_fee: e.target.value }
-                    setForm((p) => ({ ...p, zones: next }))
+                    const next = [...form.pickup_delivery_zones];
+                    next[idx] = { ...next[idx], max_radius_km: e.target.value };
+                    setForm((p) => ({ ...p, pickup_delivery_zones: next }));
                   }}
                 />
               </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>Waktu Perjalanan (menit) *</Label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="15"
+                value={zone.travel_time_minutes}
+                onChange={(e) => {
+                  const next = [...form.pickup_delivery_zones];
+                  next[idx] = {
+                    ...next[idx],
+                    travel_time_minutes: e.target.value,
+                  };
+                  setForm((p) => ({ ...p, pickup_delivery_zones: next }));
+                }}
+              />
+            </div>
+
+            {/* Prices per size category */}
+            <div className="flex flex-col gap-2 pt-2 border-t">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Harga per Ukuran Pet *</Label>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    const next = [...form.pickup_delivery_zones];
+                    next[idx] = {
+                      ...next[idx],
+                      prices: [...next[idx].prices, { ...DEFAULT_PRICE_ITEM }],
+                    };
+                    setForm((p) => ({ ...p, pickup_delivery_zones: next }));
+                  }}
+                >
+                  + Tambah Harga
+                </Button>
+              </div>
+              {loadingSizes && (
+                <p className="text-xs text-muted-foreground">
+                  Memuat kategori ukuran...
+                </p>
+              )}
+              {!loadingSizes && zone.prices.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Belum ada harga. Tambahkan minimal 1 harga.
+                </p>
+              )}
+              {zone.prices.map((price, priceIdx) => (
+                <div key={priceIdx} className="flex items-center gap-2">
+                  <Select
+                    value={price.size_category_id}
+                    onValueChange={(val) => {
+                      const next = [...form.pickup_delivery_zones];
+                      next[idx].prices[priceIdx] = {
+                        ...next[idx].prices[priceIdx],
+                        size_category_id: val,
+                      };
+                      setForm((p) => ({ ...p, pickup_delivery_zones: next }));
+                    }}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Pilih ukuran" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sizeCategories.map((size) => (
+                        <SelectItem key={size._id} value={size._id}>
+                          {size.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    min={0}
+                    placeholder="Harga"
+                    value={price.price}
+                    className="flex-1"
+                    onChange={(e) => {
+                      const next = [...form.pickup_delivery_zones];
+                      next[idx].prices[priceIdx] = {
+                        ...next[idx].prices[priceIdx],
+                        price: e.target.value,
+                      };
+                      setForm((p) => ({ ...p, pickup_delivery_zones: next }));
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-9 w-9 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      const next = [...form.pickup_delivery_zones];
+                      next[idx] = {
+                        ...next[idx],
+                        prices: next[idx].prices.filter(
+                          (_, i) => i !== priceIdx,
+                        ),
+                      };
+                      setForm((p) => ({ ...p, pickup_delivery_zones: next }));
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
             </div>
           </div>
         ))}
@@ -547,20 +1145,44 @@ function StoreFormFields({
 
       {/* Status */}
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Status
+        </p>
         <div className="flex items-center gap-3">
-          <Switch id="f-active" checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} />
+          <Switch
+            id="f-active"
+            checked={form.is_active}
+            onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))}
+          />
           <Label htmlFor="f-active">Aktif</Label>
+        </div>
+        <div className="flex items-center gap-3">
+          <Switch
+            id="f-pickup-delivery"
+            checked={form.is_pickup_delivery_available}
+            onCheckedChange={(v) =>
+              setForm((p) => ({ ...p, is_pickup_delivery_available: v }))
+            }
+          />
+          <Label htmlFor="f-pickup-delivery" className="flex flex-col">
+            <span>Layanan Pickup & Delivery</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              Aktifkan jika store menyediakan layanan antar-jemput pet
+            </span>
+          </Label>
         </div>
       </div>
 
       <Dialog open={mapOpen} onOpenChange={setMapOpen}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle className="font-display">Pilih Lokasi di Peta</DialogTitle>
+            <DialogTitle className="font-display">
+              Pilih Lokasi di Peta
+            </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Klik titik lokasi pada peta untuk mengisi latitude dan longitude otomatis.
+            Klik titik lokasi pada peta untuk mengisi latitude dan longitude
+            otomatis.
           </p>
           {mapOpen && (
             <StoreLocationMap
@@ -574,7 +1196,7 @@ function StoreFormFields({
                     latitude: lat,
                     longitude: lng,
                   },
-                }))
+                }));
               }}
             />
           )}
@@ -586,7 +1208,7 @@ function StoreFormFields({
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }
 
 // ── Util: form → API payload ───────────────────────────────────────────────
@@ -615,21 +1237,51 @@ function formToPayload(form: StoreForm) {
       timezone: form.operational.timezone || undefined,
     },
     capacity: {
-      default_daily_capacity_minutes: Number(form.capacity.default_daily_capacity_minutes),
-      overbooking_limit_minutes: Number(form.capacity.overbooking_limit_minutes),
+      default_daily_capacity_minutes: Number(
+        form.capacity.default_daily_capacity_minutes,
+      ),
+      overbooking_limit_minutes: Number(
+        form.capacity.overbooking_limit_minutes,
+      ),
     },
-    sessions: form.sessions.filter((s) => s.trim()).map((s) => s.replace(/:/g, ".")),
-    zones: form.zones.filter((z) => z.area_name.trim()).length > 0
-      ? form.zones.filter((z) => z.area_name.trim()).map((z) => ({
-          area_name: z.area_name,
-          min_radius_km: Number(z.min_radius_km),
-          max_radius_km: Number(z.max_radius_km),
-          travel_time_minutes: Number(z.travel_time_minutes),
-          travel_fee: Number(z.travel_fee),
-        }))
-      : undefined,
+    sessions: form.sessions
+      .filter((s) => s.trim())
+      .map((s) => s.replace(/:/g, ".")),
+    home_service_zones:
+      form.home_service_zones.filter((z) => z.area_name.trim() && z.price)
+        .length > 0
+        ? form.home_service_zones
+            .filter((z) => z.area_name.trim() && z.price)
+            .map((z) => ({
+              area_name: z.area_name,
+              min_radius_km: Number(z.min_radius_km),
+              max_radius_km: Number(z.max_radius_km),
+              travel_time_minutes: Number(z.travel_time_minutes),
+              price: Number(z.price),
+            }))
+        : undefined,
+    pickup_delivery_zones:
+      form.pickup_delivery_zones.filter(
+        (z) => z.area_name.trim() && z.prices.length > 0,
+      ).length > 0
+        ? form.pickup_delivery_zones
+            .filter((z) => z.area_name.trim() && z.prices.length > 0)
+            .map((z) => ({
+              area_name: z.area_name,
+              min_radius_km: Number(z.min_radius_km),
+              max_radius_km: Number(z.max_radius_km),
+              travel_time_minutes: Number(z.travel_time_minutes),
+              prices: z.prices
+                .filter((p) => p.size_category_id && p.price)
+                .map((p) => ({
+                  size_category_id: p.size_category_id,
+                  price: Number(p.price),
+                })),
+            }))
+        : undefined,
+    is_pickup_delivery_available: form.is_pickup_delivery_available,
     is_active: form.is_active,
-  } satisfies StorePayload
+  } satisfies StorePayload;
 }
 
 // ── Util: ApiStore → form ─────────────────────────────────────────────────
@@ -658,143 +1310,196 @@ function storeToForm(store: ApiStore): StoreForm {
       timezone: store.operational?.timezone ?? "Asia/Jakarta",
     },
     capacity: {
-      default_daily_capacity_minutes: store.capacity?.default_daily_capacity_minutes != null ? String(store.capacity.default_daily_capacity_minutes) : "",
-      overbooking_limit_minutes: store.capacity?.overbooking_limit_minutes != null ? String(store.capacity.overbooking_limit_minutes) : "",
+      default_daily_capacity_minutes:
+        store.capacity?.default_daily_capacity_minutes != null
+          ? String(store.capacity.default_daily_capacity_minutes)
+          : "",
+      overbooking_limit_minutes:
+        store.capacity?.overbooking_limit_minutes != null
+          ? String(store.capacity.overbooking_limit_minutes)
+          : "",
     },
     sessions: (store.sessions ?? []).map((s) => s.replace(/\./g, ":")),
-    zones: (store.zones ?? []).map((z) => ({
-      area_name: z.area_name,
-      min_radius_km: String(z.min_radius_km),
-      max_radius_km: String(z.max_radius_km),
-      travel_time_minutes: String(z.travel_time_minutes),
-      travel_fee: String(z.travel_fee),
-    })),
+    home_service_zones: ((store as any).home_service_zones ?? []).map(
+      (z: any) => ({
+        area_name: z.area_name,
+        min_radius_km: String(z.min_radius_km),
+        max_radius_km: String(z.max_radius_km),
+        travel_time_minutes: String(z.travel_time_minutes),
+        price: String(z.price ?? 0),
+      }),
+    ),
+    pickup_delivery_zones: ((store as any).pickup_delivery_zones ?? []).map(
+      (z: any) => ({
+        area_name: z.area_name,
+        min_radius_km: String(z.min_radius_km),
+        max_radius_km: String(z.max_radius_km),
+        travel_time_minutes: String(z.travel_time_minutes),
+        prices: (z.prices ?? []).map((p: any) => ({
+          size_category_id: p.size_category_id,
+          price: String(p.price),
+        })),
+      }),
+    ),
+    is_pickup_delivery_available: store.is_pickup_delivery_available ?? false,
     is_active: store.is_active,
-  }
+  };
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function StoresPage() {
-  const router = useRouter()
-  const [search, setSearch] = useState("")
-  const [debouncedSearch, setDebouncedSearch] = useState("")
-  const [isActiveFilter, setIsActiveFilter] = useState<"all" | "true" | "false">("all")
-  const [page, setPage] = useState(1)
+  const router = useRouter();
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [isActiveFilter, setIsActiveFilter] = useState<
+    "all" | "true" | "false"
+  >("all");
+  const [page, setPage] = useState(1);
 
-  const [stores, setStores] = useState<ApiStore[]>([])
-  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: LIMIT, totalPages: 1 })
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState("")
+  const [stores, setStores] = useState<ApiStore[]>([]);
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: LIMIT,
+    totalPages: 1,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
   // Create
-  const [addOpen, setAddOpen] = useState(false)
-  const [createForm, setCreateForm] = useState<StoreForm>(DEFAULT_FORM)
-  const [isCreating, setIsCreating] = useState(false)
+  const [addOpen, setAddOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<StoreForm>(DEFAULT_FORM);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Edit
-  const [editStore, setEditStore] = useState<ApiStore | null>(null)
-  const [editForm, setEditForm] = useState<StoreForm>(DEFAULT_FORM)
-  const [isEditing, setIsEditing] = useState(false)
+  const [editStore, setEditStore] = useState<ApiStore | null>(null);
+  const [editForm, setEditForm] = useState<StoreForm>(DEFAULT_FORM);
+  const [isEditing, setIsEditing] = useState(false);
 
   // Delete
-  const [deleteStore, setDeleteStore] = useState<ApiStore | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteStore, setDeleteStore] = useState<ApiStore | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Debounce search
   useEffect(() => {
-    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1) }, 400)
-    return () => clearTimeout(t)
-  }, [search])
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  useEffect(() => { setPage(1) }, [isActiveFilter])
+  useEffect(() => {
+    setPage(1);
+  }, [isActiveFilter]);
 
   const fetchStores = useCallback(async () => {
-    setIsLoading(true)
-    setError("")
+    setIsLoading(true);
+    setError("");
     try {
-      const params = new URLSearchParams()
+      const params = new URLSearchParams();
       const data = await getStores({
         page,
         limit: LIMIT,
         search: debouncedSearch || undefined,
         is_active: isActiveFilter === "all" ? undefined : isActiveFilter,
-      })
-      setStores(data.stores ?? [])
-      setPagination(data.pagination)
+      });
+      setStores(data.stores ?? []);
+      setPagination(data.pagination);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal memuat data stores.")
-      setStores([])
+      setError(
+        err instanceof Error ? err.message : "Gagal memuat data stores.",
+      );
+      setStores([]);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [page, debouncedSearch, isActiveFilter])
+  }, [page, debouncedSearch, isActiveFilter]);
 
-  useEffect(() => { fetchStores() }, [fetchStores])
+  useEffect(() => {
+    fetchStores();
+  }, [fetchStores]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsCreating(true)
+    e.preventDefault();
+    setIsCreating(true);
     try {
-      await createStore(formToPayload(createForm))
-      toast.success("Store berhasil dibuat")
-      setAddOpen(false)
-      setCreateForm(DEFAULT_FORM)
-      fetchStores()
+      await createStore(formToPayload(createForm));
+      toast.success("Store berhasil dibuat");
+      setAddOpen(false);
+      setCreateForm(DEFAULT_FORM);
+      fetchStores();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal membuat store.")
+      toast.error(err instanceof Error ? err.message : "Gagal membuat store.");
     } finally {
-      setIsCreating(false)
+      setIsCreating(false);
     }
-  }
+  };
 
   const openEdit = (store: ApiStore) => {
-    setEditStore(store)
-    setEditForm(storeToForm(store))
-  }
+    setEditStore(store);
+    setEditForm(storeToForm(store));
+  };
 
   const handleEdit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editStore) return
-    setIsEditing(true)
+    e.preventDefault();
+    if (!editStore) return;
+    setIsEditing(true);
     try {
-      await updateStore(editStore._id, formToPayload(editForm))
-      toast.success("Store berhasil diperbarui")
-      setEditStore(null)
-      fetchStores()
+      await updateStore(editStore._id, formToPayload(editForm));
+      toast.success("Store berhasil diperbarui");
+      setEditStore(null);
+      fetchStores();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal memperbarui store.")
+      toast.error(
+        err instanceof Error ? err.message : "Gagal memperbarui store.",
+      );
     } finally {
-      setIsEditing(false)
+      setIsEditing(false);
     }
-  }
+  };
 
   const toggleStatus = async (store: ApiStore) => {
-    const newStatus = !store.is_active
-    setStores((prev) => prev.map((s) => s._id === store._id ? { ...s, is_active: newStatus } : s))
+    const newStatus = !store.is_active;
+    setStores((prev) =>
+      prev.map((s) =>
+        s._id === store._id ? { ...s, is_active: newStatus } : s,
+      ),
+    );
     try {
-      await updateStoreStatus(store._id, newStatus)
-      toast.success(newStatus ? `${store.name} diaktifkan` : `${store.name} dinonaktifkan`)
+      await updateStoreStatus(store._id, newStatus);
+      toast.success(
+        newStatus ? `${store.name} diaktifkan` : `${store.name} dinonaktifkan`,
+      );
     } catch (err) {
-      setStores((prev) => prev.map((s) => s._id === store._id ? { ...s, is_active: store.is_active } : s))
-      toast.error(err instanceof Error ? err.message : "Gagal mengubah status store.")
+      setStores((prev) =>
+        prev.map((s) =>
+          s._id === store._id ? { ...s, is_active: store.is_active } : s,
+        ),
+      );
+      toast.error(
+        err instanceof Error ? err.message : "Gagal mengubah status store.",
+      );
     }
-  }
+  };
 
   const handleDelete = async () => {
-    if (!deleteStore) return
-    setIsDeleting(true)
+    if (!deleteStore) return;
+    setIsDeleting(true);
     try {
-      await deleteStoreRequest(deleteStore._id)
-      toast.success(`"${deleteStore.name}" berhasil dihapus`)
-      setDeleteStore(null)
-      fetchStores()
+      await deleteStoreRequest(deleteStore._id);
+      toast.success(`"${deleteStore.name}" berhasil dihapus`);
+      setDeleteStore(null);
+      fetchStores();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal menghapus store.")
+      toast.error(
+        err instanceof Error ? err.message : "Gagal menghapus store.",
+      );
     } finally {
-      setIsDeleting(false)
+      setIsDeleting(false);
     }
-  }
+  };
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -803,10 +1508,19 @@ export default function StoresPage() {
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="font-display text-2xl font-bold text-foreground">Stores</h1>
-            <p className="text-sm text-muted-foreground">Kelola semua cabang toko Pawship</p>
+            <h1 className="font-display text-2xl font-bold text-foreground">
+              Stores
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Kelola semua cabang toko Pawship
+            </p>
           </div>
-          <Button onClick={() => { setCreateForm(DEFAULT_FORM); setAddOpen(true) }}>
+          <Button
+            onClick={() => {
+              setCreateForm(DEFAULT_FORM);
+              setAddOpen(true);
+            }}
+          >
             <Plus className="mr-2 h-4 w-4" />
             Tambah Store
           </Button>
@@ -823,7 +1537,12 @@ export default function StoresPage() {
               className="pl-9"
             />
           </div>
-          <Select value={isActiveFilter} onValueChange={(v) => setIsActiveFilter(v as "all" | "true" | "false")}>
+          <Select
+            value={isActiveFilter}
+            onValueChange={(v) =>
+              setIsActiveFilter(v as "all" | "true" | "false")
+            }
+          >
             <SelectTrigger className="w-36">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -837,7 +1556,9 @@ export default function StoresPage() {
 
         {/* Error */}
         {error && (
-          <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
+          <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {error}
+          </div>
         )}
 
         {/* Table */}
@@ -861,36 +1582,66 @@ export default function StoresPage() {
                   {isLoading
                     ? Array.from({ length: 6 }).map((_, i) => (
                         <TableRow key={i}>
-                          <TableCell><div className="flex flex-col gap-1"><Skeleton className="h-4 w-36" /><Skeleton className="h-3 w-48" /></div></TableCell>
-                          <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                          <TableCell><Skeleton className="h-4 w-28" /></TableCell>
-                          <TableCell><Skeleton className="h-4 w-28" /></TableCell>
-                          <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                          <TableCell><Skeleton className="h-5 w-10" /></TableCell>
-                          <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                          <TableCell><Skeleton className="h-7 w-7 ml-auto rounded-md" /></TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <Skeleton className="h-4 w-36" />
+                              <Skeleton className="h-3 w-48" />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-4 w-28" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-4 w-28" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-4 w-24" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-10" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-7 w-7 ml-auto rounded-md" />
+                          </TableCell>
                         </TableRow>
                       ))
                     : stores.map((store) => (
                         <TableRow
                           key={store._id}
                           className="cursor-pointer"
-                          onClick={() => router.push(`/admin/stores/${store._id}`)}
+                          onClick={() =>
+                            router.push(`/admin/stores/${store._id}`)
+                          }
                         >
                           <TableCell>
                             <div className="flex flex-col gap-0.5">
                               <span className="font-medium hover:underline">
-                                <Highlight text={store.name} query={debouncedSearch} />
+                                <Highlight
+                                  text={store.name}
+                                  query={debouncedSearch}
+                                />
                               </span>
                               {store.description && (
                                 <span className="text-xs text-muted-foreground line-clamp-1">
-                                  <Highlight text={store.description} query={debouncedSearch} />
+                                  <Highlight
+                                    text={store.description}
+                                    query={debouncedSearch}
+                                  />
                                 </span>
                               )}
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="font-mono text-xs">
+                            <Badge
+                              variant="outline"
+                              className="font-mono text-xs"
+                            >
                               {store.code}
                             </Badge>
                           </TableCell>
@@ -899,11 +1650,16 @@ export default function StoresPage() {
                               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                 <MapPin className="h-3.5 w-3.5 shrink-0" />
                                 <span>
-                                  <Highlight text={`${store.location.city}${store.location.province ? `, ${store.location.province}` : ""}`} query={debouncedSearch} />
+                                  <Highlight
+                                    text={`${store.location.city}${store.location.province ? `, ${store.location.province}` : ""}`}
+                                    query={debouncedSearch}
+                                  />
                                 </span>
                               </div>
                             ) : (
-                              <span className="text-muted-foreground/50 text-sm">—</span>
+                              <span className="text-muted-foreground/50 text-sm">
+                                —
+                              </span>
                             )}
                           </TableCell>
                           <TableCell>
@@ -913,17 +1669,24 @@ export default function StoresPage() {
                                 <span>{store.contact.phone_number}</span>
                               </div>
                             ) : (
-                              <span className="text-muted-foreground/50 text-sm">—</span>
+                              <span className="text-muted-foreground/50 text-sm">
+                                —
+                              </span>
                             )}
                           </TableCell>
                           <TableCell>
                             {store.operational?.opening_time ? (
                               <div className="flex items-center gap-1 text-sm text-muted-foreground">
                                 <Clock className="h-3.5 w-3.5 shrink-0" />
-                                <span>{store.operational.opening_time}–{store.operational.closing_time}</span>
+                                <span>
+                                  {store.operational.opening_time}–
+                                  {store.operational.closing_time}
+                                </span>
                               </div>
                             ) : (
-                              <span className="text-muted-foreground/50 text-sm">—</span>
+                              <span className="text-muted-foreground/50 text-sm">
+                                —
+                              </span>
                             )}
                           </TableCell>
                           <TableCell>
@@ -932,11 +1695,16 @@ export default function StoresPage() {
                                 {store.zones.length} zona
                               </Badge>
                             ) : (
-                              <span className="text-muted-foreground/50 text-sm">—</span>
+                              <span className="text-muted-foreground/50 text-sm">
+                                —
+                              </span>
                             )}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className={`text-xs ${store.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${store.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}
+                            >
                               {store.is_active ? "Aktif" : "Nonaktif"}
                             </Badge>
                           </TableCell>
@@ -947,23 +1715,38 @@ export default function StoresPage() {
                           >
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                >
                                   <MoreVertical className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Aksi</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => toggleStatus(store)}>
-                                  <Switch checked={store.is_active} className="mr-2 scale-75 pointer-events-none" aria-hidden />
+                                <DropdownMenuItem
+                                  onClick={() => toggleStatus(store)}
+                                >
+                                  <Switch
+                                    checked={store.is_active}
+                                    className="mr-2 scale-75 pointer-events-none"
+                                    aria-hidden
+                                  />
                                   {store.is_active ? "Nonaktifkan" : "Aktifkan"}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => openEdit(store)}>
+                                <DropdownMenuItem
+                                  onClick={() => openEdit(store)}
+                                >
                                   <Pencil className="mr-2 h-4 w-4" />
                                   Edit Store
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setDeleteStore(store)}>
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => setDeleteStore(store)}
+                                >
                                   <Trash2 className="mr-2 h-4 w-4" />
                                   Hapus Store
                                 </DropdownMenuItem>
@@ -974,7 +1757,10 @@ export default function StoresPage() {
                       ))}
                   {!isLoading && stores.length === 0 && !error && (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                      <TableCell
+                        colSpan={8}
+                        className="py-12 text-center text-muted-foreground"
+                      >
                         Tidak ada store ditemukan
                       </TableCell>
                     </TableRow>
@@ -989,14 +1775,30 @@ export default function StoresPage() {
         {!isLoading && pagination.totalPages > 1 && (
           <div className="flex items-center justify-between border-t border-border/50 pt-4">
             <p className="text-sm text-muted-foreground">
-              Menampilkan {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, pagination.total)} dari {pagination.total} store
+              Menampilkan {(page - 1) * LIMIT + 1}–
+              {Math.min(page * LIMIT, pagination.total)} dari {pagination.total}{" "}
+              store
             </p>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+              >
                 ←
               </Button>
-              <span className="text-sm font-medium">{page} / {pagination.totalPages}</span>
-              <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))} disabled={page >= pagination.totalPages}>
+              <span className="text-sm font-medium">
+                {page} / {pagination.totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setPage((p) => Math.min(pagination.totalPages, p + 1))
+                }
+                disabled={page >= pagination.totalPages}
+              >
                 →
               </Button>
             </div>
@@ -1005,12 +1807,23 @@ export default function StoresPage() {
       </div>
 
       {/* Create Dialog */}
-      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setCreateForm(DEFAULT_FORM) }}>
+      <Dialog
+        open={addOpen}
+        onOpenChange={(o) => {
+          setAddOpen(o);
+          if (!o) setCreateForm(DEFAULT_FORM);
+        }}
+      >
         <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
-            <DialogTitle className="font-display">Tambah Store Baru</DialogTitle>
+            <DialogTitle className="font-display">
+              Tambah Store Baru
+            </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreate} className="flex flex-col gap-0 flex-1 min-h-0">
+          <form
+            onSubmit={handleCreate}
+            className="flex flex-col gap-0 flex-1 min-h-0"
+          >
             <div className="flex-1 min-h-0 overflow-y-auto pr-4 -mr-4">
               <div className="pb-4">
                 <StoreFormFields form={createForm} setForm={setCreateForm} />
@@ -1026,12 +1839,20 @@ export default function StoresPage() {
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={!!editStore} onOpenChange={(o) => { if (!o) setEditStore(null) }}>
+      <Dialog
+        open={!!editStore}
+        onOpenChange={(o) => {
+          if (!o) setEditStore(null);
+        }}
+      >
         <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="font-display">Edit Store</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleEdit} className="flex flex-col gap-0 flex-1 min-h-0">
+          <form
+            onSubmit={handleEdit}
+            className="flex flex-col gap-0 flex-1 min-h-0"
+          >
             <div className="flex-1 min-h-0 overflow-y-auto pr-4 -mr-4">
               <div className="pb-4">
                 <StoreFormFields form={editForm} setForm={setEditForm} />
@@ -1047,14 +1868,21 @@ export default function StoresPage() {
       </Dialog>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteStore} onOpenChange={(o) => { if (!o) setDeleteStore(null) }}>
+      <AlertDialog
+        open={!!deleteStore}
+        onOpenChange={(o) => {
+          if (!o) setDeleteStore(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus Store</AlertDialogTitle>
             <AlertDialogDescription>
               Apakah kamu yakin ingin menghapus store{" "}
-              <span className="font-semibold text-foreground">"{deleteStore?.name}"</span>?
-              Tindakan ini tidak dapat dibatalkan.
+              <span className="font-semibold text-foreground">
+                "{deleteStore?.name}"
+              </span>
+              ? Tindakan ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1070,5 +1898,5 @@ export default function StoresPage() {
         </AlertDialogContent>
       </AlertDialog>
     </>
-  )
+  );
 }

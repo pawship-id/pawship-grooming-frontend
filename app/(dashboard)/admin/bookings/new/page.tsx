@@ -226,6 +226,7 @@ export default function NewBookingPage() {
   const [loadingPets, setLoadingPets] = useState(false);
 
   const [isPickup, setIsPickup] = useState(false);
+  const [isDelivery, setIsDelivery] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -311,6 +312,7 @@ export default function NewBookingPage() {
     setServices([]);
     setAllStoreServices([]);
     setIsPickup(false);
+    setIsDelivery(false);
     if (!storeId) return;
     setLoadingStore(true);
     try {
@@ -331,6 +333,7 @@ export default function NewBookingPage() {
     setSelectedAddonIds([]);
     setServices([]);
     setIsPickup(false);
+    setIsDelivery(false);
     if (form.store_id && form.type && typeId)
       await fetchServices(form.store_id, typeId, form.type);
   };
@@ -366,13 +369,35 @@ export default function NewBookingPage() {
 
   const addons = selectedService?.addons ?? [];
 
-  const storeZones = selectedStore?.zones ?? [];
-  const pickupAvailableForStore = storeZones.length > 0;
-  const pickupAvailableForService =
-    selectedService?.is_pick_up_available === true;
+  // Check pickup/delivery availability
+  const pickupDeliveryAvailableForStore =
+    selectedStore?.is_pickup_delivery_available === true;
+  const hasPickupDeliveryZones =
+    (selectedStore?.pickup_delivery_zones ?? []).length > 0;
+  const pickupDeliveryAvailableForService =
+    selectedService?.is_pickup_delivery_available === true;
+
+  // Check if customer has a main address with lat/long
+  const mainAddress = selectedCustomer?.profile?.addresses?.find(
+    (addr) => addr.is_main_address,
+  );
+  const customerHasLocation = !!(
+    mainAddress?.latitude && mainAddress?.longitude
+  );
+
+  const canUsePickupDelivery =
+    form.type === "in store" &&
+    pickupDeliveryAvailableForStore &&
+    pickupDeliveryAvailableForService &&
+    hasPickupDeliveryZones &&
+    customerHasLocation;
 
   const handlePickupToggle = (checked: boolean) => {
     setIsPickup(checked);
+  };
+
+  const handleDeliveryToggle = (checked: boolean) => {
+    setIsDelivery(checked);
   };
 
   // ── Step gates ─────────────────────────────────────────────────────────────
@@ -486,15 +511,26 @@ export default function NewBookingPage() {
     setPreviewError(null);
     setSelectedBenefitIds([]);
     setApplyBenefitResult(null);
+
+    // Determine what location data we need based on service type
+    const isInHomeService = form.type === "in home";
+    const needsPickupDelivery = !isInHomeService && (isPickup || isDelivery);
+    const needsLocation = isInHomeService || needsPickupDelivery;
+
     getBookingPreview({
       pet_id: form.pet_id,
       service_id: form.service_id,
       addon_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
       date: form.date,
       time_range: form.time_range || undefined,
-      pick_up: isPickup || undefined,
-      store_id: isPickup ? form.store_id : undefined,
-      customer_id: isPickup ? form.customer_id : undefined,
+      // Send user's selected service location type
+      service_location_type: form.type || undefined,
+      // Only send pick_up/delivery for in-store services with these options
+      pick_up: needsPickupDelivery ? isPickup : undefined,
+      delivery: needsPickupDelivery ? isDelivery : undefined,
+      // Send location data for in-home OR pickup/delivery services
+      store_id: needsLocation ? form.store_id : undefined,
+      customer_id: needsLocation ? form.customer_id : undefined,
     })
       .then((res) => {
         if (!cancelled) setPreviewData(res);
@@ -516,8 +552,12 @@ export default function NewBookingPage() {
     form.service_id,
     form.date,
     form.time_range,
+    form.store_id,
+    form.customer_id,
+    form.type,
     selectedAddonIds,
     isPickup,
+    isDelivery,
   ]);
 
   // ── Apply benefit: auto-fetch whenever benefit selection changes ────────────────
@@ -530,14 +570,23 @@ export default function NewBookingPage() {
     }
     let cancelled = false;
     setLoadingApplyBenefit(true);
+
+    const isInHomeService = form.type === "in home";
+    const needsPickupDelivery = !isInHomeService && (isPickup || isDelivery);
+
     applyBenefitPreview({
       pet_id: form.pet_id,
       selected_benefit_ids: selectedBenefitIds,
       service_id: form.service_id,
       add_on_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
-      store_id: isPickup ? form.store_id : undefined,
+      // Send store_id if in-home service OR pickup/delivery is selected
+      store_id:
+        isInHomeService || needsPickupDelivery ? form.store_id : undefined,
       original_total_price: previewData?.pricing_breakdown?.grand_total,
       booking_date: form.date || undefined,
+      // Only send pick_up/delivery for in-store services with these options
+      pick_up: needsPickupDelivery ? isPickup : undefined,
+      delivery: needsPickupDelivery ? isDelivery : undefined,
     })
       .then((res) => {
         if (!cancelled) setApplyBenefitResult(res);
@@ -555,8 +604,11 @@ export default function NewBookingPage() {
     selectedBenefitIds,
     form.pet_id,
     form.service_id,
+    form.type,
+    form.store_id,
     selectedAddonIds,
     isPickup,
+    isDelivery,
   ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -568,6 +620,8 @@ export default function NewBookingPage() {
 
     setSubmitting(true);
     try {
+      const isInHomeService = form.type === "in home";
+
       await createAdminBooking({
         service_type_id: form.service_type_id,
         customer_id: form.customer_id,
@@ -579,7 +633,9 @@ export default function NewBookingPage() {
         type: form.type as "in home" | "in store",
         service_addon_ids:
           selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
-        pick_up: isPickup || undefined,
+        // Only send pick_up/delivery for in-store services
+        pick_up: !isInHomeService && isPickup ? true : undefined,
+        delivery: !isInHomeService && isDelivery ? true : undefined,
         selected_benefit_ids:
           selectedBenefitIds.length > 0 ? selectedBenefitIds : undefined,
         referal_code: form.referal_code || undefined,
@@ -1066,6 +1122,7 @@ export default function NewBookingPage() {
                         setForm((p) => ({ ...p, service_id: v }));
                         setSelectedAddonIds([]);
                         setIsPickup(false);
+                        setIsDelivery(false);
                       }}
                       disabled={!form.service_type_id || loadingServices}
                     >
@@ -1265,44 +1322,102 @@ export default function NewBookingPage() {
                   )}
                 </div>
 
-                {/* Pick-up */}
-                {selectedService && (
+                {/* Pickup & Delivery */}
+                {selectedService && form.type === "in store" && (
                   <div className="flex flex-col gap-3">
-                    <Label>Pickup (opsional)</Label>
-                    {!pickupAvailableForService ? (
+                    <Label>Pickup & Delivery (opsional)</Label>
+
+                    {/* Validation messages */}
+                    {!pickupDeliveryAvailableForService ? (
                       <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
                         <Truck className="h-4 w-4 shrink-0" />
-                        <span>Layanan ini tidak mendukung pickup.</span>
+                        <span>
+                          Layanan ini tidak mendukung pickup/delivery.
+                        </span>
                       </div>
-                    ) : !pickupAvailableForStore ? (
+                    ) : !pickupDeliveryAvailableForStore ? (
                       <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
                         <Truck className="h-4 w-4 shrink-0" />
-                        <span>Store ini belum menyediakan zona pickup.</span>
+                        <span>
+                          Store ini belum mengaktifkan layanan pickup/delivery.
+                        </span>
+                      </div>
+                    ) : !hasPickupDeliveryZones ? (
+                      <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                        <Truck className="h-4 w-4 shrink-0" />
+                        <span>
+                          Store ini belum menyediakan zona pickup/delivery.
+                        </span>
+                      </div>
+                    ) : !customerHasLocation ? (
+                      <div className="flex items-start gap-2 rounded-xl border border-amber-300/50 bg-amber-50/50 px-4 py-3 text-sm text-amber-700">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>
+                          Customer belum melengkapi alamat dengan koordinat
+                          latitude/longitude. Mohon isi data lokasi customer
+                          terlebih dahulu.
+                        </span>
                       </div>
                     ) : (
-                      <label
-                        htmlFor="pickup"
-                        className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
-                          isPickup
-                            ? "border-primary bg-primary/5"
-                            : "border-border bg-card hover:border-primary/40"
-                        }`}
-                      >
-                        <Checkbox
-                          id="pickup"
-                          checked={isPickup}
-                          onCheckedChange={(checked) =>
-                            handlePickupToggle(!!checked)
-                          }
-                          className="shrink-0"
-                        />
-                        <div className="flex items-center gap-2">
-                          <Truck className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm font-medium">
-                            Aktifkan Pickup (Jemput / Antar)
-                          </span>
-                        </div>
-                      </label>
+                      <div className="flex flex-col gap-2">
+                        <label
+                          htmlFor="pickup"
+                          className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
+                            isPickup
+                              ? "border-primary bg-primary/5"
+                              : "border-border bg-card hover:border-primary/40"
+                          }`}
+                        >
+                          <Checkbox
+                            id="pickup"
+                            checked={isPickup}
+                            onCheckedChange={(checked) =>
+                              handlePickupToggle(!!checked)
+                            }
+                            className="shrink-0"
+                          />
+                          <div className="flex items-center gap-2">
+                            <Truck className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">
+                              Pickup (Jemput Pet)
+                            </span>
+                          </div>
+                        </label>
+
+                        <label
+                          htmlFor="delivery"
+                          className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
+                            isDelivery
+                              ? "border-primary bg-primary/5"
+                              : "border-border bg-card hover:border-primary/40"
+                          }`}
+                        >
+                          <Checkbox
+                            id="delivery"
+                            checked={isDelivery}
+                            onCheckedChange={(checked) =>
+                              handleDeliveryToggle(!!checked)
+                            }
+                            className="shrink-0"
+                          />
+                          <div className="flex items-center gap-2">
+                            <Truck className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">
+                              Delivery (Antar Pet)
+                            </span>
+                          </div>
+                        </label>
+
+                        {(isPickup || isDelivery) && (
+                          <p className="text-xs text-muted-foreground px-1">
+                            {isPickup && isDelivery
+                              ? "Biaya pickup & delivery akan dihitung berdasarkan jarak lokasi customer ke store (2x harga zona)"
+                              : isPickup
+                                ? "Biaya pickup akan dihitung berdasarkan jarak lokasi customer ke store"
+                                : "Biaya delivery akan dihitung berdasarkan jarak lokasi customer ke store"}
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
@@ -1422,24 +1537,51 @@ export default function NewBookingPage() {
                   !previewData &&
                   (previewError ? (
                     previewError.toLowerCase().includes("location") ||
-                    previewError.toLowerCase().includes("latitude") ? (
+                    previewError.toLowerCase().includes("latitude") ||
+                    previewError.toLowerCase().includes("longitude") ||
+                    previewError.toLowerCase().includes("alamat") ? (
                       <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-700 dark:bg-amber-950/30">
                         <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-2">
                           <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
                             Alamat customer belum lengkap
                           </p>
                           <p className="text-xs text-amber-700 dark:text-amber-400">
-                            Layanan pickup membutuhkan koordinat lokasi
-                            (latitude/longitude) pada profil customer.
+                            {form.type === "in home"
+                              ? "Layanan in-home membutuhkan koordinat lokasi (latitude/longitude) pada profil customer untuk menghitung biaya perjalanan."
+                              : "Layanan pickup/delivery membutuhkan koordinat lokasi (latitude/longitude) pada profil customer."}
                           </p>
-                          <Link
-                            href="/admin/users"
-                            className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900"
-                          >
-                            <MapPin className="h-3 w-3" />
-                            Lengkapi alamat di halaman Users
-                          </Link>
+                          {form.customer_id && (
+                            <Link
+                              href={`/admin/users?edit=${form.customer_id}`}
+                              className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900"
+                            >
+                              <MapPin className="h-3 w-3" />
+                              Lengkapi alamat customer ini
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    ) : previewError.toLowerCase().includes("zone") ||
+                      previewError.toLowerCase().includes("zona") ||
+                      previewError.toLowerCase().includes("outside") ||
+                      previewError.toLowerCase().includes("distance") ? (
+                      <div className="flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 dark:border-red-700 dark:bg-red-950/30">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+                        <div className="flex flex-col gap-2">
+                          <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                            Zona tidak ditemukan
+                          </p>
+                          <p className="text-xs text-red-700 dark:text-red-400">
+                            Lokasi customer berada di luar jangkauan zona
+                            layanan yang tersedia di store ini. {previewError}
+                          </p>
+                          <div className="mt-1 rounded-lg bg-red-100 px-2.5 py-2 dark:bg-red-900/50">
+                            <p className="text-xs font-medium text-red-800 dark:text-red-300">
+                              Silakan hubungi admin di nomor{" "}
+                              <strong>12345</strong> untuk bantuan lebih lanjut.
+                            </p>
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -1456,26 +1598,6 @@ export default function NewBookingPage() {
 
                 {!loadingPreview && previewData && (
                   <div className="flex flex-col gap-5">
-                    {/* Pickup info */}
-                    {isPickup && (
-                      <div className="flex items-center gap-2.5 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
-                        <Truck className="h-4 w-4 shrink-0 text-primary" />
-                        <span className="text-sm font-semibold text-primary">
-                          Pickup Aktif
-                        </span>
-                      </div>
-                    )}
-                    {pickupAvailableForService &&
-                      pickupAvailableForStore &&
-                      !isPickup && (
-                        <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-                          <Truck className="h-4 w-4 shrink-0" />
-                          <span>
-                            Pickup tersedia untuk layanan ini namun belum
-                            diaktifkan.
-                          </span>
-                        </div>
-                      )}
                     {/* Pricing breakdown */}
                     <div className="flex flex-col gap-1.5">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -1615,8 +1737,8 @@ export default function NewBookingPage() {
                             </div>
                           );
                         })}
-                        {/* Travel fee row — strikethrough jika ada pickup benefit */}
-                        {isPickup &&
+                        {/* Travel fee row — tampil jika in-home service atau pickup/delivery dipilih */}
+                        {(form.type === "in home" || isPickup || isDelivery) &&
                           previewData.pricing_breakdown.travel_fee != null &&
                           previewData.pricing_breakdown.travel_fee > 0 &&
                           (() => {
@@ -1632,12 +1754,23 @@ export default function NewBookingPage() {
                             const isQuota = b?.type === "quota";
                             const tFee =
                               previewData.pricing_breakdown.travel_fee!;
+
+                            // Tentukan label berdasarkan yang dipilih
+                            const travelLabel =
+                              form.type === "in home"
+                                ? "Biaya Perjalanan (In-Home Service)"
+                                : isPickup && isDelivery
+                                  ? "Biaya Perjalanan (Pickup & Delivery)"
+                                  : isPickup
+                                    ? "Biaya Perjalanan (Pickup)"
+                                    : "Biaya Perjalanan (Delivery)";
+
                             return (
                               <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
                                 <div className="flex items-center gap-2">
                                   <span className="flex items-center gap-1.5 text-muted-foreground">
                                     <Truck className="h-3.5 w-3.5" />
-                                    Biaya Pickup
+                                    {travelLabel}
                                   </span>
                                   {b && (
                                     <span
@@ -1710,10 +1843,10 @@ export default function NewBookingPage() {
                                   </span>
                                 )}
                               </div>
-                              {/* Breakdown per benefit jika lebih dari satu */}
+                              {/* Breakdown per benefit */}
                               {!loadingApplyBenefit &&
                                 applyBenefitResult &&
-                                applyBenefitResult.breakdown.length > 1 && (
+                                applyBenefitResult.breakdown.length > 0 && (
                                   <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
                                     {applyBenefitResult.breakdown.map(
                                       (item, i) => (
