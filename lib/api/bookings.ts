@@ -279,6 +279,7 @@ export interface CreateBookingPayload {
   service_id: string;
   date: string;
   time_range: string;
+  type: "in home" | "in store";
   service_addon_ids?: string[];
   pick_up?: boolean;
   discount_ids?: string[];

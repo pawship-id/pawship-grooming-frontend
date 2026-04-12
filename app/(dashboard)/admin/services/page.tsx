@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Plus,
   Pencil,
@@ -10,24 +10,63 @@ import {
   ImageIcon,
   X,
   ChevronRight,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { toast } from "sonner"
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { toast } from "sonner";
 
 import {
   type ApiServiceType,
@@ -35,65 +74,65 @@ import {
   deleteServiceType,
   getServiceTypes,
   updateServiceType,
-} from "@/lib/api/service-types"
+} from "@/lib/api/service-types";
 import {
   type AdminService,
   createAdminService,
   deleteAdminService,
   getAdminServices,
   updateAdminService,
-} from "@/lib/api/services"
-import { getOptions, type ApiOption } from "@/lib/api/options"
-import { getStores, type ApiStore } from "@/lib/api/stores"
-import { uploadFile } from "@/lib/api/upload"
+} from "@/lib/api/services";
+import { getOptions, type ApiOption } from "@/lib/api/options";
+import { getStores, type ApiStore } from "@/lib/api/stores";
+import { uploadFile } from "@/lib/api/upload";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 interface StypeForm {
-  title: string
-  description: string
-  is_active: boolean
-  show_in_homepage: boolean
-  store_ids: string[]
-  imageFile: File | null
-  imagePreview: string | null
-  image_url: string | null
-  public_id: string | null
+  title: string;
+  description: string;
+  is_active: boolean;
+  show_in_homepage: boolean;
+  store_ids: string[];
+  imageFile: File | null;
+  imagePreview: string | null;
+  image_url: string | null;
+  public_id: string | null;
 }
 
 interface PriceRow {
-  pet_type_id: string
-  size_id: string
-  hair_id: string
-  price: string
+  pet_type_id: string;
+  size_id: string;
+  hair_id: string;
+  price: string;
 }
 
 interface ServiceForm {
-  code: string
-  name: string
-  description: string
-  duration: string
-  available_for_unlimited: boolean
-  pet_type_ids: string[]
-  size_category_ids: string[]
-  hair_category_ids: string[]
-  price_type: "single" | "multiple"
-  price: string
-  prices: PriceRow[]
-  available_store_ids: string[]
-  addon_ids: string[]
-  include: string[]
-  sessions: string[]
-  show_in_homepage: boolean
-  order: string
-  service_location_type: string
-  is_pick_up_available: boolean
-  is_active: boolean
-  imageFile: File | null
-  imagePreview: string | null
-  image_url: string | null
-  public_id: string | null
+  code: string;
+  name: string;
+  description: string;
+  duration: string;
+  available_for_unlimited: boolean;
+  pet_type_ids: string[];
+  size_category_ids: string[];
+  hair_category_ids: string[];
+  price_type: "single" | "multiple";
+  price: string;
+  prices: PriceRow[];
+  available_store_ids: string[];
+  addon_ids: string[];
+  include: string[];
+  sessions: string[];
+  show_in_homepage: boolean;
+  order: string;
+  service_location_type: string[];
+  is_pick_up_available: boolean;
+  is_active: boolean;
+  imageFile: File | null;
+  imagePreview: string | null;
+  image_url: string | null;
+  public_id: string | null;
 }
 
 const DEFAULT_STYPE_FORM: StypeForm = {
@@ -106,7 +145,7 @@ const DEFAULT_STYPE_FORM: StypeForm = {
   imagePreview: null,
   image_url: null,
   public_id: null,
-}
+};
 
 const DEFAULT_SERVICE_FORM: ServiceForm = {
   code: "",
@@ -126,32 +165,36 @@ const DEFAULT_SERVICE_FORM: ServiceForm = {
   sessions: [],
   show_in_homepage: false,
   order: "0",
-  service_location_type: "in store",
+  service_location_type: ["in store"],
   is_pick_up_available: false,
   is_active: true,
   imageFile: null,
   imagePreview: null,
   image_url: null,
   public_id: null,
-}
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 function formatRupiah(n: number) {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n)
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(n);
 }
 
 // Format raw digit string with thousand-separator dots for display (e.g. "20000" → "20.000")
 function formatThousands(val: string): string {
-  const digits = val.replace(/\D/g, "")
-  if (!digits) return ""
-  return Number(digits).toLocaleString("id-ID")
+  const digits = val.replace(/\D/g, "");
+  if (!digits) return "";
+  return Number(digits).toLocaleString("id-ID");
 }
 
 // Strip thousand-separator dots so only raw digits remain (e.g. "20.000" → "20000")
 function parseThousands(val: string): string {
-  return val.replace(/\./g, "").replace(/\D/g, "")
+  return val.replace(/\./g, "").replace(/\D/g, "");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -163,13 +206,13 @@ function ImagePicker({
   onFile,
   onClear,
 }: {
-  preview: string | null
-  existingUrl?: string | null
-  onFile: (file: File) => void
-  onClear: () => void
+  preview: string | null;
+  existingUrl?: string | null;
+  onFile: (file: File) => void;
+  onClear: () => void;
 }) {
-  const ref = useRef<HTMLInputElement>(null)
-  const displayUrl = preview ?? existingUrl ?? null
+  const ref = useRef<HTMLInputElement>(null);
+  const displayUrl = preview ?? existingUrl ?? null;
 
   return (
     <div className="flex flex-col gap-2">
@@ -180,9 +223,15 @@ function ImagePicker({
         {displayUrl ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={displayUrl} alt="preview" className="h-full w-full object-cover" />
+            <img
+              src={displayUrl}
+              alt="preview"
+              className="h-full w-full object-cover"
+            />
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 hover:opacity-100 transition-opacity">
-              <span className="text-xs text-white font-medium">Ganti Gambar</span>
+              <span className="text-xs text-white font-medium">
+                Ganti Gambar
+              </span>
             </div>
           </>
         ) : (
@@ -193,27 +242,52 @@ function ImagePicker({
         )}
       </div>
       {displayUrl && (
-        <Button type="button" size="sm" variant="ghost" className="self-start text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onClear() }}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="self-start text-destructive hover:text-destructive"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClear();
+          }}
+        >
           <X className="mr-1 h-3.5 w-3.5" /> Hapus Gambar
         </Button>
       )}
-      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = "" }} />
+      <input
+        ref={ref}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onFile(f);
+          e.target.value = "";
+        }}
+      />
     </div>
-  )
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tag input sub-component (for include[])
 // ─────────────────────────────────────────────────────────────────────────────
-function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) => void }) {
-  const [input, setInput] = useState("")
+function TagInput({
+  tags,
+  onChange,
+}: {
+  tags: string[];
+  onChange: (t: string[]) => void;
+}) {
+  const [input, setInput] = useState("");
 
   const add = () => {
-    const trimmed = input.trim()
-    if (!trimmed || tags.includes(trimmed)) return
-    onChange([...tags, trimmed])
-    setInput("")
-  }
+    const trimmed = input.trim();
+    if (!trimmed || tags.includes(trimmed)) return;
+    onChange([...tags, trimmed]);
+    setInput("");
+  };
 
   return (
     <div className="flex flex-col gap-2">
@@ -222,18 +296,36 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) 
           placeholder="Tambah item (tekan Enter)"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add() } }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
         />
-        <Button type="button" size="sm" variant="outline" onClick={add} disabled={!input.trim()}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={add}
+          disabled={!input.trim()}
+        >
           Tambah
         </Button>
       </div>
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {tags.map((tag, i) => (
-            <span key={i} className="flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium">
+            <span
+              key={i}
+              className="flex items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium"
+            >
               {tag}
-              <button type="button" onClick={() => onChange(tags.filter((_, idx) => idx !== i))} className="ml-0.5 text-muted-foreground hover:text-foreground">
+              <button
+                type="button"
+                onClick={() => onChange(tags.filter((_, idx) => idx !== i))}
+                className="ml-0.5 text-muted-foreground hover:text-foreground"
+              >
                 <X className="h-3 w-3" />
               </button>
             </span>
@@ -241,7 +333,7 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (t: string[]) 
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -253,27 +345,35 @@ function MultiCheck({
   labelKey,
   onChange,
 }: {
-  items: { _id: string; name: string }[]
-  selected: string[]
-  labelKey?: string
-  onChange: (ids: string[]) => void
+  items: { _id: string; name: string }[];
+  selected: string[];
+  labelKey?: string;
+  onChange: (ids: string[]) => void;
 }) {
-  if (!items.length) return <p className="text-xs text-muted-foreground">Tidak ada data</p>
+  if (!items.length)
+    return <p className="text-xs text-muted-foreground">Tidak ada data</p>;
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-2">
       {items.map((item) => (
-        <label key={item._id} className="flex items-center gap-1.5 cursor-pointer">
+        <label
+          key={item._id}
+          className="flex items-center gap-1.5 cursor-pointer"
+        >
           <Checkbox
             checked={selected.includes(item._id)}
             onCheckedChange={(v) =>
-              onChange(v ? [...selected, item._id] : selected.filter((id) => id !== item._id))
+              onChange(
+                v
+                  ? [...selected, item._id]
+                  : selected.filter((id) => id !== item._id),
+              )
             }
           />
           <span className="text-sm">{item.name}</span>
         </label>
       ))}
     </div>
-  )
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -284,41 +384,65 @@ function StypeFormFields({
   setForm,
   stores,
 }: {
-  form: StypeForm
-  setForm: React.Dispatch<React.SetStateAction<StypeForm>>
-  stores: ApiStore[]
+  form: StypeForm;
+  setForm: React.Dispatch<React.SetStateAction<StypeForm>>;
+  stores: ApiStore[];
 }) {
-  const [isUploading, setIsUploading] = useState(false)
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleFile = async (file: File) => {
-    const url = URL.createObjectURL(file)
-    setForm((p) => ({ ...p, imageFile: file, imagePreview: url }))
-    setIsUploading(true)
+    const url = URL.createObjectURL(file);
+    setForm((p) => ({ ...p, imageFile: file, imagePreview: url }));
+    setIsUploading(true);
     try {
-      const res = await uploadFile(file, "service-types")
-      setForm((p) => ({ ...p, image_url: res.image_url, public_id: res.public_id }))
-      toast.success("Gambar berhasil diupload")
+      const res = await uploadFile(file, "service-types");
+      setForm((p) => ({
+        ...p,
+        image_url: res.image_url,
+        public_id: res.public_id,
+      }));
+      toast.success("Gambar berhasil diupload");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal upload gambar")
-      setForm((p) => ({ ...p, imageFile: null, imagePreview: null }))
+      toast.error(err instanceof Error ? err.message : "Gagal upload gambar");
+      setForm((p) => ({ ...p, imageFile: null, imagePreview: null }));
     } finally {
-      setIsUploading(false)
+      setIsUploading(false);
     }
-  }
+  };
   const handleClear = () => {
-    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview)
-    setForm((p) => ({ ...p, imageFile: null, imagePreview: null, image_url: null, public_id: null }))
-  }
+    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
+    setForm((p) => ({
+      ...p,
+      imageFile: null,
+      imagePreview: null,
+      image_url: null,
+      public_id: null,
+    }));
+  };
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="st-title">Nama Tipe Layanan *</Label>
-        <Input id="st-title" placeholder="Grooming" required value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} />
+        <Input
+          id="st-title"
+          placeholder="Grooming"
+          required
+          value={form.title}
+          onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="st-desc">Deskripsi</Label>
-        <Textarea id="st-desc" rows={2} placeholder="Deskripsi tipe layanan..." value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
+        <Textarea
+          id="st-desc"
+          rows={2}
+          placeholder="Deskripsi tipe layanan..."
+          value={form.description}
+          onChange={(e) =>
+            setForm((p) => ({ ...p, description: e.target.value }))
+          }
+        />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label>Gambar</Label>
@@ -328,14 +452,26 @@ function StypeFormFields({
           onFile={handleFile}
           onClear={handleClear}
         />
-        {isUploading && <p className="text-xs text-muted-foreground">Mengupload gambar...</p>}
+        {isUploading && (
+          <p className="text-xs text-muted-foreground">Mengupload gambar...</p>
+        )}
       </div>
       <div className="flex items-center gap-3">
-        <Switch id="st-active" checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} />
+        <Switch
+          id="st-active"
+          checked={form.is_active}
+          onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))}
+        />
         <Label htmlFor="st-active">Aktif</Label>
       </div>
       <div className="flex items-center gap-3">
-        <Switch id="st-hp" checked={form.show_in_homepage} onCheckedChange={(v) => setForm((p) => ({ ...p, show_in_homepage: v }))} />
+        <Switch
+          id="st-hp"
+          checked={form.show_in_homepage}
+          onCheckedChange={(v) =>
+            setForm((p) => ({ ...p, show_in_homepage: v }))
+          }
+        />
         <Label htmlFor="st-hp">Tampil di Homepage</Label>
       </div>
       {stores.length > 0 && (
@@ -349,7 +485,7 @@ function StypeFormFields({
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -367,102 +503,151 @@ function ServiceFormFields({
   editingServiceId,
   onUploadingChange,
 }: {
-  form: ServiceForm
-  setForm: React.Dispatch<React.SetStateAction<ServiceForm>>
-  selectedTypeName: string
-  petTypes: ApiOption[]
-  sizeCategories: ApiOption[]
-  hairCategories: ApiOption[]
-  stores: ApiStore[]
-  allServices: AdminService[]
-  editingServiceId: string | null
-  onUploadingChange?: (uploading: boolean) => void
+  form: ServiceForm;
+  setForm: React.Dispatch<React.SetStateAction<ServiceForm>>;
+  selectedTypeName: string;
+  petTypes: ApiOption[];
+  sizeCategories: ApiOption[];
+  hairCategories: ApiOption[];
+  stores: ApiStore[];
+  allServices: AdminService[];
+  editingServiceId: string | null;
+  onUploadingChange?: (uploading: boolean) => void;
 }) {
-  const [isUploading, setIsUploading] = useState(false)
+  const [isUploading, setIsUploading] = useState(false);
 
   const setUploading = (v: boolean) => {
-    setIsUploading(v)
-    onUploadingChange?.(v)
-  }
+    setIsUploading(v);
+    onUploadingChange?.(v);
+  };
 
   const handleImageFile = async (file: File) => {
-    const preview = URL.createObjectURL(file)
-    setForm((p) => ({ ...p, imageFile: file, imagePreview: preview }))
-    setUploading(true)
+    const preview = URL.createObjectURL(file);
+    setForm((p) => ({ ...p, imageFile: file, imagePreview: preview }));
+    setUploading(true);
     try {
-      const res = await uploadFile(file, "services")
-      setForm((p) => ({ ...p, image_url: res.image_url, public_id: res.public_id }))
-      toast.success("Gambar berhasil diupload")
+      const res = await uploadFile(file, "services");
+      setForm((p) => ({
+        ...p,
+        image_url: res.image_url,
+        public_id: res.public_id,
+      }));
+      toast.success("Gambar berhasil diupload");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal upload gambar")
-      setForm((p) => ({ ...p, imageFile: null, imagePreview: null }))
+      toast.error(err instanceof Error ? err.message : "Gagal upload gambar");
+      setForm((p) => ({ ...p, imageFile: null, imagePreview: null }));
     } finally {
-      setUploading(false)
+      setUploading(false);
     }
-  }
+  };
 
   const handleImageClear = () => {
-    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview)
-    setForm((p) => ({ ...p, imageFile: null, imagePreview: null, image_url: null, public_id: null }))
-  }
+    if (form.imagePreview) URL.revokeObjectURL(form.imagePreview);
+    setForm((p) => ({
+      ...p,
+      imageFile: null,
+      imagePreview: null,
+      image_url: null,
+      public_id: null,
+    }));
+  };
 
   // Auto-generate price rows when ALL three dimensions are selected (multiple only)
   useEffect(() => {
     setForm((p) => {
       if (p.price_type !== "multiple") {
-        return { ...p, prices: [] }
+        return { ...p, prices: [] };
       }
-      if (!p.pet_type_ids.length || !p.size_category_ids.length || !p.hair_category_ids.length) {
-        return { ...p, prices: [] }
+      if (
+        !p.pet_type_ids.length ||
+        !p.size_category_ids.length ||
+        !p.hair_category_ids.length
+      ) {
+        return { ...p, prices: [] };
       }
-      const combinations: PriceRow[] = []
+      const combinations: PriceRow[] = [];
       for (const pet of p.pet_type_ids) {
         for (const size of p.size_category_ids) {
           for (const hair of p.hair_category_ids) {
             const existing = p.prices.find(
-              (r) => r.pet_type_id === pet && r.size_id === size && r.hair_id === hair
-            )
-            combinations.push({ pet_type_id: pet, size_id: size, hair_id: hair, price: existing?.price ?? "" })
+              (r) =>
+                r.pet_type_id === pet &&
+                r.size_id === size &&
+                r.hair_id === hair,
+            );
+            combinations.push({
+              pet_type_id: pet,
+              size_id: size,
+              hair_id: hair,
+              price: existing?.price ?? "",
+            });
           }
         }
       }
-      return { ...p, prices: combinations }
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.pet_type_ids, form.size_category_ids, form.hair_category_ids, form.price_type])
+      return { ...p, prices: combinations };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    form.pet_type_ids,
+    form.size_category_ids,
+    form.hair_category_ids,
+    form.price_type,
+  ]);
 
   const updatePriceRow = (idx: number, value: string) => {
     setForm((p) => {
-      const next = [...p.prices]
-      next[idx] = { ...next[idx], price: value }
-      return { ...p, prices: next }
-    })
-  }
+      const next = [...p.prices];
+      next[idx] = { ...next[idx], price: value };
+      return { ...p, prices: next };
+    });
+  };
 
-  const isAddonType = selectedTypeName.toLowerCase().includes("addon")
+  const isAddonType = selectedTypeName.toLowerCase().includes("addon");
 
   const addonOptions = allServices.filter((s) =>
-    s.service_type?.title?.toLowerCase().includes("addon")
-  )
+    s.service_type?.title?.toLowerCase().includes("addon"),
+  );
 
   return (
     <div className="flex flex-col gap-5">
       {/* Basic */}
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Informasi Dasar</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Informasi Dasar
+        </p>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="sv-code">Kode Layanan *</Label>
-            <Input id="sv-code" placeholder="SVC001" required value={form.code} onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))} />
+            <Input
+              id="sv-code"
+              placeholder="SVC001"
+              required
+              value={form.code}
+              onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="sv-name">Nama Layanan *</Label>
-            <Input id="sv-name" placeholder="Basic Grooming" required value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
+            <Input
+              id="sv-name"
+              placeholder="Basic Grooming"
+              required
+              value={form.name}
+              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+            />
           </div>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="sv-desc">Deskripsi</Label>
-          <Textarea id="sv-desc" rows={2} placeholder="Deskripsi layanan..." value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
+          <Textarea
+            id="sv-desc"
+            rows={2}
+            placeholder="Deskripsi layanan..."
+            value={form.description}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, description: e.target.value }))
+            }
+          />
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Tipe Layanan:</span>
@@ -470,7 +655,17 @@ function ServiceFormFields({
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="sv-dur">Durasi (menit) *</Label>
-          <Input id="sv-dur" type="number" min={isAddonType ? 0 : 1} required placeholder={isAddonType ? "0" : "60"} value={form.duration} onChange={(e) => setForm((p) => ({ ...p, duration: e.target.value }))} />
+          <Input
+            id="sv-dur"
+            type="number"
+            min={isAddonType ? 0 : 1}
+            required
+            placeholder={isAddonType ? "0" : "60"}
+            value={form.duration}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, duration: e.target.value }))
+            }
+          />
         </div>
       </div>
 
@@ -478,21 +673,27 @@ function ServiceFormFields({
 
       {/* Image */}
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Gambar</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Gambar
+        </p>
         <ImagePicker
           preview={form.imagePreview}
           existingUrl={form.image_url}
           onFile={handleImageFile}
           onClear={handleImageClear}
         />
-        {isUploading && <p className="text-xs text-muted-foreground">Mengupload gambar...</p>}
+        {isUploading && (
+          <p className="text-xs text-muted-foreground">Mengupload gambar...</p>
+        )}
       </div>
 
       <Separator />
 
       {/* Pet Types & Size Categories */}
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hewan & Ukuran</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Hewan & Ukuran
+        </p>
         <div className="flex flex-col gap-1.5">
           <Label>Tipe Hewan</Label>
           <MultiCheck
@@ -506,7 +707,9 @@ function ServiceFormFields({
           <MultiCheck
             items={sizeCategories.map((o) => ({ _id: o._id, name: o.name }))}
             selected={form.size_category_ids}
-            onChange={(ids) => setForm((p) => ({ ...p, size_category_ids: ids }))}
+            onChange={(ids) =>
+              setForm((p) => ({ ...p, size_category_ids: ids }))
+            }
           />
         </div>
         <div className="flex flex-col gap-1.5">
@@ -514,7 +717,9 @@ function ServiceFormFields({
           <MultiCheck
             items={hairCategories.map((o) => ({ _id: o._id, name: o.name }))}
             selected={form.hair_category_ids}
-            onChange={(ids) => setForm((p) => ({ ...p, hair_category_ids: ids }))}
+            onChange={(ids) =>
+              setForm((p) => ({ ...p, hair_category_ids: ids }))
+            }
           />
         </div>
       </div>
@@ -523,7 +728,9 @@ function ServiceFormFields({
 
       {/* Prices */}
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Harga</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Harga
+        </p>
         {/* Price Type Toggle */}
         <div className="flex flex-col gap-1.5">
           <Label>Tipe Harga</Label>
@@ -550,7 +757,9 @@ function ServiceFormFields({
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="sv-price">Harga (Rp) *</Label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">Rp</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                Rp
+              </span>
               <Input
                 id="sv-price"
                 type="text"
@@ -558,36 +767,72 @@ function ServiceFormFields({
                 placeholder="0"
                 className="pl-9"
                 value={formatThousands(form.price)}
-                onChange={(e) => setForm((p) => ({ ...p, price: parseThousands(e.target.value) }))}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    price: parseThousands(e.target.value),
+                  }))
+                }
               />
             </div>
           </div>
         ) : (
           <>
-            {!form.pet_type_ids.length || !form.size_category_ids.length || !form.hair_category_ids.length ? (
-              <p className="text-sm text-muted-foreground">Pilih minimal satu hewan, ukuran, <em>dan</em> bulu untuk mengisi harga.</p>
+            {!form.pet_type_ids.length ||
+            !form.size_category_ids.length ||
+            !form.hair_category_ids.length ? (
+              <p className="text-sm text-muted-foreground">
+                Pilih minimal satu hewan, ukuran, <em>dan</em> bulu untuk
+                mengisi harga.
+              </p>
             ) : (
               <div className="overflow-x-auto rounded-md border border-border">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-muted/50">
-                      {form.pet_type_ids.length > 0 && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Hewan</th>}
-                      {form.size_category_ids.length > 0 && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Ukuran</th>}
-                      {form.hair_category_ids.length > 0 && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Bulu</th>}
-                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Harga (Rp)</th>
+                      {form.pet_type_ids.length > 0 && (
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          Hewan
+                        </th>
+                      )}
+                      {form.size_category_ids.length > 0 && (
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          Ukuran
+                        </th>
+                      )}
+                      {form.hair_category_ids.length > 0 && (
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                          Bulu
+                        </th>
+                      )}
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                        Harga (Rp)
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {form.prices.map((row, idx) => (
-                      <tr key={idx} className="border-b border-border last:border-0 hover:bg-muted/30">
+                      <tr
+                        key={idx}
+                        className="border-b border-border last:border-0 hover:bg-muted/30"
+                      >
                         {form.pet_type_ids.length > 0 && (
-                          <td className="px-3 py-2 text-xs">{petTypes.find((p) => p._id === row.pet_type_id)?.name ?? "—"}</td>
+                          <td className="px-3 py-2 text-xs">
+                            {petTypes.find((p) => p._id === row.pet_type_id)
+                              ?.name ?? "—"}
+                          </td>
                         )}
                         {form.size_category_ids.length > 0 && (
-                          <td className="px-3 py-2 text-xs">{sizeCategories.find((s) => s._id === row.size_id)?.name ?? "—"}</td>
+                          <td className="px-3 py-2 text-xs">
+                            {sizeCategories.find((s) => s._id === row.size_id)
+                              ?.name ?? "—"}
+                          </td>
                         )}
                         {form.hair_category_ids.length > 0 && (
-                          <td className="px-3 py-2 text-xs">{hairCategories.find((h) => h._id === row.hair_id)?.name ?? "—"}</td>
+                          <td className="px-3 py-2 text-xs">
+                            {hairCategories.find((h) => h._id === row.hair_id)
+                              ?.name ?? "—"}
+                          </td>
                         )}
                         <td className="px-3 py-2">
                           <Input
@@ -596,7 +841,12 @@ function ServiceFormFields({
                             inputMode="numeric"
                             placeholder="0"
                             value={formatThousands(row.price)}
-                            onChange={(e) => updatePriceRow(idx, parseThousands(e.target.value))}
+                            onChange={(e) =>
+                              updatePriceRow(
+                                idx,
+                                parseThousands(e.target.value),
+                              )
+                            }
                           />
                         </td>
                       </tr>
@@ -615,7 +865,9 @@ function ServiceFormFields({
 
           {/* Sessions */}
           <div className="flex flex-col gap-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sesi</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Sesi
+            </p>
             <TagInput
               tags={form.sessions}
               onChange={(tags) => setForm((p) => ({ ...p, sessions: tags }))}
@@ -628,11 +880,15 @@ function ServiceFormFields({
 
       {/* Stores */}
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Toko Tersedia</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Toko Tersedia
+        </p>
         <MultiCheck
           items={stores.map((s) => ({ _id: s._id, name: s.name }))}
           selected={form.available_store_ids}
-          onChange={(ids) => setForm((p) => ({ ...p, available_store_ids: ids }))}
+          onChange={(ids) =>
+            setForm((p) => ({ ...p, available_store_ids: ids }))
+          }
         />
       </div>
 
@@ -642,9 +898,13 @@ function ServiceFormFields({
 
           {/* Addons */}
           <div className="flex flex-col gap-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Addon</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Addon
+            </p>
             {addonOptions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Tidak ada layanan tersedia sebagai addon.</p>
+              <p className="text-sm text-muted-foreground">
+                Tidak ada layanan tersedia sebagai addon.
+              </p>
             ) : (
               <MultiCheck
                 items={addonOptions.map((s) => ({ _id: s._id, name: s.name }))}
@@ -660,7 +920,9 @@ function ServiceFormFields({
 
       {/* Include */}
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Termasuk</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Termasuk
+        </p>
         <TagInput
           tags={form.include}
           onChange={(tags) => setForm((p) => ({ ...p, include: tags }))}
@@ -671,50 +933,150 @@ function ServiceFormFields({
 
       {/* Settings */}
       <div className="flex flex-col gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pengaturan Lainnya</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Pengaturan Lainnya
+        </p>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="sv-loctype">Lokasi Layanan</Label>
-          <Select value={form.service_location_type} onValueChange={(v) => setForm((p) => ({ ...p, service_location_type: v }))}>
-            <SelectTrigger id="sv-loctype"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="in store">Di Toko (In Store)</SelectItem>
-              <SelectItem value="in home">Di Rumah (In Home)</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label>Lokasi Layanan (minimal 1)</Label>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="loc-in-store"
+                checked={form.service_location_type.includes("in store")}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    setForm((p) => ({
+                      ...p,
+                      service_location_type: [
+                        ...p.service_location_type,
+                        "in store",
+                      ],
+                    }));
+                  } else {
+                    const filtered = form.service_location_type.filter(
+                      (t) => t !== "in store",
+                    );
+                    if (filtered.length > 0) {
+                      setForm((p) => ({
+                        ...p,
+                        service_location_type: filtered,
+                      }));
+                    } else {
+                      toast.error("Minimal 1 lokasi layanan harus dipilih");
+                    }
+                  }
+                }}
+              />
+              <Label
+                htmlFor="loc-in-store"
+                className="cursor-pointer font-normal"
+              >
+                Di Toko (In Store)
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="loc-in-home"
+                checked={form.service_location_type.includes("in home")}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    setForm((p) => ({
+                      ...p,
+                      service_location_type: [
+                        ...p.service_location_type,
+                        "in home",
+                      ],
+                    }));
+                  } else {
+                    const filtered = form.service_location_type.filter(
+                      (t) => t !== "in home",
+                    );
+                    if (filtered.length > 0) {
+                      setForm((p) => ({
+                        ...p,
+                        service_location_type: filtered,
+                      }));
+                    } else {
+                      toast.error("Minimal 1 lokasi layanan harus dipilih");
+                    }
+                  }
+                }}
+              />
+              <Label
+                htmlFor="loc-in-home"
+                className="cursor-pointer font-normal"
+              >
+                Di Rumah (In Home)
+              </Label>
+            </div>
+          </div>
         </div>
         {!isAddonType && (
           <div className="flex items-center gap-3">
-            <Switch id="sv-pickup" checked={form.is_pick_up_available} onCheckedChange={(v) => setForm((p) => ({ ...p, is_pick_up_available: v }))} />
+            <Switch
+              id="sv-pickup"
+              checked={form.is_pick_up_available}
+              onCheckedChange={(v) =>
+                setForm((p) => ({ ...p, is_pick_up_available: v }))
+              }
+            />
             <Label htmlFor="sv-pickup">Layanan Pick Up Tersedia</Label>
           </div>
         )}
         {!isAddonType && (
           <div className="flex items-center gap-3">
-            <Switch id="sv-unlimited" checked={form.available_for_unlimited} onCheckedChange={(v) => setForm((p) => ({ ...p, available_for_unlimited: v }))} />
-            <Label htmlFor="sv-unlimited">Tersedia untuk Unlimited Member</Label>
+            <Switch
+              id="sv-unlimited"
+              checked={form.available_for_unlimited}
+              onCheckedChange={(v) =>
+                setForm((p) => ({ ...p, available_for_unlimited: v }))
+              }
+            />
+            <Label htmlFor="sv-unlimited">
+              Tersedia untuk Unlimited Member
+            </Label>
           </div>
         )}
         {!isAddonType && (
           <>
             <div className="flex items-center gap-3">
-              <Switch id="sv-hp" checked={form.show_in_homepage} onCheckedChange={(v) => setForm((p) => ({ ...p, show_in_homepage: v }))} />
+              <Switch
+                id="sv-hp"
+                checked={form.show_in_homepage}
+                onCheckedChange={(v) =>
+                  setForm((p) => ({ ...p, show_in_homepage: v }))
+                }
+              />
               <Label htmlFor="sv-hp">Tampil di Homepage</Label>
             </div>
             {form.show_in_homepage && (
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="sv-order">Urutan Tampil</Label>
-                <Input id="sv-order" type="number" min={0} placeholder="0" value={form.order} onChange={(e) => setForm((p) => ({ ...p, order: e.target.value }))} />
+                <Input
+                  id="sv-order"
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  value={form.order}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, order: e.target.value }))
+                  }
+                />
               </div>
             )}
           </>
         )}
         <div className="flex items-center gap-3">
-          <Switch id="sv-active" checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} />
+          <Switch
+            id="sv-active"
+            checked={form.is_active}
+            onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))}
+          />
           <Label htmlFor="sv-active">Aktif</Label>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -722,52 +1084,59 @@ function ServiceFormFields({
 // ─────────────────────────────────────────────────────────────────────────────
 export default function ServicesPage() {
   // ── Reference options ────────────────────────────────────────────────────
-  const [petTypes, setPetTypes] = useState<ApiOption[]>([])
-  const [sizeCategories, setSizeCategories] = useState<ApiOption[]>([])
-  const [hairCategories, setHairCategories] = useState<ApiOption[]>([])
-  const [stores, setStores] = useState<ApiStore[]>([])
-  const [allServices, setAllServices] = useState<AdminService[]>([])
+  const [petTypes, setPetTypes] = useState<ApiOption[]>([]);
+  const [sizeCategories, setSizeCategories] = useState<ApiOption[]>([]);
+  const [hairCategories, setHairCategories] = useState<ApiOption[]>([]);
+  const [stores, setStores] = useState<ApiStore[]>([]);
+  const [allServices, setAllServices] = useState<AdminService[]>([]);
 
   // ── Service Types ────────────────────────────────────────────────────────
-  const [serviceTypes, setServiceTypes] = useState<ApiServiceType[]>([])
-  const [stypeSearch, setStypeSearch] = useState("")
-  const [stypeLoading, setStypeLoading] = useState(true)
-  const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null)
+  const [serviceTypes, setServiceTypes] = useState<ApiServiceType[]>([]);
+  const [stypeSearch, setStypeSearch] = useState("");
+  const [stypeLoading, setStypeLoading] = useState(true);
+  const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
 
-  const [stypeAddOpen, setStypeAddOpen] = useState(false)
-  const [stypeForm, setStypeForm] = useState<StypeForm>(DEFAULT_STYPE_FORM)
-  const [isCreatingStype, setIsCreatingStype] = useState(false)
+  const [stypeAddOpen, setStypeAddOpen] = useState(false);
+  const [stypeForm, setStypeForm] = useState<StypeForm>(DEFAULT_STYPE_FORM);
+  const [isCreatingStype, setIsCreatingStype] = useState(false);
 
-  const [editStype, setEditStype] = useState<ApiServiceType | null>(null)
-  const [editStypeForm, setEditStypeForm] = useState<StypeForm>(DEFAULT_STYPE_FORM)
-  const [isEditingStype, setIsEditingStype] = useState(false)
+  const [editStype, setEditStype] = useState<ApiServiceType | null>(null);
+  const [editStypeForm, setEditStypeForm] =
+    useState<StypeForm>(DEFAULT_STYPE_FORM);
+  const [isEditingStype, setIsEditingStype] = useState(false);
 
-  const [deleteStype, setDeleteStype] = useState<ApiServiceType | null>(null)
-  const [isDeletingStype, setIsDeletingStype] = useState(false)
+  const [deleteStype, setDeleteStype] = useState<ApiServiceType | null>(null);
+  const [isDeletingStype, setIsDeletingStype] = useState(false);
 
   // ── Services ─────────────────────────────────────────────────────────────
-  const [services, setServices] = useState<AdminService[]>([])
-  const [serviceSearch, setServiceSearch] = useState("")
-  const [serviceActiveFilter, setServiceActiveFilter] = useState<"all" | "true" | "false">("all")
-  const [serviceLoading, setServiceLoading] = useState(false)
-  const [serviceError, setServiceError] = useState("")
+  const [services, setServices] = useState<AdminService[]>([]);
+  const [serviceSearch, setServiceSearch] = useState("");
+  const [serviceActiveFilter, setServiceActiveFilter] = useState<
+    "all" | "true" | "false"
+  >("all");
+  const [serviceLoading, setServiceLoading] = useState(false);
+  const [serviceError, setServiceError] = useState("");
 
-  const [serviceAddOpen, setServiceAddOpen] = useState(false)
-  const [serviceForm, setServiceForm] = useState<ServiceForm>(DEFAULT_SERVICE_FORM)
-  const [isCreatingService, setIsCreatingService] = useState(false)
-  const [isUploadingCreateService, setIsUploadingCreateService] = useState(false)
+  const [serviceAddOpen, setServiceAddOpen] = useState(false);
+  const [serviceForm, setServiceForm] =
+    useState<ServiceForm>(DEFAULT_SERVICE_FORM);
+  const [isCreatingService, setIsCreatingService] = useState(false);
+  const [isUploadingCreateService, setIsUploadingCreateService] =
+    useState(false);
 
-  const [editService, setEditService] = useState<AdminService | null>(null)
-  const [editServiceForm, setEditServiceForm] = useState<ServiceForm>(DEFAULT_SERVICE_FORM)
-  const [isEditingService, setIsEditingService] = useState(false)
-  const [isUploadingEditService, setIsUploadingEditService] = useState(false)
+  const [editService, setEditService] = useState<AdminService | null>(null);
+  const [editServiceForm, setEditServiceForm] =
+    useState<ServiceForm>(DEFAULT_SERVICE_FORM);
+  const [isEditingService, setIsEditingService] = useState(false);
+  const [isUploadingEditService, setIsUploadingEditService] = useState(false);
 
-  const [deleteService, setDeleteService] = useState<AdminService | null>(null)
-  const [isDeletingService, setIsDeletingService] = useState(false)
+  const [deleteService, setDeleteService] = useState<AdminService | null>(null);
+  const [isDeletingService, setIsDeletingService] = useState(false);
 
-  const [viewService, setViewService] = useState<AdminService | null>(null)
+  const [viewService, setViewService] = useState<AdminService | null>(null);
 
-  const selectedType = serviceTypes.find((t) => t._id === selectedTypeId) ?? null
+  const selectedType =
+    serviceTypes.find((t) => t._id === selectedTypeId) ?? null;
 
   // ── Fetch reference data ─────────────────────────────────────────────────
   useEffect(() => {
@@ -776,57 +1145,71 @@ export default function ServicesPage() {
       getOptions("size category"),
       getOptions("hair category"),
       getStores({ page: 1, limit: 100 }),
-    ]).then(([petRes, sizeRes, hairRes, storeRes]) => {
-      setPetTypes(petRes.options ?? [])
-      setSizeCategories(sizeRes.options ?? [])
-      setHairCategories(hairRes.options ?? [])
-      setStores(storeRes.stores ?? [])
-    }).catch(() => {})
-  }, [])
+    ])
+      .then(([petRes, sizeRes, hairRes, storeRes]) => {
+        setPetTypes(petRes.options ?? []);
+        setSizeCategories(sizeRes.options ?? []);
+        setHairCategories(hairRes.options ?? []);
+        setStores(storeRes.stores ?? []);
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Fetch service types ──────────────────────────────────────────────────
   const fetchServiceTypes = useCallback(async () => {
-    setStypeLoading(true)
+    setStypeLoading(true);
     try {
-      const res = await getServiceTypes({ page: 1, limit: 100 })
-      setServiceTypes(res.serviceTypes ?? [])
+      const res = await getServiceTypes({ page: 1, limit: 100 });
+      setServiceTypes(res.serviceTypes ?? []);
     } catch {
-      setServiceTypes([])
+      setServiceTypes([]);
     } finally {
-      setStypeLoading(false)
+      setStypeLoading(false);
     }
-  }, [])
+  }, []);
 
-  useEffect(() => { fetchServiceTypes() }, [fetchServiceTypes])
+  useEffect(() => {
+    fetchServiceTypes();
+  }, [fetchServiceTypes]);
 
   // ── Fetch services for selected type ────────────────────────────────────
   const fetchServices = useCallback(async () => {
-    if (!selectedTypeId) { setServices([]); return }
-    setServiceLoading(true)
-    setServiceError("")
+    if (!selectedTypeId) {
+      setServices([]);
+      return;
+    }
+    setServiceLoading(true);
+    setServiceError("");
     try {
       const res = await getAdminServices({
         page: 1,
         limit: 100,
         service_type_id: selectedTypeId,
         search: serviceSearch || undefined,
-        is_active: serviceActiveFilter === "all" ? undefined : serviceActiveFilter,
-      })
-      setServices(res.services ?? [])
+        is_active:
+          serviceActiveFilter === "all" ? undefined : serviceActiveFilter,
+      });
+      setServices(res.services ?? []);
     } catch (err) {
-      setServiceError(err instanceof Error ? err.message : "Gagal memuat layanan.")
-      setServices([])
+      setServiceError(
+        err instanceof Error ? err.message : "Gagal memuat layanan.",
+      );
+      setServices([]);
     } finally {
-      setServiceLoading(false)
+      setServiceLoading(false);
     }
-  }, [selectedTypeId, serviceSearch, serviceActiveFilter])
+  }, [selectedTypeId, serviceSearch, serviceActiveFilter]);
 
-  useEffect(() => { fetchServices() }, [fetchServices])
+  useEffect(() => {
+    fetchServices();
+  }, [fetchServices]);
 
   // Fetch all services for addon selection (without type filter)
   useEffect(() => {
-    getAdminServices({ page: 1, limit: 200 }).then((res) => setAllServices(res.services ?? [])).catch(() => {})
-  }, [])
+    getAdminServices({ page: 1, limit: 200 })
+      .then((res) => setAllServices(res.services ?? []))
+      .catch(() => {});
+  }, []);
 
   // ── Service Type Handlers ────────────────────────────────────────────────
   const buildStypePayload = (form: StypeForm, storeIds: string[]) => ({
@@ -837,26 +1220,30 @@ export default function ServicesPage() {
     is_active: form.is_active,
     show_in_homepage: form.show_in_homepage,
     store_ids: storeIds,
-  })
+  });
 
   const handleCreateStype = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsCreatingStype(true)
+    e.preventDefault();
+    setIsCreatingStype(true);
     try {
-      await createServiceType(buildStypePayload(stypeForm, stypeForm.store_ids))
-      toast.success("Tipe layanan berhasil dibuat")
-      setStypeAddOpen(false)
-      setStypeForm(DEFAULT_STYPE_FORM)
-      fetchServiceTypes()
+      await createServiceType(
+        buildStypePayload(stypeForm, stypeForm.store_ids),
+      );
+      toast.success("Tipe layanan berhasil dibuat");
+      setStypeAddOpen(false);
+      setStypeForm(DEFAULT_STYPE_FORM);
+      fetchServiceTypes();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal membuat tipe layanan.")
+      toast.error(
+        err instanceof Error ? err.message : "Gagal membuat tipe layanan.",
+      );
     } finally {
-      setIsCreatingStype(false)
+      setIsCreatingStype(false);
     }
-  }
+  };
 
   const openEditStype = (st: ApiServiceType) => {
-    setEditStype(st)
+    setEditStype(st);
     setEditStypeForm({
       title: st.title,
       description: st.description ?? "",
@@ -867,43 +1254,54 @@ export default function ServicesPage() {
       imagePreview: null,
       image_url: st.image_url ?? null,
       public_id: st.public_id ?? null,
-    })
-  }
+    });
+  };
 
   const handleEditStype = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editStype) return
-    setIsEditingStype(true)
+    e.preventDefault();
+    if (!editStype) return;
+    setIsEditingStype(true);
     try {
-      await updateServiceType(editStype._id, buildStypePayload(editStypeForm, editStypeForm.store_ids))
-      toast.success("Tipe layanan berhasil diperbarui")
-      setEditStype(null)
-      fetchServiceTypes()
+      await updateServiceType(
+        editStype._id,
+        buildStypePayload(editStypeForm, editStypeForm.store_ids),
+      );
+      toast.success("Tipe layanan berhasil diperbarui");
+      setEditStype(null);
+      fetchServiceTypes();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal memperbarui tipe layanan.")
+      toast.error(
+        err instanceof Error ? err.message : "Gagal memperbarui tipe layanan.",
+      );
     } finally {
-      setIsEditingStype(false)
+      setIsEditingStype(false);
     }
-  }
+  };
 
   const handleDeleteStype = async () => {
-    if (!deleteStype) return
-    setIsDeletingStype(true)
+    if (!deleteStype) return;
+    setIsDeletingStype(true);
     try {
-      await deleteServiceType(deleteStype._id)
-      toast.success(`"${deleteStype.title}" berhasil dihapus`)
-      if (selectedTypeId === deleteStype._id) setSelectedTypeId(null)
-      setDeleteStype(null)
-      fetchServiceTypes()
+      await deleteServiceType(deleteStype._id);
+      toast.success(`"${deleteStype.title}" berhasil dihapus`);
+      if (selectedTypeId === deleteStype._id) setSelectedTypeId(null);
+      setDeleteStype(null);
+      fetchServiceTypes();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal menghapus tipe layanan.")
+      toast.error(
+        err instanceof Error ? err.message : "Gagal menghapus tipe layanan.",
+      );
     } finally {
-      setIsDeletingStype(false)
+      setIsDeletingStype(false);
     }
-  }
+  };
 
   // ── Service Handlers ─────────────────────────────────────────────────────
-  const buildServicePayload = (form: ServiceForm, serviceTypeId: string, isAddonType = false) => ({
+  const buildServicePayload = (
+    form: ServiceForm,
+    serviceTypeId: string,
+    isAddonType = false,
+  ) => ({
     code: form.code,
     name: form.name,
     description: form.description || undefined,
@@ -916,7 +1314,9 @@ export default function ServicesPage() {
       ? { price: Number(form.price) }
       : {
           prices: form.prices
-            .filter((r) => r.price !== "" && r.pet_type_id && r.size_id && r.hair_id)
+            .filter(
+              (r) => r.price !== "" && r.pet_type_id && r.size_id && r.hair_id,
+            )
             .map((r) => ({
               pet_type_id: r.pet_type_id,
               size_id: r.size_id,
@@ -926,8 +1326,14 @@ export default function ServicesPage() {
         }),
     duration: Number(form.duration),
     available_for_unlimited: isAddonType ? false : form.available_for_unlimited,
-    available_store_ids: form.available_store_ids.length ? form.available_store_ids : undefined,
-    addon_ids: isAddonType ? undefined : (form.addon_ids.length ? form.addon_ids : undefined),
+    available_store_ids: form.available_store_ids.length
+      ? form.available_store_ids
+      : undefined,
+    addon_ids: isAddonType
+      ? undefined
+      : form.addon_ids.length
+        ? form.addon_ids
+        : undefined,
     include: form.include.length ? form.include : undefined,
     sessions: form.sessions.length ? form.sessions : undefined,
     image_url: form.image_url ?? undefined,
@@ -937,40 +1343,45 @@ export default function ServicesPage() {
     service_location_type: form.service_location_type,
     is_pick_up_available: isAddonType ? false : form.is_pick_up_available,
     is_active: form.is_active,
-  })
+  });
 
   const handleCreateService = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedTypeId) return
-    setIsCreatingService(true)
-    const isAddonSvcType = selectedType?.title?.toLowerCase().includes("addon") ?? false
+    e.preventDefault();
+    if (!selectedTypeId) return;
+    setIsCreatingService(true);
+    const isAddonSvcType =
+      selectedType?.title?.toLowerCase().includes("addon") ?? false;
     try {
-      await createAdminService(buildServicePayload(serviceForm, selectedTypeId, isAddonSvcType))
-      toast.success("Layanan berhasil dibuat")
-      setServiceAddOpen(false)
-      setServiceForm(DEFAULT_SERVICE_FORM)
-      fetchServices()
+      await createAdminService(
+        buildServicePayload(serviceForm, selectedTypeId, isAddonSvcType),
+      );
+      toast.success("Layanan berhasil dibuat");
+      setServiceAddOpen(false);
+      setServiceForm(DEFAULT_SERVICE_FORM);
+      fetchServices();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal membuat layanan.")
+      toast.error(
+        err instanceof Error ? err.message : "Gagal membuat layanan.",
+      );
     } finally {
-      setIsCreatingService(false)
+      setIsCreatingService(false);
     }
-  }
+  };
 
   const openEditService = (svc: AdminService) => {
-    setEditService(svc)
+    setEditService(svc);
 
-    const petIds = svc.pet_types?.map((p) => p._id) ?? []
-    const sizeIds = svc.size_categories?.map((s) => s._id) ?? []
-    const hairIds = svc.hair_categories?.map((h) => h._id) ?? []
+    const petIds = svc.pet_types?.map((p) => p._id) ?? [];
+    const sizeIds = svc.size_categories?.map((s) => s._id) ?? [];
+    const hairIds = svc.hair_categories?.map((h) => h._id) ?? [];
 
     // Build a lookup map from loaded prices: "petId|sizeId|hairId" → price string
     const priceMap = new Map<string, string>(
       (svc.prices ?? []).map((pr) => [
         `${pr.pet_type_id ?? ""}|${pr.size_id ?? ""}|${pr.hair_id ?? ""}`,
         String(pr.price),
-      ])
-    )
+      ]),
+    );
 
     // Pre-compute full combination table so the form opens with correct prices
     const prices: PriceRow[] =
@@ -982,10 +1393,10 @@ export default function ServicesPage() {
                 size_id: size,
                 hair_id: hair,
                 price: priceMap.get(`${pet}|${size}|${hair}`) ?? "",
-              }))
-            )
+              })),
+            ),
           )
-        : []
+        : [];
 
     setEditServiceForm({
       code: svc.code,
@@ -1005,64 +1416,87 @@ export default function ServicesPage() {
       sessions: svc.sessions ?? [],
       show_in_homepage: svc.show_in_homepage,
       order: String(svc.order),
-      service_location_type: svc.service_location_type ?? "in store",
+      service_location_type:
+        svc.service_location_type && svc.service_location_type.length > 0
+          ? svc.service_location_type
+          : ["in store"],
       is_pick_up_available: svc.is_pick_up_available ?? false,
       is_active: svc.is_active,
       imageFile: null,
       imagePreview: null,
       image_url: svc.image_url ?? null,
       public_id: svc.public_id ?? null,
-    })
-  }
+    });
+  };
 
   const handleEditService = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editService || !selectedTypeId) return
-    setIsEditingService(true)
-    const isAddonSvcType = selectedType?.title?.toLowerCase().includes("addon") ?? false
+    e.preventDefault();
+    if (!editService || !selectedTypeId) return;
+    setIsEditingService(true);
+    const isAddonSvcType =
+      selectedType?.title?.toLowerCase().includes("addon") ?? false;
     try {
-      await updateAdminService(editService._id, buildServicePayload(editServiceForm, selectedTypeId, isAddonSvcType))
-      toast.success("Layanan berhasil diperbarui")
-      setEditService(null)
-      fetchServices()
+      await updateAdminService(
+        editService._id,
+        buildServicePayload(editServiceForm, selectedTypeId, isAddonSvcType),
+      );
+      toast.success("Layanan berhasil diperbarui");
+      setEditService(null);
+      fetchServices();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal memperbarui layanan.")
+      toast.error(
+        err instanceof Error ? err.message : "Gagal memperbarui layanan.",
+      );
     } finally {
-      setIsEditingService(false)
+      setIsEditingService(false);
     }
-  }
+  };
 
   const toggleServiceStatus = async (svc: AdminService) => {
-    const next = !svc.is_active
-    setServices((prev) => prev.map((s) => s._id === svc._id ? { ...s, is_active: next } : s))
+    const next = !svc.is_active;
+    setServices((prev) =>
+      prev.map((s) => (s._id === svc._id ? { ...s, is_active: next } : s)),
+    );
     try {
-      await updateAdminService(svc._id, { is_active: next })
-      toast.success(next ? `${svc.name} diaktifkan` : `${svc.name} dinonaktifkan`)
+      await updateAdminService(svc._id, { is_active: next });
+      toast.success(
+        next ? `${svc.name} diaktifkan` : `${svc.name} dinonaktifkan`,
+      );
     } catch (err) {
-      setServices((prev) => prev.map((s) => s._id === svc._id ? { ...s, is_active: svc.is_active } : s))
-      toast.error(err instanceof Error ? err.message : "Gagal mengubah status.")
+      setServices((prev) =>
+        prev.map((s) =>
+          s._id === svc._id ? { ...s, is_active: svc.is_active } : s,
+        ),
+      );
+      toast.error(
+        err instanceof Error ? err.message : "Gagal mengubah status.",
+      );
     }
-  }
+  };
 
   const handleDeleteService = async () => {
-    if (!deleteService) return
-    setIsDeletingService(true)
+    if (!deleteService) return;
+    setIsDeletingService(true);
     try {
-      await deleteAdminService(deleteService._id)
-      toast.success(`"${deleteService.name}" berhasil dihapus`)
-      setDeleteService(null)
-      fetchServices()
+      await deleteAdminService(deleteService._id);
+      toast.success(`"${deleteService.name}" berhasil dihapus`);
+      setDeleteService(null);
+      fetchServices();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal menghapus layanan.")
+      toast.error(
+        err instanceof Error ? err.message : "Gagal menghapus layanan.",
+      );
     } finally {
-      setIsDeletingService(false)
+      setIsDeletingService(false);
     }
-  }
+  };
 
   // ── Filtered service types (client search) ───────────────────────────────
-  const filteredTypes = serviceTypes.filter((t) =>
-    !stypeSearch.trim() || t.title.toLowerCase().includes(stypeSearch.toLowerCase())
-  )
+  const filteredTypes = serviceTypes.filter(
+    (t) =>
+      !stypeSearch.trim() ||
+      t.title.toLowerCase().includes(stypeSearch.toLowerCase()),
+  );
 
   // ─────────────────────────────────────────────────────────────────────────
   // Render
@@ -1072,8 +1506,12 @@ export default function ServicesPage() {
       <div className="flex flex-col gap-4">
         {/* Page header */}
         <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">Services</h1>
-          <p className="text-sm text-muted-foreground">Kelola tipe layanan dan layanan Pawship</p>
+          <h1 className="font-display text-2xl font-bold text-foreground">
+            Services
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Kelola tipe layanan dan layanan Pawship
+          </p>
         </div>
 
         {/* Two-panel layout */}
@@ -1082,7 +1520,13 @@ export default function ServicesPage() {
           <div className="w-72 shrink-0 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold">Tipe Layanan</p>
-              <Button size="sm" onClick={() => { setStypeForm(DEFAULT_STYPE_FORM); setStypeAddOpen(true) }}>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setStypeForm(DEFAULT_STYPE_FORM);
+                  setStypeAddOpen(true);
+                }}
+              >
                 <Plus className="mr-1 h-3.5 w-3.5" /> Tambah
               </Button>
             </div>
@@ -1096,94 +1540,130 @@ export default function ServicesPage() {
               />
             </div>
             <div className="flex flex-col gap-1 overflow-y-auto">
-              {stypeLoading
-                ? Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 rounded-md" />)
-                : filteredTypes.length === 0
-                ? <p className="text-sm text-muted-foreground text-center py-6">Tidak ada tipe layanan</p>
-                : filteredTypes.map((st) => {
-                    const isActive = selectedTypeId === st._id
-                    return (
+              {stypeLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-12 rounded-md" />
+                ))
+              ) : filteredTypes.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">
+                  Tidak ada tipe layanan
+                </p>
+              ) : (
+                filteredTypes.map((st) => {
+                  const isActive = selectedTypeId === st._id;
+                  return (
+                    <div
+                      key={st._id}
+                      className={`group rounded-md border transition-colors ${
+                        isActive
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:bg-muted/50"
+                      }`}
+                    >
+                      {/* ── Row ── */}
                       <div
-                        key={st._id}
-                        className={`group rounded-md border transition-colors ${
-                          isActive
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:bg-muted/50"
-                        }`}
+                        className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer"
+                        onClick={() => setSelectedTypeId(st._id)}
                       >
-                        {/* ── Row ── */}
-                        <div
-                          className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer"
-                          onClick={() => setSelectedTypeId(st._id)}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            {/* thumbnail */}
-                            {st.image_url ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={st.image_url} alt={st.title} className="h-8 w-8 rounded object-cover shrink-0" />
-                            ) : (
-                              <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
-                                <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                              </div>
-                            )}
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-sm font-medium truncate">{st.title}</span>
-                              <Badge
-                                variant="outline"
-                                className={`text-[10px] w-fit px-1.5 py-0 ${st.is_active ? "text-emerald-700 border-emerald-300 bg-emerald-50" : "text-gray-500 border-gray-300 bg-gray-50"}`}
-                              >
-                                {st.is_active ? "Aktif" : "Nonaktif"}
-                              </Badge>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {/* thumbnail */}
+                          {st.image_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={st.image_url}
+                              alt={st.title}
+                              className="h-8 w-8 rounded object-cover shrink-0"
+                            />
+                          ) : (
+                            <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
+                              <ImageIcon className="h-4 w-4 text-muted-foreground" />
                             </div>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                type="button"
-                                className="p-1 rounded hover:bg-muted"
-                                onClick={(e) => { e.stopPropagation(); openEditStype(st) }}
-                              >
-                                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                              </button>
-                              <button
-                                type="button"
-                                className="p-1 rounded hover:bg-destructive/10"
-                                onClick={(e) => { e.stopPropagation(); setDeleteStype(st) }}
-                              >
-                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                              </button>
-                            </div>
-                            <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${isActive ? "rotate-90 text-primary" : "text-muted-foreground/40"}`} />
+                          )}
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-sm font-medium truncate">
+                              {st.title}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] w-fit px-1.5 py-0 ${st.is_active ? "text-emerald-700 border-emerald-300 bg-emerald-50" : "text-gray-500 border-gray-300 bg-gray-50"}`}
+                            >
+                              {st.is_active ? "Aktif" : "Nonaktif"}
+                            </Badge>
                           </div>
                         </div>
-
-                        {/* ── Expanded detail ── */}
-                        {isActive && (
-                          <div className="border-t border-primary/20 px-3 py-2.5 flex flex-col gap-2">
-                            {st.description && (
-                              <p className="text-xs text-muted-foreground leading-relaxed">{st.description}</p>
-                            )}
-                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                              <span className={st.show_in_homepage ? "text-primary font-medium" : ""}>
-                                {st.show_in_homepage ? "✓ Tampil di homepage" : "Tidak di homepage"}
-                              </span>
-                            </div>
-                            {(st.stores?.length ?? 0) > 0 && (
-                              <div className="flex flex-col gap-1">
-                                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Toko</p>
-                                <div className="flex flex-col gap-0.5">
-                                  {st.stores!.map((s) => (
-                                    <span key={s._id} className="text-xs text-foreground/80 truncate">• {s.name}</span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              className="p-1 rounded hover:bg-muted"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditStype(st);
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                            </button>
+                            <button
+                              type="button"
+                              className="p-1 rounded hover:bg-destructive/10"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteStype(st);
+                              }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </button>
                           </div>
-                        )}
+                          <ChevronRight
+                            className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${isActive ? "rotate-90 text-primary" : "text-muted-foreground/40"}`}
+                          />
+                        </div>
                       </div>
-                    )
-                  })
-              }
+
+                      {/* ── Expanded detail ── */}
+                      {isActive && (
+                        <div className="border-t border-primary/20 px-3 py-2.5 flex flex-col gap-2">
+                          {st.description && (
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              {st.description}
+                            </p>
+                          )}
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+                            <span
+                              className={
+                                st.show_in_homepage
+                                  ? "text-primary font-medium"
+                                  : ""
+                              }
+                            >
+                              {st.show_in_homepage
+                                ? "✓ Tampil di homepage"
+                                : "Tidak di homepage"}
+                            </span>
+                          </div>
+                          {(st.stores?.length ?? 0) > 0 && (
+                            <div className="flex flex-col gap-1">
+                              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                Toko
+                              </p>
+                              <div className="flex flex-col gap-0.5">
+                                {st.stores!.map((s) => (
+                                  <span
+                                    key={s._id}
+                                    className="text-xs text-foreground/80 truncate"
+                                  >
+                                    • {s.name}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -1203,10 +1683,17 @@ export default function ServicesPage() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold">
-                      Layanan — <span className="text-primary">{selectedType.title}</span>
+                      Layanan —{" "}
+                      <span className="text-primary">{selectedType.title}</span>
                     </p>
                   </div>
-                  <Button size="sm" onClick={() => { setServiceForm(DEFAULT_SERVICE_FORM); setServiceAddOpen(true) }}>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setServiceForm(DEFAULT_SERVICE_FORM);
+                      setServiceAddOpen(true);
+                    }}
+                  >
                     <Plus className="mr-1 h-3.5 w-3.5" /> Tambah Layanan
                   </Button>
                 </div>
@@ -1222,8 +1709,15 @@ export default function ServicesPage() {
                       className="pl-8 h-8 text-sm"
                     />
                   </div>
-                  <Select value={serviceActiveFilter} onValueChange={(v) => setServiceActiveFilter(v as "all" | "true" | "false")}>
-                    <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <Select
+                    value={serviceActiveFilter}
+                    onValueChange={(v) =>
+                      setServiceActiveFilter(v as "all" | "true" | "false")
+                    }
+                  >
+                    <SelectTrigger className="w-32 h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Semua</SelectItem>
                       <SelectItem value="true">Aktif</SelectItem>
@@ -1233,7 +1727,9 @@ export default function ServicesPage() {
                 </div>
 
                 {serviceError && (
-                  <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{serviceError}</div>
+                  <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                    {serviceError}
+                  </div>
                 )}
 
                 {/* Table */}
@@ -1255,12 +1751,24 @@ export default function ServicesPage() {
                           {serviceLoading
                             ? Array.from({ length: 5 }).map((_, i) => (
                                 <TableRow key={i}>
-                                  <TableCell><Skeleton className="h-4 w-36" /></TableCell>
-                                  <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                                  <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-                                  <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-                                  <TableCell><Skeleton className="h-5 w-14" /></TableCell>
-                                  <TableCell><Skeleton className="h-7 w-7 ml-auto rounded-md" /></TableCell>
+                                  <TableCell>
+                                    <Skeleton className="h-4 w-36" />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Skeleton className="h-4 w-16" />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Skeleton className="h-4 w-12" />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Skeleton className="h-4 w-20" />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Skeleton className="h-5 w-14" />
+                                  </TableCell>
+                                  <TableCell>
+                                    <Skeleton className="h-7 w-7 ml-auto rounded-md" />
+                                  </TableCell>
                                 </TableRow>
                               ))
                             : services.map((svc) => (
@@ -1273,28 +1781,42 @@ export default function ServicesPage() {
                                     <div className="flex items-center gap-2">
                                       {svc.image_url ? (
                                         // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={svc.image_url} alt={svc.name} className="h-8 w-8 rounded object-cover shrink-0" />
+                                        <img
+                                          src={svc.image_url}
+                                          alt={svc.name}
+                                          className="h-8 w-8 rounded object-cover shrink-0"
+                                        />
                                       ) : (
                                         <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
                                           <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
                                         </div>
                                       )}
-                                        <span className="font-medium text-sm">{svc.name}</span>
+                                      <span className="font-medium text-sm">
+                                        {svc.name}
+                                      </span>
                                     </div>
                                   </TableCell>
                                   <TableCell>
-                                    <Badge variant="outline" className="font-mono text-xs">{svc.code}</Badge>
+                                    <Badge
+                                      variant="outline"
+                                      className="font-mono text-xs"
+                                    >
+                                      {svc.code}
+                                    </Badge>
                                   </TableCell>
                                   <TableCell>
-                                    <span className="text-sm">{svc.duration} menit</span>
+                                    <span className="text-sm">
+                                      {svc.duration} menit
+                                    </span>
                                   </TableCell>
                                   <TableCell>
                                     <span className="text-sm text-muted-foreground">
-                                      {svc.price_type === "single" && svc.price != null
+                                      {svc.price_type === "single" &&
+                                      svc.price != null
                                         ? formatRupiah(svc.price)
                                         : (svc.prices?.length ?? 0) > 0
-                                        ? `${svc.prices!.length} varian`
-                                        : "—"}
+                                          ? `${svc.prices!.length} varian`
+                                          : "—"}
                                     </span>
                                   </TableCell>
                                   <TableCell>
@@ -1305,21 +1827,42 @@ export default function ServicesPage() {
                                       {svc.is_active ? "Aktif" : "Nonaktif"}
                                     </Badge>
                                   </TableCell>
-                                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                  <TableCell
+                                    className="text-right"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
                                     <DropdownMenu>
                                       <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7"
+                                        >
                                           <MoreVertical className="h-4 w-4" />
                                         </Button>
                                       </DropdownMenuTrigger>
                                       <DropdownMenuContent align="end">
-                                        <DropdownMenuLabel>Aksi</DropdownMenuLabel>
+                                        <DropdownMenuLabel>
+                                          Aksi
+                                        </DropdownMenuLabel>
                                         <DropdownMenuSeparator />
-                                        <DropdownMenuItem onClick={() => toggleServiceStatus(svc)}>
-                                          <Switch checked={svc.is_active} className="mr-2 scale-75 pointer-events-none" aria-hidden />
-                                          {svc.is_active ? "Nonaktifkan" : "Aktifkan"}
+                                        <DropdownMenuItem
+                                          onClick={() =>
+                                            toggleServiceStatus(svc)
+                                          }
+                                        >
+                                          <Switch
+                                            checked={svc.is_active}
+                                            className="mr-2 scale-75 pointer-events-none"
+                                            aria-hidden
+                                          />
+                                          {svc.is_active
+                                            ? "Nonaktifkan"
+                                            : "Aktifkan"}
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => openEditService(svc)}>
+                                        <DropdownMenuItem
+                                          onClick={() => openEditService(svc)}
+                                        >
                                           <Pencil className="mr-2 h-4 w-4" />
                                           Edit Layanan
                                         </DropdownMenuItem>
@@ -1335,15 +1878,19 @@ export default function ServicesPage() {
                                     </DropdownMenu>
                                   </TableCell>
                                 </TableRow>
-                              ))
-                          }
-                          {!serviceLoading && services.length === 0 && !serviceError && (
-                            <TableRow>
-                              <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
-                                Belum ada layanan untuk tipe ini
-                              </TableCell>
-                            </TableRow>
-                          )}
+                              ))}
+                          {!serviceLoading &&
+                            services.length === 0 &&
+                            !serviceError && (
+                              <TableRow>
+                                <TableCell
+                                  colSpan={6}
+                                  className="py-12 text-center text-muted-foreground"
+                                >
+                                  Belum ada layanan untuk tipe ini
+                                </TableCell>
+                              </TableRow>
+                            )}
                         </TableBody>
                       </Table>
                     </div>
@@ -1356,17 +1903,36 @@ export default function ServicesPage() {
       </div>
 
       {/* ── Create Service Type Dialog ─────────────────────────────────────── */}
-      <Dialog open={stypeAddOpen} onOpenChange={(o) => { setStypeAddOpen(o); if (!o) setStypeForm(DEFAULT_STYPE_FORM) }}>
+      <Dialog
+        open={stypeAddOpen}
+        onOpenChange={(o) => {
+          setStypeAddOpen(o);
+          if (!o) setStypeForm(DEFAULT_STYPE_FORM);
+        }}
+      >
         <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
-            <DialogTitle className="font-display">Tambah Tipe Layanan</DialogTitle>
+            <DialogTitle className="font-display">
+              Tambah Tipe Layanan
+            </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreateStype} className="flex flex-col flex-1 min-h-0 gap-0">
+          <form
+            onSubmit={handleCreateStype}
+            className="flex flex-col flex-1 min-h-0 gap-0"
+          >
             <div className="flex-1 min-h-0 overflow-y-auto pr-2 -mr-2 py-1">
-              <StypeFormFields form={stypeForm} setForm={setStypeForm} stores={stores} />
+              <StypeFormFields
+                form={stypeForm}
+                setForm={setStypeForm}
+                stores={stores}
+              />
             </div>
             <div className="pt-4 border-t border-border mt-4">
-              <Button type="submit" className="w-full" disabled={isCreatingStype}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isCreatingStype}
+              >
                 {isCreatingStype ? "Menyimpan..." : "Tambah Tipe Layanan"}
               </Button>
             </div>
@@ -1375,17 +1941,35 @@ export default function ServicesPage() {
       </Dialog>
 
       {/* ── Edit Service Type Dialog ───────────────────────────────────────── */}
-      <Dialog open={!!editStype} onOpenChange={(o) => { if (!o) setEditStype(null) }}>
+      <Dialog
+        open={!!editStype}
+        onOpenChange={(o) => {
+          if (!o) setEditStype(null);
+        }}
+      >
         <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
-            <DialogTitle className="font-display">Edit Tipe Layanan</DialogTitle>
+            <DialogTitle className="font-display">
+              Edit Tipe Layanan
+            </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleEditStype} className="flex flex-col flex-1 min-h-0 gap-0">
+          <form
+            onSubmit={handleEditStype}
+            className="flex flex-col flex-1 min-h-0 gap-0"
+          >
             <div className="flex-1 min-h-0 overflow-y-auto pr-2 -mr-2 py-1">
-              <StypeFormFields form={editStypeForm} setForm={setEditStypeForm} stores={stores} />
+              <StypeFormFields
+                form={editStypeForm}
+                setForm={setEditStypeForm}
+                stores={stores}
+              />
             </div>
             <div className="pt-4 border-t border-border mt-4">
-              <Button type="submit" className="w-full" disabled={isEditingStype}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isEditingStype}
+              >
                 {isEditingStype ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>
             </div>
@@ -1394,18 +1978,27 @@ export default function ServicesPage() {
       </Dialog>
 
       {/* ── Delete Service Type ────────────────────────────────────────────── */}
-      <AlertDialog open={!!deleteStype} onOpenChange={(o) => { if (!o) setDeleteStype(null) }}>
+      <AlertDialog
+        open={!!deleteStype}
+        onOpenChange={(o) => {
+          if (!o) setDeleteStype(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus Tipe Layanan</AlertDialogTitle>
             <AlertDialogDescription>
               Yakin ingin menghapus tipe layanan{" "}
-              <span className="font-semibold text-foreground">"{deleteStype?.title}"</span>?
-              Tindakan ini tidak dapat dibatalkan.
+              <span className="font-semibold text-foreground">
+                "{deleteStype?.title}"
+              </span>
+              ? Tindakan ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeletingStype}>Batal</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeletingStype}>
+              Batal
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteStype}
               disabled={isDeletingStype}
@@ -1418,12 +2011,21 @@ export default function ServicesPage() {
       </AlertDialog>
 
       {/* ── Create Service Dialog ──────────────────────────────────────────── */}
-      <Dialog open={serviceAddOpen} onOpenChange={(o) => { setServiceAddOpen(o); if (!o) setServiceForm(DEFAULT_SERVICE_FORM) }}>
+      <Dialog
+        open={serviceAddOpen}
+        onOpenChange={(o) => {
+          setServiceAddOpen(o);
+          if (!o) setServiceForm(DEFAULT_SERVICE_FORM);
+        }}
+      >
         <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="font-display">Tambah Layanan</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreateService} className="flex flex-col flex-1 min-h-0 gap-0">
+          <form
+            onSubmit={handleCreateService}
+            className="flex flex-col flex-1 min-h-0 gap-0"
+          >
             <div className="flex-1 min-h-0 overflow-y-auto pr-4 -mr-4">
               <div className="pb-4">
                 <ServiceFormFields
@@ -1441,8 +2043,16 @@ export default function ServicesPage() {
               </div>
             </div>
             <div className="pt-4 border-t border-border mt-4">
-              <Button type="submit" className="w-full" disabled={isCreatingService || isUploadingCreateService}>
-                {isUploadingCreateService ? "Mengupload gambar..." : isCreatingService ? "Menyimpan..." : "Tambah Layanan"}
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isCreatingService || isUploadingCreateService}
+              >
+                {isUploadingCreateService
+                  ? "Mengupload gambar..."
+                  : isCreatingService
+                    ? "Menyimpan..."
+                    : "Tambah Layanan"}
               </Button>
             </div>
           </form>
@@ -1450,12 +2060,20 @@ export default function ServicesPage() {
       </Dialog>
 
       {/* ── Edit Service Dialog ────────────────────────────────────────────── */}
-      <Dialog open={!!editService} onOpenChange={(o) => { if (!o) setEditService(null) }}>
+      <Dialog
+        open={!!editService}
+        onOpenChange={(o) => {
+          if (!o) setEditService(null);
+        }}
+      >
         <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="font-display">Edit Layanan</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleEditService} className="flex flex-col flex-1 min-h-0 gap-0">
+          <form
+            onSubmit={handleEditService}
+            className="flex flex-col flex-1 min-h-0 gap-0"
+          >
             <div className="flex-1 min-h-0 overflow-y-auto pr-4 -mr-4">
               <div className="pb-4">
                 <ServiceFormFields
@@ -1473,8 +2091,16 @@ export default function ServicesPage() {
               </div>
             </div>
             <div className="pt-4 border-t border-border mt-4">
-              <Button type="submit" className="w-full" disabled={isEditingService || isUploadingEditService}>
-                {isUploadingEditService ? "Mengupload gambar..." : isEditingService ? "Menyimpan..." : "Simpan Perubahan"}
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isEditingService || isUploadingEditService}
+              >
+                {isUploadingEditService
+                  ? "Mengupload gambar..."
+                  : isEditingService
+                    ? "Menyimpan..."
+                    : "Simpan Perubahan"}
               </Button>
             </div>
           </form>
@@ -1482,18 +2108,27 @@ export default function ServicesPage() {
       </Dialog>
 
       {/* ── Delete Service ─────────────────────────────────────────────────── */}
-      <AlertDialog open={!!deleteService} onOpenChange={(o) => { if (!o) setDeleteService(null) }}>
+      <AlertDialog
+        open={!!deleteService}
+        onOpenChange={(o) => {
+          if (!o) setDeleteService(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus Layanan</AlertDialogTitle>
             <AlertDialogDescription>
               Yakin ingin menghapus layanan{" "}
-              <span className="font-semibold text-foreground">"{deleteService?.name}"</span>?
-              Tindakan ini tidak dapat dibatalkan.
+              <span className="font-semibold text-foreground">
+                "{deleteService?.name}"
+              </span>
+              ? Tindakan ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeletingService}>Batal</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeletingService}>
+              Batal
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteService}
               disabled={isDeletingService}
@@ -1506,10 +2141,17 @@ export default function ServicesPage() {
       </AlertDialog>
 
       {/* Service Detail Sheet */}
-      <Sheet open={!!viewService} onOpenChange={(o) => { if (!o) setViewService(null) }}>
+      <Sheet
+        open={!!viewService}
+        onOpenChange={(o) => {
+          if (!o) setViewService(null);
+        }}
+      >
         <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
           <SheetHeader>
-            <SheetTitle className="font-display">{viewService?.name}</SheetTitle>
+            <SheetTitle className="font-display">
+              {viewService?.name}
+            </SheetTitle>
           </SheetHeader>
           {viewService && (
             <div className="mt-4 flex flex-col gap-5">
@@ -1517,30 +2159,62 @@ export default function ServicesPage() {
               {viewService.image_url && (
                 <div className="overflow-hidden rounded-lg border border-border">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={viewService.image_url} alt={viewService.name} className="w-full h-48 object-cover" />
+                  <img
+                    src={viewService.image_url}
+                    alt={viewService.name}
+                    className="w-full h-48 object-cover"
+                  />
                 </div>
               )}
 
               {/* Basic info */}
               <div className="flex flex-col gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Informasi Dasar</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Informasi Dasar
+                </p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                   <span className="text-muted-foreground">Kode</span>
-                  <span className="font-mono font-medium">{viewService.code}</span>
+                  <span className="font-mono font-medium">
+                    {viewService.code}
+                  </span>
                   <span className="text-muted-foreground">Tipe</span>
                   <span>{viewService.service_type?.title ?? "—"}</span>
                   <span className="text-muted-foreground">Durasi</span>
                   <span>{viewService.duration} menit</span>
                   <span className="text-muted-foreground">Lokasi</span>
-                  <span className="capitalize">{viewService.service_location_type ?? "—"}</span>
+                  <div className="flex flex-wrap gap-1">
+                    {viewService.service_location_type &&
+                    viewService.service_location_type.length > 0 ? (
+                      viewService.service_location_type.map((loc) => (
+                        <Badge
+                          key={loc}
+                          variant="outline"
+                          className="capitalize text-xs"
+                        >
+                          {loc === "in home" ? "Di Rumah" : "Di Toko"}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span>—</span>
+                    )}
+                  </div>
                   <span className="text-muted-foreground">Pick Up</span>
-                  <span>{viewService.is_pick_up_available ? "Tersedia" : "Tidak Tersedia"}</span>
+                  <span>
+                    {viewService.is_pick_up_available
+                      ? "Tersedia"
+                      : "Tidak Tersedia"}
+                  </span>
                   <span className="text-muted-foreground">Tipe Harga</span>
                   <Badge variant="outline" className="w-fit text-xs">
-                    {viewService.price_type === "single" ? "Single" : "Multiple"}
+                    {viewService.price_type === "single"
+                      ? "Single"
+                      : "Multiple"}
                   </Badge>
                   <span className="text-muted-foreground">Status</span>
-                  <Badge variant="outline" className={`w-fit text-xs ${viewService.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}>
+                  <Badge
+                    variant="outline"
+                    className={`w-fit text-xs ${viewService.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}
+                  >
                     {viewService.is_active ? "Aktif" : "Nonaktif"}
                   </Badge>
                   {viewService.show_in_homepage && (
@@ -1549,13 +2223,19 @@ export default function ServicesPage() {
                       <span>{viewService.order}</span>
                     </>
                   )}
-                  <span className="text-muted-foreground">Unlimited Member</span>
-                  <span>{viewService.available_for_unlimited ? "Ya" : "Tidak"}</span>
+                  <span className="text-muted-foreground">
+                    Unlimited Member
+                  </span>
+                  <span>
+                    {viewService.available_for_unlimited ? "Ya" : "Tidak"}
+                  </span>
                   <span className="text-muted-foreground">Homepage</span>
                   <span>{viewService.show_in_homepage ? "Ya" : "Tidak"}</span>
                 </div>
                 {viewService.description && (
-                  <p className="mt-1 text-sm text-muted-foreground">{viewService.description}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {viewService.description}
+                  </p>
                 )}
               </div>
 
@@ -1563,19 +2243,57 @@ export default function ServicesPage() {
 
               {/* Pet, Size, Hair */}
               <div className="flex flex-col gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Hewan & Ukuran</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Hewan & Ukuran
+                </p>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                   <span className="text-muted-foreground">Tipe Hewan</span>
                   <div className="flex flex-wrap gap-1">
-                    {viewService.pet_types?.length ? viewService.pet_types.map((p) => <Badge key={p._id} variant="secondary" className="text-xs">{p.name}</Badge>) : <span className="text-muted-foreground">—</span>}
+                    {viewService.pet_types?.length ? (
+                      viewService.pet_types.map((p) => (
+                        <Badge
+                          key={p._id}
+                          variant="secondary"
+                          className="text-xs"
+                        >
+                          {p.name}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </div>
                   <span className="text-muted-foreground">Ukuran</span>
                   <div className="flex flex-wrap gap-1">
-                    {viewService.size_categories?.length ? viewService.size_categories.map((s) => <Badge key={s._id} variant="secondary" className="text-xs">{s.name}</Badge>) : <span className="text-muted-foreground">—</span>}
+                    {viewService.size_categories?.length ? (
+                      viewService.size_categories.map((s) => (
+                        <Badge
+                          key={s._id}
+                          variant="secondary"
+                          className="text-xs"
+                        >
+                          {s.name}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </div>
                   <span className="text-muted-foreground">Bulu</span>
                   <div className="flex flex-wrap gap-1">
-                    {viewService.hair_categories?.length ? viewService.hair_categories.map((h) => <Badge key={h._id} variant="secondary" className="text-xs">{h.name}</Badge>) : <span className="text-muted-foreground">—</span>}
+                    {viewService.hair_categories?.length ? (
+                      viewService.hair_categories.map((h) => (
+                        <Badge
+                          key={h._id}
+                          variant="secondary"
+                          className="text-xs"
+                        >
+                          {h.name}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1585,10 +2303,14 @@ export default function ServicesPage() {
                 <>
                   <Separator />
                   <div className="flex flex-col gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Harga</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Harga
+                    </p>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                       <span className="text-muted-foreground">Harga</span>
-                      <span className="font-medium">{formatRupiah(viewService.price ?? 0)}</span>
+                      <span className="font-medium">
+                        {formatRupiah(viewService.price ?? 0)}
+                      </span>
                     </div>
                   </div>
                 </>
@@ -1596,25 +2318,60 @@ export default function ServicesPage() {
                 <>
                   <Separator />
                   <div className="flex flex-col gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Harga</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Harga
+                    </p>
                     <div className="overflow-x-auto rounded-md border border-border">
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b border-border bg-muted/50">
-                            {viewService.prices!.some((p) => p.pet_name) && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Hewan</th>}
-                            {viewService.prices!.some((p) => p.size_name) && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Ukuran</th>}
-                            {viewService.prices!.some((p) => p.hair_name) && <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Bulu</th>}
-                            <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Harga</th>
+                            {viewService.prices!.some((p) => p.pet_name) && (
+                              <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                                Hewan
+                              </th>
+                            )}
+                            {viewService.prices!.some((p) => p.size_name) && (
+                              <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                                Ukuran
+                              </th>
+                            )}
+                            {viewService.prices!.some((p) => p.hair_name) && (
+                              <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                                Bulu
+                              </th>
+                            )}
+                            <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                              Harga
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
                           {viewService.prices!.map((pr, i) => (
-                            <tr key={i} className="border-b border-border last:border-0">
-                              {viewService.prices!.some((p) => p.pet_name) && <td className="px-3 py-2 text-xs">{pr.pet_name ?? "—"}</td>}
-                              {viewService.prices!.some((p) => p.size_name) && <td className="px-3 py-2 text-xs">{pr.size_name ?? "—"}</td>}
-                              {viewService.prices!.some((p) => p.hair_name) && <td className="px-3 py-2 text-xs">{pr.hair_name ?? "—"}</td>}
+                            <tr
+                              key={i}
+                              className="border-b border-border last:border-0"
+                            >
+                              {viewService.prices!.some((p) => p.pet_name) && (
+                                <td className="px-3 py-2 text-xs">
+                                  {pr.pet_name ?? "—"}
+                                </td>
+                              )}
+                              {viewService.prices!.some((p) => p.size_name) && (
+                                <td className="px-3 py-2 text-xs">
+                                  {pr.size_name ?? "—"}
+                                </td>
+                              )}
+                              {viewService.prices!.some((p) => p.hair_name) && (
+                                <td className="px-3 py-2 text-xs">
+                                  {pr.hair_name ?? "—"}
+                                </td>
+                              )}
                               <td className="px-3 py-2 text-xs text-right font-medium">
-                                {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(pr.price)}
+                                {new Intl.NumberFormat("id-ID", {
+                                  style: "currency",
+                                  currency: "IDR",
+                                  maximumFractionDigits: 0,
+                                }).format(pr.price)}
                               </td>
                             </tr>
                           ))}
@@ -1630,9 +2387,19 @@ export default function ServicesPage() {
                 <>
                   <Separator />
                   <div className="flex flex-col gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Toko Tersedia</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Toko Tersedia
+                    </p>
                     <div className="flex flex-wrap gap-1">
-                      {viewService.avaiable_store!.map((s) => <Badge key={s._id} variant="outline" className="text-xs">{s.name}</Badge>)}
+                      {viewService.avaiable_store!.map((s) => (
+                        <Badge
+                          key={s._id}
+                          variant="outline"
+                          className="text-xs"
+                        >
+                          {s.name}
+                        </Badge>
+                      ))}
                     </div>
                   </div>
                 </>
@@ -1643,9 +2410,19 @@ export default function ServicesPage() {
                 <>
                   <Separator />
                   <div className="flex flex-col gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Addon</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Addon
+                    </p>
                     <div className="flex flex-wrap gap-1">
-                      {viewService.addons!.map((a) => <Badge key={a._id} variant="outline" className="text-xs">{a.name}</Badge>)}
+                      {viewService.addons!.map((a) => (
+                        <Badge
+                          key={a._id}
+                          variant="outline"
+                          className="text-xs"
+                        >
+                          {a.name}
+                        </Badge>
+                      ))}
                     </div>
                   </div>
                 </>
@@ -1656,9 +2433,15 @@ export default function ServicesPage() {
                 <>
                   <Separator />
                   <div className="flex flex-col gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Sesi</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Sesi
+                    </p>
                     <div className="flex flex-wrap gap-1.5">
-                      {viewService.sessions!.map((s, i) => <Badge key={i} variant="secondary" className="text-xs">{s}</Badge>)}
+                      {viewService.sessions!.map((s, i) => (
+                        <Badge key={i} variant="secondary" className="text-xs">
+                          {s}
+                        </Badge>
+                      ))}
                     </div>
                   </div>
                 </>
@@ -1669,9 +2452,13 @@ export default function ServicesPage() {
                 <>
                   <Separator />
                   <div className="flex flex-col gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Termasuk</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Termasuk
+                    </p>
                     <ul className="list-disc pl-4 text-sm text-muted-foreground space-y-0.5">
-                      {viewService.include!.map((item, i) => <li key={i}>{item}</li>)}
+                      {viewService.include!.map((item, i) => (
+                        <li key={i}>{item}</li>
+                      ))}
                     </ul>
                   </div>
                 </>
@@ -1681,7 +2468,10 @@ export default function ServicesPage() {
               <div className="flex gap-2">
                 <Button
                   className="flex-1"
-                  onClick={() => { setViewService(null); openEditService(viewService) }}
+                  onClick={() => {
+                    setViewService(null);
+                    openEditService(viewService);
+                  }}
                 >
                   <Pencil className="mr-2 h-4 w-4" />
                   Edit Layanan
@@ -1692,5 +2482,5 @@ export default function ServicesPage() {
         </SheetContent>
       </Sheet>
     </>
-  )
+  );
 }
