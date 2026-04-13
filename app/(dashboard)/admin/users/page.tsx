@@ -19,6 +19,8 @@ import {
   EyeOff,
   PawPrint,
   User,
+  ChevronDown,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +54,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -84,6 +87,7 @@ import {
 } from "@/lib/api/users";
 import { uploadFile } from "@/lib/api/upload";
 import { getStores, type ApiStore } from "@/lib/api/stores";
+import { getOptions, type ApiOption, createOption } from "@/lib/api/options";
 import { toast } from "sonner";
 
 // ── Form types ─────────────────────────────────────────────────────────────
@@ -163,6 +167,8 @@ export default function UsersPage() {
 
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [stores, setStores] = useState<ApiStore[]>([]);
+  const [sessionSkills, setSessionSkills] = useState<ApiOption[]>([]);
+  const [isLoadingSkills, setIsLoadingSkills] = useState(true);
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
@@ -219,6 +225,14 @@ export default function UsersPage() {
 
   const openEdit = (user: ApiUser) => {
     setEditUser(user);
+    // Convert skill names to option IDs for the form
+    const skillIds = (user.profile?.groomer_skills || [])
+      .map((skillName) => {
+        const option = sessionSkills.find((opt) => opt.name === skillName);
+        return option?._id;
+      })
+      .filter((id): id is string => id !== undefined);
+
     setEditForm({
       username: user.username,
       email: user.email,
@@ -226,7 +240,7 @@ export default function UsersPage() {
       role: user.role,
       gender: user.profile?.gender,
       placement: user.profile?.placement,
-      groomer_skills: user.profile?.groomer_skills || [],
+      groomer_skills: skillIds,
       groomer_rating: user.profile?.groomer_rating || 0,
     });
     setEditImageFile(null);
@@ -276,8 +290,15 @@ export default function UsersPage() {
       const profilePayload: any = {};
       if (editForm.gender) profilePayload.gender = editForm.gender;
       if (editForm.placement) profilePayload.placement = editForm.placement;
-      if (editForm.groomer_skills)
-        profilePayload.groomer_skills = editForm.groomer_skills;
+      // Convert option IDs back to skill names
+      if (editForm.groomer_skills) {
+        profilePayload.groomer_skills = editForm.groomer_skills
+          .map((id) => {
+            const option = sessionSkills.find((opt) => opt._id === id);
+            return option?.name;
+          })
+          .filter((name): name is string => name !== undefined);
+      }
       if (editForm.groomer_rating !== undefined)
         profilePayload.groomer_rating = editForm.groomer_rating;
 
@@ -405,6 +426,19 @@ export default function UsersPage() {
     }
   }, []);
 
+  const fetchSessionSkills = useCallback(async () => {
+    setIsLoadingSkills(true);
+    try {
+      const data = await getOptions("session - skill");
+      // Filter hanya yang aktif
+      setSessionSkills((data.options ?? []).filter((opt) => opt.is_active));
+    } catch (err) {
+      console.error("Failed to fetch session skills:", err);
+    } finally {
+      setIsLoadingSkills(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
@@ -412,6 +446,214 @@ export default function UsersPage() {
   useEffect(() => {
     fetchStores();
   }, [fetchStores]);
+
+  useEffect(() => {
+    fetchSessionSkills();
+  }, [fetchSessionSkills]);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // MultiSelect Component for Skills with Search & Create
+  // ─────────────────────────────────────────────────────────────────────────────
+  function SkillMultiSelect({
+    items,
+    selected,
+    onChange,
+    placeholder = "Pilih skill...",
+    loading = false,
+    onRefresh,
+  }: {
+    items: { _id: string; name: string }[];
+    selected: string[];
+    onChange: (ids: string[]) => void;
+    placeholder?: string;
+    loading?: boolean;
+    onRefresh?: () => void;
+  }) {
+    const [open, setOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [isCreating, setIsCreating] = useState(false);
+
+    if (loading) {
+      return (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          Memuat data skill...
+        </div>
+      );
+    }
+
+    const selectedItems = items.filter((item) => selected.includes(item._id));
+    const displayText =
+      selectedItems.length > 0
+        ? `${selectedItems.length} skill dipilih`
+        : placeholder;
+
+    // Filter items by search query (case insensitive)
+    const filteredItems = items.filter((item) =>
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+
+    const hasExactMatch = items.some(
+      (item) => item.name.toLowerCase() === searchQuery.toLowerCase(),
+    );
+
+    const handleRemove = (id: string) => {
+      onChange(selected.filter((selectedId) => selectedId !== id));
+    };
+
+    const handleCreateNew = async () => {
+      if (!searchQuery.trim() || hasExactMatch) return;
+
+      setIsCreating(true);
+      try {
+        const result = await createOption({
+          name: searchQuery.trim(),
+          category_options: "session - skill",
+          is_active: true,
+        });
+
+        toast.success(
+          `Skill "${searchQuery.trim()}" berhasil dibuat dan dipilih`,
+        );
+        setSearchQuery("");
+
+        // Auto-select the newly created skill
+        if (result.option && result.option._id) {
+          onChange([...selected, result.option._id]);
+        }
+
+        // Refresh the list to show the new option
+        if (onRefresh) {
+          onRefresh();
+        }
+
+        // Close the dropdown
+        setOpen(false);
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Gagal membuat skill baru",
+        );
+      } finally {
+        setIsCreating(false);
+      }
+    };
+
+    return (
+      <div className="flex flex-col gap-2">
+        <DropdownMenu open={open} onOpenChange={setOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              className="w-full justify-between font-normal"
+            >
+              <span className="truncate">{displayText}</span>
+              <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-full min-w-[var(--radix-dropdown-menu-trigger-width)] max-h-[300px] p-0">
+            {/* Search Input */}
+            <div className="p-2 border-b">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Cari atau buat skill baru..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 h-8"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && searchQuery && !hasExactMatch) {
+                      e.preventDefault();
+                      handleCreateNew();
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Items List */}
+            <div className="max-h-[200px] overflow-y-auto">
+              {filteredItems.length === 0 && !searchQuery && (
+                <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                  Belum ada skill di master data
+                </div>
+              )}
+
+              {filteredItems.length === 0 && searchQuery && (
+                <div className="px-2 py-2">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-sm font-normal"
+                    onClick={handleCreateNew}
+                    disabled={isCreating}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    {isCreating ? "Membuat..." : `Buat "${searchQuery}"`}
+                  </Button>
+                </div>
+              )}
+
+              {filteredItems.map((item) => (
+                <DropdownMenuCheckboxItem
+                  key={item._id}
+                  checked={selected.includes(item._id)}
+                  onCheckedChange={(checked) => {
+                    onChange(
+                      checked
+                        ? [...selected, item._id]
+                        : selected.filter((id) => id !== item._id),
+                    );
+                  }}
+                >
+                  {item.name}
+                </DropdownMenuCheckboxItem>
+              ))}
+
+              {/* Create option when there are results but no exact match */}
+              {filteredItems.length > 0 && searchQuery && !hasExactMatch && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1">
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-sm font-normal"
+                      onClick={handleCreateNew}
+                      disabled={isCreating}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      {isCreating ? "Membuat..." : `Buat "${searchQuery}"`}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Selected Items as Badges */}
+        {selectedItems.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {selectedItems.map((item) => (
+              <Badge
+                key={item._id}
+                variant="secondary"
+                className="px-2 py-1 text-xs"
+              >
+                {item.name}
+                <button
+                  type="button"
+                  onClick={() => handleRemove(item._id)}
+                  className="ml-1.5 hover:bg-secondary-foreground/20 rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -1247,86 +1489,16 @@ export default function UsersPage() {
               {editForm.role === "groomer" && (
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="e-skills">Skills</Label>
-                  <div className="flex flex-col gap-2">
-                    <div className="flex gap-2">
-                      <Input
-                        id="e-skills"
-                        placeholder="Tambah skill (tekan Enter)"
-                        value={skillInput}
-                        onChange={(e) => setSkillInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            const skill = skillInput.trim();
-                            if (
-                              skill &&
-                              !(editForm.groomer_skills || []).includes(skill)
-                            ) {
-                              setEditForm((p) => ({
-                                ...p,
-                                groomer_skills: [
-                                  ...(p.groomer_skills || []),
-                                  skill,
-                                ],
-                              }));
-                              setSkillInput("");
-                            }
-                          }
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const skill = skillInput.trim();
-                          if (
-                            skill &&
-                            !(editForm.groomer_skills || []).includes(skill)
-                          ) {
-                            setEditForm((p) => ({
-                              ...p,
-                              groomer_skills: [
-                                ...(p.groomer_skills || []),
-                                skill,
-                              ],
-                            }));
-                            setSkillInput("");
-                          }
-                        }}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    {editForm.groomer_skills &&
-                      editForm.groomer_skills.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {editForm.groomer_skills.map((skill, idx) => (
-                            <Badge
-                              key={idx}
-                              variant="secondary"
-                              className="gap-1"
-                            >
-                              {skill}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditForm((p) => ({
-                                    ...p,
-                                    groomer_skills: (
-                                      p.groomer_skills || []
-                                    ).filter((_, i) => i !== idx),
-                                  }));
-                                }}
-                                className="ml-1 hover:text-destructive"
-                              >
-                                ×
-                              </button>
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                  </div>
+                  <SkillMultiSelect
+                    items={sessionSkills}
+                    selected={editForm.groomer_skills || []}
+                    onChange={(ids) =>
+                      setEditForm((p) => ({ ...p, groomer_skills: ids }))
+                    }
+                    placeholder="Pilih skill dari master data..."
+                    loading={isLoadingSkills}
+                    onRefresh={fetchSessionSkills}
+                  />
                 </div>
               )}
 

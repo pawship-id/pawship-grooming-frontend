@@ -84,7 +84,7 @@ import {
   getAdminServices,
   updateAdminService,
 } from "@/lib/api/services";
-import { getOptions, type ApiOption } from "@/lib/api/options";
+import { getOptions, type ApiOption, createOption } from "@/lib/api/options";
 import { getStores, type ApiStore } from "@/lib/api/stores";
 import { uploadFile } from "@/lib/api/upload";
 
@@ -379,23 +379,26 @@ function MultiCheck({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MultiSelect with Dropdown
+// MultiSelect with Search & Create
 // ─────────────────────────────────────────────────────────────────────────────
 function MultiSelect({
   items,
   selected,
   onChange,
   placeholder = "Pilih...",
+  onRefresh,
+  category = "session - skill",
 }: {
   items: { _id: string; name: string }[];
   selected: string[];
   onChange: (ids: string[]) => void;
   placeholder?: string;
+  onRefresh?: () => void;
+  category?: string;
 }) {
   const [open, setOpen] = useState(false);
-
-  if (!items.length)
-    return <p className="text-xs text-muted-foreground">Tidak ada data</p>;
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
 
   const selectedItems = items.filter((item) => selected.includes(item._id));
   const displayText =
@@ -403,8 +406,52 @@ function MultiSelect({
       ? `${selectedItems.length} item dipilih`
       : placeholder;
 
+  // Filter items by search query (case insensitive)
+  const filteredItems = items.filter((item) =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  const hasExactMatch = items.some(
+    (item) => item.name.toLowerCase() === searchQuery.toLowerCase(),
+  );
+
   const handleRemove = (id: string) => {
     onChange(selected.filter((selectedId) => selectedId !== id));
+  };
+
+  const handleCreateNew = async () => {
+    if (!searchQuery.trim() || hasExactMatch) return;
+
+    setIsCreating(true);
+    try {
+      const result = await createOption({
+        name: searchQuery.trim(),
+        category_options: category as any,
+        is_active: true,
+      });
+
+      toast.success(`"${searchQuery.trim()}" berhasil dibuat dan dipilih`);
+      setSearchQuery("");
+
+      // Auto-select the newly created item
+      if (result.option && result.option._id) {
+        onChange([...selected, result.option._id]);
+      }
+
+      // Refresh the list
+      if (onRefresh) {
+        onRefresh();
+      }
+
+      // Close the dropdown
+      setOpen(false);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Gagal membuat item baru",
+      );
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -420,22 +467,82 @@ function MultiSelect({
             <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-full min-w-[var(--radix-dropdown-menu-trigger-width)] max-h-[300px] overflow-y-auto">
-          {items.map((item) => (
-            <DropdownMenuCheckboxItem
-              key={item._id}
-              checked={selected.includes(item._id)}
-              onCheckedChange={(checked) => {
-                onChange(
-                  checked
-                    ? [...selected, item._id]
-                    : selected.filter((id) => id !== item._id),
-                );
-              }}
-            >
-              {item.name}
-            </DropdownMenuCheckboxItem>
-          ))}
+        <DropdownMenuContent className="w-full min-w-[var(--radix-dropdown-menu-trigger-width)] max-h-[300px] p-0">
+          {/* Search Input */}
+          <div className="p-2 border-b">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Cari atau buat baru..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 h-8"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && searchQuery && !hasExactMatch) {
+                    e.preventDefault();
+                    handleCreateNew();
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Items List */}
+          <div className="max-h-[200px] overflow-y-auto">
+            {filteredItems.length === 0 && !searchQuery && (
+              <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                Belum ada data
+              </div>
+            )}
+
+            {filteredItems.length === 0 && searchQuery && (
+              <div className="px-2 py-2">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-sm font-normal"
+                  onClick={handleCreateNew}
+                  disabled={isCreating}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  {isCreating ? "Membuat..." : `Buat "${searchQuery}"`}
+                </Button>
+              </div>
+            )}
+
+            {filteredItems.map((item) => (
+              <DropdownMenuCheckboxItem
+                key={item._id}
+                checked={selected.includes(item._id)}
+                onCheckedChange={(checked) => {
+                  onChange(
+                    checked
+                      ? [...selected, item._id]
+                      : selected.filter((id) => id !== item._id),
+                  );
+                }}
+              >
+                {item.name}
+              </DropdownMenuCheckboxItem>
+            ))}
+
+            {/* Create option when there are results but no exact match */}
+            {filteredItems.length > 0 && searchQuery && !hasExactMatch && (
+              <>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-1">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-sm font-normal"
+                    onClick={handleCreateNew}
+                    disabled={isCreating}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    {isCreating ? "Membuat..." : `Buat "${searchQuery}"`}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -591,6 +698,7 @@ function ServiceFormFields({
   allServices,
   editingServiceId,
   onUploadingChange,
+  onRefreshSessionSkills,
 }: {
   form: ServiceForm;
   setForm: React.Dispatch<React.SetStateAction<ServiceForm>>;
@@ -603,6 +711,7 @@ function ServiceFormFields({
   allServices: AdminService[];
   editingServiceId: string | null;
   onUploadingChange?: (uploading: boolean) => void;
+  onRefreshSessionSkills?: () => void;
 }) {
   const [isUploading, setIsUploading] = useState(false);
 
@@ -694,8 +803,9 @@ function ServiceFormFields({
 
   const isAddonType = selectedTypeName.toLowerCase().includes("addon");
 
-  const addonOptions = allServices.filter((s) =>
-    s.service_type?.title?.toLowerCase().includes("addon"),
+  const addonOptions = allServices.filter(
+    (s) =>
+      s.service_type?.title?.toLowerCase().includes("addon") && s.is_active,
   );
 
   return (
@@ -963,6 +1073,8 @@ function ServiceFormFields({
               selected={form.sessions}
               onChange={(ids) => setForm((p) => ({ ...p, sessions: ids }))}
               placeholder="Pilih sesi skill..."
+              onRefresh={onRefreshSessionSkills}
+              category="session - skill"
             />
           </div>
         </>
@@ -1238,23 +1350,40 @@ export default function ServicesPage() {
     serviceTypes.find((t) => t._id === selectedTypeId) ?? null;
 
   // ── Fetch reference data ─────────────────────────────────────────────────
+  const fetchSessionSkills = useCallback(async () => {
+    try {
+      const sessionRes = await getOptions("session - skill");
+      // Filter hanya yang aktif
+      setSessionSkills(
+        (sessionRes.options ?? []).filter((opt) => opt.is_active),
+      );
+    } catch (err) {
+      console.error("Failed to fetch session skills:", err);
+    }
+  }, []);
+
   useEffect(() => {
     Promise.all([
       getOptions("pet type"),
       getOptions("size category"),
       getOptions("hair category"),
-      getOptions("session - skill"),
-      getStores({ page: 1, limit: 100 }),
+      getStores({ page: 1, limit: 100, is_active: "true" }),
     ])
-      .then(([petRes, sizeRes, hairRes, sessionRes, storeRes]) => {
-        setPetTypes(petRes.options ?? []);
-        setSizeCategories(sizeRes.options ?? []);
-        setHairCategories(hairRes.options ?? []);
-        setSessionSkills(sessionRes.options ?? []);
+      .then(([petRes, sizeRes, hairRes, storeRes]) => {
+        // Filter hanya yang aktif
+        setPetTypes((petRes.options ?? []).filter((opt) => opt.is_active));
+        setSizeCategories(
+          (sizeRes.options ?? []).filter((opt) => opt.is_active),
+        );
+        setHairCategories(
+          (hairRes.options ?? []).filter((opt) => opt.is_active),
+        );
         setStores(storeRes.stores ?? []);
       })
       .catch(() => {});
-  }, []);
+
+    fetchSessionSkills();
+  }, [fetchSessionSkills]);
 
   // ── Fetch service types ──────────────────────────────────────────────────
   const fetchServiceTypes = useCallback(async () => {
@@ -1307,7 +1436,7 @@ export default function ServicesPage() {
 
   // Fetch all services for addon selection (without type filter)
   useEffect(() => {
-    getAdminServices({ page: 1, limit: 200 })
+    getAdminServices({ page: 1, limit: 200, is_active: "true" })
       .then((res) => setAllServices(res.services ?? []))
       .catch(() => {});
   }, []);
@@ -2150,6 +2279,7 @@ export default function ServicesPage() {
                   allServices={allServices}
                   editingServiceId={null}
                   onUploadingChange={setIsUploadingCreateService}
+                  onRefreshSessionSkills={fetchSessionSkills}
                 />
               </div>
             </div>
@@ -2199,6 +2329,7 @@ export default function ServicesPage() {
                   allServices={allServices}
                   editingServiceId={editService?._id ?? null}
                   onUploadingChange={setIsUploadingEditService}
+                  onRefreshSessionSkills={fetchSessionSkills}
                 />
               </div>
             </div>
