@@ -10,6 +10,7 @@ import {
   ImageIcon,
   X,
   ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +60,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import {
   Sheet,
@@ -377,6 +379,92 @@ function MultiCheck({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// MultiSelect with Dropdown
+// ─────────────────────────────────────────────────────────────────────────────
+function MultiSelect({
+  items,
+  selected,
+  onChange,
+  placeholder = "Pilih...",
+}: {
+  items: { _id: string; name: string }[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  if (!items.length)
+    return <p className="text-xs text-muted-foreground">Tidak ada data</p>;
+
+  const selectedItems = items.filter((item) => selected.includes(item._id));
+  const displayText =
+    selectedItems.length > 0
+      ? `${selectedItems.length} item dipilih`
+      : placeholder;
+
+  const handleRemove = (id: string) => {
+    onChange(selected.filter((selectedId) => selectedId !== id));
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <DropdownMenu open={open} onOpenChange={setOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            className="w-full justify-between font-normal"
+          >
+            <span className="truncate">{displayText}</span>
+            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-full min-w-[var(--radix-dropdown-menu-trigger-width)] max-h-[300px] overflow-y-auto">
+          {items.map((item) => (
+            <DropdownMenuCheckboxItem
+              key={item._id}
+              checked={selected.includes(item._id)}
+              onCheckedChange={(checked) => {
+                onChange(
+                  checked
+                    ? [...selected, item._id]
+                    : selected.filter((id) => id !== item._id),
+                );
+              }}
+            >
+              {item.name}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Selected Items as Badges */}
+      {selectedItems.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {selectedItems.map((item) => (
+            <Badge
+              key={item._id}
+              variant="secondary"
+              className="px-2 py-1 text-xs"
+            >
+              {item.name}
+              <button
+                type="button"
+                onClick={() => handleRemove(item._id)}
+                className="ml-1.5 hover:bg-secondary-foreground/20 rounded-full p-0.5"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Service Type Form
 // ─────────────────────────────────────────────────────────────────────────────
 function StypeFormFields({
@@ -498,6 +586,7 @@ function ServiceFormFields({
   petTypes,
   sizeCategories,
   hairCategories,
+  sessionSkills,
   stores,
   allServices,
   editingServiceId,
@@ -509,6 +598,7 @@ function ServiceFormFields({
   petTypes: ApiOption[];
   sizeCategories: ApiOption[];
   hairCategories: ApiOption[];
+  sessionSkills: ApiOption[];
   stores: ApiStore[];
   allServices: AdminService[];
   editingServiceId: string | null;
@@ -866,11 +956,13 @@ function ServiceFormFields({
           {/* Sessions */}
           <div className="flex flex-col gap-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Sesi
+              Sesi (Skill)
             </p>
-            <TagInput
-              tags={form.sessions}
-              onChange={(tags) => setForm((p) => ({ ...p, sessions: tags }))}
+            <MultiSelect
+              items={sessionSkills.map((s) => ({ _id: s._id, name: s.name }))}
+              selected={form.sessions}
+              onChange={(ids) => setForm((p) => ({ ...p, sessions: ids }))}
+              placeholder="Pilih sesi skill..."
             />
           </div>
         </>
@@ -1093,6 +1185,7 @@ export default function ServicesPage() {
   const [petTypes, setPetTypes] = useState<ApiOption[]>([]);
   const [sizeCategories, setSizeCategories] = useState<ApiOption[]>([]);
   const [hairCategories, setHairCategories] = useState<ApiOption[]>([]);
+  const [sessionSkills, setSessionSkills] = useState<ApiOption[]>([]);
   const [stores, setStores] = useState<ApiStore[]>([]);
   const [allServices, setAllServices] = useState<AdminService[]>([]);
 
@@ -1150,12 +1243,14 @@ export default function ServicesPage() {
       getOptions("pet type"),
       getOptions("size category"),
       getOptions("hair category"),
+      getOptions("session - skill"),
       getStores({ page: 1, limit: 100 }),
     ])
-      .then(([petRes, sizeRes, hairRes, storeRes]) => {
+      .then(([petRes, sizeRes, hairRes, sessionRes, storeRes]) => {
         setPetTypes(petRes.options ?? []);
         setSizeCategories(sizeRes.options ?? []);
         setHairCategories(hairRes.options ?? []);
+        setSessionSkills(sessionRes.options ?? []);
         setStores(storeRes.stores ?? []);
       })
       .catch(() => {});
@@ -1341,7 +1436,11 @@ export default function ServicesPage() {
         ? form.addon_ids
         : undefined,
     include: form.include.length ? form.include : undefined,
-    sessions: form.sessions.length ? form.sessions : undefined,
+    sessions: form.sessions.length
+      ? form.sessions
+          .map((id) => sessionSkills.find((s) => s._id === id)?.name)
+          .filter((name): name is string => !!name)
+      : undefined,
     image_url: form.image_url ?? undefined,
     public_id: form.public_id ?? undefined,
     show_in_homepage: isAddonType ? false : form.show_in_homepage,
@@ -1421,7 +1520,10 @@ export default function ServicesPage() {
       available_store_ids: svc.avaiable_store?.map((s) => s._id) ?? [],
       addon_ids: svc.addons?.map((a) => a._id) ?? [],
       include: svc.include ?? [],
-      sessions: svc.sessions ?? [],
+      sessions:
+        svc.sessions
+          ?.map((name) => sessionSkills.find((s) => s.name === name)?._id)
+          .filter((id): id is string => !!id) ?? [],
       show_in_homepage: svc.show_in_homepage,
       order: String(svc.order),
       service_location_type:
@@ -2043,6 +2145,7 @@ export default function ServicesPage() {
                   petTypes={petTypes}
                   sizeCategories={sizeCategories}
                   hairCategories={hairCategories}
+                  sessionSkills={sessionSkills}
                   stores={stores}
                   allServices={allServices}
                   editingServiceId={null}
@@ -2091,6 +2194,7 @@ export default function ServicesPage() {
                   petTypes={petTypes}
                   sizeCategories={sizeCategories}
                   hairCategories={hairCategories}
+                  sessionSkills={sessionSkills}
                   stores={stores}
                   allServices={allServices}
                   editingServiceId={editService?._id ?? null}
@@ -2444,7 +2548,7 @@ export default function ServicesPage() {
                   <Separator />
                   <div className="flex flex-col gap-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Sesi
+                      Sesi (Skill)
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {viewService.sessions!.map((s, i) => (
