@@ -1,19 +1,47 @@
-"use client"
+"use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react"
-import { Search, Plus, Pencil, Trash2, MoreVertical } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Switch } from "@/components/ui/switch"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { Search, Plus, Pencil, Trash2, MoreVertical } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   createOption,
   deleteOption as deleteOptionRequest,
@@ -23,10 +51,10 @@ import {
   type CategoryOption,
   type OptionPayload,
   updateOption,
-} from "@/lib/api/options"
-import { toast } from "sonner"
+} from "@/lib/api/options";
+import { toast } from "sonner";
 
-type OptionForm = OptionPayload
+type OptionForm = OptionPayload;
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const TABS: { value: CategoryOption; label: string }[] = [
@@ -34,163 +62,191 @@ const TABS: { value: CategoryOption; label: string }[] = [
   { value: "breed category", label: "Breed" },
   { value: "size category", label: "Size" },
   { value: "hair category", label: "Hair" },
-  { value: "member category", label: "Member" },
   { value: "customer category", label: "Customer" },
-]
+  { value: "session - skill", label: "Session - Skill" },
+];
 
 const categoryBadgeClass: Record<CategoryOption, string> = {
   "hair category": "bg-yellow-100 text-yellow-700 border-yellow-200",
   "size category": "bg-blue-100 text-blue-700 border-blue-200",
   "breed category": "bg-violet-100 text-violet-700 border-violet-200",
-  "member category": "bg-pink-100 text-pink-700 border-pink-200",
   "customer category": "bg-green-100 text-green-700 border-green-200",
   "pet type": "bg-orange-100 text-orange-700 border-orange-200",
-}
+  "session - skill": "bg-purple-100 text-purple-700 border-purple-200",
+};
 
 const DEFAULT_FORM: OptionForm = {
   name: "",
   category_options: "size category",
   is_active: true,
-}
+};
 
 // ── Highlight helper ──────────────────────────────────────────────────────
 function Highlight({ text, query }: { text: string; query: string }) {
-  if (!query.trim()) return <>{text}</>
-  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi")
-  const parts = text.split(regex)
+  if (!query.trim()) return <>{text}</>;
+  const regex = new RegExp(
+    `(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
+    "gi",
+  );
+  const parts = text.split(regex);
   return (
     <>
       {parts.map((part, i) =>
         regex.test(part) ? (
-          <mark key={i} className="bg-yellow-200 text-yellow-900 rounded-[2px] px-[1px]">
+          <mark
+            key={i}
+            className="bg-yellow-200 text-yellow-900 rounded-[2px] px-[1px]"
+          >
             {part}
           </mark>
         ) : (
           part
-        )
+        ),
       )}
     </>
-  )
+  );
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function OptionsPage() {
-  const [activeCategory, setActiveCategory] = useState<CategoryOption>(TABS[0].value)
-  const [search, setSearch] = useState("")
-  const [options, setOptions] = useState<ApiOption[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState("")
+  const [activeCategory, setActiveCategory] = useState<CategoryOption>(
+    TABS[0].value,
+  );
+  const [search, setSearch] = useState("");
+  const [options, setOptions] = useState<ApiOption[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
   // Create
-  const [addOpen, setAddOpen] = useState(false)
-  const [createForm, setCreateForm] = useState<OptionForm>(DEFAULT_FORM)
-  const [isCreating, setIsCreating] = useState(false)
+  const [addOpen, setAddOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<OptionForm>(DEFAULT_FORM);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Edit
-  const [editOption, setEditOption] = useState<ApiOption | null>(null)
-  const [editForm, setEditForm] = useState<OptionForm>(DEFAULT_FORM)
-  const [isEditing, setIsEditing] = useState(false)
+  const [editOption, setEditOption] = useState<ApiOption | null>(null);
+  const [editForm, setEditForm] = useState<OptionForm>(DEFAULT_FORM);
+  const [isEditing, setIsEditing] = useState(false);
 
   // Delete
-  const [deleteOption, setDeleteOption] = useState<ApiOption | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteOption, setDeleteOption] = useState<ApiOption | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // ── Fetch ────────────────────────────────────────────────────────────────
   const fetchOptions = useCallback(async () => {
-    setIsLoading(true)
-    setError("")
+    setIsLoading(true);
+    setError("");
     try {
-      const data = await getOptions(activeCategory)
-      setOptions(data.options ?? [])
+      const data = await getOptions(activeCategory);
+      setOptions(data.options ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal memuat data options.")
-      setOptions([])
+      setError(
+        err instanceof Error ? err.message : "Gagal memuat data options.",
+      );
+      setOptions([]);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [activeCategory])
+  }, [activeCategory]);
 
   useEffect(() => {
-    fetchOptions()
-  }, [fetchOptions])
+    fetchOptions();
+  }, [fetchOptions]);
 
   // ── Filtered (client-side search) ────────────────────────────────────────
   const filtered = useMemo(() => {
-    if (!search.trim()) return options
-    const q = search.toLowerCase()
+    if (!search.trim()) return options;
+    const q = search.toLowerCase();
     return options.filter(
       (o) =>
         o.name.toLowerCase().includes(q) ||
-        o.category_options.toLowerCase().includes(q)
-    )
-  }, [options, search])
+        o.category_options.toLowerCase().includes(q),
+    );
+  }, [options, search]);
 
   // ── CRUD handlers ────────────────────────────────────────────────────────
   const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsCreating(true)
+    e.preventDefault();
+    setIsCreating(true);
     try {
-      await createOption(createForm)
-      toast.success("Option berhasil dibuat")
-      setAddOpen(false)
-      setCreateForm(DEFAULT_FORM)
-      fetchOptions()
+      await createOption(createForm);
+      toast.success("Option berhasil dibuat");
+      setAddOpen(false);
+      setCreateForm(DEFAULT_FORM);
+      fetchOptions();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal membuat option.")
+      toast.error(err instanceof Error ? err.message : "Gagal membuat option.");
     } finally {
-      setIsCreating(false)
+      setIsCreating(false);
     }
-  }
+  };
 
   const openEdit = (opt: ApiOption) => {
-    setEditOption(opt)
-    setEditForm({ name: opt.name, category_options: activeCategory, is_active: opt.is_active })
-  }
+    setEditOption(opt);
+    setEditForm({
+      name: opt.name,
+      category_options: activeCategory,
+      is_active: opt.is_active,
+    });
+  };
 
   const handleEdit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editOption) return
-    setIsEditing(true)
+    e.preventDefault();
+    if (!editOption) return;
+    setIsEditing(true);
     try {
-      await updateOption(editOption._id, editForm)
-      toast.success("Option berhasil diperbarui")
-      setEditOption(null)
-      fetchOptions()
+      await updateOption(editOption._id, editForm);
+      toast.success("Option berhasil diperbarui");
+      setEditOption(null);
+      fetchOptions();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal memperbarui option.")
+      toast.error(
+        err instanceof Error ? err.message : "Gagal memperbarui option.",
+      );
     } finally {
-      setIsEditing(false)
+      setIsEditing(false);
     }
-  }
+  };
 
   const toggleStatus = async (opt: ApiOption) => {
-    const newStatus = !opt.is_active
+    const newStatus = !opt.is_active;
     // Optimistic update
-    setOptions((prev) => prev.map((o) => o._id === opt._id ? { ...o, is_active: newStatus } : o))
+    setOptions((prev) =>
+      prev.map((o) => (o._id === opt._id ? { ...o, is_active: newStatus } : o)),
+    );
     try {
-      await toggleOptionStatus(opt._id, newStatus)
-      toast.success(newStatus ? `"${opt.name}" diaktifkan` : `"${opt.name}" dinonaktifkan`)
+      await toggleOptionStatus(opt._id, newStatus);
+      toast.success(
+        newStatus ? `"${opt.name}" diaktifkan` : `"${opt.name}" dinonaktifkan`,
+      );
     } catch (err) {
       // Revert
-      setOptions((prev) => prev.map((o) => o._id === opt._id ? { ...o, is_active: opt.is_active } : o))
-      toast.error(err instanceof Error ? err.message : "Gagal mengubah status option.")
+      setOptions((prev) =>
+        prev.map((o) =>
+          o._id === opt._id ? { ...o, is_active: opt.is_active } : o,
+        ),
+      );
+      toast.error(
+        err instanceof Error ? err.message : "Gagal mengubah status option.",
+      );
     }
-  }
+  };
 
   const handleDelete = async () => {
-    if (!deleteOption) return
-    setIsDeleting(true)
+    if (!deleteOption) return;
+    setIsDeleting(true);
     try {
-      await deleteOptionRequest(deleteOption._id)
-      toast.success(`"${deleteOption.name}" berhasil dihapus`)
-      setDeleteOption(null)
-      fetchOptions()
+      await deleteOptionRequest(deleteOption._id);
+      toast.success(`"${deleteOption.name}" berhasil dihapus`);
+      setDeleteOption(null);
+      fetchOptions();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal menghapus option.")
+      toast.error(
+        err instanceof Error ? err.message : "Gagal menghapus option.",
+      );
     } finally {
-      setIsDeleting(false)
+      setIsDeleting(false);
     }
-  }
+  };
 
   // ── UI ───────────────────────────────────────────────────────────────────
   return (
@@ -199,19 +255,33 @@ export default function OptionsPage() {
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="font-display text-2xl font-bold text-foreground">Options</h1>
+            <h1 className="font-display text-2xl font-bold text-foreground">
+              Options
+            </h1>
             <p className="text-sm text-muted-foreground">
-              Kelola master data kategori seperti tipe hewan, ukuran, ras, dan lainnya
+              Kelola master data kategori seperti tipe hewan, ukuran, ras, dan
+              lainnya
             </p>
           </div>
-          <Button onClick={() => { setCreateForm({ ...DEFAULT_FORM, category_options: activeCategory }); setAddOpen(true) }}>
+          <Button
+            onClick={() => {
+              setCreateForm({
+                ...DEFAULT_FORM,
+                category_options: activeCategory,
+              });
+              setAddOpen(true);
+            }}
+          >
             <Plus className="mr-2 h-4 w-4" />
             Tambah Option
           </Button>
         </div>
 
         {/* Tabs */}
-        <Tabs value={activeCategory} onValueChange={(v) => setActiveCategory(v as CategoryOption)}>
+        <Tabs
+          value={activeCategory}
+          onValueChange={(v) => setActiveCategory(v as CategoryOption)}
+        >
           <TabsList className="flex-wrap h-auto gap-1">
             {TABS.map((t) => (
               <TabsTrigger key={t.value} value={t.value}>
@@ -257,11 +327,21 @@ export default function OptionsPage() {
                   {isLoading
                     ? Array.from({ length: 8 }).map((_, i) => (
                         <TableRow key={i}>
-                          <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                          <TableCell><Skeleton className="h-5 w-28" /></TableCell>
-                          <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                          <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-                          <TableCell><Skeleton className="h-7 w-7 ml-auto rounded-md" /></TableCell>
+                          <TableCell>
+                            <Skeleton className="h-4 w-32" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-28" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-5 w-16" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-4 w-24" />
+                          </TableCell>
+                          <TableCell>
+                            <Skeleton className="h-7 w-7 ml-auto rounded-md" />
+                          </TableCell>
                         </TableRow>
                       ))
                     : filtered.map((opt) => (
@@ -286,23 +366,32 @@ export default function OptionsPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-muted-foreground text-sm">
-                            {new Date(opt.createdAt).toLocaleDateString("id-ID", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })}
+                            {new Date(opt.createdAt).toLocaleDateString(
+                              "id-ID",
+                              {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              },
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                >
                                   <MoreVertical className="h-4 w-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 <DropdownMenuLabel>Aksi</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => toggleStatus(opt)}>
+                                <DropdownMenuItem
+                                  onClick={() => toggleStatus(opt)}
+                                >
                                   <Switch
                                     checked={opt.is_active}
                                     className="mr-2 scale-75 pointer-events-none"
@@ -330,7 +419,10 @@ export default function OptionsPage() {
 
                   {!isLoading && filtered.length === 0 && !error && (
                     <TableRow>
-                      <TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
+                      <TableCell
+                        colSpan={5}
+                        className="py-12 text-center text-muted-foreground"
+                      >
                         Tidak ada option ditemukan
                       </TableCell>
                     </TableRow>
@@ -344,16 +436,25 @@ export default function OptionsPage() {
         {/* Count info */}
         {!isLoading && filtered.length > 0 && (
           <p className="text-sm text-muted-foreground">
-            Menampilkan {filtered.length} option{filtered.length !== options.length && ` dari ${options.length}`}
+            Menampilkan {filtered.length} option
+            {filtered.length !== options.length && ` dari ${options.length}`}
           </p>
         )}
       </div>
 
       {/* Create Dialog */}
-      <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setCreateForm(DEFAULT_FORM) }}>
+      <Dialog
+        open={addOpen}
+        onOpenChange={(o) => {
+          setAddOpen(o);
+          if (!o) setCreateForm(DEFAULT_FORM);
+        }}
+      >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle className="font-display">Tambah Option Baru</DialogTitle>
+            <DialogTitle className="font-display">
+              Tambah Option Baru
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleCreate} className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
@@ -363,14 +464,18 @@ export default function OptionsPage() {
                 placeholder="cth: Small, Kucing, Premium..."
                 required
                 value={createForm.name}
-                onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
+                onChange={(e) =>
+                  setCreateForm((p) => ({ ...p, name: e.target.value }))
+                }
               />
             </div>
             <div className="flex items-center gap-3">
               <Switch
                 id="c-active"
                 checked={createForm.is_active}
-                onCheckedChange={(v) => setCreateForm((p) => ({ ...p, is_active: v }))}
+                onCheckedChange={(v) =>
+                  setCreateForm((p) => ({ ...p, is_active: v }))
+                }
               />
               <Label htmlFor="c-active">Aktif</Label>
             </div>
@@ -382,7 +487,12 @@ export default function OptionsPage() {
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={!!editOption} onOpenChange={(o) => { if (!o) setEditOption(null) }}>
+      <Dialog
+        open={!!editOption}
+        onOpenChange={(o) => {
+          if (!o) setEditOption(null);
+        }}
+      >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="font-display">Edit Option</DialogTitle>
@@ -395,14 +505,18 @@ export default function OptionsPage() {
                 placeholder="cth: Small, Kucing, Premium..."
                 required
                 value={editForm.name}
-                onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
+                onChange={(e) =>
+                  setEditForm((p) => ({ ...p, name: e.target.value }))
+                }
               />
             </div>
             <div className="flex items-center gap-3">
               <Switch
                 id="e-active"
                 checked={editForm.is_active}
-                onCheckedChange={(v) => setEditForm((p) => ({ ...p, is_active: v }))}
+                onCheckedChange={(v) =>
+                  setEditForm((p) => ({ ...p, is_active: v }))
+                }
               />
               <Label htmlFor="e-active">Aktif</Label>
             </div>
@@ -414,14 +528,21 @@ export default function OptionsPage() {
       </Dialog>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteOption} onOpenChange={(o) => { if (!o) setDeleteOption(null) }}>
+      <AlertDialog
+        open={!!deleteOption}
+        onOpenChange={(o) => {
+          if (!o) setDeleteOption(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus Option</AlertDialogTitle>
             <AlertDialogDescription>
               Apakah kamu yakin ingin menghapus option{" "}
-              <span className="font-semibold text-foreground">"{deleteOption?.name}"</span>?
-              Tindakan ini tidak dapat dibatalkan.
+              <span className="font-semibold text-foreground">
+                "{deleteOption?.name}"
+              </span>
+              ? Tindakan ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -437,5 +558,5 @@ export default function OptionsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </>
-  )
+  );
 }
