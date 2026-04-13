@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft,
@@ -26,9 +26,10 @@ import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Separator } from "@/components/ui/separator"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { type ApiPet, type ApiCurrentUser, getUser } from "@/lib/api/users"
 import { type CreatePetPayload, type UpdatePetPayload, createPet, deletePet, updatePet } from "@/lib/api/pets"
+import { uploadFile } from "@/lib/api/upload"
 import { getOptions, type ApiOption } from "@/lib/api/options"
 import { toast } from "sonner"
 
@@ -41,7 +42,6 @@ type PetForm = {
   hair_category_id: string
   size_category_id: string
   breed_category_id: string
-  member_category_id: string
   birthday: string
   weight: string
   tags: string[]
@@ -56,7 +56,6 @@ const DEFAULT_FORM: PetForm = {
   hair_category_id: "",
   size_category_id: "",
   breed_category_id: "",
-  member_category_id: "",
   birthday: "",
   weight: "",
   tags: [],
@@ -72,7 +71,6 @@ function petToForm(pet: ApiPet): PetForm {
     hair_category_id: pet.hair?._id ?? "",
     size_category_id: pet.size?._id ?? "",
     breed_category_id: pet.breed?._id ?? "",
-    member_category_id: pet.member_category?._id ?? "",
     birthday: pet.birthday ? pet.birthday.slice(0, 10) : "",
     weight: pet.weight != null ? String(pet.weight) : "",
     tags: pet.tags ?? [],
@@ -89,7 +87,6 @@ function formToPayload(form: PetForm, customerId: string): CreatePetPayload {
     hair_category_id: form.hair_category_id,
     size_category_id: form.size_category_id,
     breed_category_id: form.breed_category_id,
-    member_category_id: form.member_category_id || undefined,
     birthday: form.birthday || undefined,
     weight: form.weight ? Number(form.weight) : undefined,
     tags: form.tags.length > 0 ? form.tags : undefined,
@@ -104,7 +101,6 @@ interface OptionGroups {
   hairCategories: ApiOption[]
   sizeCategories: ApiOption[]
   breedCategories: ApiOption[]
-  memberCategories: ApiOption[]
 }
 
 // ── Pet Card ──────────────────────────────────────────────────────────────
@@ -127,6 +123,7 @@ function PetCard({
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10">
+              {pet.profile_image?.secure_url && <AvatarImage src={pet.profile_image.secure_url} alt={pet.name} className="object-cover" />}
               <AvatarFallback className="bg-primary/10 text-primary font-bold text-sm">
                 {initials}
               </AvatarFallback>
@@ -200,9 +197,6 @@ function PetCard({
         {pet.hair && (
           <span className="text-xs">Bulu: {pet.hair.name}</span>
         )}
-        {pet.member_category && (
-          <span className="text-xs">Member: {pet.member_category.name}</span>
-        )}
         {pet.tags && pet.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
             {pet.tags.map((tag) => (
@@ -228,6 +222,8 @@ function PetFormDialog({
   onSubmit,
   isLoading,
   mode,
+  imagePreview,
+  onImageChange,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -237,8 +233,11 @@ function PetFormDialog({
   onSubmit: (e: React.FormEvent) => void
   isLoading: boolean
   mode: "create" | "edit"
+  imagePreview: string | null
+  onImageChange: (file: File | null, preview: string | null) => void
 }) {
   const [tagInput, setTagInput] = useState("")
+  const petImageRef = useRef<HTMLInputElement>(null)
 
   const addTag = () => {
     const tag = tagInput.trim().toLowerCase()
@@ -261,6 +260,33 @@ function PetFormDialog({
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          {/* Pet Photo */}
+          <div className="flex flex-col items-center gap-2">
+            <button type="button" onClick={() => petImageRef.current?.click()}
+              className="relative group w-20 h-20 rounded-lg overflow-hidden border-2 border-border focus:outline-none"
+            >
+              {imagePreview ? (
+                <img src={imagePreview} alt="Foto pet" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                  <PawPrint className="h-7 w-7 text-primary/50" />
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-white text-xs font-medium">{imagePreview ? "Ganti" : "Upload"}</span>
+              </div>
+            </button>
+            <span className="text-xs text-muted-foreground">Foto Pet (opsional)</span>
+            <input ref={petImageRef} type="file" accept="image/*" className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                const reader = new FileReader()
+                reader.onload = (ev) => onImageChange(file, ev.target?.result as string)
+                reader.readAsDataURL(file)
+              }}
+            />
+          </div>
           {/* Name */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="pet-name">Nama Pet <span className="text-destructive">*</span></Label>
@@ -374,25 +400,6 @@ function PetFormDialog({
             </div>
           </div>
 
-          {/* Member Category */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="pet-member">Kategori Member</Label>
-            <Select
-              value={form.member_category_id || "none"}
-              onValueChange={(v) => setForm((p) => ({ ...p, member_category_id: v === "none" ? "" : v }))}
-            >
-              <SelectTrigger id="pet-member">
-                <SelectValue placeholder="Pilih kategori member" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">— Tidak ada —</SelectItem>
-                {options.memberCategories.map((o) => (
-                  <SelectItem key={o._id} value={o._id}>{o.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
           {/* Description */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="pet-desc">Deskripsi</Label>
@@ -489,7 +496,6 @@ export default function CustomerPetsPage() {
     hairCategories: [],
     sizeCategories: [],
     breedCategories: [],
-    memberCategories: [],
   })
 
   // Create dialog state
@@ -505,6 +511,11 @@ export default function CustomerPetsPage() {
   // Delete dialog state
   const [deletingPet, setDeletingPet] = useState<ApiPet | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  const [createImageFile, setCreateImageFile] = useState<File | null>(null)
+  const [createImagePreview, setCreateImagePreview] = useState<string | null>(null)
+  const [editImageFile, setEditImageFile] = useState<File | null>(null)
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null)
 
   const fetchUserWithPets = useCallback(async () => {
     setIsLoading(true)
@@ -530,14 +541,12 @@ export default function CustomerPetsPage() {
       getOptions("hair category"),
       getOptions("size category"),
       getOptions("breed category"),
-      getOptions("member category"),
-    ]).then(([petTypes, hair, size, breed, member]) => {
+    ]).then(([petTypes, hair, size, breed]) => {
       setOptions({
         petTypes: petTypes.options,
         hairCategories: hair.options,
         sizeCategories: size.options,
         breedCategories: breed.options,
-        memberCategories: member.options,
       })
     }).catch(() => {
       // Options failing silently is acceptable — user sees empty selects
@@ -547,16 +556,25 @@ export default function CustomerPetsPage() {
   const openEdit = (pet: ApiPet) => {
     setEditPet(pet)
     setEditForm(petToForm(pet))
+    setEditImageFile(null)
+    setEditImagePreview(pet.profile_image?.secure_url ?? null)
   }
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsCreating(true)
     try {
-      await createPet(formToPayload(createForm, userId))
+      const payload = formToPayload(createForm, userId)
+      if (createImageFile) {
+        const uploaded = await uploadFile(createImageFile, "pets")
+        payload.profile_image = { secure_url: uploaded.image_url, public_id: uploaded.public_id }
+      }
+      await createPet(payload)
       toast.success("Pet berhasil ditambahkan")
       setAddOpen(false)
       setCreateForm(DEFAULT_FORM)
+      setCreateImageFile(null)
+      setCreateImagePreview(null)
       fetchUserWithPets()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal menambahkan pet.")
@@ -577,16 +595,21 @@ export default function CustomerPetsPage() {
       hair_category_id: editForm.hair_category_id,
       size_category_id: editForm.size_category_id,
       breed_category_id: editForm.breed_category_id,
-      member_category_id: editForm.member_category_id || undefined,
       birthday: editForm.birthday || undefined,
       weight: editForm.weight ? Number(editForm.weight) : undefined,
       tags: editForm.tags.length > 0 ? editForm.tags : undefined,
       is_active: editForm.is_active,
     }
     try {
+      if (editImageFile) {
+        const uploaded = await uploadFile(editImageFile, "pets")
+        payload.profile_image = { secure_url: uploaded.image_url, public_id: uploaded.public_id }
+      }
       await updatePet(editPet._id, payload)
       toast.success("Pet berhasil diperbarui")
       setEditPet(null)
+      setEditImageFile(null)
+      setEditImagePreview(null)
       fetchUserWithPets()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal memperbarui pet.")
@@ -711,25 +734,29 @@ export default function CustomerPetsPage() {
       {/* Create Pet Dialog */}
       <PetFormDialog
         open={addOpen}
-        onOpenChange={(o) => { setAddOpen(o); if (!o) setCreateForm(DEFAULT_FORM) }}
+        onOpenChange={(o) => { setAddOpen(o); if (!o) { setCreateForm(DEFAULT_FORM); setCreateImageFile(null); setCreateImagePreview(null) } }}
         form={createForm}
         setForm={setCreateForm}
         options={options}
         onSubmit={handleCreate}
         isLoading={isCreating}
         mode="create"
+        imagePreview={createImagePreview}
+        onImageChange={(file, preview) => { setCreateImageFile(file); setCreateImagePreview(preview) }}
       />
 
       {/* Edit Pet Dialog */}
       <PetFormDialog
         open={!!editPet}
-        onOpenChange={(o) => { if (!o) setEditPet(null) }}
+        onOpenChange={(o) => { if (!o) { setEditPet(null); setEditImageFile(null); setEditImagePreview(null) } }}
         form={editForm}
         setForm={setEditForm}
         options={options}
         onSubmit={handleEdit}
         isLoading={isEditing}
         mode="edit"
+        imagePreview={editImagePreview}
+        onImageChange={(file, preview) => { setEditImageFile(file); setEditImagePreview(preview) }}
       />
 
       {/* Delete Confirmation */}

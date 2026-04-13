@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   CreditCard,
   CheckCircle2,
-  XCircle,
   Clock,
   Infinity,
   Pencil,
@@ -17,8 +16,10 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label"
@@ -29,10 +30,12 @@ import { type ApiCurrentUser, type ApiPet, getUser } from "@/lib/api/users"
 import {
   type MembershipPlan,
   type PetMembership,
+  type MembershipStatus,
   type BenefitsHistoryData,
   type MembershipHistoryItem,
   getMemberships,
-  getActivePetMembership,
+  getPetMemberships,
+  getPetMembershipCounts,
   getPetMembershipBenefitsHistory,
   getMembershipHistory,
   purchasePetMembership,
@@ -78,42 +81,49 @@ const appliesToLabel: Record<string, string> = {
   pickup: "Jemput & Antar",
 }
 
-function isoToDateInput(iso: string) {
-  return iso ? iso.split("T")[0] : ""
-}
-
 function addMonths(date: Date, months: number): Date {
   const d = new Date(date)
   d.setMonth(d.getMonth() + months)
   return d
 }
 
-function isPetMembershipActive(pm: { start_date: string; end_date: string }) {
-  const now = Date.now()
-  return new Date(pm.start_date).getTime() <= now && now <= new Date(pm.end_date).getTime()
+function isoToDateInput(iso: string) {
+  return iso ? iso.split("T")[0] : ""
 }
 
 interface UpdateMembershipForm {
   start_date: string
   end_date: string
+  note: string
 }
 
 const DEFAULT_UPDATE_FORM: UpdateMembershipForm = {
   start_date: "",
   end_date: "",
+  note: "",
 }
 
 // ── Sub-Components ─────────────────────────────────────────────────────────
+
+const statusBadge: Record<string, { label: string; className: string }> = {
+  active:    { label: "Aktif",     className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  pending:   { label: "Menunggu",  className: "bg-blue-50 text-blue-700 border-blue-200" },
+  expired:   { label: "Berakhir",  className: "bg-amber-50 text-amber-700 border-amber-200" },
+  cancelled: { label: "Dibatalkan",className: "bg-muted text-muted-foreground border-border" },
+}
 
 function MembershipCard({
   membership: pm,
   onEdit,
   onCancel,
+  onRenew,
 }: {
   membership: PetMembership
   onEdit: () => void
   onCancel: () => void
+  onRenew: () => void
 }) {
+  const badge = statusBadge[pm.status] ?? statusBadge.active
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm min-h-[180px] flex flex-col">
       {/* top accent bar */}
@@ -127,8 +137,8 @@ function MembershipCard({
           <span className="text-[10px] font-medium tracking-widest text-muted-foreground uppercase">
             Pawship Membership
           </span>
-          <Badge variant="secondary" className="text-xs shrink-0">
-            Aktif
+          <Badge variant="outline" className={cn("text-xs shrink-0", badge.className)}>
+            {badge.label}
           </Badge>
         </div>
         {/* membership name */}
@@ -160,20 +170,33 @@ function MembershipCard({
         <div className="flex items-center justify-between mt-auto pt-1">
           <span className="text-xs text-muted-foreground">{pm.membership.duration_months} Bulan</span>
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors hover:underline underline-offset-2"
-              onClick={onEdit}
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              className="text-xs text-destructive hover:text-destructive transition-colors hover:underline underline-offset-2"
-              onClick={onCancel}
-            >
-              Batalkan
-            </button>
+            {(pm.status === "active" || pm.status === "pending") && (
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors hover:underline underline-offset-2"
+                onClick={onEdit}
+              >
+                Edit
+              </button>
+            )}
+            {pm.status === "expired" && (
+              <button
+                type="button"
+                className="text-xs text-blue-600 hover:text-blue-700 transition-colors hover:underline underline-offset-2"
+                onClick={onRenew}
+              >
+                Perpanjang
+              </button>
+            )}
+            {(pm.status === "active" || pm.status === "pending") && (
+              <button
+                type="button"
+                className="text-xs text-destructive hover:text-destructive transition-colors hover:underline underline-offset-2"
+                onClick={onCancel}
+              >
+                Batalkan
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -193,8 +216,12 @@ export default function PetMembershipsPage() {
   const [petName, setPetName] = useState<string>("")
   const [isLoadingUser, setIsLoadingUser] = useState(true)
 
-  const [activeMemberships, setActiveMemberships] = useState<PetMembership[]>([])
-  const [isLoadingActive, setIsLoadingActive] = useState(true)
+  const [memberships, setMemberships] = useState<PetMembership[]>([])
+  const [membershipTab, setMembershipTab] = useState<MembershipStatus>("active")
+  const [isLoadingMemberships, setIsLoadingMemberships] = useState(true)
+  const [tabCounts, setTabCounts] = useState<Record<MembershipStatus, number>>({ active: 0, pending: 0, expired: 0, cancelled: 0 })
+  // All non-cancelled memberships (is_active=true): active, pending, expired — used to disable already-owned plans in purchase dialog
+  const [nonCancelledMemberships, setNonCancelledMemberships] = useState<PetMembership[]>([])
 
   const [benefitsHistory, setBenefitsHistory] = useState<BenefitsHistoryData | null>(null)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
@@ -209,6 +236,9 @@ export default function PetMembershipsPage() {
   // Purchase dialog
   const [purchaseOpen, setPurchaseOpen] = useState(false)
   const [selectedPlanId, setSelectedPlanId] = useState("")
+  const [purchaseStartDate, setPurchaseStartDate] = useState<string>(
+    () => new Date().toISOString().split("T")[0]
+  )
   const [isPurchasing, setIsPurchasing] = useState(false)
 
   // Cancel dialog
@@ -249,15 +279,31 @@ export default function PetMembershipsPage() {
       .catch(() => { })
   }, [petTypeId])
 
-  const loadActiveMembership = useCallback(async () => {
-    setIsLoadingActive(true)
+  const loadMemberships = useCallback(async (status: MembershipStatus = membershipTab) => {
+    setIsLoadingMemberships(true)
     try {
-      const res = await getActivePetMembership(petId)
-      setActiveMemberships(res.data)
+      const res = await getPetMemberships({ pet_id: petId, status })
+      setMemberships(res.data)
     } catch {
-      setActiveMemberships([])
+      setMemberships([])
     } finally {
-      setIsLoadingActive(false)
+      setIsLoadingMemberships(false)
+    }
+  }, [petId, membershipTab])
+
+  const loadTabCounts = useCallback(async () => {
+    try {
+      const res = await getPetMembershipCounts(petId)
+      setTabCounts(res.data as Record<MembershipStatus, number>)
+    } catch { /* non-critical */ }
+  }, [petId])
+
+  const loadNonCancelledMemberships = useCallback(async () => {
+    try {
+      const res = await getPetMemberships({ pet_id: petId })
+      setNonCancelledMemberships(res.data)
+    } catch {
+      setNonCancelledMemberships([])
     }
   }, [petId])
 
@@ -286,10 +332,12 @@ export default function PetMembershipsPage() {
   }, [petId])
 
   useEffect(() => {
-    loadActiveMembership()
+    loadMemberships()
+    loadTabCounts()
+    loadNonCancelledMemberships()
     loadBenefitsHistory()
     loadMembershipHistory()
-  }, [loadActiveMembership, loadBenefitsHistory, loadMembershipHistory])
+  }, [loadMemberships, loadTabCounts, loadNonCancelledMemberships, loadBenefitsHistory, loadMembershipHistory])
 
   const handlePurchase = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -299,11 +347,18 @@ export default function PetMembershipsPage() {
     }
     setIsPurchasing(true)
     try {
-      await purchasePetMembership({ pet_id: petId, membership_plan_id: selectedPlanId })
+      await purchasePetMembership({
+        pet_id: petId,
+        membership_plan_id: selectedPlanId,
+        start_date: new Date(purchaseStartDate).toISOString(),
+      })
       toast.success("Membership berhasil dibeli")
       setPurchaseOpen(false)
       setSelectedPlanId("")
-      loadActiveMembership()
+      setPurchaseStartDate(new Date().toISOString().split("T")[0])
+      loadMemberships()
+      loadTabCounts()
+      loadNonCancelledMemberships()
       loadMembershipHistory()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal membeli membership")
@@ -318,7 +373,9 @@ export default function PetMembershipsPage() {
       await cancelPetMembership(cancelTarget._id)
       toast.success("Membership berhasil dibatalkan")
       setCancelTarget(null)
-      loadActiveMembership()
+      loadMemberships()
+      loadTabCounts()
+      loadNonCancelledMemberships()
       loadMembershipHistory()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal membatalkan membership")
@@ -333,11 +390,12 @@ export default function PetMembershipsPage() {
       const payload: Record<string, string> = {}
       if (updateForm.start_date) payload.start_date = new Date(updateForm.start_date).toISOString()
       if (updateForm.end_date) payload.end_date = new Date(updateForm.end_date).toISOString()
+      if (updateForm.note.trim()) payload.note = updateForm.note.trim()
       await updatePetMembership(updateTarget._id, payload)
       toast.success("Membership berhasil diperbarui")
       setUpdateTarget(null)
       setUpdateForm(DEFAULT_UPDATE_FORM)
-      loadActiveMembership()
+      loadMemberships()
       loadMembershipHistory()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal memperbarui membership")
@@ -351,9 +409,10 @@ export default function PetMembershipsPage() {
     setIsRenewing(true)
     try {
       await renewPetMembership(renewTarget._id)
-      toast.success("Membership berhasil diperbarui")
+      toast.success("Membership berhasil diperpanjang")
       setRenewTarget(null)
-      loadActiveMembership()
+      loadMemberships()
+      loadTabCounts()
       loadMembershipHistory()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal memperbarui membership")
@@ -400,140 +459,186 @@ export default function PetMembershipsPage() {
 
         <Separator />
 
-        {/* Active Membership Cards */}
+        {/* Membership Tabs */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-display font-semibold text-lg">Membership Aktif</h2>
-            <Button variant="outline" size="sm" onClick={() => { setSelectedPlanId(""); setPurchaseOpen(true) }}>
+            <h2 className="font-display font-semibold text-lg">Membership</h2>
+            <Button variant="outline" size="sm" onClick={() => { setSelectedPlanId(""); setPurchaseStartDate(new Date().toISOString().split("T")[0]); setPurchaseOpen(true) }}>
               <CreditCard className="h-4 w-4 mr-2" />
               Beli Membership
             </Button>
           </div>
-          {isLoadingActive ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {Array.from({ length: 2 }).map((_, i) => (
-                <div key={i} className="rounded-2xl bg-muted h-[168px] p-6 flex flex-col gap-3">
-                  <Skeleton className="h-3 w-28" />
-                  <Skeleton className="h-5 w-48" />
-                  <Skeleton className="h-4 w-40 mt-auto" />
-                </div>
-              ))}
-            </div>
-          ) : activeMemberships?.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {activeMemberships.map((pm) => (
-                <MembershipCard
-                  key={pm._id}
-                  membership={pm}
-                  onEdit={() => {
-                    setUpdateTarget(pm)
-                    setUpdateForm({
-                      start_date: isoToDateInput(pm.start_date),
-                      end_date: isoToDateInput(pm.end_date),
-                    })
-                  }}
-                  onCancel={() => setCancelTarget(pm)}
-                />
-              ))}
-            </div>
-          ) : (
-            <Card className="border-dashed border-border/50">
-              <CardContent className="p-6 flex flex-col items-center gap-3 text-center">
-                <CreditCard className="h-10 w-10 text-muted-foreground/30" />
-                <p className="text-muted-foreground text-sm">Tidak ada membership aktif</p>
-                <Button onClick={() => { setSelectedPlanId(""); setPurchaseOpen(true) }}>
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Beli Membership
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+          <Tabs
+            value={membershipTab}
+            onValueChange={(v) => {
+              const tab = v as MembershipStatus
+              setMembershipTab(tab)
+              loadMemberships(tab)
+            }}
+          >
+            <TabsList className="mb-4">
+              <TabsTrigger value="active" className="gap-2">
+                Aktif
+                {tabCounts.active > 0 && (
+                  <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground/10 px-1 text-[10px] font-semibold leading-none">
+                    {tabCounts.active}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="pending" className="gap-2">
+                Menunggu
+                {tabCounts.pending > 0 && (
+                  <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground/10 px-1 text-[10px] font-semibold leading-none">
+                    {tabCounts.pending}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="expired" className="gap-2">
+                Berakhir
+                {tabCounts.expired > 0 && (
+                  <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground/10 px-1 text-[10px] font-semibold leading-none">
+                    {tabCounts.expired}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="cancelled" className="gap-2">
+                Dibatalkan
+                {tabCounts.cancelled > 0 && (
+                  <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-foreground/10 px-1 text-[10px] font-semibold leading-none">
+                    {tabCounts.cancelled}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            {(["active", "pending", "expired", "cancelled"] as MembershipStatus[]).map((tab) => (
+              <TabsContent key={tab} value={tab}>
+                {isLoadingMemberships ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {Array.from({ length: 2 }).map((_, i) => (
+                      <div key={i} className="rounded-2xl bg-muted h-[168px] p-6 flex flex-col gap-3">
+                        <Skeleton className="h-3 w-28" />
+                        <Skeleton className="h-5 w-48" />
+                        <Skeleton className="h-4 w-40 mt-auto" />
+                      </div>
+                    ))}
+                  </div>
+                ) : memberships.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {memberships.map((pm) => (
+                      <MembershipCard
+                        key={pm._id}
+                        membership={pm}
+                        onEdit={() => {
+                          setUpdateTarget(pm)
+                          setUpdateForm({
+                            start_date: isoToDateInput(pm.start_date),
+                            end_date: isoToDateInput(pm.end_date),
+                            note: "",
+                          })
+                        }}
+                        onCancel={() => setCancelTarget(pm)}
+                        onRenew={() => setRenewTarget(pm)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <Card className="border-dashed border-border/50">
+                    <CardContent className="p-6 flex flex-col items-center gap-3 text-center">
+                      <CreditCard className="h-10 w-10 text-muted-foreground/30" />
+                      <p className="text-muted-foreground text-sm">
+                        {tab === "active" ? "Tidak ada membership aktif" :
+                         tab === "pending" ? "Tidak ada membership yang menunggu dimulai" :
+                         tab === "expired" ? "Tidak ada membership yang sudah berakhir" :
+                         "Tidak ada membership yang dibatalkan"}
+                      </p>
+                      {tab === "active" && (
+                        <Button onClick={() => { setSelectedPlanId(""); setPurchaseStartDate(new Date().toISOString().split("T")[0]); setPurchaseOpen(true) }}>
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          Beli Membership
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+            ))}
+          </Tabs>
         </div>
 
-        {/* Benefits Summary */}
-        <div>
-          <h2 className="font-display font-semibold text-lg mb-3">Ringkasan Benefit</h2>
-          {isLoadingActive ? (
-            <Card className="border-border/50">
-              <CardContent className="p-4 flex flex-col gap-2">
-                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-4 w-full" />)}
-              </CardContent>
-            </Card>
-          ) : activeMemberships?.length > 0 ? (
-            <div className="flex flex-col gap-4">
-              {activeMemberships.map((pm) => (
-                <div key={pm._id}>
-                  <p className="text-sm font-medium text-muted-foreground mb-2">{pm.membership.name}</p>
-                  <Card className="border-border/50">
-                    {pm.benefits_snapshot.length > 0 ? (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Tipe</TableHead>
-                            <TableHead>Berlaku</TableHead>
-                            <TableHead>Layanan</TableHead>
-                            <TableHead>Periode</TableHead>
-                            <TableHead>Nilai</TableHead>
-                            <TableHead>Digunakan</TableHead>
-                            <TableHead>Sisa</TableHead>
-                            {/* <TableHead>Bisa Dipakai</TableHead> */}
-                            <TableHead>Reset Berikutnya</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {pm.benefits_snapshot.map((b) => {
-                            const remaining = b.limit === null ? null : (b.limit ?? 0) - b.used
-                            const canApply = b.limit === null || (remaining !== null && remaining > 0)
-                            return (
-                              <TableRow key={b._id}>
-                                <TableCell className="text-sm font-medium">{benefitTypeLabel[b.type] ?? b.type}</TableCell>
-                                <TableCell className="text-sm">{appliesToLabel[b.applies_to] ?? b.applies_to}</TableCell>
-                                <TableCell className="text-sm">{b.service?.name ?? b.label ?? "-"}</TableCell>
-                                <TableCell className="text-sm">{periodLabel[b.period] ?? b.period}</TableCell>
-                                <TableCell className="text-sm">
-                                  {b.type === "discount" ? `${b.value}%` : b.limit === null ? <Infinity className="h-4 w-4" /> : `${b.limit}x`}
-                                </TableCell>
-                                <TableCell className="text-sm">{b.used}x</TableCell>
-                                <TableCell className={`text-sm font-medium ${canApply ? "text-emerald-600" : "text-destructive"}`}>
-                                  {remaining === null ? <Infinity className="h-4 w-4" /> : `${remaining}x`}
-                                </TableCell>
-                                {/* <TableCell>
-                                  {canApply ? (
-                                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                                  ) : (
-                                    <XCircle className="h-4 w-4 text-destructive" />
-                                  )}
-                                </TableCell> */}
-                                <TableCell className="text-xs text-muted-foreground">
-                                  {b.period_reset_date ? (
-                                    <span className="flex items-center gap-1">
-                                      <Clock className="h-3.5 w-3.5 shrink-0" />
-                                      {formatDate(b.period_reset_date)}
-                                    </span>
-                                  ) : "—"}
-                                </TableCell>
-                              </TableRow>
-                            )
-                          })}
-                        </TableBody>
-                      </Table>
-                    ) : (
-                      <CardContent className="py-6 text-center text-sm text-muted-foreground">
-                        Tidak ada benefit tersedia
-                      </CardContent>
-                    )}
-                  </Card>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Card className="border-border/50">
-              <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                Tidak ada membership aktif
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        {/* Benefits Summary — only visible on active tab */}
+        {membershipTab === "active" && memberships.length > 0 && (
+          <div>
+            <h2 className="font-display font-semibold text-lg mb-3">Ringkasan Benefit</h2>
+            {isLoadingMemberships ? (
+              <Card className="border-border/50">
+                <CardContent className="p-4 flex flex-col gap-2">
+                  {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-4 w-full" />)}
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {memberships.map((pm) => (
+                  <div key={pm._id}>
+                    <p className="text-sm font-medium text-muted-foreground mb-2">{pm.membership.name}</p>
+                    <Card className="border-border/50">
+                      {pm.benefits_snapshot.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Tipe</TableHead>
+                              <TableHead>Berlaku</TableHead>
+                              <TableHead>Layanan</TableHead>
+                              <TableHead>Periode</TableHead>
+                              <TableHead>Nilai</TableHead>
+                              <TableHead>Digunakan</TableHead>
+                              <TableHead>Sisa</TableHead>
+                              <TableHead>Reset Berikutnya</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {pm.benefits_snapshot.map((b) => {
+                              const remaining = b.limit === null ? null : (b.limit ?? 0) - b.used
+                              const canApply = b.limit === null || (remaining !== null && remaining > 0)
+                              return (
+                                <TableRow key={b._id}>
+                                  <TableCell className="text-sm font-medium">{benefitTypeLabel[b.type] ?? b.type}</TableCell>
+                                  <TableCell className="text-sm">{appliesToLabel[b.applies_to] ?? b.applies_to}</TableCell>
+                                  <TableCell className="text-sm">{b.service?.name ?? b.label ?? "-"}</TableCell>
+                                  <TableCell className="text-sm">{periodLabel[b.period] ?? b.period}</TableCell>
+                                  <TableCell className="text-sm">
+                                    {b.type === "discount" ? `${b.value}%` : null}
+                                    {b.limit === null ? <Infinity className="h-4 w-4" /> : `${b.type === "discount" ? " · " : ""}${b.limit}x`}
+                                  </TableCell>
+                                  <TableCell className="text-sm">{b.used}x</TableCell>
+                                  <TableCell className={`text-sm font-medium ${canApply ? "text-emerald-600" : "text-destructive"}`}>
+                                    {remaining === null ? <Infinity className="h-4 w-4" /> : `${remaining}x`}
+                                  </TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">
+                                    {b.period_reset_date ? (
+                                      <span className="flex items-center gap-1">
+                                        <Clock className="h-3.5 w-3.5 shrink-0" />
+                                        {formatDate(b.period_reset_date)}
+                                      </span>
+                                    ) : "—"}
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <CardContent className="py-6 text-center text-sm text-muted-foreground">
+                          Tidak ada benefit tersedia
+                        </CardContent>
+                      )}
+                    </Card>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* All Memberships History */}
         <div>
@@ -659,7 +764,7 @@ export default function PetMembershipsPage() {
       </div>
 
       {/* Purchase Dialog */}
-      <Dialog open={purchaseOpen} onOpenChange={(open) => { if (!open) { setPurchaseOpen(false); setSelectedPlanId("") } }}>
+      <Dialog open={purchaseOpen} onOpenChange={(open) => { if (!open) { setPurchaseOpen(false); setSelectedPlanId(""); setPurchaseStartDate(new Date().toISOString().split("T")[0]) } }}>
         <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="font-display">Beli Membership</DialogTitle>
@@ -677,7 +782,8 @@ export default function PetMembershipsPage() {
                 ) : (
                   <div className="flex flex-col gap-2">
                     {availablePlans.map((p) => {
-                      const isActivePlan = activeMemberships?.some((am) => am.membership._id === p._id)
+                      const matchedNonCancelled = nonCancelledMemberships.find((am) => am.membership._id === p._id)
+                      const isActivePlan = !!matchedNonCancelled
                       const isSelected = selectedPlanId === p._id
                       return (
                         <button
@@ -702,7 +808,11 @@ export default function PetMembershipsPage() {
                           </div>
                           <div className="flex items-center gap-3 shrink-0">
                             {isActivePlan && (
-                              <Badge variant="secondary" className="text-xs">Aktif</Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                {matchedNonCancelled?.status === "active" ? "Aktif" :
+                                 matchedNonCancelled?.status === "pending" ? "Menunggu" :
+                                 "Berakhir"}
+                              </Badge>
                             )}
                             <span className="font-bold text-sm">Rp {p.price.toLocaleString("id-ID")}</span>
                             {isSelected && !isActivePlan && (
@@ -716,11 +826,24 @@ export default function PetMembershipsPage() {
                 )}
               </div>
 
+              {/* Start Date */}
+              {selectedPlanId && (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="purchase-start-date">Tanggal Mulai</Label>
+                  <Input
+                    id="purchase-start-date"
+                    type="date"
+                    value={purchaseStartDate}
+                    onChange={(e) => setPurchaseStartDate(e.target.value)}
+                  />
+                </div>
+              )}
+
               {/* Selected Plan Details: Benefits + Summary */}
               {(() => {
                 const plan = availablePlans.find((p) => p._id === selectedPlanId)
                 if (!plan) return null
-                const startDate = new Date()
+                const startDate = purchaseStartDate ? new Date(purchaseStartDate) : new Date()
                 const endDate = addMonths(startDate, plan.duration_months)
                 return (
                   <>
@@ -736,7 +859,7 @@ export default function PetMembershipsPage() {
                                 {b.label ? (
                                   b.label
                                 ) : b.type === "discount" ? (
-                                  <>Diskon <span className="font-semibold">{b.value ?? 0}%</span> untuk {appliesToLabel[b.applies_to] ?? b.applies_to}{b.service ? ` (${b.service.name})` : ""}</>
+                                  <>Diskon <span className="font-semibold">{b.value ?? 0}%</span> untuk {appliesToLabel[b.applies_to] ?? b.applies_to}{b.service ? ` (${b.service.name})` : ""}{b.limit !== null && b.limit !== undefined ? <> — maks <span className="font-semibold">{b.limit}x</span></> : ""}</>
                                 ) : (
                                   <>Kuota {appliesToLabel[b.applies_to] ?? b.applies_to}{b.service ? ` (${b.service.name})` : ""}{b.limit !== null && b.limit !== undefined ? <> — maks <span className="font-semibold">{b.limit}x</span></> : ""}</>
                                 )}
@@ -777,7 +900,7 @@ export default function PetMembershipsPage() {
             </div>
 
             <div className="pt-4 border-t border-border mt-2 flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => { setPurchaseOpen(false); setSelectedPlanId("") }}>Batal</Button>
+              <Button type="button" variant="outline" onClick={() => { setPurchaseOpen(false); setSelectedPlanId(""); setPurchaseStartDate(new Date().toISOString().split("T")[0]) }}>Batal</Button>
               <Button type="submit" disabled={isPurchasing || !selectedPlanId}>
                 {isPurchasing ? "Memproses..." : "Beli Sekarang"}
               </Button>
@@ -812,6 +935,16 @@ export default function PetMembershipsPage() {
                   onChange={(e) => setUpdateForm((p) => ({ ...p, end_date: e.target.value }))}
                 />
               </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="update-note">Catatan <span className="text-muted-foreground">(opsional)</span></Label>
+              <Textarea
+                id="update-note"
+                placeholder="Masukkan catatan perubahan..."
+                value={updateForm.note}
+                onChange={(e) => setUpdateForm((p) => ({ ...p, note: e.target.value }))}
+                rows={3}
+              />
             </div>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => { setUpdateTarget(null); setUpdateForm(DEFAULT_UPDATE_FORM) }}>Batal</Button>

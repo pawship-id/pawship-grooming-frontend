@@ -1,5 +1,13 @@
 import { clearAuthTokens, getAccessToken, getRefreshToken, setAuthTokens } from "./storage"
 
+export const SESSION_EXPIRED_EVENT = "auth:session-expired"
+
+function dispatchSessionExpired() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT))
+  }
+}
+
 interface ApiErrorResponse {
   statusCode?: number
   message?: string | string[]
@@ -71,6 +79,7 @@ export async function apiRequest<TResponse>(path: string, options: ApiRequestOpt
 
       if (!refreshToken) {
         clearAuthTokens()
+        dispatchSessionExpired()
         throw new Error("Sesi login berakhir, silakan login kembali")
       }
 
@@ -104,6 +113,7 @@ export async function apiRequest<TResponse>(path: string, options: ApiRequestOpt
         })
       } catch {
         clearAuthTokens()
+        dispatchSessionExpired()
         throw new Error("Sesi login berakhir, silakan login kembali")
       }
     }

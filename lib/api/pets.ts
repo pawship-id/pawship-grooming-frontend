@@ -13,13 +13,13 @@ export interface CreatePetPayload {
   name: string
   description?: string
   internal_note?: string
+  profile_image?: { secure_url: string; public_id: string }
   pet_type_id: string
   hair_category_id?: string
   birthday?: string
   size_category_id: string
   breed_category_id: string
   weight?: number
-  member_category_id?: string
   tags?: string[]
   last_grooming_at?: string
   last_visit_at?: string

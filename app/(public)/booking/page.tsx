@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic"
 
 import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { MapPin, Clock, CheckCircle2, MessageCircle, Check, Plus, Minus, Hash, User, PawPrint, ArrowRight, Info, Loader2 } from "lucide-react"
+import { MapPin, Clock, CheckCircle2, MessageCircle, Check, Plus, Minus, Hash, User, PawPrint, ArrowRight, Info, Loader2, CalendarDays, Truck, Sparkles } from "lucide-react"
 import {
   getPublicStores,
   getPublicServices,
@@ -12,6 +12,8 @@ import {
   getPublicOptions,
   registerPublicUser,
   addPublicPet,
+  getPublicBookingPreview,
+  publicApplyBenefitPreview,
 } from "@/lib/api/stores"
 import type {
   PublicStore,
@@ -20,6 +22,8 @@ import type {
   PublicUser,
   PublicUserPet,
   PublicOption,
+  PublicPreviewResult,
+  PublicApplyBenefitResult,
 } from "@/lib/api/stores"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -29,15 +33,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
+import { useAuth } from "@/lib/auth-context"
+import { getCurrentUser } from "@/lib/api/users"
+import type { ApiPet } from "@/lib/api/users"
 
 function formatPrice(price: number) {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(price)
+  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(price)
 }
-
 
 // ── Service Type Card ───────────────────────────────────────────────────────
 function ServiceTypeCard({ serviceType, selected, onSelect }: { serviceType: PublicServiceType; selected: boolean; onSelect: () => void }) {
@@ -119,16 +122,9 @@ function StoreCard({ store, selected, onSelect }: { store: PublicStore; selected
   )
 }
 
-function getMinPrice(service: PublicService): number {
-  if (!service.prices || service.prices.length === 0) return 0
-  return Math.min(...service.prices.map((p) => p.price))
-}
-
 // ── Selectable Service Card ─────────────────────────────────────────────────
 function SelectableServiceCard({ service, selected, onSelect }: { service: PublicService; selected: boolean; onSelect: () => void }) {
   const [includesOpen, setIncludesOpen] = useState(false)
-  const minPrice = getMinPrice(service)
-  const hasMultiplePrices = service.prices && service.prices.length > 1
 
   return (
     <>
@@ -205,11 +201,7 @@ function SelectableServiceCard({ service, selected, onSelect }: { service: Publi
             </>
           )}
 
-          <div className="mt-auto flex items-center justify-between pt-2">
-            <div className="flex flex-col">
-              {hasMultiplePrices && <span className="text-[10px] text-muted-foreground">Mulai dari</span>}
-              <span className="font-display text-sm font-bold text-primary">{formatPrice(minPrice)}</span>
-            </div>
+          <div className="mt-auto flex items-end justify-end pt-2">
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <Clock className="h-3 w-3" />
               {service.duration} menit
@@ -243,8 +235,6 @@ function SelectableServiceCard({ service, selected, onSelect }: { service: Publi
 // ── Selectable Add-on Card ──────────────────────────────────────────────────
 function SelectableAddonCard({ service, selected, onToggle }: { service: PublicService; selected: boolean; onToggle: () => void }) {
   const [descOpen, setDescOpen] = useState(false)
-  const minPrice = getMinPrice(service)
-  const hasMultiplePrices = service.prices && service.prices.length > 1
 
   return (
     <>
@@ -283,11 +273,7 @@ function SelectableAddonCard({ service, selected, onToggle }: { service: PublicS
           </button>
         </div>
 
-        <div className="mt-3 flex items-center justify-between">
-          <div className="flex flex-col">
-            {hasMultiplePrices && <span className="text-[10px] text-muted-foreground">Mulai dari</span>}
-            <span className="font-display text-sm font-bold text-primary">{formatPrice(minPrice)}</span>
-          </div>
+        <div className="mt-3 flex items-end justify-end">
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />
             {service.duration} menit
@@ -330,6 +316,12 @@ function StepHeader({ step, title, done }: { step: number; title: string; done: 
 function BookingContent() {
   const searchParams = useSearchParams()
   const serviceIdFromQuery = searchParams.get("serviceId")
+  const storeIdFromQuery = searchParams.get("storeId")
+  const serviceTypeIdFromQuery = searchParams.get("serviceTypeId")
+  const { user: authUser, isAuthenticated } = useAuth()
+
+  // Auto-fetch logged-in user data
+  const [authDataLoaded, setAuthDataLoaded] = useState(false)
 
   // Stores from API
   const [stores, setStores] = useState<PublicStore[]>([])
@@ -338,7 +330,30 @@ function BookingContent() {
 
   useEffect(() => {
     getPublicStores()
-      .then((res) => setStores(res.stores.filter((s) => s.is_active)))
+      .then((res) => {
+        const activeStores = res.stores
+          .filter((s) => s.is_active)
+          .sort((a, b) => {
+            if (a.is_default_store && !b.is_default_store) return -1
+            if (!a.is_default_store && b.is_default_store) return 1
+            return 0
+          })
+        setStores(activeStores)
+
+        // Auto-select store and service type from query params
+        if (storeIdFromQuery) {
+          const store = activeStores.find((s) => s._id === storeIdFromQuery)
+          if (store) {
+            setSelectedStoreId(store._id)
+            if (serviceTypeIdFromQuery) {
+              const hasType = store.serviceTypes.some((st) => st._id === serviceTypeIdFromQuery)
+              if (hasType) {
+                setSelectedServiceTypeId(serviceTypeIdFromQuery)
+              }
+            }
+          }
+        }
+      })
       .catch(() => setStoresError("Gagal memuat daftar store. Silakan coba lagi."))
       .finally(() => setStoresLoading(false))
   }, [])
@@ -361,6 +376,10 @@ function BookingContent() {
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([])
   const [showAddons, setShowAddons] = useState(false)
 
+  // Date & session slot state
+  const [selectedDate, setSelectedDate] = useState("")
+  const [selectedTimeRange, setSelectedTimeRange] = useState("")
+
   // Fetch services when store + service type are selected
   useEffect(() => {
     if (!selectedStoreId || !selectedServiceTypeId) {
@@ -373,7 +392,14 @@ function BookingContent() {
     setSelectedAddonIds([])
     setShowAddons(false)
     getPublicServices(selectedStoreId, selectedServiceTypeId)
-      .then((res) => setServices(res.services.filter((s) => s.is_active)))
+      .then((res) => {
+        const active = res.services.filter((s) => s.is_active)
+        setServices(active)
+        // Auto-select service from query param if available
+        if (serviceIdFromQuery && active.some((s) => s._id === serviceIdFromQuery)) {
+          setSelectedServiceId(serviceIdFromQuery)
+        }
+      })
       .catch(() => setServicesError("Gagal memuat layanan. Silakan coba lagi."))
       .finally(() => setServicesLoading(false))
   }, [selectedStoreId, selectedServiceTypeId])
@@ -417,6 +443,38 @@ function BookingContent() {
       .finally(() => setOptionsLoading(false))
   }, [])
 
+  // Auto-fill user info for logged-in users
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setAuthDataLoaded(false)
+      return
+    }
+    getCurrentUser()
+      .then((res) => {
+        const u = res.user
+        setUserName(u.username)
+        setEmail(u.email)
+        setPhone(u.phone_number ?? "")
+        setPhoneChecked(true)
+        setExistingUser({ _id: u._id, username: u.username, email: u.email })
+        // Map ApiPet[] to PublicUserPet[]
+        const pets: PublicUserPet[] = (u.pets ?? [])
+          .filter((p) => p.is_active && !p.isDeleted)
+          .map((p) => ({
+            _id: p._id,
+            name: p.name,
+            pet_type: p.pet_type ?? { _id: "", name: "" },
+            breed: p.breed ?? { _id: "", name: "" },
+            size: p.size ?? { _id: "", name: "" },
+          }))
+        setExistingPets(pets)
+        setPetMode(pets.length > 0 ? "select" : "create")
+        setSelectedPetId(pets[0]?._id ?? "")
+      })
+      .catch(() => {})
+      .finally(() => setAuthDataLoaded(true))
+  }, [isAuthenticated])
+
   // User & pet info state
   const [phone, setPhone] = useState("")
   const [checkingPhone, setCheckingPhone] = useState(false)
@@ -435,6 +493,19 @@ function BookingContent() {
   const [formError, setFormError] = useState("")
   const [submittingUserInfo, setSubmittingUserInfo] = useState(false)
   const [userInfoConfirmed, setUserInfoConfirmed] = useState(false)
+  const [confirmedPetId, setConfirmedPetId] = useState("")
+
+  // Pick-up state
+  const [isPickup, setIsPickup] = useState(false)
+
+  // Pricing preview state
+  const [previewData, setPreviewData] = useState<PublicPreviewResult | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+
+  // Benefit state
+  const [selectedBenefitIds, setSelectedBenefitIds] = useState<string[]>([])
+  const [applyBenefitResult, setApplyBenefitResult] = useState<PublicApplyBenefitResult | null>(null)
+  const [applyBenefitLoading, setApplyBenefitLoading] = useState(false)
 
   // Step 5 state
   const [bookingCreated, setBookingCreated] = useState(false)
@@ -448,11 +519,9 @@ function BookingContent() {
   // Dynamic step numbers — add-ons step is skipped when no add-on services exist
   const hasAddons = addOnServices.length > 0
   const stepAddOns = 4
-  const stepUserInfo = hasAddons ? 5 : 4
-  const stepSummary = hasAddons ? 6 : 5
-
-  const totalPrice = getMinPrice(selectedService ?? { _id: "", code: "", name: "", prices: [], duration: 0, is_active: true })
-    + selectedAddons.reduce((sum, a) => sum + getMinPrice(a), 0)
+  const stepSchedule = hasAddons ? 5 : 4
+  const stepUserInfo = hasAddons ? 6 : 5
+  const stepSummary = hasAddons ? 7 : 6
 
   // Derived pet label for summary
   const petLabel = existingUser
@@ -474,18 +543,22 @@ function BookingContent() {
     setAddOnServices([])
     setSelectedAddonIds([])
     setShowAddons(false)
+    setSelectedDate("")
+    setSelectedTimeRange("")
     resetUserInfo()
   }
 
   function resetUserInfo() {
-    setPhone("")
-    setPhoneChecked(false)
-    setExistingUser(null)
-    setExistingPets([])
-    setUserName("")
-    setEmail("")
-    setPetMode("select")
-    setSelectedPetId("")
+    if (!isAuthenticated) {
+      setPhone("")
+      setPhoneChecked(false)
+      setExistingUser(null)
+      setExistingPets([])
+      setUserName("")
+      setEmail("")
+    }
+    setPetMode(isAuthenticated && existingPets.length > 0 ? "select" : "create")
+    setSelectedPetId(isAuthenticated ? existingPets[0]?._id ?? "" : "")
     setNewPetName("")
     setNewPetTypeId("")
     setNewBreedId("")
@@ -494,7 +567,110 @@ function BookingContent() {
     setFormError("")
     setSubmittingUserInfo(false)
     setUserInfoConfirmed(false)
+    setConfirmedPetId("")
+    setIsPickup(false)
+    setPreviewData(null)
+    setPreviewLoading(false)
+    setSelectedBenefitIds([])
+    setApplyBenefitResult(null)
+    setApplyBenefitLoading(false)
     setBookingCreated(false)
+  }
+
+  // ── Preview: auto-fetch pricing when user info is confirmed ──
+  useEffect(() => {
+    if (!userInfoConfirmed || !selectedServiceId || !selectedDate || !confirmedPetId) {
+      setPreviewData(null)
+      setSelectedBenefitIds([])
+      setApplyBenefitResult(null)
+      return
+    }
+    let cancelled = false
+    setPreviewLoading(true)
+    setPreviewData(null)
+    setSelectedBenefitIds([])
+    setApplyBenefitResult(null)
+    getPublicBookingPreview({
+      pet_id: confirmedPetId,
+      service_id: selectedServiceId,
+      addon_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
+      date: selectedDate,
+      time_range: selectedTimeRange || undefined,
+    })
+      .then((res) => { if (!cancelled) setPreviewData(res) })
+      .catch(() => { if (!cancelled) setPreviewData(null) })
+      .finally(() => { if (!cancelled) setPreviewLoading(false) })
+    return () => { cancelled = true }
+  }, [userInfoConfirmed, confirmedPetId, selectedServiceId, selectedAddonIds, selectedDate, selectedTimeRange])
+
+  // ── Apply benefit: auto-fetch when benefit selection changes ──
+  useEffect(() => {
+    if (!confirmedPetId || !selectedServiceId) return
+    if (selectedBenefitIds.length === 0) {
+      setApplyBenefitResult(null)
+      setApplyBenefitLoading(false)
+      return
+    }
+    let cancelled = false
+    setApplyBenefitLoading(true)
+    publicApplyBenefitPreview({
+      pet_id: confirmedPetId,
+      selected_benefit_ids: selectedBenefitIds,
+      service_id: selectedServiceId,
+      add_on_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
+      store_id: selectedStoreId || undefined,
+      original_total_price: previewData?.pricing_breakdown?.grand_total,
+      booking_date: selectedDate || undefined,
+    })
+      .then((res) => { if (!cancelled) setApplyBenefitResult(res) })
+      .catch(() => { if (!cancelled) setApplyBenefitResult(null) })
+      .finally(() => { if (!cancelled) setApplyBenefitLoading(false) })
+    return () => { cancelled = true }
+  }, [selectedBenefitIds, confirmedPetId, selectedServiceId, selectedAddonIds])
+
+  // Benefit toggle with conflict detection
+  function toggleBenefit(id: string) {
+    if (!previewData) {
+      setSelectedBenefitIds((prev) => prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id])
+      return
+    }
+    const benefit = previewData.pricing.available_benefits.find((x) => x._id === id)
+    if (!benefit) {
+      setSelectedBenefitIds((prev) => prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id])
+      return
+    }
+    setSelectedBenefitIds((prev) => {
+      if (prev.includes(id)) return prev.filter((b) => b !== id)
+      // auto-remove conflicting benefits on the same target
+      const conflicts = prev.filter((selId) => {
+        const sel = previewData.pricing.available_benefits.find((x) => x._id === selId)
+        if (!sel || sel.applies_to !== benefit.applies_to) return false
+        if (benefit.type === sel.type) return false
+        if (benefit.applies_to === "service") {
+          const quotaTarget = (benefit.type === "quota" ? benefit : sel).service_id || selectedServiceId
+          const discountTarget = (benefit.type === "discount" ? benefit : sel).service_id || selectedServiceId
+          return quotaTarget === discountTarget
+        }
+        if (benefit.applies_to === "addon") {
+          const quotaBenefit = benefit.type === "quota" ? benefit : sel
+          const discountBenefit = benefit.type === "discount" ? benefit : sel
+          if (quotaBenefit.service_id && discountBenefit.service_id) return quotaBenefit.service_id === discountBenefit.service_id
+          if (quotaBenefit.service_id && !discountBenefit.service_id) {
+            const coveredByOtherQuotas = prev
+              .filter((sid) => sid !== id)
+              .map((sid) => previewData.pricing.available_benefits.find((x) => x._id === sid))
+              .filter((x): x is NonNullable<typeof x> => !!x && x.type === "quota" && x.applies_to === "addon" && !!x.service_id)
+              .map((x) => x.service_id)
+            const coveredAfter = new Set([...coveredByOtherQuotas, quotaBenefit.service_id])
+            return selectedAddonIds.length > 0 && selectedAddonIds.every((aid) => coveredAfter.has(aid))
+          }
+          if (!quotaBenefit.service_id && discountBenefit.service_id) return true
+          return true
+        }
+        return false
+      })
+      return [...prev.filter((b) => !conflicts.includes(b)), id]
+    })
   }
 
   async function handleCheckPhone() {
@@ -537,7 +713,7 @@ function BookingContent() {
   }
 
   async function handleConfirmUserInfo() {
-    if (!phoneChecked) { setFormError("Silakan cek nomor HP terlebih dahulu."); return }
+    if (!isAuthenticated && !phoneChecked) { setFormError("Silakan cek nomor HP terlebih dahulu."); return }
     if (!existingUser && (!userName.trim() || !email.trim())) { setFormError("Nama dan email wajib diisi."); return }
     if (!existingUser && !newPetName.trim()) { setFormError("Nama pet wajib diisi."); return }
     if (!existingUser && !newPetTypeId) { setFormError("Tipe pet wajib dipilih."); return }
@@ -551,28 +727,37 @@ function BookingContent() {
     setFormError("")
     setSubmittingUserInfo(true)
     try {
-      const normalizedPhone = phone.replace(/\D/g, "")
-      if (!existingUser) {
-        await registerPublicUser({
-          username: userName.trim(),
-          email: email.trim(),
-          phone_number: normalizedPhone,
-          pet: {
-            name: newPetName.trim(),
+      let resolvedPetId = selectedPetId
+      if (isAuthenticated && existingUser) {
+        // Authenticated users: no registration needed
+        resolvedPetId = petMode === "select" ? selectedPetId : ""
+      } else {
+        const normalizedPhone = phone.replace(/\D/g, "")
+        if (!existingUser) {
+          const res = await registerPublicUser({
+            username: userName.trim(),
+            email: email.trim(),
+            phone_number: normalizedPhone,
+            pet: {
+              name: newPetName.trim(),
+              pet_type_id: newPetTypeId,
+              breed_category_id: newBreedId,
+              size_category_id: newSizeId,
+            },
+          }) as any
+          if (res?.pet?._id) resolvedPetId = res.pet._id
+        } else if (petMode === "create") {
+          const res = await addPublicPet({
+            phone_number: normalizedPhone,
+            pet_name: newPetName.trim(),
             pet_type_id: newPetTypeId,
             breed_category_id: newBreedId,
             size_category_id: newSizeId,
-          },
-        })
-      } else if (petMode === "create") {
-        await addPublicPet({
-          phone_number: normalizedPhone,
-          pet_name: newPetName.trim(),
-          pet_type_id: newPetTypeId,
-          breed_category_id: newBreedId,
-          size_category_id: newSizeId,
-        })
+          }) as any
+          if (res?.pet?._id) resolvedPetId = res.pet._id
+        }
       }
+      setConfirmedPetId(resolvedPetId)
       setUserInfoConfirmed(true)
     } catch {
       setFormError("Gagal menyimpan data. Silakan coba lagi.")
@@ -766,47 +951,145 @@ function BookingContent() {
           </section>
         )}
 
-        {/* ── Step 5: User & Pet Info ── */}
+        {/* ── Schedule Step: Pilih Jadwal ── */}
         {selectedService && (
+          <section className="flex flex-col gap-4">
+            <StepHeader step={stepSchedule} title="Pilih Jadwal" done={!!selectedDate && !!selectedTimeRange} />
+            <Card className="border-border/60">
+              <CardContent className="flex flex-col gap-5 p-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="booking-date">Tanggal</Label>
+                    <Input
+                      id="booking-date"
+                      type="date"
+                      min={new Date().toISOString().split("T")[0]}
+                      value={selectedDate}
+                      onChange={(e) => {
+                        setSelectedDate(e.target.value)
+                        setUserInfoConfirmed(false)
+                        setBookingCreated(false)
+                      }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label>Sesi</Label>
+                    <Select
+                      value={selectedTimeRange}
+                      onValueChange={(v) => {
+                        setSelectedTimeRange(v)
+                        setUserInfoConfirmed(false)
+                        setBookingCreated(false)
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Pilih sesi" /></SelectTrigger>
+                      <SelectContent>
+                        {(selectedStore?.sessions ?? []).map((session) => (
+                          <SelectItem key={session} value={session}>{session}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {(!selectedStore?.sessions || selectedStore.sessions.length === 0) && (
+                      <p className="text-xs text-muted-foreground">Tidak ada sesi tersedia untuk store ini.</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Pick-up toggle */}
+                {selectedService?.is_pick_up_available && selectedStore?.is_pick_up_available && (
+                  <>
+                    <Separator />
+                    <label
+                      htmlFor="pickup"
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
+                        isPickup ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/40"
+                      }`}
+                    >
+                      <Checkbox
+                        id="pickup"
+                        checked={isPickup}
+                        onCheckedChange={(checked) => {
+                          setIsPickup(!!checked)
+                          setUserInfoConfirmed(false)
+                          setBookingCreated(false)
+                        }}
+                        className="shrink-0"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Truck className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">Aktifkan Pickup (Jemput / Antar)</span>
+                      </div>
+                    </label>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        {/* ── Step 5: User & Pet Info ── */}
+        {selectedService && selectedDate && selectedTimeRange && (
           <section className="flex flex-col gap-4">
             <StepHeader step={stepUserInfo} title="Informasi Kamu & Anabul" done={userInfoConfirmed} />
             <Card className="border-border/60">
               <CardContent className="flex flex-col gap-5 p-6">
 
-                {/* Phone check */}
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="phone">Nomor HP</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="phone"
-                      placeholder="08xxxxxxxxxx"
-                      value={phone}
-                      disabled={userInfoConfirmed}
-                      onChange={(e) => {
-                        setPhone(e.target.value)
-                        setPhoneChecked(false)
-                        setExistingUser(null)
-                        setExistingPets([])
-                        setUserInfoConfirmed(false)
-                        setBookingCreated(false)
-                      }}
-                    />
-                    <Button type="button" variant="outline" disabled={userInfoConfirmed || checkingPhone} onClick={handleCheckPhone}>
-                      {checkingPhone ? <Loader2 className="h-4 w-4 animate-spin" /> : "Cek"}
-                    </Button>
+                {/* Logged-in user greeting */}
+                {isAuthenticated && authDataLoaded && existingUser && (
+                  <div className="flex items-center gap-2 rounded-lg bg-primary/5 px-4 py-3">
+                    <User className="h-4 w-4 shrink-0 text-primary" />
+                    <p className="text-sm text-foreground">
+                      Halo, <span className="font-semibold">{existingUser.username}</span>! Data kamu sudah terisi otomatis.
+                    </p>
                   </div>
-                  {phoneError && <p className="text-xs text-destructive">{phoneError}</p>}
-                </div>
+                )}
+
+                {/* Logged-in user loading */}
+                {isAuthenticated && !authDataLoaded && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Memuat data pengguna...
+                  </div>
+                )}
+
+                {/* Phone check — only for non-authenticated users */}
+                {!isAuthenticated && (
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="phone">Nomor HP</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="phone"
+                        placeholder="08xxxxxxxxxx"
+                        value={phone}
+                        disabled={userInfoConfirmed}
+                        onChange={(e) => {
+                          setPhone(e.target.value)
+                          setPhoneChecked(false)
+                          setExistingUser(null)
+                          setExistingPets([])
+                          setUserInfoConfirmed(false)
+                          setBookingCreated(false)
+                        }}
+                      />
+                      <Button type="button" variant="outline" disabled={userInfoConfirmed || checkingPhone} onClick={handleCheckPhone}>
+                        {checkingPhone ? <Loader2 className="h-4 w-4 animate-spin" /> : "Cek"}
+                      </Button>
+                    </div>
+                    {phoneError && <p className="text-xs text-destructive">{phoneError}</p>}
+                  </div>
+                )}
 
                 {/* Existing customer */}
-                {phoneChecked && existingUser && (
+                {((phoneChecked && existingUser) || (isAuthenticated && authDataLoaded && existingUser)) && (
                   <>
-                    <div className="flex items-center gap-2 rounded-lg bg-primary/5 px-4 py-3">
-                      <User className="h-4 w-4 shrink-0 text-primary" />
-                      <p className="text-sm text-foreground">
-                        Halo, <span className="font-semibold">{existingUser.username}</span>! Nomor kamu sudah terdaftar.
-                      </p>
-                    </div>
+                    {!isAuthenticated && (
+                      <div className="flex items-center gap-2 rounded-lg bg-primary/5 px-4 py-3">
+                        <User className="h-4 w-4 shrink-0 text-primary" />
+                        <p className="text-sm text-foreground">
+                          Halo, <span className="font-semibold">{existingUser.username}</span>! Nomor kamu sudah terdaftar.
+                        </p>
+                      </div>
+                    )}
 
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center gap-2">
@@ -957,7 +1240,7 @@ function BookingContent() {
                 {formError && <p className="text-sm text-destructive">{formError}</p>}
 
                 {!userInfoConfirmed ? (
-                  <Button className="w-full font-display font-bold" onClick={handleConfirmUserInfo} disabled={!phoneChecked || submittingUserInfo}>
+                  <Button className="w-full font-display font-bold" onClick={handleConfirmUserInfo} disabled={(!isAuthenticated && !phoneChecked) || submittingUserInfo}>
                     {submittingUserInfo ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyimpan...</> : "Konfirmasi Informasi"}
                   </Button>
                 ) : (
@@ -1022,18 +1305,32 @@ function BookingContent() {
                 <Separator />
 
                 {/* Service */}
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Jenis Layanan</p>
-                    <p className="text-xs font-medium text-primary">{selectedServiceType?.title}</p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">{selectedService.name}</p>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      {selectedService.duration} menit
-                    </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Jenis Layanan</p>
+                  <p className="text-xs font-medium text-primary">{selectedServiceType?.title}</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{selectedService.name}</p>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    {selectedService.duration} menit
                   </div>
-                  <span className="font-display text-sm font-bold text-primary">{selectedService ? formatPrice(getMinPrice(selectedService)) : ""}</span>
                 </div>
+
+                {/* Schedule */}
+                {selectedDate && selectedTimeRange && (
+                  <>
+                    <Separator />
+                    <div className="flex items-start gap-3">
+                      <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Jadwal</p>
+                        <p className="text-sm font-semibold text-foreground">
+                          {new Date(selectedDate + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{selectedTimeRange}</p>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Add-ons */}
                 {selectedAddons.length > 0 && (
@@ -1042,32 +1339,233 @@ function BookingContent() {
                     <div className="flex flex-col gap-2">
                       <p className="text-xs text-muted-foreground">Add-On ({selectedAddons.length})</p>
                       {selectedAddons.map((addon) => (
-                        <div key={addon._id} className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5">
-                            <Badge variant="outline" className="bg-accent/20 text-accent-foreground border-accent/30 text-[10px]">
-                              add-on
-                            </Badge>
-                            <span className="text-sm text-foreground">{addon.name}</span>
-                          </div>
-                          <div className="flex flex-col items-end">
-                            {addon.prices.length > 1 && (
-                              <span className="text-[10px] text-muted-foreground">Mulai dari</span>
-                            )}
-                            <span className="text-sm font-medium text-primary">{formatPrice(getMinPrice(addon))}</span>
-                          </div>
+                        <div key={addon._id} className="flex items-center gap-1.5">
+                          <Badge variant="outline" className="bg-accent/20 text-accent-foreground border-accent/30 text-[10px]">
+                            add-on
+                          </Badge>
+                          <span className="text-sm text-foreground">{addon.name}</span>
                         </div>
                       ))}
                     </div>
                   </>
                 )}
 
-                <Separator />
+                {/* Pick-up indicator */}
+                {isPickup && (
+                  <>
+                    <Separator />
+                    <div className="flex items-center gap-2">
+                      <Truck className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium text-foreground">Pick-up ke lokasi</span>
+                    </div>
+                  </>
+                )}
 
-                {/* Total */}
-                <div className="flex items-center justify-between">
-                  <p className="font-display text-base font-bold text-foreground">Total</p>
-                  <p className="font-display text-xl font-extrabold text-primary">{formatPrice(totalPrice)}</p>
-                </div>
+                {/* ── Pricing Breakdown ── */}
+                {previewLoading && (
+                  <>
+                    <Separator />
+                    <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Menghitung harga...
+                    </div>
+                  </>
+                )}
+
+                {previewData && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col overflow-hidden rounded-lg border border-border/60">
+                      <div className="bg-muted/40 px-4 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        Rincian Harga
+                      </div>
+
+                      {/* Service price row */}
+                      {(() => {
+                        const b = previewData.pricing.available_benefits.find(
+                          (x) => selectedBenefitIds.includes(x._id) && x.applies_to === "service" && (!x.service_id || x.service_id === selectedServiceId) && (x.type === "discount" || x.type === "quota") && x.can_apply
+                        )
+                        const isQuota = b?.type === "quota"
+                        return (
+                          <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground">{previewData.pricing_breakdown.service.name}</span>
+                              {b && (
+                                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                  isQuota
+                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                                    : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                                }`}>
+                                  {isQuota ? "Gratis" : (b.value != null ? `-${b.value}%` : "Diskon")}
+                                </span>
+                              )}
+                            </div>
+                            {b ? (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="text-xs line-through text-muted-foreground">{formatPrice(previewData.pricing_breakdown.service.price)}</span>
+                                <span className="font-semibold text-primary">
+                                  {isQuota ? "Gratis" : formatPrice(Math.max(0, previewData.pricing_breakdown.service.price - (b.amount_discount ?? 0)))}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="font-medium">{formatPrice(previewData.pricing_breakdown.service.price)}</span>
+                            )}
+                          </div>
+                        )
+                      })()}
+
+                      {/* Addon price rows */}
+                      {previewData.pricing_breakdown.addons.map((addon) => {
+                        const b = previewData.pricing.available_benefits.find(
+                          (x) => selectedBenefitIds.includes(x._id) && x.applies_to === "addon" && (!x.service_id || x.service_id === addon._id) && (x.type === "discount" || x.type === "quota") && x.can_apply
+                        )
+                        const isQuota = b?.type === "quota"
+                        const addonDiscountAmount = !b ? 0 : (b.service_id ? (b.amount_discount ?? 0) : (isQuota ? addon.price : addon.price * (b.value ?? 0) / 100))
+                        return (
+                          <div key={addon._id} className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground">{addon.name}</span>
+                              {b && (
+                                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                  isQuota
+                                    ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                                    : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                                }`}>
+                                  {isQuota ? "Gratis" : (b.value != null ? `-${b.value}%` : "Diskon")}
+                                </span>
+                              )}
+                            </div>
+                            {b ? (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="text-xs line-through text-muted-foreground">{formatPrice(addon.price)}</span>
+                                <span className="font-semibold text-primary">
+                                  {isQuota ? "Gratis" : formatPrice(Math.max(0, addon.price - addonDiscountAmount))}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="font-medium">{formatPrice(addon.price)}</span>
+                            )}
+                          </div>
+                        )
+                      })}
+
+                      {/* Subtotal */}
+                      <div className="flex items-center justify-between border-t border-border/50 bg-muted/30 px-4 py-2.5 text-sm font-semibold">
+                        <span>Subtotal</span>
+                        <span>{formatPrice(previewData.pricing_breakdown.grand_total)}</span>
+                      </div>
+
+                      {/* Diskon Member */}
+                      {selectedBenefitIds.length > 0 && (applyBenefitLoading || (applyBenefitResult && applyBenefitResult.total_discount > 0)) && (
+                        <div className="flex items-center justify-between border-t border-primary/20 bg-primary/5 px-4 py-2.5 text-sm">
+                          <span className="flex items-center gap-1.5 font-medium text-primary">
+                            <Sparkles className="h-3.5 w-3.5" />
+                            Diskon Member
+                          </span>
+                          {applyBenefitLoading ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                          ) : (
+                            <span className="font-semibold text-primary">- {formatPrice(applyBenefitResult!.total_discount)}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Total Akhir */}
+                      {(() => {
+                        const grandTotal = previewData.pricing_breakdown.grand_total
+                        const hasDiscount = selectedBenefitIds.length > 0 && applyBenefitResult != null && applyBenefitResult.total_discount > 0
+                        const displayTotal = hasDiscount ? applyBenefitResult!.final_price : grandTotal
+                        return (
+                          <div className="flex items-center justify-between border-t border-primary/30 bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
+                            <span>Total Akhir</span>
+                            <span className="text-base">{formatPrice(Math.max(0, displayTotal))}</span>
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  </>
+                )}
+
+                {/* ── Benefit Membership Selection ── */}
+                {previewData && previewData.pricing.has_active_membership && previewData.pricing.available_benefits.length > 0 && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        <p className="text-sm font-semibold text-foreground">Benefit Membership</p>
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                          {previewData.pricing.available_benefits.filter((b) => b.can_apply).length} tersedia
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {previewData.pricing.available_benefits.map((benefit) => {
+                          const selected = selectedBenefitIds.includes(benefit._id)
+                          const canApply = benefit.can_apply
+                          const blockedByQuota = canApply && benefit.type === "discount" && (() => {
+                            const available = previewData.pricing.available_benefits
+                            if (benefit.applies_to === "service") {
+                              const discountTarget = benefit.service_id || selectedServiceId
+                              return available.some(
+                                (x) => selectedBenefitIds.includes(x._id) && x.type === "quota" && x.applies_to === "service" && (x.service_id === discountTarget || !x.service_id)
+                              )
+                            }
+                            if (benefit.applies_to === "addon") {
+                              const selectedQuotas = available.filter(
+                                (x) => selectedBenefitIds.includes(x._id) && x.type === "quota" && x.applies_to === "addon"
+                              )
+                              if (benefit.service_id) {
+                                return selectedQuotas.some((x) => !x.service_id || x.service_id === benefit.service_id)
+                              } else {
+                                if (selectedAddonIds.length === 0) return false
+                                const hasAllCoverQuota = selectedQuotas.some((x) => !x.service_id)
+                                if (hasAllCoverQuota) return true
+                                const coveredIds = new Set(selectedQuotas.filter((x) => x.service_id).map((x) => x.service_id))
+                                return selectedAddonIds.every((id) => coveredIds.has(id))
+                              }
+                            }
+                            return false
+                          })()
+                          const isDisabled = !canApply || blockedByQuota
+                          return (
+                            <label
+                              key={benefit._id}
+                              className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                                isDisabled
+                                  ? "cursor-not-allowed border-border/30 bg-muted/20 opacity-50"
+                                  : selected
+                                    ? "border-primary bg-primary/5"
+                                    : "border-border bg-card hover:border-primary/40"
+                              }`}
+                            >
+                              <Checkbox
+                                checked={selected}
+                                disabled={isDisabled}
+                                onCheckedChange={() => !isDisabled && toggleBenefit(benefit._id)}
+                                className="mt-0.5"
+                              />
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-sm font-medium text-foreground">{benefit.label || benefit.description}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {benefit.type === "discount" ? `${benefit.value}% off` : "Kuota gratis"}
+                                  {benefit.applies_to === "service" ? " · Layanan" : benefit.applies_to === "addon" ? " · Add-on" : " · Pick-up"}
+                                  {benefit.service?.name ? ` (${benefit.service.name})` : ""}
+                                </span>
+                                {benefit.remaining !== null && (
+                                  <span className={`text-[11px] ${benefit.remaining === 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                                    Sisa: {benefit.remaining}/{benefit.limit ?? "∞"}
+                                  </span>
+                                )}
+                                {!canApply && <span className="text-[11px] text-destructive">Tidak dapat digunakan saat ini</span>}
+                                {blockedByQuota && <span className="text-[11px] text-amber-600 dark:text-amber-400">Tidak dapat digabung — layanan sudah gratis dari benefit kuota</span>}
+                              </div>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {!bookingCreated ? (
                   <Button size="lg" className="w-full font-display font-bold" onClick={() => setBookingCreated(true)}>
@@ -1084,7 +1582,7 @@ function BookingContent() {
                     </div>
                     {selectedStore.contact?.whatsapp && (
                       <a
-                        href={`https://wa.me/${selectedStore.contact.whatsapp}?text=Halo! Saya ${existingUser ? existingUser.username : userName} sudah booking ${selectedService.name} di ${selectedStore.name} untuk anabul saya (${petLabel}) melaui website Pawship.`}
+                        href={`https://wa.me/${selectedStore.contact.whatsapp}?text=${encodeURIComponent(`Halo! Saya ${existingUser ? existingUser.username : userName} sudah booking ${selectedService.name} di ${selectedStore.name} untuk anabul saya (${petLabel})${selectedDate ? ` pada tanggal ${new Date(selectedDate + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}` : ""}${selectedTimeRange ? ` sesi ${selectedTimeRange}` : ""}${isPickup ? " (pick-up ke lokasi)" : ""}${previewData ? `. Total: ${formatPrice(applyBenefitResult && applyBenefitResult.total_discount > 0 ? applyBenefitResult.final_price : previewData.pricing_breakdown.grand_total)}` : ""} melalui website Pawship.`)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                       >

@@ -9,6 +9,7 @@ import {
   Users,
   Package,
   Tag,
+  Percent,
   Store,
   Scissors,
   ImageIcon,
@@ -43,6 +44,7 @@ const menuItems = [
   { title: "Stores", href: "/admin/stores", icon: Store },
   { title: "Services", href: "/admin/services", icon: Scissors },
   { title: "Memberships", href: "/admin/memberships", icon: CreditCard },
+  { title: "Promotions", href: "/admin/promotions", icon: Percent },
   { title: "Options", href: "/admin/options", icon: Tag },
   { title: "Banners", href: "/admin/banners", icon: ImageIcon },
 ]

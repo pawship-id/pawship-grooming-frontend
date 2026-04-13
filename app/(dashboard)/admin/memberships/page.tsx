@@ -279,7 +279,7 @@ function BenefitFormFields({
           value={value.type}
           onValueChange={(v) => {
             const t = v as BenefitType
-            onFieldChange((p) => ({ ...p, type: t, ...(t === "discount" ? { period: "unlimited" } : {}) }))
+            onFieldChange((p) => ({ ...p, type: t }))
           }}
         >
           <SelectTrigger className="h-8 text-xs">
@@ -291,26 +291,6 @@ function BenefitFormFields({
           </SelectContent>
         </Select>
       </div>
-
-      {/* 5. Periode — only for quota */}
-      {value.type === "quota" && (
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">Periode Reset</Label>
-          <Select
-            value={value.period ?? "monthly"}
-            onValueChange={(v) => onFieldChange((p) => ({ ...p, period: v as BenefitPeriod }))}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="monthly">Bulanan</SelectItem>
-              <SelectItem value="weekly">Mingguan</SelectItem>
-              <SelectItem value="unlimited">Tidak terbatas</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
 
       {/* 6. Nilai Diskon — only for discount */}
       {value.type === "discount" && (
@@ -328,8 +308,26 @@ function BenefitFormFields({
         </div>
       )}
 
-      {/* 7. Batas Penggunaan — only for quota with non-unlimited period */}
-      {value.type === "quota" && value.period !== "unlimited" && (
+      {/* 5. Periode */}
+      <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">Periode Reset</Label>
+          <Select
+            value={value.period ?? "monthly"}
+            onValueChange={(v) => onFieldChange((p) => ({ ...p, period: v as BenefitPeriod }))}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="monthly">Bulanan</SelectItem>
+              <SelectItem value="weekly">Mingguan</SelectItem>
+              <SelectItem value="unlimited">Tidak terbatas</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+      {/* 7. Batas Penggunaan — for non-unlimited period */}
+      {value.period !== "unlimited" && (
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">Batas Penggunaan</Label>
           <Input
@@ -353,7 +351,7 @@ function validateBenefit(b: Omit<BenefitForm, "_localId">, sourceTab: "layanan" 
   if (effectiveSource === "layanan" && !b.service_id) return "Layanan harus dipilih"
   if (effectiveSource === "label" && !b.label) return "Label benefit harus diisi"
   if (b.type === "discount" && (b.value === undefined || b.value === null)) return "Nilai diskon harus diisi"
-  if (b.type === "quota" && b.period !== "unlimited" && (b.limit === undefined || b.limit === null)) return "Batas penggunaan harus diisi"
+  if (b.period !== "unlimited" && (b.limit === undefined || b.limit === null)) return "Batas penggunaan harus diisi"
   return null
 }
 
@@ -470,7 +468,7 @@ function BenefitEditor({
                     <span className="text-xs text-muted-foreground">
                       {APPLIES_TO_LABEL[b.applies_to]} · {PERIOD_LABEL[b.period ?? "unlimited"]}
                       {b.limit != null && ` · Maks ${b.limit}x`}
-                      {b.limit == null && b.type === "quota" && " · Tidak terbatas"}
+                      {b.limit == null && b.period === "unlimited" && " · Tidak terbatas"}
                     </span>
                     {b.service_id ? (
                       <span className="text-xs text-muted-foreground">
@@ -666,14 +664,12 @@ function MembershipDetailSheet({
                           <span className="text-muted-foreground">Periode</span>
                           <span className="font-medium text-foreground">{PERIOD_LABEL[b.period]}</span>
                         </div>
-                        {b.type === "quota" && (
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-muted-foreground">Batas</span>
-                            <span className="font-medium text-foreground">
-                              {b.limit != null ? `${b.limit}x` : "Tidak terbatas"}
-                            </span>
-                          </div>
-                        )}
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-muted-foreground">Batas</span>
+                          <span className="font-medium text-foreground">
+                            {b.limit != null ? `${b.limit}x` : "Tidak terbatas"}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   )

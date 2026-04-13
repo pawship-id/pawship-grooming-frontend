@@ -1,134 +1,311 @@
 "use client"
 
+import { useEffect, useState, useCallback, useMemo } from "react"
 import Link from "next/link"
-import { useAuth } from "@/lib/auth-context"
-import { Calendar, Clock, MapPin, User, ArrowRight } from "lucide-react"
+import { Calendar, Clock, MapPin, User, ArrowRight, Scissors, CheckCircle2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { bookings } from "@/lib/mock-data"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Progress } from "@/components/ui/progress"
+import { getGroomerMyJobs, type AdminBooking } from "@/lib/api/bookings"
 
-const statusColors: Record<string, string> = {
+const bookingStatusColors: Record<string, string> = {
+  requested: "bg-accent/20 text-accent-foreground",
   confirmed: "bg-secondary/60 text-secondary-foreground",
-  "not-confirmed": "bg-accent/20 text-accent-foreground",
-  cancelled: "bg-destructive/10 text-destructive",
-  "in-progress": "bg-primary/10 text-primary",
+  waitlist: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400",
+  "driver on the way": "bg-primary/10 text-primary",
+  "groomer on the way": "bg-primary/10 text-primary",
+  arrived: "bg-primary/10 text-primary",
+  "in progress": "bg-primary/10 text-primary",
   completed: "bg-secondary/60 text-secondary-foreground",
+  rescheduled: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400",
+  cancelled: "bg-destructive/10 text-destructive",
 }
 
-const jobStatusColors: Record<string, string> = {
-  pending: "bg-accent/20 text-accent-foreground",
-  started: "bg-primary/10 text-primary",
-  finished: "bg-secondary/60 text-secondary-foreground",
+function getToday() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+function getBookingDateStr(booking: AdminBooking): string {
+  return booking.date?.split("T")[0] ?? ""
+}
+
+function SessionPreview({ booking }: { booking: AdminBooking }) {
+  const sessions = booking.sessions || []
+  if (sessions.length === 0) return null
+
+  const finished = sessions.filter((s) => s.status === "finished").length
+  const inProgress = sessions.filter((s) => s.status === "in progress").length
+  const total = sessions.length
+  const progress = total > 0 ? Math.round((finished / total) * 100) : 0
+
+  // Unique groomers
+  const groomers = new Map<string, string>()
+  sessions.forEach((s) => {
+    if (s.groomer_detail) {
+      groomers.set(s.groomer_detail._id, s.groomer_detail.username)
+    }
+  })
+  const unassigned = sessions.filter((s) => !s.groomer_id && !s.groomer_detail).length
+
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-border/30 bg-muted/30 p-2.5">
+      {/* Progress bar */}
+      <div className="flex items-center gap-2">
+        <Progress value={progress} className="h-1.5 flex-1" />
+        <span className="text-[11px] font-medium text-muted-foreground">
+          {finished}/{total}
+        </span>
+      </div>
+
+      {/* Session summary */}
+      <div className="flex flex-wrap gap-1.5">
+        {sessions.map((s, i) => (
+          <span
+            key={s._id ?? i}
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] capitalize ${
+              s.status === "finished"
+                ? "bg-secondary/60 text-secondary-foreground"
+                : s.status === "in progress"
+                  ? "bg-primary/10 text-primary font-medium"
+                  : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {s.status === "finished" && <CheckCircle2 className="h-2.5 w-2.5" />}
+            {s.type}
+          </span>
+        ))}
+      </div>
+
+      {/* Groomers */}
+      <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+        <Scissors className="h-3 w-3" />
+        {Array.from(groomers.values()).map((name) => (
+          <span key={name} className="rounded-full bg-muted px-1.5 py-0.5 font-medium">
+            {name}
+          </span>
+        ))}
+        {unassigned > 0 && (
+          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-400">
+            {unassigned} open
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function JobCard({ booking }: { booking: AdminBooking }) {
+  return (
+    <Link href={`/groomer/jobs/${booking._id}`}>
+      <Card className="border-border/50 transition-all hover:border-primary/30 hover:shadow-md">
+        <CardContent className="flex flex-col gap-3 p-5">
+          <div className="flex items-start justify-between">
+            <div className="flex flex-col gap-1">
+              <span className="font-display text-lg font-bold text-foreground">
+                {booking.pet_snapshot?.name}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                {booking.service_snapshot?.name}
+              </span>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <Badge className={bookingStatusColors[booking.booking_status] || "bg-muted"}>
+                {booking.booking_status}
+              </Badge>
+              <Badge variant="outline" className="capitalize">
+                {booking.type}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1">
+              <Calendar className="h-3.5 w-3.5" />
+              <span>{getBookingDateStr(booking)}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" />
+              <span>{booking.time_range}</span>
+            </div>
+            {booking.customer && (
+              <div className="flex items-center gap-1">
+                <User className="h-3.5 w-3.5" />
+                <span>{booking.customer.username}</span>
+              </div>
+            )}
+            {booking.type === "in home" && (
+              <div className="flex items-center gap-1">
+                <MapPin className="h-3.5 w-3.5" />
+                <span>Home visit</span>
+              </div>
+            )}
+          </div>
+
+          <SessionPreview booking={booking} />
+
+          <div className="flex items-center gap-1 text-xs font-medium text-primary">
+            View Details <ArrowRight className="h-3 w-3" />
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
+  )
 }
 
 export default function GroomerDashboard() {
-  const { user } = useAuth()
+  const [bookings, setBookings] = useState<AdminBooking[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const myBookings = bookings
-    .filter((b) => b.groomerId === user?.id && b.status !== "cancelled")
-    .sort((a, b) => {
-      if (a.date !== b.date) return a.date.localeCompare(b.date)
-      return a.timeStart.localeCompare(b.timeStart)
-    })
+  const fetchJobs = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const res = await getGroomerMyJobs({ limit: 200 })
+      setBookings(res.bookings)
+    } catch (err: any) {
+      setError(err.message || "Gagal memuat data")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
-  const activeJobs = myBookings.filter((b) => b.jobStatus !== "finished")
-  const completedJobs = myBookings.filter((b) => b.jobStatus === "finished")
+  useEffect(() => {
+    fetchJobs()
+  }, [fetchJobs])
+
+  const today = useMemo(() => getToday(), [])
+
+  const isActive = (b: AdminBooking) => b.booking_status !== "completed" && b.booking_status !== "cancelled"
+
+  const todayJobs = useMemo(
+    () => bookings.filter((b) => getBookingDateStr(b) === today && isActive(b)),
+    [bookings, today],
+  )
+  const upcomingJobs = useMemo(
+    () => bookings.filter((b) => getBookingDateStr(b) > today && isActive(b)),
+    [bookings, today],
+  )
+  const incompleteJobs = useMemo(
+    () => bookings.filter((b) => getBookingDateStr(b) < today && isActive(b)),
+    [bookings, today],
+  )
+  const completedJobs = useMemo(
+    () => bookings.filter((b) => b.booking_status === "completed" || b.booking_status === "cancelled"),
+    [bookings],
+  )
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="mt-1 h-4 w-48" />
+        </div>
+        <Skeleton className="h-10 w-full rounded-lg" />
+        <div className="flex flex-col gap-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-48 w-full rounded-lg" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center gap-4 py-20 text-center">
+        <p className="text-destructive">{error}</p>
+        <button onClick={fetchJobs} className="text-sm font-medium text-primary underline">
+          Coba lagi
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="font-display text-2xl font-bold text-foreground">My Jobs</h1>
         <p className="text-sm text-muted-foreground">
-          You have {activeJobs.length} active {activeJobs.length === 1 ? "job" : "jobs"}
+          {todayJobs.length} today, {upcomingJobs.length} upcoming{incompleteJobs.length > 0 && `, ${incompleteJobs.length} incomplete`}
         </p>
       </div>
 
-      {activeJobs.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <h2 className="font-display text-lg font-bold text-foreground">Active & Upcoming</h2>
-          {activeJobs.map((booking) => (
-            <Link key={booking.id} href={`/groomer/jobs/${booking.id}`}>
-              <Card className="border-border/50 transition-all hover:border-primary/30 hover:shadow-md">
-                <CardContent className="flex flex-col gap-3 p-5">
-                  <div className="flex items-start justify-between">
-                    <div className="flex flex-col gap-1">
-                      <span className="font-display text-lg font-bold text-foreground">
-                        {booking.petName}
-                      </span>
-                      <span className="text-sm text-muted-foreground">{booking.serviceName}</span>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge className={jobStatusColors[booking.jobStatus]}>
-                        {booking.jobStatus}
-                      </Badge>
-                      <Badge variant="outline" className="capitalize">{booking.type}</Badge>
-                    </div>
-                  </div>
+      <Tabs defaultValue="today" className="w-full">
+        <TabsList className="w-full">
+          <TabsTrigger value="today" className="flex-1">
+            Today{todayJobs.length > 0 && ` (${todayJobs.length})`}
+          </TabsTrigger>
+          {incompleteJobs.length > 0 && (
+            <TabsTrigger value="incomplete" className="flex-1">
+              Incomplete ({incompleteJobs.length})
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="upcoming" className="flex-1">
+            Upcoming{upcomingJobs.length > 0 && ` (${upcomingJobs.length})`}
+          </TabsTrigger>
+          <TabsTrigger value="completed" className="flex-1">
+            Completed{completedJobs.length > 0 && ` (${completedJobs.length})`}
+          </TabsTrigger>
+        </TabsList>
 
-                  <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-3.5 w-3.5" />
-                      <span>{booking.date}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5" />
-                      <span>{booking.timeStart} - {booking.timeEnd}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <User className="h-3.5 w-3.5" />
-                      <span>{booking.customerName}</span>
-                    </div>
-                    {booking.type === "home" && (
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-3.5 w-3.5" />
-                        <span>Home visit</span>
-                      </div>
-                    )}
-                  </div>
+        <TabsContent value="incomplete" className="mt-4">
+          <div className="flex flex-col gap-3">
+            {incompleteJobs.map((b) => (
+              <JobCard key={b._id} booking={b} />
+            ))}
+          </div>
+        </TabsContent>
 
-                  {booking.requestNotes && (
-                    <p className="rounded-md bg-muted/50 p-2 text-sm text-muted-foreground">
-                      {booking.requestNotes}
-                    </p>
-                  )}
+        <TabsContent value="today" className="mt-4">
+          {todayJobs.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-16 text-center">
+              <Calendar className="h-10 w-10 text-muted-foreground/30" />
+              <p className="text-sm text-muted-foreground">Tidak ada job untuk hari ini</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {todayJobs.map((b) => (
+                <JobCard key={b._id} booking={b} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
 
-                  <div className="flex items-center gap-1 text-xs font-medium text-primary">
-                    View Details <ArrowRight className="h-3 w-3" />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
+        <TabsContent value="upcoming" className="mt-4">
+          {upcomingJobs.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-16 text-center">
+              <Calendar className="h-10 w-10 text-muted-foreground/30" />
+              <p className="text-sm text-muted-foreground">Tidak ada job yang akan datang</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {upcomingJobs.map((b) => (
+                <JobCard key={b._id} booking={b} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
 
-      {completedJobs.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <h2 className="font-display text-lg font-bold text-foreground">Completed</h2>
-          {completedJobs.map((booking) => (
-            <Link key={booking.id} href={`/groomer/jobs/${booking.id}`}>
-              <Card className="border-border/50 opacity-75 transition-all hover:opacity-100">
-                <CardContent className="flex items-center justify-between p-4">
-                  <div className="flex flex-col gap-1">
-                    <span className="font-medium text-foreground">{booking.petName} - {booking.serviceName}</span>
-                    <span className="text-xs text-muted-foreground">{booking.date} {booking.timeStart}</span>
-                  </div>
-                  <Badge className={statusColors[booking.status]}>
-                    {booking.status.replace("-", " ")}
-                  </Badge>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      )}
-
-      {myBookings.length === 0 && (
-        <div className="flex flex-col items-center gap-2 py-20 text-center">
-          <Calendar className="h-12 w-12 text-muted-foreground/30" />
-          <p className="text-muted-foreground">No jobs assigned yet</p>
-        </div>
-      )}
+        <TabsContent value="completed" className="mt-4">
+          {completedJobs.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-16 text-center">
+              <Calendar className="h-10 w-10 text-muted-foreground/30" />
+              <p className="text-sm text-muted-foreground">Belum ada job yang selesai</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {completedJobs.map((b) => (
+                <JobCard key={b._id} booking={b} />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

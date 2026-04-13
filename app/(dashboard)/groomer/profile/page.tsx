@@ -1,33 +1,104 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { Mail, Phone, Shield, Calendar, User } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Separator } from "@/components/ui/separator"
-import { getCurrentUser, type ApiCurrentUser } from "@/lib/api/users"
+import { useEffect, useState, useCallback } from "react";
+import {
+  Mail,
+  Phone,
+  Shield,
+  Calendar,
+  User,
+  Pencil,
+  Loader2,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
+import {
+  getCurrentUser,
+  updateMyProfile,
+  type ApiCurrentUser,
+} from "@/lib/api/users";
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("id-ID", {
     day: "numeric",
     month: "long",
     year: "numeric",
-  })
+  });
 }
 
 export default function GroomerProfilePage() {
-  const [profile, setProfile] = useState<ApiCurrentUser | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [profile, setProfile] = useState<ApiCurrentUser | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Edit form state
+  const [fullName, setFullName] = useState("");
+  const [gender, setGender] = useState<"Male" | "Female" | "">("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+
+  const fetchProfile = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await getCurrentUser();
+      setProfile(res.user);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Gagal memuat profil");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    getCurrentUser()
-      .then((res) => setProfile(res.user))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Gagal memuat profil"))
-      .finally(() => setLoading(false))
-  }, [])
+    fetchProfile();
+  }, [fetchProfile]);
+
+  const openEdit = () => {
+    if (!profile) return;
+    setFullName(profile.profile?.full_name || profile.username || "");
+    setGender((profile.profile?.gender as "Male" | "Female") || "");
+    setPhoneNumber(profile.phone_number || "");
+    setEditOpen(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await updateMyProfile({
+        full_name: fullName || undefined,
+        gender: (gender as "Male" | "Female") || undefined,
+      });
+      toast.success("Profil berhasil diperbarui");
+      setEditOpen(false);
+      await fetchProfile();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menyimpan profil");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -44,56 +115,82 @@ export default function GroomerProfilePage() {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   if (error || !profile) {
     return (
       <div className="flex flex-col gap-6">
-        <h1 className="font-display text-2xl font-bold text-foreground">My Profile</h1>
+        <h1 className="font-display text-2xl font-bold text-foreground">
+          My Profile
+        </h1>
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
             {error ?? "Profil tidak ditemukan."}
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
-  const initials = profile.username
+  const displayName = profile.profile?.full_name || profile.username;
+  const initials = displayName
     .split(" ")
     .map((n) => n[0])
     .join("")
     .toUpperCase()
-    .slice(0, 2)
+    .slice(0, 2);
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-foreground">My Profile</h1>
-        <p className="text-sm text-muted-foreground">Informasi akun Anda</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-foreground">
+            My Profile
+          </h1>
+          <p className="text-sm text-muted-foreground">Informasi akun Anda</p>
+        </div>
+        {/* <Button variant="outline" size="sm" onClick={openEdit}>
+          <Pencil className="mr-2 h-4 w-4" />
+          Edit Profile
+        </Button> */}
       </div>
 
       <Card>
         <CardHeader className="pb-4">
           <div className="flex items-center gap-4">
             <Avatar className="h-16 w-16">
+              {profile.profile?.image_url && (
+                <AvatarImage
+                  src={profile.profile.image_url}
+                  alt={displayName}
+                />
+              )}
               <AvatarFallback className="bg-primary text-primary-foreground text-xl">
                 {initials}
               </AvatarFallback>
             </Avatar>
             <div className="flex flex-col gap-1">
-              <CardTitle className="text-xl">{profile.username}</CardTitle>
+              <CardTitle className="text-xl">{displayName}</CardTitle>
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-200">
+                <Badge
+                  variant="outline"
+                  className="bg-purple-100 text-purple-700 border-purple-200"
+                >
                   Groomer
                 </Badge>
                 {profile.is_active ? (
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                  <Badge
+                    variant="outline"
+                    className="bg-green-50 text-green-700 border-green-200"
+                  >
                     Active
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="bg-gray-100 text-gray-500 border-gray-200">
+                  <Badge
+                    variant="outline"
+                    className="bg-gray-100 text-gray-500 border-gray-200"
+                  >
                     Inactive
                   </Badge>
                 )}
@@ -104,6 +201,15 @@ export default function GroomerProfilePage() {
         <Separator />
         <CardContent className="pt-6">
           <div className="grid gap-5 sm:grid-cols-2">
+            <div className="flex items-start gap-3">
+              <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Full Name</p>
+                <p className="text-sm font-medium">
+                  {profile.profile?.full_name || "-"}
+                </p>
+              </div>
+            </div>
             <div className="flex items-start gap-3">
               <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <div>
@@ -122,33 +228,95 @@ export default function GroomerProfilePage() {
               <Phone className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <div>
                 <p className="text-xs text-muted-foreground">Phone Number</p>
-                <p className="text-sm font-medium">{profile.phone_number || "-"}</p>
+                <p className="text-sm font-medium">
+                  {profile.phone_number || "-"}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Shield className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div>
+                <p className="text-xs text-muted-foreground">Gender</p>
+                <p className="text-sm font-medium">
+                  {profile.profile?.gender || "-"}
+                </p>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <Shield className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <div>
                 <p className="text-xs text-muted-foreground">Status</p>
-                <p className="text-sm font-medium">{profile.is_active ? "Active" : "Inactive"}</p>
+                <p className="text-sm font-medium">
+                  {profile.is_active ? "Active" : "Inactive"}
+                </p>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <div>
                 <p className="text-xs text-muted-foreground">Member Since</p>
-                <p className="text-sm font-medium">{formatDate(profile.createdAt)}</p>
+                <p className="text-sm font-medium">
+                  {formatDate(profile.createdAt)}
+                </p>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <div>
                 <p className="text-xs text-muted-foreground">Last Updated</p>
-                <p className="text-sm font-medium">{formatDate(profile.updatedAt)}</p>
+                <p className="text-sm font-medium">
+                  {formatDate(profile.updatedAt)}
+                </p>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">Edit Profile</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="fullName">Full Name</Label>
+              <Input
+                id="fullName"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Nama lengkap"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>Gender</Label>
+              <Select
+                value={gender}
+                onValueChange={(v) => setGender(v as "Male" | "Female")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Male">Male</SelectItem>
+                  <SelectItem value="Female">Female</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="font-display font-bold"
+            >
+              {saving ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
-  )
+  );
 }

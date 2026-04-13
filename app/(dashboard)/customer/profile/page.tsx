@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import dynamic from "next/dynamic"
-import { Mail, Phone, Shield, Calendar, User, Weight, Tag, Pencil, Plus, Trash2, MapPin, LocateFixed } from "lucide-react"
+import { Mail, Phone, Shield, Calendar, User, Weight, Tag, Pencil, Plus, Trash2, MapPin, LocateFixed, Eye } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -37,6 +37,7 @@ import {
   type CreateMyPetPayload,
 } from "@/lib/api/users"
 import { getOptions, type ApiOption } from "@/lib/api/options"
+import { uploadFile } from "@/lib/api/upload"
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("id-ID", {
@@ -64,6 +65,7 @@ type ProfileFormState = {
   full_name: string
   gender: string
   addresses: UserAddress[]
+  existingImageUrl?: string
 }
 
 function EditProfileDialog({
@@ -87,6 +89,9 @@ function EditProfileDialog({
   const [coordInputMode, setCoordInputMode] = useState<"manual" | "map">("manual")
   const [mapOpen, setMapOpen] = useState(false)
   const [isDetectingLocation, setIsDetectingLocation] = useState(false)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const profileImageRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) {
@@ -94,7 +99,10 @@ function EditProfileDialog({
         full_name: profile.profile?.full_name ?? "",
         gender: profile.profile?.gender ?? "",
         addresses: profile.profile?.addresses?.length ? profile.profile.addresses : [],
+        existingImageUrl: profile.profile?.image_url ?? undefined,
       })
+      setImageFile(null)
+      setImagePreview(null)
       setEditingAddressIdx(null)
       setCoordInputMode("manual")
       setMapOpen(false)
@@ -135,11 +143,19 @@ function EditProfileDialog({
     e.preventDefault()
     setSaving(true)
     try {
+      let image_url: string | undefined = undefined
+      let public_id: string | undefined = undefined
+      if (imageFile) {
+        const uploaded = await uploadFile(imageFile, "profiles")
+        image_url = uploaded.image_url
+        public_id = uploaded.public_id
+      }
       const addresses = form.addresses.map((a, i) => ({ ...a, is_main_address: !!a.is_main_address }))
       const payload: UpdateMyProfilePayload = {
         full_name: form.full_name || undefined,
         gender: (form.gender as "Male" | "Female") || undefined,
         addresses,
+        ...(image_url ? { image_url, public_id } : {}),
       }
       const res = await updateMyProfile(payload)
       toast.success("Profil berhasil diperbarui")
@@ -160,6 +176,45 @@ function EditProfileDialog({
           <DialogTitle>Edit Profil</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 overflow-y-auto flex-1 pr-1">
+          {/* Profile Picture Upload */}
+          <div className="flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={() => profileImageRef.current?.click()}
+              className="relative group w-20 h-20 rounded-full overflow-hidden border-2 border-[#e8c9a0] shadow-md focus:outline-none"
+              style={{ background: "linear-gradient(135deg, #c97b3a, #e05a3a)" }}
+            >
+              {imagePreview || form.existingImageUrl ? (
+                <img
+                  src={imagePreview ?? form.existingImageUrl}
+                  alt="Foto profil"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="flex items-center justify-center w-full h-full text-2xl font-bold text-white">
+                  {(form.full_name || profile.username).split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                </span>
+              )}
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-white text-xs font-medium">Ganti</span>
+              </div>
+            </button>
+            <span className="text-xs text-muted-foreground">Klik foto untuk mengganti</span>
+            <input
+              ref={profileImageRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                setImageFile(file)
+                const reader = new FileReader()
+                reader.onload = (ev) => setImagePreview(ev.target?.result as string)
+                reader.readAsDataURL(file)
+              }}
+            />
+          </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="full_name">Nama Lengkap</Label>
             <Input
@@ -563,10 +618,19 @@ function PetFormDialog({
   const [breeds, setBreeds] = useState<ApiOption[]>([])
   const [hairs, setHairs] = useState<ApiOption[]>([])
   const [loadingOptions, setLoadingOptions] = useState(false)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      setImageFile(null)
+      setImagePreview(null)
+      return
+    }
     setForm(editingPet ? petToForm(editingPet) : EMPTY_PET_FORM)
+    setImageFile(null)
+    setImagePreview(editingPet?.profile_image?.secure_url ?? null)
     setLoadingOptions(true)
     Promise.all([
       getOptions("pet type"),
@@ -588,6 +652,14 @@ function PetFormDialog({
     setForm((f) => ({ ...f, [field]: value }))
   }
 
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImageFile(file)
+    const url = URL.createObjectURL(file)
+    setImagePreview(url)
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.name.trim()) return toast.error("Nama pet wajib diisi")
@@ -597,6 +669,15 @@ function PetFormDialog({
 
     setSaving(true)
     try {
+      let profileImage = editingPet?.profile_image
+        ? { secure_url: editingPet.profile_image.secure_url!, public_id: editingPet.profile_image.public_id! }
+        : undefined
+
+      if (imageFile) {
+        const uploaded = await uploadFile(imageFile, "pets")
+        profileImage = { secure_url: uploaded.image_url, public_id: uploaded.public_id }
+      }
+
       const payload: CreateMyPetPayload = {
         name: form.name.trim(),
         description: form.description || undefined,
@@ -607,6 +688,7 @@ function PetFormDialog({
         weight: form.weight ? Number(form.weight) : undefined,
         birthday: form.birthday || undefined,
         is_active: form.is_active,
+        profile_image: profileImage,
       }
 
       if (editingPet) {
@@ -633,6 +715,45 @@ function PetFormDialog({
           <DialogTitle>{editingPet ? "Edit Pet" : "Tambah Pet"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {/* Image Upload */}
+          <div className="flex flex-col gap-1.5">
+            <Label>Foto Pet</Label>
+            <div className="flex items-center gap-4">
+              <div
+                className="w-20 h-20 rounded-lg border-2 border-dashed border-border bg-muted flex items-center justify-center overflow-hidden cursor-pointer shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {imagePreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-3xl select-none">🐾</span>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {imagePreview ? "Ganti Foto" : "Upload Foto"}
+                </Button>
+                {imageFile && (
+                  <p className="text-xs text-muted-foreground">{imageFile.name}</p>
+                )}
+                <p className="text-xs text-muted-foreground">Maks. 2 MB (JPG/PNG)</p>
+              </div>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleImageChange}
+            />
+          </div>
+
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="pet-name">
               Nama <span className="text-destructive">*</span>
@@ -772,93 +893,310 @@ function PetFormDialog({
   )
 }
 
+// ── Pet Detail Dialog ────────────────────────────────────────────────────────
+
+function PetDetailDialog({ pet, open, onOpenChange }: { pet: ApiPet; open: boolean; onOpenChange: (v: boolean) => void }) {
+  const activeMembership = pet.memberships?.find((m) => m.status === "active")
+
+  function InfoChip({ label, value }: { label: string; value?: string | null }) {
+    if (!value) return null
+    return (
+      <div className="flex flex-col gap-0.5 rounded-lg bg-muted/60 px-3 py-2">
+        <span className="text-[9px] font-extrabold tracking-widest text-muted-foreground uppercase">{label}</span>
+        <span className="text-xs font-semibold leading-tight">{value}</span>
+      </div>
+    )
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md p-0 overflow-hidden">
+        {/* Header — warm gradient matching card accent palette */}
+        <div className="relative bg-gradient-to-br from-[#c97b3a] via-[#d9683a] to-[#e05a3a]">
+          {/* Decorative dot pattern */}
+          <div
+            className="absolute inset-0 opacity-10"
+            style={{
+              backgroundImage: "radial-gradient(circle, #fff 1px, transparent 1px)",
+              backgroundSize: "18px 18px",
+            }}
+          />
+
+          {/* Text area — leaves room on right for photo */}
+            <p className="text-[8px] font-extrabold tracking-[0.22em] text-white/60 uppercase mb-1 relative px-5 pt-5">
+              Pawssport by Pawship
+            </p>
+          <div className="relative px-5 pb-7 pl-[150px]">
+            <h2 className="text-xl font-black text-white uppercase leading-tight line-clamp-2">{pet.name}</h2>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <Badge
+                variant="outline"
+                className={
+                  pet.is_active
+                    ? "border-white/40 text-white bg-white/15 text-[10px]"
+                    : "border-white/20 text-white/50 bg-white/5 text-[10px]"
+                }
+              >
+                {pet.is_active ? "Aktif" : "Tidak Aktif"}
+              </Badge>
+
+            </div>
+          </div>
+
+          {/* Photo — anchored to right, overflowing downward for 3D effect */}
+          <div
+            className="absolute left-5 bottom-0 translate-y-[45%] z-10"
+            style={{ width: "110px", aspectRatio: "117/143" }}
+          >
+            <div className="w-full h-full border-[3px] border-[#fde8c8] dark:border-[#8a5a30] rounded-xl overflow-hidden bg-[#ede0cc] dark:bg-[#3a2510] shadow-2xl flex items-center justify-center">
+              {pet.profile_image?.secure_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={pet.profile_image.secure_url}
+                  alt={pet.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-5xl select-none">🐾</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Body — padding-top clears the overflowing photo (110 * 143/117 * 0.45 ≈ 61px + 16px gap) */}
+        <div className="px-5 pb-4 flex flex-col gap-4 max-h-[55vh] overflow-y-auto" style={{ paddingTop: "77px" }}>
+          {/* Primary info grid */}
+          <div className="grid grid-cols-3 gap-2">
+            <InfoChip label="Type" value={pet.pet_type?.name} />
+            <InfoChip label="Breed" value={pet.breed?.name} />
+            <InfoChip label="Weight" value={pet.weight != null ? `${pet.weight} kg` : null} />
+            <InfoChip label="Size" value={pet.size?.name} />
+            <InfoChip label="Hair Type" value={pet.hair?.name} />
+            <InfoChip label="Date of Birth" value={pet.birthday ? formatDate(pet.birthday) : null} />
+          </div>
+
+          {/* Description */}
+          {pet.description && (
+            <div className="rounded-lg bg-muted/60 px-3 py-2">
+              <p className="text-[9px] font-extrabold tracking-widest text-muted-foreground uppercase mb-1">Deskripsi</p>
+              <p className="text-xs leading-relaxed">{pet.description}</p>
+            </div>
+          )}
+
+          {/* Tags */}
+          {/* {pet.tags && pet.tags.length > 0 && (
+            <div>
+              <p className="text-[9px] font-extrabold tracking-widest text-muted-foreground uppercase mb-1.5">Tags</p>
+              <div className="flex flex-wrap gap-1">
+                {pet.tags.map((t) => (
+                  <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>
+                ))}
+              </div>
+            </div>
+          )} */}
+
+          {/* Membership */}
+          {activeMembership && (
+            <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex flex-col gap-1">
+              <p className="text-[9px] font-extrabold tracking-widest text-primary uppercase">Membership Aktif</p>
+              <p className="text-sm font-semibold">
+                {formatDate(activeMembership.start_date)} – {formatDate(activeMembership.end_date)}
+              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <div className="flex-1 h-1.5 rounded-full bg-primary/20 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{
+                      width: activeMembership.max_usage > 0
+                        ? `${Math.min(100, (activeMembership.usage_count / activeMembership.max_usage) * 100)}%`
+                        : "0%",
+                    }}
+                  />
+                </div>
+                <span className="text-[10px] text-muted-foreground shrink-0">
+                  {activeMembership.usage_count}/{activeMembership.max_usage} sesi
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Bottom stripe */}
+        <div
+          className="h-1.5"
+          style={{
+            background: "repeating-linear-gradient(45deg, #e05a3a 0px, #e05a3a 4px, #f09060 4px, #f09060 8px)",
+            opacity: 0.75,
+          }}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 // ── Pet Card ─────────────────────────────────────────────────────────────────
 
 function PetCard({
   pet,
+  ownerName,
+  ownerPhone,
   onEdit,
   onDelete,
 }: {
   pet: ApiPet
+  ownerName: string
+  ownerPhone: string
   onEdit: (pet: ApiPet) => void
   onDelete: (pet: ApiPet) => void
 }) {
   const activeMembership = pet.memberships?.find((m) => m.status === "active")
+  const [detailOpen, setDetailOpen] = useState(false)
 
   return (
-    <Card className="border border-border/60">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{pet.name}</CardTitle>
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className={pet.is_active ? "bg-green-50 text-green-700 border-green-200" : "bg-gray-100 text-gray-500"}
-            >
-              {pet.is_active ? "Active" : "Inactive"}
-            </Badge>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(pet)}>
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => onDelete(pet)}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+    <>
+    <div className="relative rounded-xl overflow-hidden border border-[#e8c9a0] dark:border-[#5a3a1a] bg-[#fdf6ed] dark:bg-[#1e1208] shadow-sm">
+      {/* Header */}
+      <div className="px-4 pt-3 pb-2 text-center border-b border-[#e8c9a0] dark:border-[#5a3a1a]">
+        <p className="text-[11px] font-black tracking-[0.25em] text-[#1a2b4a] dark:text-[#e8d5b8] uppercase">
+          Pawssport by Pawship
+        </p>
+      </div>
+
+      {/* Action buttons */}
+      <div className="absolute top-2 right-2 flex gap-0.5 z-10">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-[#1a2b4a]/50 hover:text-[#1a2b4a] hover:bg-[#e8c9a0]/40 dark:text-[#e8d5b8]/50 dark:hover:text-[#e8d5b8] dark:hover:bg-[#5a3a1a]/40"
+          onClick={() => onEdit(pet)}
+        >
+          <Pencil className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-[#1a2b4a]/50 hover:text-[#1a2b4a] hover:bg-[#e8c9a0]/40 dark:text-[#e8d5b8]/50 dark:hover:text-[#e8d5b8] dark:hover:bg-[#5a3a1a]/40"
+          onClick={() => setDetailOpen(true)}
+        >
+          <Eye className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-destructive/50 hover:text-destructive hover:bg-[#e8c9a0]/40 dark:hover:bg-[#5a3a1a]/40"
+          onClick={() => onDelete(pet)}
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+
+      {/* Body */}
+      <div className="flex align-middle gap-4 px-6 py-4">
+        {/* Photo */}
+        <div className="shrink-0">
+          <div className="w-[117px] h-[143px] border-2 border-[#c8a880] dark:border-[#8a5a30] rounded overflow-hidden bg-[#ede0cc] dark:bg-[#3a2510] flex items-center justify-center">
+            {pet.profile_image?.secure_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={pet.profile_image.secure_url}
+                alt={pet.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-4xl select-none">🐾</span>
+            )}
           </div>
         </div>
-      </CardHeader>
-      <Separator />
-      <CardContent className="pt-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {pet.pet_type && (
-            <div className="flex items-start gap-2">
-              <span className="text-xs text-muted-foreground">Tipe</span>
-              <span className="text-xs font-medium">{pet.pet_type.name}</span>
+
+        {/* Details */}
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+          {/* Type / Breed / Weight row */}
+          <div className="grid grid-cols-3 gap-1 pb-1.5 border-b border-[#e8c9a0] dark:border-[#5a3a1a]">
+            <div>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Type</p>
+              <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
+                {pet.pet_type?.name ?? "—"}
+              </p>
             </div>
-          )}
-          {pet.breed && (
-            <div className="flex items-start gap-2">
-              <span className="text-xs text-muted-foreground">Ras</span>
-              <span className="text-xs font-medium">{pet.breed.name}</span>
+            <div>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Breed</p>
+              <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
+                {pet.breed?.name ?? "—"}
+              </p>
             </div>
-          )}
-          {pet.size && (
-            <div className="flex items-start gap-2">
-              <span className="text-xs text-muted-foreground">Ukuran</span>
-              <span className="text-xs font-medium">{pet.size.name}</span>
+            <div>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Weight</p>
+              <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
+                {pet.weight != null ? `${pet.weight} KG` : "—"}
+              </p>
             </div>
-          )}
-          {pet.weight != null && (
-            <div className="flex items-start gap-2">
-              <Weight className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
-              <span className="text-xs font-medium">{pet.weight} kg</span>
+          </div>
+
+          {/* Info rows */}
+          <div className="space-y-1">
+            <div>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Pawfriends Name</p>
+              <p className="text-[10px] font-bold text-[#c97b3a] uppercase leading-tight">{pet.name}</p>
             </div>
-          )}
-          {pet.member_category && (
-            <div className="flex items-start gap-2 sm:col-span-2">
-              <Tag className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
-              <span className="text-xs font-medium">{pet.member_category.name}</span>
+
+            <div>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Date of Birth</p>
+              <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
+                {pet.birthday ? formatDate(pet.birthday) : "—"}
+              </p>
             </div>
-          )}
+
+            <div>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Pawrents Name</p>
+              <p className="text-[9px] font-bold text-[#c97b3a] leading-tight">{ownerName}</p>
+            </div>
+
+            <div>
+              <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Pawrents Phone Number</p>
+              <p className="text-[9px] font-bold text-[#c97b3a] leading-tight">{ownerPhone}</p>
+            </div>
+
+            {activeMembership && (
+              <div className="grid grid-cols-2 gap-1 pt-0.5">
+                <div>
+                  <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">Start Date</p>
+                  <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
+                    {formatDate(activeMembership.start_date)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">End Date</p>
+                  <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
+                    {formatDate(activeMembership.end_date)}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-        {/* {pet.tags.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1">
-            {pet.tags.map((tag) => (
-              <Badge key={tag} variant="secondary" className="text-xs">
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        )} */}
-        {activeMembership && (
-          <div className="mt-3 rounded-md bg-primary/5 p-3">
-            <p className="text-xs font-medium text-primary mb-1">Active Membership</p>
-            <p className="text-xs text-muted-foreground">
-              {formatDate(activeMembership.start_date)} – {formatDate(activeMembership.end_date)}
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Footer text */}
+      <div className="px-3 py-1.5 border-t border-[#e8c9a0] dark:border-[#5a3a1a]">
+        <p className="text-[7px] text-center tracking-[0.18em] text-[#1a2b4a]/50 dark:text-[#c8b89a]/50 uppercase leading-relaxed">
+          &lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt; YOUR &lt;&lt;&lt;&lt;&lt; PAWFRIENDS &lt;&lt;&lt;&lt;&lt; DESERVE &gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;
+        </p>
+        <p className="text-[7px] text-center tracking-[0.18em] text-[#1a2b4a]/50 dark:text-[#c8b89a]/50 uppercase leading-relaxed">
+          &lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&gt;&gt;&gt;&gt;&gt;THE BEST&gt;&gt;&gt;&gt;&gt;&lt;&lt;&lt;&gt;&gt;&gt;&gt;&gt;&gt;&gt;
+        </p>
+      </div>
+
+      {/* Bottom stripe */}
+      <div
+        className="h-2"
+        style={{
+          background: "repeating-linear-gradient(45deg, #e05a3a 0px, #e05a3a 4px, #f09060 4px, #f09060 8px)",
+          opacity: 0.75,
+        }}
+      />
+    </div>
+    <PetDetailDialog pet={pet} open={detailOpen} onOpenChange={setDetailOpen} />
+    </>
   )
 }
 
@@ -957,104 +1295,122 @@ export default function CustomerProfilePage() {
         <p className="text-sm text-muted-foreground">Informasi akun dan hewan peliharaan Anda</p>
       </div>
 
-      {/* Profile Card */}
-      <Card>
-        <CardHeader className="pb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16">
-                <AvatarFallback className="bg-primary text-primary-foreground text-xl">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col gap-1">
-                <CardTitle className="text-xl">
-                  {profile.profile?.full_name || profile.username}
-                </CardTitle>
-                <Badge variant="outline" className="w-fit bg-green-50 text-green-700 border-green-200">
-                  Customer
-                </Badge>
-              </div>
-            </div>
-            <Button variant="default" size="sm" onClick={() => setEditProfileOpen(true)}>
-              <Pencil className="mr-2 h-3.5 w-3.5" />
-              Edit Profil
-            </Button>
-          </div>
-        </CardHeader>
-        <Separator />
-        <CardContent className="pt-6">
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="flex items-start gap-3">
-              <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Username</p>
-                <p className="text-sm font-medium">{profile.username}</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <Mail className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Email</p>
-                <p className="text-sm font-medium">{profile.email}</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <Phone className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Phone Number</p>
-                <p className="text-sm font-medium">{profile.phone_number || "-"}</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <Shield className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Status</p>
-                <p className="text-sm font-medium">{profile.is_active ? "Active" : "Inactive"}</p>
-              </div>
-            </div>
-            {profile.profile?.gender && (
-              <div className="flex items-start gap-3">
-                <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Gender</p>
-                  <p className="text-sm font-medium">{profile.profile.gender}</p>
-                </div>
+      {/* Profile Section */}
+      <div className="rounded-2xl shadow-md border border-[#e8c9a0] dark:border-[#5a3a1a]">
+        {/* Warm gradient banner */}
+        <div className="relative bg-gradient-to-br from-[#c97b3a] via-[#d9683a] to-[#e05a3a] px-6 pt-5 pb-20 rounded-t-2xl overflow-visible">
+          <div
+            className="absolute inset-0 opacity-10 rounded-t-2xl"
+            style={{ backgroundImage: "radial-gradient(circle, white 1px, transparent 1px)", backgroundSize: "16px 16px" }}
+          />
+          <button
+            type="button"
+            onClick={() => setEditProfileOpen(true)}
+            className="absolute top-4 right-4 z-30 flex items-center gap-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors px-3 py-1.5 text-white text-xs font-semibold backdrop-blur-sm"
+          >
+            <Pencil className="h-3 w-3" />
+            Edit Profil
+          </button>
+          {/* Profile photo — left side, overflows into body */}
+          <div className="absolute left-6 bottom-0 translate-y-1/2 z-20">
+            {profile.profile?.image_url ? (
+              <img
+                src={profile.profile.image_url}
+                alt="Foto profil"
+                className="rounded-full object-cover border-[3px] border-[#fde8c8] shadow-2xl"
+                style={{ width: 120, height: 120 }}
+              />
+            ) : (
+              <div
+                className="rounded-full border-[3px] border-[#fde8c8] shadow-2xl flex items-center justify-center"
+                style={{ width: 120, height: 120, background: "linear-gradient(135deg, #f0a060, #c97b3a)" }}
+              >
+                <span className="text-xl font-bold text-white">{initials}</span>
               </div>
             )}
-            <div className="flex items-start gap-3">
-              <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Member Since</p>
-                <p className="text-sm font-medium">{formatDate(profile.createdAt)}</p>
+          </div>
+          <div className="relative z-10">
+            <p className="text-[10px] font-bold tracking-[0.35em] text-white/70 uppercase mb-1">Profile by Pawship</p>
+            <h2 className="text-white text-xl font-bold uppercase tracking-wide leading-tight">
+              {profile.profile?.full_name || profile.username}
+            </h2>
+            <span className="inline-block mt-1.5 rounded-full bg-white/25 px-2.5 py-0.5 text-[10px] font-bold tracking-widest text-white uppercase">
+              Customer
+            </span>
+          </div>
+        </div>
+
+        {/* Info body */}
+        <div className="bg-[#fdf6ed] dark:bg-[#1e1208] px-6 pb-5 pt-20">
+          <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Username</span>
+              <span className="text-sm font-semibold text-[#5a3a1a] dark:text-[#e8d5b8]">{profile.username}</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Email</span>
+              <span className="text-sm font-semibold text-[#5a3a1a] dark:text-[#e8d5b8] break-all">{profile.email}</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Phone Number</span>
+              <span className="text-sm font-semibold text-[#5a3a1a] dark:text-[#e8d5b8]">{profile.phone_number || "—"}</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Status</span>
+              <span className={`text-sm font-semibold ${profile.is_active ? "text-emerald-600" : "text-rose-500"}`}>
+                {profile.is_active ? "Active" : "Inactive"}
+              </span>
+            </div>
+            {profile.profile?.gender && (
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Gender</span>
+                <span className="text-sm font-semibold text-[#5a3a1a] dark:text-[#e8d5b8]">{profile.profile.gender}</span>
               </div>
+            )}
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Member Since</span>
+              <span className="text-sm font-semibold text-[#5a3a1a] dark:text-[#e8d5b8]">{formatDate(profile.createdAt)}</span>
             </div>
           </div>
+
           {profile.profile?.addresses && profile.profile.addresses.length > 0 && (
-            <div className="mt-4 flex flex-col gap-2">
-              <div className="flex items-center gap-2 mb-1">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground font-medium">Alamat</span>
+            <div className="mt-5 flex flex-col gap-2">
+              <div className="flex items-center gap-1.5 mb-1">
+                <MapPin className="h-3.5 w-3.5 text-[#c97b3a]" />
+                <span className="text-[10px] font-bold tracking-widest text-[#c97b3a] uppercase">Alamat</span>
               </div>
               {profile.profile.addresses.map((addr, idx) => (
-                <div key={addr._id || idx} className={`rounded border px-3 py-2 text-xs ${addr.is_main_address ? "border-green-700 bg-green-50" : "border-border bg-muted/30"}`}>
+                <div
+                  key={addr._id || idx}
+                  className={`rounded-xl border px-3 py-2.5 text-xs ${addr.is_main_address ? "border-[#c97b3a] bg-[#fde8c8]/60 dark:bg-[#7a3a1a]/25" : "border-[#e8c9a0] dark:border-[#5a3a1a] bg-[#fdf6ed] dark:bg-[#1e1208]"}`}
+                >
                   <div className="flex items-center gap-2 mb-1">
-                    {addr.is_main_address && <span className="text-green-700 font-semibold mr-1`">Utama</span>}
-                    <span className="font-medium text-gray-700">{addr.label || "Alamat"}</span>
+                    {addr.is_main_address && (
+                      <span className="text-[#c97b3a] font-bold text-[10px] tracking-widest uppercase">Utama</span>
+                    )}
+                    <span className="font-semibold text-[#5a3a1a] dark:text-[#e8d5b8]">{addr.label || "Alamat"}</span>
                   </div>
-                  <div className="text-gray-700">
+                  <div className="text-[#8a6040] dark:text-[#c8a87a]">
                     {[addr.street, addr.subdistrict, addr.district, addr.city, addr.province, addr.postal_code]
                       .filter(Boolean)
                       .join(", ")}
                   </div>
-                  {addr.note && <div className="text-muted-foreground mt-1">{addr.note}</div>}
-                  {/* Optionally: show lat/lng if present */}
+                  {addr.note && <div className="text-[#a07850] dark:text-[#b8986a] mt-1">{addr.note}</div>}
                 </div>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Bottom stripe */}
+        <div
+          className="h-3 rounded-b-2xl"
+          style={{
+            background: "repeating-linear-gradient(45deg, #e05a3a 0px, #e05a3a 4px, #f09060 4px, #f09060 8px)",
+            opacity: 0.75,
+          }}
+        />
+      </div>
 
       {/* Pets Section */}
       <div className="flex items-center justify-between">
@@ -1070,7 +1426,14 @@ export default function CustomerProfilePage() {
       {profile.pets && profile.pets.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2">
           {profile.pets.map((pet) => (
-            <PetCard key={pet._id} pet={pet} onEdit={openEditPet} onDelete={setDeletingPet} />
+            <PetCard
+              key={pet._id}
+              pet={pet}
+              ownerName={profile.profile?.full_name || profile.username}
+              ownerPhone={profile.phone_number}
+              onEdit={openEditPet}
+              onDelete={setDeletingPet}
+            />
           ))}
         </div>
       ) : (
