@@ -255,6 +255,7 @@ export interface ApplyBenefitBreakdownItem {
   base_price: number;
   amount_deducted: number;
   description: string | null;
+  service_id: string | null;
   applied_at: string;
 }
 

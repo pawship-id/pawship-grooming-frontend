@@ -1455,38 +1455,80 @@ export default function BookingDetailPage({
                             </div>
                             {!loadingPriceApply && (priceApplyResult?.breakdown?.length ?? 0) > 0 && (
                               <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
-                                {priceApplyResult!.breakdown.map((item, idx) => (
-                                  <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground">
-                                    <span className="flex items-center gap-1.5 truncate pr-4">
-                                      {item.benefit_type === "quota" ? (
-                                        <span className="shrink-0 rounded bg-blue-100 px-1 py-px text-[9px] font-bold text-blue-700 dark:bg-blue-950/50 dark:text-blue-400">GRATIS</span>
-                                      ) : (
-                                        <span className="shrink-0 rounded bg-green-100 px-1 py-px text-[9px] font-bold text-green-700 dark:bg-green-950/50 dark:text-green-400">{item.benefit_value != null ? `${item.benefit_value}%` : "DISC"}</span>
-                                      )}
-                                      {item.benefit?.label || item.description || item.applies_to}
-                                    </span>
-                                    <span className="shrink-0">- {formatPrice(item.amount_deducted)}</span>
-                                  </div>
-                                ))}
+                                {priceApplyResult!.breakdown.map((item, idx) => {
+                                  const bLabel = item.benefit?.label || item.description || item.applies_to;
+                                  let itemName: string | null = null;
+                                  if (item.applies_to === "service") {
+                                    itemName = pricePreviewData?.pricing_breakdown?.service?.name
+                                      ?? item.benefit?.service?.name ?? null;
+                                  } else if (item.applies_to === "addon") {
+                                    const addonMatch = pricePreviewData?.pricing_breakdown?.addons?.find(
+                                      (a) => a._id === (item as any).service_id
+                                    ) ?? pricePreviewData?.pricing?.addon_prices?.find(
+                                      (a: any) => a._id === (item as any).service_id
+                                    );
+                                    itemName = addonMatch?.name ?? item.benefit?.service?.name ?? null;
+                                  } else if (item.applies_to === "pick_up" || item.applies_to === "pickup" || item.applies_to === "travel_fee") {
+                                    itemName = booking.type === "in home" ? "Home Service" : "Pickup/Delivery";
+                                  }
+                                  if (!itemName) {
+                                    itemName = item.benefit?.service?.name ?? null;
+                                  }
+                                  const displayLabel = itemName ? `${bLabel}: ${itemName}` : bLabel;
+                                  return (
+                                    <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground">
+                                      <span className="flex items-center gap-1.5 truncate pr-4">
+                                        {item.benefit_type === "quota" ? (
+                                          <span className="shrink-0 rounded bg-blue-100 px-1 py-px text-[9px] font-bold text-blue-700 dark:bg-blue-950/50 dark:text-blue-400">GRATIS</span>
+                                        ) : (
+                                          <span className="shrink-0 rounded bg-green-100 px-1 py-px text-[9px] font-bold text-green-700 dark:bg-green-950/50 dark:text-green-400">{item.benefit_value != null ? `${item.benefit_value}%` : "DISC"}</span>
+                                        )}
+                                        {displayLabel}
+                                      </span>
+                                      <span className="shrink-0">- {formatPrice(item.amount_deducted)}</span>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                             {!loadingPriceApply && !priceApplyResult && benefitDiscount > 0 && pricePreviewData?.pricing?.available_benefits && (
                               <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
                                 {pricePreviewData.pricing.available_benefits
                                   .filter((b: any) => editBenefitIds.includes(b._id) && b.can_apply && (b.amount_discount ?? 0) > 0)
-                                  .map((b: any) => (
-                                    <div key={b._id} className="flex items-center justify-between text-xs text-muted-foreground">
-                                      <span className="flex items-center gap-1.5 truncate pr-4">
-                                        {b.type === "quota" ? (
-                                          <span className="shrink-0 rounded bg-blue-100 px-1 py-px text-[9px] font-bold text-blue-700 dark:bg-blue-950/50 dark:text-blue-400">GRATIS</span>
-                                        ) : (
-                                          <span className="shrink-0 rounded bg-green-100 px-1 py-px text-[9px] font-bold text-green-700 dark:bg-green-950/50 dark:text-green-400">{b.value != null ? `${b.value}%` : "DISC"}</span>
-                                        )}
-                                        {b.label || b.description || b.applies_to}
-                                      </span>
-                                      <span className="shrink-0">- {formatPrice(b.amount_discount)}</span>
-                                    </div>
-                                  ))}
+                                  .map((b: any) => {
+                                    const bLabel = b.label || b.description || b.applies_to;
+                                    let itemName: string | null = null;
+                                    if (b.applies_to === "service") {
+                                      itemName = pricePreviewData?.pricing_breakdown?.service?.name
+                                        ?? b.service?.name ?? null;
+                                    } else if (b.applies_to === "addon") {
+                                      const addonMatch = pricePreviewData?.pricing_breakdown?.addons?.find(
+                                        (a: any) => a._id === b.service_id
+                                      ) ?? pricePreviewData?.pricing?.addon_prices?.find(
+                                        (a: any) => a._id === b.service_id
+                                      );
+                                      itemName = addonMatch?.name ?? b.service?.name ?? null;
+                                    } else if (b.applies_to === "pick_up" || b.applies_to === "pickup" || b.applies_to === "travel_fee") {
+                                      itemName = booking.type === "in home" ? "Home Service" : "Pickup/Delivery";
+                                    }
+                                    if (!itemName) {
+                                      itemName = b.service?.name ?? null;
+                                    }
+                                    const displayLabel = itemName ? `${bLabel}: ${itemName}` : bLabel;
+                                    return (
+                                      <div key={b._id} className="flex items-center justify-between text-xs text-muted-foreground">
+                                        <span className="flex items-center gap-1.5 truncate pr-4">
+                                          {b.type === "quota" ? (
+                                            <span className="shrink-0 rounded bg-blue-100 px-1 py-px text-[9px] font-bold text-blue-700 dark:bg-blue-950/50 dark:text-blue-400">GRATIS</span>
+                                          ) : (
+                                            <span className="shrink-0 rounded bg-green-100 px-1 py-px text-[9px] font-bold text-green-700 dark:bg-green-950/50 dark:text-green-400">{b.value != null ? `${b.value}%` : "DISC"}</span>
+                                          )}
+                                          {displayLabel}
+                                        </span>
+                                        <span className="shrink-0">- {formatPrice(b.amount_discount)}</span>
+                                      </div>
+                                    );
+                                  })}
                               </div>
                             )}
                           </div>
@@ -1683,10 +1725,10 @@ export default function BookingDetailPage({
                     </div>
                   );
                 })}
-                {/* Pickup fee row */}
-                {(() => {
-                  const pickupFee = booking.pickup_fee ?? (booking.pick_up ? booking.travel_fee : 0);
-                  if (!booking.pick_up || pickupFee <= 0) return null;
+                {/* Pickup & Delivery fee row (combined) */}
+                {(booking.pick_up || booking.delivery) && (() => {
+                  const tFeeBase = booking.edited_travel_fee ?? booking.travel_fee ?? ((booking.pickup_fee ?? 0) + (booking.delivery_fee ?? 0));
+                  if (tFeeBase <= 0) return null;
                   const b = booking.applied_benefits?.find(
                     (ab) =>
                       ab.applies_to === "pick_up" ||
@@ -1694,21 +1736,21 @@ export default function BookingDetailPage({
                       ab.applies_to === "pickup",
                   );
                   const isQuota = b?.benefit_type === "quota";
-                  // For pickup, use edited_travel_fee if available (covers backward compat)
-                  const feeBase = booking.edited_travel_fee ?? pickupFee;
                   const feeItemDisc = booking.edited_travel_fee_discount ?? 0;
-                  const feeEffective = Math.max(0, feeBase - feeItemDisc);
+                  const feeEffective = Math.max(0, tFeeBase - feeItemDisc);
                   const hasItemDisc = feeItemDisc > 0;
-                  // For pickup-only benefit, split deduction proportionally
-                  const pickupBenefitDeduction = b ? (booking.delivery
-                    ? Math.round(b.amount_deducted / 2)
-                    : b.amount_deducted) : 0;
+                  const benefitDeduction = b ? b.amount_deducted : 0;
+                  const label = booking.pick_up && booking.delivery
+                    ? "Biaya Pickup & Delivery"
+                    : booking.delivery
+                      ? "Biaya Delivery"
+                      : "Biaya Pickup";
                   return (
                     <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
                       <div className="flex items-center gap-2">
                         <span className="flex items-center gap-1.5 text-muted-foreground">
                           <Truck className="h-3.5 w-3.5" />
-                          Biaya Pickup
+                          {label}
                         </span>
                         {booking.edited_travel_fee != null && (
                           <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
@@ -1728,59 +1770,20 @@ export default function BookingDetailPage({
                       </div>
                       {(hasItemDisc || b) ? (
                         <div className="flex flex-col items-end gap-0.5">
-                          <span className="text-xs line-through text-muted-foreground">{formatPrice(feeBase)}</span>
+                          <span className="text-xs line-through text-muted-foreground">{formatPrice(tFeeBase)}</span>
                           {hasItemDisc && b ? (
                             <>
                               <span className="text-xs line-through text-muted-foreground">{formatPrice(feeEffective)}</span>
-                              <span className="font-semibold text-primary">{isQuota ? "Gratis" : formatPrice(Math.max(0, feeEffective - pickupBenefitDeduction))}</span>
+                              <span className="font-semibold text-primary">{isQuota ? "Gratis" : formatPrice(Math.max(0, feeEffective - benefitDeduction))}</span>
                             </>
                           ) : hasItemDisc ? (
                             <span className="font-semibold text-foreground">{formatPrice(feeEffective)}</span>
                           ) : (
-                            <span className="font-semibold text-primary">{isQuota ? "Gratis" : formatPrice(Math.max(0, feeEffective - pickupBenefitDeduction))}</span>
+                            <span className="font-semibold text-primary">{isQuota ? "Gratis" : formatPrice(Math.max(0, feeEffective - benefitDeduction))}</span>
                           )}
                         </div>
                       ) : (
-                        <span className="font-medium">{formatPrice(feeBase)}</span>
-                      )}
-                    </div>
-                  );
-                })()}
-                {/* Delivery fee row */}
-                {(() => {
-                  const deliveryFee = booking.delivery_fee ?? 0;
-                  if (!booking.delivery || deliveryFee <= 0) return null;
-                  const b = booking.applied_benefits?.find(
-                    (ab) =>
-                      ab.applies_to === "pick_up" ||
-                      ab.applies_to === "travel_fee" ||
-                      ab.applies_to === "pickup",
-                  );
-                  const isQuota = b?.benefit_type === "quota";
-                  // For delivery, benefit deduction is the other half if both pickup+delivery
-                  const deliveryBenefitDeduction = b ? (booking.pick_up
-                    ? b.amount_deducted - Math.round(b.amount_deducted / 2)
-                    : b.amount_deducted) : 0;
-                  return (
-                    <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
-                      <div className="flex items-center gap-2">
-                        <span className="flex items-center gap-1.5 text-muted-foreground">
-                          <Truck className="h-3.5 w-3.5" />
-                          Biaya Delivery
-                        </span>
-                        {b && (
-                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isQuota ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400" : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"}`}>
-                            {isQuota ? "Gratis" : b.benefit_value != null ? `-${b.benefit_value}%` : "Diskon"}
-                          </span>
-                        )}
-                      </div>
-                      {b ? (
-                        <div className="flex flex-col items-end gap-0.5">
-                          <span className="text-xs line-through text-muted-foreground">{formatPrice(deliveryFee)}</span>
-                          <span className="font-semibold text-primary">{isQuota ? "Gratis" : formatPrice(Math.max(0, deliveryFee - deliveryBenefitDeduction))}</span>
-                        </div>
-                      ) : (
-                        <span className="font-medium">{formatPrice(deliveryFee)}</span>
+                        <span className="font-medium">{formatPrice(tFeeBase)}</span>
                       )}
                     </div>
                   );
@@ -1904,13 +1907,13 @@ export default function BookingDetailPage({
                           </div>
                         </div>
                       )}
-                      {/* Diskon Member */}
+                      {/* Diskon Membership */}
                       {totalMemberDiscount > 0 && (
                         <div className="flex flex-col border-t border-primary/20 bg-primary/5">
                           <div className="flex items-center justify-between px-4 py-2.5 text-sm">
                             <span className="flex items-center gap-1.5 font-medium text-primary">
                               <Gift className="h-3.5 w-3.5" />
-                              Diskon Member
+                              Diskon Membership
                             </span>
                             <span className="font-semibold text-primary">
                               - {formatPrice(totalMemberDiscount)}
@@ -1918,21 +1921,45 @@ export default function BookingDetailPage({
                           </div>
                           {booking.applied_benefits?.length > 0 && (
                             <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
-                              {booking.applied_benefits.map((ab, i) => (
-                                <div
-                                  key={i}
-                                  className="flex items-center justify-between text-xs text-muted-foreground"
-                                >
-                                  <span className="truncate pr-4">
-                                    {ab.benefit?.label ||
-                                      ab.description ||
-                                      ab.applies_to}
-                                  </span>
-                                  <span className="shrink-0">
-                                    - {formatPrice(ab.amount_deducted)}
-                                  </span>
-                                </div>
-                              ))}
+                              {booking.applied_benefits.map((ab, i) => {
+                                const benefitLabel = ab.benefit?.label || ab.description || ab.applies_to;
+                                let serviceName: string | null = null;
+                                if (ab.applies_to === "service") {
+                                  serviceName = booking.service_snapshot?.name
+                                    ?? ab.benefit?.service?.name
+                                    ?? null;
+                                } else if (ab.applies_to === "addon") {
+                                  if (ab.service_id) {
+                                    const addon = booking.service_snapshot?.addons?.find(
+                                      (a) => a._id === ab.service_id
+                                    );
+                                    serviceName = addon?.name ?? ab.benefit?.service?.name ?? null;
+                                  } else {
+                                    serviceName = ab.benefit?.service?.name ?? null;
+                                  }
+                                } else if (ab.applies_to === "pick_up" || ab.applies_to === "pickup" || ab.applies_to === "travel_fee") {
+                                  serviceName = booking.type === "in home" ? "Home Service" : "Pickup/Delivery";
+                                }
+                                // Fallback: use benefit's service name or translated applies_to
+                                if (!serviceName) {
+                                  serviceName = ab.benefit?.service?.name
+                                    ?? (ab.applies_to === "service" ? "Service" : ab.applies_to === "addon" ? "Addon" : null);
+                                }
+                                const displayName = serviceName ? `${benefitLabel}: ${serviceName}` : benefitLabel;
+                                return (
+                                  <div
+                                    key={i}
+                                    className="flex items-center justify-between text-xs text-muted-foreground"
+                                  >
+                                    <span className="truncate pr-4">
+                                      {displayName}
+                                    </span>
+                                    <span className="shrink-0">
+                                      - {formatPrice(ab.amount_deducted)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
