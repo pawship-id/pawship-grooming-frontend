@@ -125,6 +125,21 @@ export interface AdminAppliedBenefit {
   applied_at: string;
 }
 
+// ── Applied promotion (saved on booking) ─────────────────────────────────────
+
+export interface AdminAppliedPromotion {
+  promotion_id: string;
+  code: string;
+  name: string;
+  applies_to: string;
+  discount_type: string;
+  value: number;
+  base_price: number;
+  amount_deducted: number;
+  service_id: string | null;
+  applied_at: string;
+}
+
 // ── Main booking shape ───────────────────────────────────────────────────────
 
 export interface AdminBooking {
@@ -141,6 +156,8 @@ export interface AdminBooking {
   booking_status: string;
   status_logs: StatusLog[];
   service_addon_ids: string[];
+  pickup_fee: number;
+  delivery_fee: number;
   travel_fee: number;
   sub_total_service: number;
   original_total_price: number;
@@ -150,6 +167,8 @@ export interface AdminBooking {
   delivery: boolean;
   applied_benefits: AdminAppliedBenefit[];
   selected_benefit_ids: string[];
+  applied_promotions: AdminAppliedPromotion[];
+  selected_promotion_ids: string[];
   discount_ids: string[];
   sessions: BookingSession[];
   media?: SessionMedia[];
@@ -213,6 +232,23 @@ export interface BookingPreviewBenefit {
   description: string;
 }
 
+// ── Booking preview promotion ────────────────────────────────────────────────
+
+export interface BookingPreviewPromotion {
+  _id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  applies_to: string;
+  service_id: string | null;
+  service_name: string | null;
+  discount_type: string;
+  value: number;
+  is_stackable: boolean;
+  is_available_to_membership: boolean;
+  amount_discount: number;
+}
+
 export interface BookingPreviewResult {
   pet_id: string;
   pet_name: string;
@@ -224,6 +260,7 @@ export interface BookingPreviewResult {
     subtotal_before_benefits: number;
     has_active_membership: boolean;
     available_benefits: BookingPreviewBenefit[];
+    available_promotions: BookingPreviewPromotion[];
     estimated_total_discount: number;
     estimated_final_price: number;
   };
@@ -253,6 +290,7 @@ export interface ApplyBenefitBreakdownItem {
   base_price: number;
   amount_deducted: number;
   description: string | null;
+  service_id: string | null;
   applied_at: string;
 }
 
@@ -286,6 +324,7 @@ export interface CreateBookingPayload {
   delivery?: boolean;
   discount_ids?: string[];
   selected_benefit_ids?: string[];
+  selected_promotion_ids?: string[];
   referal_code?: string;
   note?: string;
   payment_method?: string;
@@ -304,6 +343,7 @@ export interface UpdateBookingPricingPayload {
   travel_fee_discount?: number;
   addon_prices?: { addon_id: string; price?: number; discount?: number }[];
   selected_benefit_ids?: string[];
+  selected_promotion_ids?: string[];
 }
 
 export interface UpdateSessionPayload {
@@ -386,6 +426,7 @@ export async function getBookingPreview(payload: {
   delivery?: boolean;
   store_id?: string;
   customer_id?: string;
+  exclude_booking_id?: string;
 }) {
   return apiAuthRequest<{ message: string } & BookingPreviewResult>(
     "/bookings/preview",
@@ -406,6 +447,7 @@ export async function applyBenefitPreview(payload: {
   booking_date?: string;
   pick_up?: boolean;
   delivery?: boolean;
+  exclude_booking_id?: string;
 }) {
   return apiAuthRequest<{ message: string } & ApplyBenefitPreviewResult>(
     "/bookings/public/apply-benefit",
@@ -416,8 +458,57 @@ export async function applyBenefitPreview(payload: {
   );
 }
 
+// ── Apply promotion preview ──────────────────────────────────────────────────
+
+export interface ApplyPromotionPreviewResult {
+  applied_promotions: {
+    promotion_id: string;
+    code: string;
+    name: string;
+    applies_to: string;
+    discount_type: string;
+    value: number;
+    amount_deducted: number;
+    applied_at: string;
+  }[];
+  total_discount: number;
+  breakdown: {
+    promotion_id: string;
+    code: string;
+    name: string;
+    applies_to: string;
+    discount_type: string;
+    value: number;
+    base_price: number;
+    amount_deducted: number;
+    service_id: string | null;
+    applied_at: string;
+  }[];
+}
+
+export async function applyPromotionPreview(payload: {
+  selected_promotion_ids: string[];
+  service_id: string;
+  addon_ids?: string[];
+  original_service_price?: number;
+  travel_fee?: number;
+  grand_total?: number;
+  pick_up?: boolean;
+  delivery?: boolean;
+  has_active_membership?: boolean;
+  addon_prices?: { _id: string; name: string; price: number }[];
+}) {
+  return apiAuthRequest<{ message: string } & ApplyPromotionPreviewResult>(
+    "/bookings/public/apply-promotion",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
 export async function createAdminBooking(payload: CreateBookingPayload) {
-  return apiAuthRequest<{ message: string }>("/bookings", {
+  return apiAuthRequest<{ message: string; _id?: string }>("/bookings", {
     method: "POST",
     body: JSON.stringify(payload),
   });

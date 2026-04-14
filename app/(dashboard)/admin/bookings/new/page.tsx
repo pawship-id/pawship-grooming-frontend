@@ -23,6 +23,7 @@ import {
   Sparkles,
   Gift,
   Truck,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,11 +66,14 @@ import {
   createAdminBooking,
   getBookingPreview,
   applyBenefitPreview,
+  applyPromotionPreview,
 } from "@/lib/api/bookings";
 import type {
   BookingPreviewResult,
   BookingPreviewBenefit,
+  BookingPreviewPromotion,
   ApplyBenefitPreviewResult,
+  ApplyPromotionPreviewResult,
 } from "@/lib/api/bookings";
 
 const DEFAULT_FORM = {
@@ -219,6 +223,13 @@ export default function NewBookingPage() {
   const [applyBenefitResult, setApplyBenefitResult] =
     useState<ApplyBenefitPreviewResult | null>(null);
   const [loadingApplyBenefit, setLoadingApplyBenefit] = useState(false);
+
+  const [selectedPromotionIds, setSelectedPromotionIds] = useState<string[]>(
+    [],
+  );
+  const [applyPromotionResult, setApplyPromotionResult] =
+    useState<ApplyPromotionPreviewResult | null>(null);
+  const [loadingApplyPromotion, setLoadingApplyPromotion] = useState(false);
 
   const [loadingInit, setLoadingInit] = useState(true);
   const [loadingStore, setLoadingStore] = useState(false);
@@ -611,6 +622,61 @@ export default function NewBookingPage() {
     isDelivery,
   ]);
 
+  // ── Apply promotion: auto-fetch whenever promotion selection changes ──
+  useEffect(() => {
+    if (!form.service_id || !previewData) return;
+    if (selectedPromotionIds.length === 0) {
+      setApplyPromotionResult(null);
+      setLoadingApplyPromotion(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingApplyPromotion(true);
+
+    const isInHomeService = form.type === "in home";
+    const needsPickupDelivery = !isInHomeService && (isPickup || isDelivery);
+
+    applyPromotionPreview({
+      selected_promotion_ids: selectedPromotionIds,
+      service_id: form.service_id,
+      addon_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
+      original_service_price:
+        previewData.pricing.original_service_price,
+      travel_fee: previewData.pricing_breakdown.travel_fee ?? 0,
+      grand_total: previewData.pricing_breakdown.grand_total,
+      pick_up: needsPickupDelivery ? isPickup : undefined,
+      delivery: needsPickupDelivery ? isDelivery : undefined,
+      has_active_membership: previewData.pricing.has_active_membership,
+      addon_prices: previewData.pricing.addon_prices,
+    })
+      .then((res) => {
+        if (!cancelled) setApplyPromotionResult(res);
+      })
+      .catch(() => {
+        if (!cancelled) setApplyPromotionResult(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingApplyPromotion(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    selectedPromotionIds,
+    form.service_id,
+    form.type,
+    selectedAddonIds,
+    isPickup,
+    isDelivery,
+    previewData,
+  ]);
+
+  // Reset promotion selection when preview data changes (service/addon changed)
+  useEffect(() => {
+    setSelectedPromotionIds([]);
+    setApplyPromotionResult(null);
+  }, [form.service_id, selectedAddonIds.length]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!step3Done) {
@@ -622,7 +688,7 @@ export default function NewBookingPage() {
     try {
       const isInHomeService = form.type === "in home";
 
-      await createAdminBooking({
+      const result = await createAdminBooking({
         service_type_id: form.service_type_id,
         customer_id: form.customer_id,
         pet_id: form.pet_id,
@@ -638,6 +704,8 @@ export default function NewBookingPage() {
         delivery: !isInHomeService && isDelivery ? true : undefined,
         selected_benefit_ids:
           selectedBenefitIds.length > 0 ? selectedBenefitIds : undefined,
+        selected_promotion_ids:
+          selectedPromotionIds.length > 0 ? selectedPromotionIds : undefined,
         referal_code: form.referal_code || undefined,
         payment_method:
           form.payment_method === "other"
@@ -646,7 +714,11 @@ export default function NewBookingPage() {
         note: form.note || undefined,
       });
       toast.success("Booking berhasil dibuat");
-      router.push("/admin/bookings");
+      router.push(
+        result?._id
+          ? `/admin/bookings/${result._id}`
+          : "/admin/bookings",
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal membuat booking");
     } finally {
@@ -1536,10 +1608,115 @@ export default function NewBookingPage() {
                 {!loadingPreview &&
                   !previewData &&
                   (previewError ? (
-                    previewError.toLowerCase().includes("location") ||
-                    previewError.toLowerCase().includes("latitude") ||
-                    previewError.toLowerCase().includes("longitude") ||
-                    previewError.toLowerCase().includes("alamat") ? (
+                    // Store location not configured (e.g. "Store location not properly configured")
+                    previewError.toLowerCase().includes("store location") ? (
+                      <div className="flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 dark:border-red-700 dark:bg-red-950/30">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+                        <div className="flex flex-col gap-2">
+                          <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                            Lokasi store belum dikonfigurasi
+                          </p>
+                          <p className="text-xs text-red-700 dark:text-red-400">
+                            Store ini belum mengatur koordinat lokasi
+                            (latitude/longitude). Silakan lengkapi lokasi store
+                            terlebih dahulu agar layanan pickup/delivery dan
+                            home service dapat dihitung.
+                          </p>
+                          <Link
+                            href="/admin/stores"
+                            className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-lg bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800 transition-colors hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900"
+                          >
+                            <MapPin className="h-3 w-3" />
+                            Atur lokasi store
+                          </Link>
+                        </div>
+                      </div>
+                    ) : // Store has no zones configured (e.g. "Store has no pickup/delivery zones configured")
+                    previewError.toLowerCase().includes("store has no") &&
+                      previewError.toLowerCase().includes("zone") ? (
+                      <div className="flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 dark:border-red-700 dark:bg-red-950/30">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+                        <div className="flex flex-col gap-2">
+                          <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                            {previewError
+                              .toLowerCase()
+                              .includes("home service")
+                              ? "Zona home service belum diatur"
+                              : "Zona pickup/delivery belum diatur"}
+                          </p>
+                          <p className="text-xs text-red-700 dark:text-red-400">
+                            {previewError
+                              .toLowerCase()
+                              .includes("home service")
+                              ? "Store ini belum memiliki zona home service. Silakan tambahkan zona home service pada pengaturan store."
+                              : "Store ini belum memiliki zona pickup/delivery. Silakan tambahkan zona pickup/delivery pada pengaturan store."}
+                          </p>
+                          <Link
+                            href="/admin/stores"
+                            className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-lg bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800 transition-colors hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900"
+                          >
+                            <AlertTriangle className="h-3 w-3" />
+                            Atur zona store
+                          </Link>
+                        </div>
+                      </div>
+                    ) : // Customer outside all zones (e.g. "Customer location is outside all ... zones. Distance: 5.23km")
+                    // Must come BEFORE "customer + location" check since it also contains those words
+                    previewError.toLowerCase().includes("outside") ||
+                      (previewError.toLowerCase().includes("zone") &&
+                        previewError.toLowerCase().includes("distance")) ? (
+                      (() => {
+                        // Extract distance from error like "Distance: 5.23km"
+                        const distMatch = previewError.match(
+                          /distance:\s*([\d.]+)\s*km/i,
+                        );
+                        const distKm = distMatch ? distMatch[1] : null;
+                        const isHomeService = previewError
+                          .toLowerCase()
+                          .includes("home service");
+                        return (
+                          <div className="flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 dark:border-red-700 dark:bg-red-950/30">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+                            <div className="flex flex-col gap-2">
+                              <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                                Lokasi customer di luar jangkauan zona
+                              </p>
+                              <p className="text-xs text-red-700 dark:text-red-400">
+                                Lokasi customer berada di luar radius maksimal
+                                zona{" "}
+                                {isHomeService
+                                  ? "home service"
+                                  : "pickup/delivery"}{" "}
+                                yang tersedia di store ini.
+                                {distKm && (
+                                  <>
+                                    {" "}
+                                    Jarak customer ke store:{" "}
+                                    <strong>{distKm} km</strong>.
+                                  </>
+                                )}
+                              </p>
+                              <p className="text-xs text-red-600 dark:text-red-400">
+                                Silakan tambahkan zona dengan radius yang lebih
+                                besar pada pengaturan store, atau pilih store
+                                lain yang lebih dekat dengan lokasi customer.
+                              </p>
+                              <Link
+                                href="/admin/stores"
+                                className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-lg bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800 transition-colors hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900"
+                              >
+                                <MapPin className="h-3 w-3" />
+                                Atur zona store
+                              </Link>
+                            </div>
+                          </div>
+                        );
+                      })()
+                    ) : // Customer location missing (e.g. "Customer must have a location...")
+                    previewError.toLowerCase().includes("customer") &&
+                      (previewError.toLowerCase().includes("location") ||
+                        previewError.toLowerCase().includes("latitude") ||
+                        previewError.toLowerCase().includes("longitude")) ? (
                       <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-700 dark:bg-amber-950/30">
                         <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                         <div className="flex flex-col gap-2">
@@ -1562,26 +1739,34 @@ export default function NewBookingPage() {
                           )}
                         </div>
                       </div>
-                    ) : previewError.toLowerCase().includes("zone") ||
-                      previewError.toLowerCase().includes("zona") ||
-                      previewError.toLowerCase().includes("outside") ||
-                      previewError.toLowerCase().includes("distance") ? (
+                    ) : // Fallback: generic location/alamat errors
+                    previewError.toLowerCase().includes("location") ||
+                      previewError.toLowerCase().includes("latitude") ||
+                      previewError.toLowerCase().includes("longitude") ||
+                      previewError.toLowerCase().includes("alamat") ? (
+                      <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-700 dark:bg-amber-950/30">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                        <div className="flex flex-col gap-2">
+                          <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                            Data lokasi belum lengkap
+                          </p>
+                          <p className="text-xs text-amber-700 dark:text-amber-400">
+                            {previewError}
+                          </p>
+                        </div>
+                      </div>
+                    ) : // Other zone/zona errors
+                    previewError.toLowerCase().includes("zone") ||
+                      previewError.toLowerCase().includes("zona") ? (
                       <div className="flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 dark:border-red-700 dark:bg-red-950/30">
                         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
                         <div className="flex flex-col gap-2">
                           <p className="text-sm font-semibold text-red-800 dark:text-red-300">
-                            Zona tidak ditemukan
+                            Masalah zona layanan
                           </p>
                           <p className="text-xs text-red-700 dark:text-red-400">
-                            Lokasi customer berada di luar jangkauan zona
-                            layanan yang tersedia di store ini. {previewError}
+                            {previewError}
                           </p>
-                          <div className="mt-1 rounded-lg bg-red-100 px-2.5 py-2 dark:bg-red-900/50">
-                            <p className="text-xs font-medium text-red-800 dark:text-red-300">
-                              Silakan hubungi admin di nomor{" "}
-                              <strong>12345</strong> untuk bantuan lebih lanjut.
-                            </p>
-                          </div>
                         </div>
                       </div>
                     ) : (
@@ -1598,11 +1783,346 @@ export default function NewBookingPage() {
 
                 {!loadingPreview && previewData && (
                   <div className="flex flex-col gap-5">
+                    {/* Benefit selection */}
+                    {previewData.pricing.has_active_membership &&
+                      previewData.pricing.available_benefits.length > 0 && (
+                        <div className="flex flex-col gap-2.5">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-primary" />
+                            <p className="text-sm font-semibold text-foreground">
+                              Benefit Membership
+                            </p>
+                            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                              {
+                                previewData.pricing.available_benefits.filter(
+                                  (b) => b.can_apply,
+                                ).length
+                              }{" "}
+                              tersedia
+                            </span>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            {previewData.pricing.available_benefits.map(
+                              (benefit) => {
+                                const selected = selectedBenefitIds.includes(
+                                  benefit._id,
+                                );
+                                const canApply = benefit.can_apply;
+
+                                // Determine if this discount is blocked by an already-selected quota on the same target
+                                const blockedByQuota =
+                                  canApply &&
+                                  benefit.type === "discount" &&
+                                  (() => {
+                                    const available =
+                                      previewData.pricing.available_benefits;
+                                    if (benefit.applies_to === "service") {
+                                      const discountTarget =
+                                        benefit.service_id || form.service_id;
+                                      return available.some(
+                                        (x: any) =>
+                                          selectedBenefitIds.includes(x._id) &&
+                                          x.type === "quota" &&
+                                          x.applies_to === "service" &&
+                                          (x.service_id === discountTarget ||
+                                            !x.service_id),
+                                      );
+                                    }
+                                    if (benefit.applies_to === "addon") {
+                                      const selectedQuotas = available.filter(
+                                        (x: any) =>
+                                          selectedBenefitIds.includes(x._id) &&
+                                          x.type === "quota" &&
+                                          x.applies_to === "addon",
+                                      );
+                                      if (benefit.service_id) {
+                                        // specific addon discount: blocked if its addon is covered by any quota
+                                        return selectedQuotas.some(
+                                          (x: any) =>
+                                            !x.service_id ||
+                                            x.service_id === benefit.service_id,
+                                        );
+                                      } else {
+                                        // null-service_id discount: blocked only when ALL selected addons are already quota-covered
+                                        if (selectedAddonIds.length === 0)
+                                          return false;
+                                        const hasAllCoverQuota =
+                                          selectedQuotas.some(
+                                            (x: any) => !x.service_id,
+                                          );
+                                        if (hasAllCoverQuota) return true;
+                                        const coveredIds = new Set(
+                                          selectedQuotas
+                                            .filter((x: any) => x.service_id)
+                                            .map((x: any) => x.service_id),
+                                        );
+                                        return selectedAddonIds.every((id) =>
+                                          coveredIds.has(id),
+                                        );
+                                      }
+                                    }
+                                    return false;
+                                  })();
+
+                                const isDisabled = !canApply || blockedByQuota;
+                                return (
+                                  <label
+                                    key={benefit._id}
+                                    htmlFor={`benefit-${benefit._id}`}
+                                    className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
+                                      isDisabled
+                                        ? "cursor-not-allowed border-border/30 bg-muted/20 opacity-50"
+                                        : selected
+                                          ? "border-primary bg-primary/5"
+                                          : "border-border bg-card hover:border-primary/40"
+                                    }`}
+                                  >
+                                    <Checkbox
+                                      id={`benefit-${benefit._id}`}
+                                      checked={selected}
+                                      disabled={isDisabled}
+                                      onCheckedChange={() =>
+                                        !isDisabled &&
+                                        toggleBenefit(benefit._id)
+                                      }
+                                      className="mt-0.5 shrink-0"
+                                    />
+                                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium text-foreground">
+                                          {benefit.label || benefit.description}
+                                        </span>
+                                        <span
+                                          className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                                            benefit.type === "discount"
+                                              ? "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                                              : "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                                          }`}
+                                        >
+                                          {benefit.type === "discount"
+                                            ? `${benefit.value}% off`
+                                            : "Kuota gratis"}
+                                        </span>
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                                        <span>{benefit.description}</span>
+                                        {benefit.remaining !== null && (
+                                          <span
+                                            className={
+                                              benefit.remaining === 0
+                                                ? "text-destructive"
+                                                : ""
+                                            }
+                                          >
+                                            Sisa: {benefit.remaining}/
+                                            {benefit.limit ?? "∞"}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {!canApply && (
+                                        <span className="text-[11px] text-destructive">
+                                          Tidak dapat digunakan saat ini
+                                        </span>
+                                      )}
+                                      {blockedByQuota && (
+                                        <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                                          Tidak dapat digabung — layanan sudah
+                                          gratis dari benefit kuota
+                                        </span>
+                                      )}
+                                    </div>
+                                    {benefit.type === "discount" &&
+                                      canApply &&
+                                      benefit.amount_discount != null &&
+                                      benefit.amount_discount > 0 && (
+                                        <span
+                                          className={`shrink-0 text-sm font-bold ${selected ? "text-primary" : "text-muted-foreground"}`}
+                                        >
+                                          -{" "}
+                                          {formatPrice(benefit.amount_discount)}
+                                        </span>
+                                      )}
+                                  </label>
+                                );
+                              },
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                    {!previewData.pricing.has_active_membership && (
+                      <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+                        <Info className="h-4 w-4 shrink-0" />
+                        <span>
+                          Hewan ini tidak memiliki membership aktif. Tidak ada
+                          benefit yang tersedia.
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Promotion selection */}
+                    {previewData.pricing.available_promotions &&
+                      previewData.pricing.available_promotions.length > 0 && (
+                        <div className="flex flex-col gap-2.5">
+                          <div className="flex items-center gap-2">
+                            <Tag className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                            <p className="text-sm font-semibold text-foreground">
+                              Promosi
+                            </p>
+                            <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/50 dark:text-violet-400">
+                              {
+                                previewData.pricing.available_promotions.length
+                              }{" "}
+                              tersedia
+                            </span>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            {previewData.pricing.available_promotions.map(
+                              (promo) => {
+                                const selected = selectedPromotionIds.includes(
+                                  promo._id,
+                                );
+
+                                // Check stacking: if a non-stackable promo is selected, block others
+                                const hasNonStackableSelected =
+                                  previewData.pricing.available_promotions.some(
+                                    (p) =>
+                                      selectedPromotionIds.includes(p._id) &&
+                                      !p.is_stackable,
+                                  );
+                                const blockedByStacking =
+                                  !selected &&
+                                  hasNonStackableSelected;
+
+                                // Check conflict with benefit: same applies_to + service_id
+                                const blockedByBenefit = (() => {
+                                  if (selectedBenefitIds.length === 0) return false;
+                                  const benefits = previewData.pricing.available_benefits;
+                                  return benefits.some((b) => {
+                                    if (!selectedBenefitIds.includes(b._id)) return false;
+                                    if (b.applies_to !== promo.applies_to) return false;
+                                    const bSid = b.service_id || null;
+                                    const pSid = promo.service_id || null;
+                                    return bSid === pSid;
+                                  });
+                                })();
+
+                                const isDisabled =
+                                  blockedByStacking || blockedByBenefit;
+
+                                return (
+                                  <label
+                                    key={promo._id}
+                                    htmlFor={`promo-${promo._id}`}
+                                    className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
+                                      isDisabled
+                                        ? "cursor-not-allowed border-border/30 bg-muted/20 opacity-50"
+                                        : selected
+                                          ? "border-violet-500 bg-violet-50 dark:bg-violet-950/20"
+                                          : "border-border bg-card hover:border-violet-400"
+                                    }`}
+                                  >
+                                    <Checkbox
+                                      id={`promo-${promo._id}`}
+                                      checked={selected}
+                                      disabled={isDisabled}
+                                      onCheckedChange={() => {
+                                        if (isDisabled) return;
+                                        if (selected) {
+                                          setSelectedPromotionIds((prev) =>
+                                            prev.filter((id) => id !== promo._id),
+                                          );
+                                        } else {
+                                          // If this promo is non-stackable, replace all selections
+                                          if (!promo.is_stackable) {
+                                            setSelectedPromotionIds([promo._id]);
+                                          } else {
+                                            setSelectedPromotionIds((prev) => [
+                                              ...prev,
+                                              promo._id,
+                                            ]);
+                                          }
+                                        }
+                                      }}
+                                      className="mt-0.5 shrink-0"
+                                    />
+                                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium text-foreground">
+                                          {promo.name}
+                                        </span>
+                                        <span className="shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/50 dark:text-violet-400">
+                                          {promo.code}
+                                        </span>
+                                        {promo.discount_type === "percent" ? (
+                                          <span className="shrink-0 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-700 dark:bg-green-950/50 dark:text-green-400">
+                                            {promo.value}% off
+                                          </span>
+                                        ) : (
+                                          <span className="shrink-0 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-700 dark:bg-green-950/50 dark:text-green-400">
+                                            Rp {promo.value.toLocaleString("id-ID")} off
+                                          </span>
+                                        )}
+                                        {!promo.is_stackable && (
+                                          <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
+                                            Non-stackable
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                                        {promo.description && (
+                                          <span>{promo.description}</span>
+                                        )}
+                                        <span className="capitalize">
+                                          Berlaku untuk:{" "}
+                                          {promo.applies_to === "booking"
+                                            ? "Semua"
+                                            : promo.service_name
+                                              ? `${promo.applies_to}: ${promo.service_name}`
+                                              : promo.applies_to === "service"
+                                                ? "Semua Service"
+                                                : promo.applies_to === "addon"
+                                                  ? "Semua Addon"
+                                                  : promo.applies_to === "pickup"
+                                                    ? "Pickup/Delivery"
+                                                    : promo.applies_to}
+                                        </span>
+                                      </div>
+                                      {blockedByStacking && (
+                                        <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                                          Tidak dapat digabung — promo non-stackable sudah dipilih
+                                        </span>
+                                      )}
+                                      {blockedByBenefit && (
+                                        <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                                          Tidak dapat digabung — benefit membership untuk target yang sama sudah dipilih
+                                        </span>
+                                      )}
+                                    </div>
+                                    {promo.amount_discount > 0 && (
+                                      <span
+                                        className={`shrink-0 text-sm font-bold ${selected ? "text-violet-600 dark:text-violet-400" : "text-muted-foreground"}`}
+                                      >
+                                        -{" "}
+                                        {formatPrice(promo.amount_discount)}
+                                      </span>
+                                    )}
+                                  </label>
+                                );
+                              },
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                     {/* Pricing breakdown */}
                     <div className="flex flex-col gap-1.5">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Rincian Harga
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <Receipt className="h-4 w-4 text-primary" />
+                        <p className="text-sm font-bold text-primary">
+                          Rincian Harga
+                        </p>
+                      </div>
                       <div className="overflow-hidden rounded-xl border border-border/50 bg-card">
                         {/* Service row */}
                         {(() => {
@@ -1870,20 +2390,70 @@ export default function NewBookingPage() {
                                 )}
                             </div>
                           )}
-                        {/* Total Akhir — grand_total dikurangi diskon member jika ada */}
+                        {/* Total Akhir — grand_total dikurangi diskon member & promosi */}
+                        {/* Promotion discount row */}
+                        {selectedPromotionIds.length > 0 && (
+                          <div className="border-t border-border/50">
+                            <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                              <span className="text-violet-600 dark:text-violet-400 font-medium">
+                                Diskon Promosi
+                              </span>
+                              {loadingApplyPromotion ? (
+                                <span className="h-4 w-20 animate-pulse rounded bg-violet-200 dark:bg-violet-800" />
+                              ) : applyPromotionResult ? (
+                                <span className="font-semibold text-violet-600 dark:text-violet-400">
+                                  -{" "}
+                                  {formatPrice(
+                                    applyPromotionResult.total_discount,
+                                  )}
+                                </span>
+                              ) : null}
+                            </div>
+                            {/* Breakdown per promotion */}
+                            {!loadingApplyPromotion &&
+                              applyPromotionResult &&
+                              applyPromotionResult.breakdown.length > 0 && (
+                                <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                                  {applyPromotionResult.breakdown.map(
+                                    (item, i) => (
+                                      <div
+                                        key={i}
+                                        className="flex items-center justify-between text-xs text-muted-foreground"
+                                      >
+                                        <span className="truncate pr-4">
+                                          {item.name || item.code || item.applies_to}
+                                        </span>
+                                        <span className="shrink-0">
+                                          -{" "}
+                                          {formatPrice(item.amount_deducted)}
+                                        </span>
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+                              )}
+                          </div>
+                        )}
                         {(() => {
                           const grandTotal =
                             previewData.pricing_breakdown.grand_total;
-                          const hasDiscount =
+                          const benefitDiscount =
                             selectedBenefitIds.length > 0 &&
-                            applyBenefitResult != null &&
-                            applyBenefitResult.total_discount > 0;
-                          const displayTotal = hasDiscount
-                            ? applyBenefitResult!.final_price
-                            : grandTotal;
+                            applyBenefitResult != null
+                              ? applyBenefitResult.total_discount
+                              : 0;
+                          const promoDiscount =
+                            selectedPromotionIds.length > 0 &&
+                            applyPromotionResult != null
+                              ? applyPromotionResult.total_discount
+                              : 0;
+                          const displayTotal =
+                            grandTotal - benefitDiscount - promoDiscount;
                           const showSkeleton =
-                            selectedBenefitIds.length > 0 &&
-                            loadingApplyBenefit;
+                            (selectedBenefitIds.length > 0 &&
+                              loadingApplyBenefit) ||
+                            (selectedPromotionIds.length > 0 &&
+                              loadingApplyPromotion);
                           return (
                             <div className="flex items-center justify-between border-t border-primary/30 bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
                               <span>Total Akhir</span>
@@ -1899,183 +2469,6 @@ export default function NewBookingPage() {
                         })()}
                       </div>
                     </div>
-
-                    {/* Benefit selection */}
-                    {previewData.pricing.has_active_membership &&
-                      previewData.pricing.available_benefits.length > 0 && (
-                        <div className="flex flex-col gap-2.5">
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="h-4 w-4 text-primary" />
-                            <p className="text-sm font-semibold text-foreground">
-                              Benefit Membership
-                            </p>
-                            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-                              {
-                                previewData.pricing.available_benefits.filter(
-                                  (b) => b.can_apply,
-                                ).length
-                              }{" "}
-                              tersedia
-                            </span>
-                          </div>
-                          <div className="flex flex-col gap-2">
-                            {previewData.pricing.available_benefits.map(
-                              (benefit) => {
-                                const selected = selectedBenefitIds.includes(
-                                  benefit._id,
-                                );
-                                const canApply = benefit.can_apply;
-
-                                // Determine if this discount is blocked by an already-selected quota on the same target
-                                const blockedByQuota =
-                                  canApply &&
-                                  benefit.type === "discount" &&
-                                  (() => {
-                                    const available =
-                                      previewData.pricing.available_benefits;
-                                    if (benefit.applies_to === "service") {
-                                      const discountTarget =
-                                        benefit.service_id || form.service_id;
-                                      return available.some(
-                                        (x: any) =>
-                                          selectedBenefitIds.includes(x._id) &&
-                                          x.type === "quota" &&
-                                          x.applies_to === "service" &&
-                                          (x.service_id === discountTarget ||
-                                            !x.service_id),
-                                      );
-                                    }
-                                    if (benefit.applies_to === "addon") {
-                                      const selectedQuotas = available.filter(
-                                        (x: any) =>
-                                          selectedBenefitIds.includes(x._id) &&
-                                          x.type === "quota" &&
-                                          x.applies_to === "addon",
-                                      );
-                                      if (benefit.service_id) {
-                                        // specific addon discount: blocked if its addon is covered by any quota
-                                        return selectedQuotas.some(
-                                          (x: any) =>
-                                            !x.service_id ||
-                                            x.service_id === benefit.service_id,
-                                        );
-                                      } else {
-                                        // null-service_id discount: blocked only when ALL selected addons are already quota-covered
-                                        if (selectedAddonIds.length === 0)
-                                          return false;
-                                        const hasAllCoverQuota =
-                                          selectedQuotas.some(
-                                            (x: any) => !x.service_id,
-                                          );
-                                        if (hasAllCoverQuota) return true;
-                                        const coveredIds = new Set(
-                                          selectedQuotas
-                                            .filter((x: any) => x.service_id)
-                                            .map((x: any) => x.service_id),
-                                        );
-                                        return selectedAddonIds.every((id) =>
-                                          coveredIds.has(id),
-                                        );
-                                      }
-                                    }
-                                    return false;
-                                  })();
-
-                                const isDisabled = !canApply || blockedByQuota;
-                                return (
-                                  <label
-                                    key={benefit._id}
-                                    htmlFor={`benefit-${benefit._id}`}
-                                    className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
-                                      isDisabled
-                                        ? "cursor-not-allowed border-border/30 bg-muted/20 opacity-50"
-                                        : selected
-                                          ? "border-primary bg-primary/5"
-                                          : "border-border bg-card hover:border-primary/40"
-                                    }`}
-                                  >
-                                    <Checkbox
-                                      id={`benefit-${benefit._id}`}
-                                      checked={selected}
-                                      disabled={isDisabled}
-                                      onCheckedChange={() =>
-                                        !isDisabled &&
-                                        toggleBenefit(benefit._id)
-                                      }
-                                      className="mt-0.5 shrink-0"
-                                    />
-                                    <div className="flex min-w-0 flex-1 flex-col gap-1">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium text-foreground">
-                                          {benefit.label || benefit.description}
-                                        </span>
-                                        <span
-                                          className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                            benefit.type === "discount"
-                                              ? "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
-                                              : "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
-                                          }`}
-                                        >
-                                          {benefit.type === "discount"
-                                            ? `${benefit.value}% off`
-                                            : "Kuota gratis"}
-                                        </span>
-                                      </div>
-                                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                                        <span>{benefit.description}</span>
-                                        {benefit.remaining !== null && (
-                                          <span
-                                            className={
-                                              benefit.remaining === 0
-                                                ? "text-destructive"
-                                                : ""
-                                            }
-                                          >
-                                            Sisa: {benefit.remaining}/
-                                            {benefit.limit ?? "∞"}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {!canApply && (
-                                        <span className="text-[11px] text-destructive">
-                                          Tidak dapat digunakan saat ini
-                                        </span>
-                                      )}
-                                      {blockedByQuota && (
-                                        <span className="text-[11px] text-amber-600 dark:text-amber-400">
-                                          Tidak dapat digabung — layanan sudah
-                                          gratis dari benefit kuota
-                                        </span>
-                                      )}
-                                    </div>
-                                    {benefit.type === "discount" &&
-                                      canApply &&
-                                      benefit.amount_discount != null &&
-                                      benefit.amount_discount > 0 && (
-                                        <span
-                                          className={`shrink-0 text-sm font-bold ${selected ? "text-primary" : "text-muted-foreground"}`}
-                                        >
-                                          -{" "}
-                                          {formatPrice(benefit.amount_discount)}
-                                        </span>
-                                      )}
-                                  </label>
-                                );
-                              },
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                    {!previewData.pricing.has_active_membership && (
-                      <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-                        <Info className="h-4 w-4 shrink-0" />
-                        <span>
-                          Hewan ini tidak memiliki membership aktif. Tidak ada
-                          benefit yang tersedia.
-                        </span>
-                      </div>
-                    )}
                   </div>
                 )}
               </CardContent>

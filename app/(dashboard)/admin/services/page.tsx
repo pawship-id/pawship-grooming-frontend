@@ -10,6 +10,7 @@ import {
   ImageIcon,
   X,
   ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +60,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import {
   Sheet,
@@ -82,7 +84,7 @@ import {
   getAdminServices,
   updateAdminService,
 } from "@/lib/api/services";
-import { getOptions, type ApiOption } from "@/lib/api/options";
+import { getOptions, type ApiOption, createOption } from "@/lib/api/options";
 import { getStores, type ApiStore } from "@/lib/api/stores";
 import { uploadFile } from "@/lib/api/upload";
 
@@ -377,6 +379,199 @@ function MultiCheck({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// MultiSelect with Search & Create
+// ─────────────────────────────────────────────────────────────────────────────
+function MultiSelect({
+  items,
+  selected,
+  onChange,
+  placeholder = "Pilih...",
+  onRefresh,
+  category = "session - skill",
+}: {
+  items: { _id: string; name: string }[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+  placeholder?: string;
+  onRefresh?: () => void;
+  category?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+
+  const selectedItems = items.filter((item) => selected.includes(item._id));
+  const displayText =
+    selectedItems.length > 0
+      ? `${selectedItems.length} item dipilih`
+      : placeholder;
+
+  // Filter items by search query (case insensitive)
+  const filteredItems = items.filter((item) =>
+    item.name.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
+  const hasExactMatch = items.some(
+    (item) => item.name.toLowerCase() === searchQuery.toLowerCase(),
+  );
+
+  const handleRemove = (id: string) => {
+    onChange(selected.filter((selectedId) => selectedId !== id));
+  };
+
+  const handleCreateNew = async () => {
+    if (!searchQuery.trim() || hasExactMatch) return;
+
+    setIsCreating(true);
+    try {
+      const result = await createOption({
+        name: searchQuery.trim(),
+        category_options: category as any,
+        is_active: true,
+      });
+
+      toast.success(`"${searchQuery.trim()}" berhasil dibuat dan dipilih`);
+      setSearchQuery("");
+
+      // Auto-select the newly created item
+      if (result.option && result.option._id) {
+        onChange([...selected, result.option._id]);
+      }
+
+      // Refresh the list
+      if (onRefresh) {
+        onRefresh();
+      }
+
+      // Close the dropdown
+      setOpen(false);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Gagal membuat item baru",
+      );
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <DropdownMenu open={open} onOpenChange={setOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            className="w-full justify-between font-normal"
+          >
+            <span className="truncate">{displayText}</span>
+            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className="w-full min-w-[var(--radix-dropdown-menu-trigger-width)] max-h-[300px] p-0">
+          {/* Search Input */}
+          <div className="p-2 border-b">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Cari atau buat baru..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 h-8"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && searchQuery && !hasExactMatch) {
+                    e.preventDefault();
+                    handleCreateNew();
+                  }
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Items List */}
+          <div className="max-h-[200px] overflow-y-auto">
+            {filteredItems.length === 0 && !searchQuery && (
+              <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                Belum ada data
+              </div>
+            )}
+
+            {filteredItems.length === 0 && searchQuery && (
+              <div className="px-2 py-2">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-sm font-normal"
+                  onClick={handleCreateNew}
+                  disabled={isCreating}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  {isCreating ? "Membuat..." : `Buat "${searchQuery}"`}
+                </Button>
+              </div>
+            )}
+
+            {filteredItems.map((item) => (
+              <DropdownMenuCheckboxItem
+                key={item._id}
+                checked={selected.includes(item._id)}
+                onCheckedChange={(checked) => {
+                  onChange(
+                    checked
+                      ? [...selected, item._id]
+                      : selected.filter((id) => id !== item._id),
+                  );
+                }}
+              >
+                {item.name}
+              </DropdownMenuCheckboxItem>
+            ))}
+
+            {/* Create option when there are results but no exact match */}
+            {filteredItems.length > 0 && searchQuery && !hasExactMatch && (
+              <>
+                <DropdownMenuSeparator />
+                <div className="px-2 py-1">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-sm font-normal"
+                    onClick={handleCreateNew}
+                    disabled={isCreating}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    {isCreating ? "Membuat..." : `Buat "${searchQuery}"`}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Selected Items as Badges */}
+      {selectedItems.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {selectedItems.map((item) => (
+            <Badge
+              key={item._id}
+              variant="secondary"
+              className="px-2 py-1 text-xs"
+            >
+              {item.name}
+              <button
+                type="button"
+                onClick={() => handleRemove(item._id)}
+                className="ml-1.5 hover:bg-secondary-foreground/20 rounded-full p-0.5"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Service Type Form
 // ─────────────────────────────────────────────────────────────────────────────
 function StypeFormFields({
@@ -498,10 +693,12 @@ function ServiceFormFields({
   petTypes,
   sizeCategories,
   hairCategories,
+  sessionSkills,
   stores,
   allServices,
   editingServiceId,
   onUploadingChange,
+  onRefreshSessionSkills,
 }: {
   form: ServiceForm;
   setForm: React.Dispatch<React.SetStateAction<ServiceForm>>;
@@ -509,10 +706,12 @@ function ServiceFormFields({
   petTypes: ApiOption[];
   sizeCategories: ApiOption[];
   hairCategories: ApiOption[];
+  sessionSkills: ApiOption[];
   stores: ApiStore[];
   allServices: AdminService[];
   editingServiceId: string | null;
   onUploadingChange?: (uploading: boolean) => void;
+  onRefreshSessionSkills?: () => void;
 }) {
   const [isUploading, setIsUploading] = useState(false);
 
@@ -604,8 +803,9 @@ function ServiceFormFields({
 
   const isAddonType = selectedTypeName.toLowerCase().includes("addon");
 
-  const addonOptions = allServices.filter((s) =>
-    s.service_type?.title?.toLowerCase().includes("addon"),
+  const addonOptions = allServices.filter(
+    (s) =>
+      s.service_type?.title?.toLowerCase().includes("addon") && s.is_active,
   );
 
   return (
@@ -866,11 +1066,15 @@ function ServiceFormFields({
           {/* Sessions */}
           <div className="flex flex-col gap-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Sesi
+              Sesi (Skill)
             </p>
-            <TagInput
-              tags={form.sessions}
-              onChange={(tags) => setForm((p) => ({ ...p, sessions: tags }))}
+            <MultiSelect
+              items={sessionSkills.map((s) => ({ _id: s._id, name: s.name }))}
+              selected={form.sessions}
+              onChange={(ids) => setForm((p) => ({ ...p, sessions: ids }))}
+              placeholder="Pilih sesi skill..."
+              onRefresh={onRefreshSessionSkills}
+              category="session - skill"
             />
           </div>
         </>
@@ -1093,6 +1297,7 @@ export default function ServicesPage() {
   const [petTypes, setPetTypes] = useState<ApiOption[]>([]);
   const [sizeCategories, setSizeCategories] = useState<ApiOption[]>([]);
   const [hairCategories, setHairCategories] = useState<ApiOption[]>([]);
+  const [sessionSkills, setSessionSkills] = useState<ApiOption[]>([]);
   const [stores, setStores] = useState<ApiStore[]>([]);
   const [allServices, setAllServices] = useState<AdminService[]>([]);
 
@@ -1145,21 +1350,40 @@ export default function ServicesPage() {
     serviceTypes.find((t) => t._id === selectedTypeId) ?? null;
 
   // ── Fetch reference data ─────────────────────────────────────────────────
+  const fetchSessionSkills = useCallback(async () => {
+    try {
+      const sessionRes = await getOptions("session - skill");
+      // Filter hanya yang aktif
+      setSessionSkills(
+        (sessionRes.options ?? []).filter((opt) => opt.is_active),
+      );
+    } catch (err) {
+      console.error("Failed to fetch session skills:", err);
+    }
+  }, []);
+
   useEffect(() => {
     Promise.all([
       getOptions("pet type"),
       getOptions("size category"),
       getOptions("hair category"),
-      getStores({ page: 1, limit: 100 }),
+      getStores({ page: 1, limit: 100, is_active: "true" }),
     ])
       .then(([petRes, sizeRes, hairRes, storeRes]) => {
-        setPetTypes(petRes.options ?? []);
-        setSizeCategories(sizeRes.options ?? []);
-        setHairCategories(hairRes.options ?? []);
+        // Filter hanya yang aktif
+        setPetTypes((petRes.options ?? []).filter((opt) => opt.is_active));
+        setSizeCategories(
+          (sizeRes.options ?? []).filter((opt) => opt.is_active),
+        );
+        setHairCategories(
+          (hairRes.options ?? []).filter((opt) => opt.is_active),
+        );
         setStores(storeRes.stores ?? []);
       })
       .catch(() => {});
-  }, []);
+
+    fetchSessionSkills();
+  }, [fetchSessionSkills]);
 
   // ── Fetch service types ──────────────────────────────────────────────────
   const fetchServiceTypes = useCallback(async () => {
@@ -1212,7 +1436,7 @@ export default function ServicesPage() {
 
   // Fetch all services for addon selection (without type filter)
   useEffect(() => {
-    getAdminServices({ page: 1, limit: 200 })
+    getAdminServices({ page: 1, limit: 200, is_active: "true" })
       .then((res) => setAllServices(res.services ?? []))
       .catch(() => {});
   }, []);
@@ -1341,7 +1565,11 @@ export default function ServicesPage() {
         ? form.addon_ids
         : undefined,
     include: form.include.length ? form.include : undefined,
-    sessions: form.sessions.length ? form.sessions : undefined,
+    sessions: form.sessions.length
+      ? form.sessions
+          .map((id) => sessionSkills.find((s) => s._id === id)?.name)
+          .filter((name): name is string => !!name)
+      : undefined,
     image_url: form.image_url ?? undefined,
     public_id: form.public_id ?? undefined,
     show_in_homepage: isAddonType ? false : form.show_in_homepage,
@@ -1421,7 +1649,10 @@ export default function ServicesPage() {
       available_store_ids: svc.avaiable_store?.map((s) => s._id) ?? [],
       addon_ids: svc.addons?.map((a) => a._id) ?? [],
       include: svc.include ?? [],
-      sessions: svc.sessions ?? [],
+      sessions:
+        svc.sessions
+          ?.map((name) => sessionSkills.find((s) => s.name === name)?._id)
+          .filter((id): id is string => !!id) ?? [],
       show_in_homepage: svc.show_in_homepage,
       order: String(svc.order),
       service_location_type:
@@ -2043,10 +2274,12 @@ export default function ServicesPage() {
                   petTypes={petTypes}
                   sizeCategories={sizeCategories}
                   hairCategories={hairCategories}
+                  sessionSkills={sessionSkills}
                   stores={stores}
                   allServices={allServices}
                   editingServiceId={null}
                   onUploadingChange={setIsUploadingCreateService}
+                  onRefreshSessionSkills={fetchSessionSkills}
                 />
               </div>
             </div>
@@ -2091,10 +2324,12 @@ export default function ServicesPage() {
                   petTypes={petTypes}
                   sizeCategories={sizeCategories}
                   hairCategories={hairCategories}
+                  sessionSkills={sessionSkills}
                   stores={stores}
                   allServices={allServices}
                   editingServiceId={editService?._id ?? null}
                   onUploadingChange={setIsUploadingEditService}
+                  onRefreshSessionSkills={fetchSessionSkills}
                 />
               </div>
             </div>
@@ -2444,7 +2679,7 @@ export default function ServicesPage() {
                   <Separator />
                   <div className="flex flex-col gap-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Sesi
+                      Sesi (Skill)
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {viewService.sessions!.map((s, i) => (

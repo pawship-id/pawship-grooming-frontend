@@ -52,7 +52,7 @@ function formatDate(dateStr: string) {
 import type { UserAddress } from "@/lib/api/users"
 
 const LocationMap = dynamic(
-  () => import("@/app/(dashboard)/admin/stores/store-location-map").then((mod) => ({ default: mod.StoreLocationMap })),
+  () => import("@/components/location-map").then((mod) => ({ default: mod.LocationMap })),
   {
     ssr: false,
     loading: () => (
@@ -150,7 +150,7 @@ function EditProfileDialog({
         image_url = uploaded.image_url
         public_id = uploaded.public_id
       }
-      const addresses = form.addresses.map((a, i) => ({ ...a, is_main_address: !!a.is_main_address }))
+      const addresses = form.addresses.map((a) => ({ ...a, is_main_address: !!a.is_main_address, created_by: a.created_by ?? "customer" }))
       const payload: UpdateMyProfilePayload = {
         full_name: form.full_name || undefined,
         gender: (form.gender as "Male" | "Female") || undefined,
@@ -171,7 +171,7 @@ function EditProfileDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Edit Profil</DialogTitle>
         </DialogHeader>
@@ -469,6 +469,9 @@ function EditProfileDialog({
                           <span className="text-xs text-primary font-semibold">Utama</span>
                         )}
                         <span className="text-xs font-medium">{addr.label || "Alamat"}</span>
+                        {addr.created_by === "admin" && (
+                          <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 font-normal">Admin</Badge>
+                        )}
                       </label>
                       <p className="text-xs text-muted-foreground truncate">
                         {[addr.street, addr.district, addr.city, addr.province]
@@ -485,7 +488,7 @@ function EditProfileDialog({
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    {form.addresses.length > 1 && (
+                    {form.addresses.length > 1 && addr.created_by !== "admin" && (
                       <Button
                         type="button"
                         size="icon"
@@ -512,7 +515,7 @@ function EditProfileDialog({
                 ...f,
                 addresses: [
                   ...f.addresses.map(a => ({ ...a, is_main_address: false })),
-                  { is_main_address: f.addresses.length === 0, label: "", street: "", city: "" }
+                  { is_main_address: f.addresses.length === 0, label: "", street: "", city: "", created_by: "customer" as const }
                 ]
               }))
               setEditingAddressIdx(newIdx)

@@ -23,6 +23,7 @@ import {
   Pencil,
   Sparkles,
   Info,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -62,15 +63,18 @@ import {
   getBookingPreview,
   getPetBenefitsSummary,
   applyBenefitPreview,
+  applyPromotionPreview,
   updateBookingPricing,
 } from "@/lib/api/bookings";
-import type { AdminBooking, BookingPreviewResult, ApplyBenefitPreviewResult } from "@/lib/api/bookings";
+import type { AdminBooking, BookingPreviewResult, ApplyBenefitPreviewResult, ApplyPromotionPreviewResult } from "@/lib/api/bookings";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { applyGroomingFrame } from "@/lib/frame-compositor";
 import { getStoreById } from "@/lib/api/stores";
 import { getUsers } from "@/lib/api/users";
 import type { ApiUser } from "@/lib/api/users";
+import { getOptions } from "@/lib/api/options";
+import type { ApiOption } from "@/lib/api/options";
 
 const statusColors: Record<string, string> = {
   requested: "bg-accent/20 text-accent-foreground",
@@ -198,6 +202,7 @@ export default function BookingDetailPage({
   const [rescheduledDate, setRescheduledDate] = useState("");
   const [rescheduledTimeRange, setRescheduledTimeRange] = useState("");
   const [storeSessions, setStoreSessions] = useState<string[]>([]);
+  const [sessionSkillOptions, setSessionSkillOptions] = useState<ApiOption[]>([]);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // Session management state
@@ -223,6 +228,7 @@ export default function BookingDetailPage({
   const [assignGroomerSessionId, setAssignGroomerSessionId] = useState<
     string | null
   >(null);
+  const [assignGroomerSessionType, setAssignGroomerSessionType] = useState("");
   const [assignGroomerValue, setAssignGroomerValue] = useState("");
   const [savingGroomer, setSavingGroomer] = useState(false);
 
@@ -255,15 +261,19 @@ export default function BookingDetailPage({
   const [loadingPricePreview, setLoadingPricePreview] = useState(false);
   const [loadingPriceApply, setLoadingPriceApply] = useState(false);
   const [savingPrice, setSavingPrice] = useState(false);
+  const [editPromotionIds, setEditPromotionIds] = useState<string[]>([]);
+  const [pricePromoResult, setPricePromoResult] = useState<ApplyPromotionPreviewResult | null>(null);
+  const [loadingPricePromo, setLoadingPricePromo] = useState(false);
 
   // ── Price edit: open handler ──────────────────────────────────────────────
   const handleOpenPriceEdit = async () => {
     if (!booking) return;
     setEditBenefitIds(booking.selected_benefit_ids ?? []);
+    setEditPromotionIds(booking.selected_promotion_ids ?? []);
     setEditServicePrice(String(booking.edited_service_price ?? booking.service_snapshot.price ?? ""));
     setEditServiceDiscount(String(booking.edited_service_discount ?? 0));
-    setEditTravelFee(booking.pick_up ? String(booking.edited_travel_fee ?? booking.travel_fee ?? "") : "");
-    setEditTravelFeeDiscount(booking.pick_up ? String(booking.edited_travel_fee_discount ?? 0) : "0");
+    setEditTravelFee((booking.pick_up || booking.delivery) ? String(booking.edited_travel_fee ?? booking.travel_fee ?? "") : "");
+    setEditTravelFeeDiscount((booking.pick_up || booking.delivery) ? String(booking.edited_travel_fee_discount ?? 0) : "0");
     const addonPriceMap: Record<string, string> = {};
     const addonDiscountMap: Record<string, string> = {};
     (booking.service_snapshot.addons ?? []).forEach((addon) => {
@@ -292,10 +302,12 @@ export default function BookingDetailPage({
         pet_id: booking.pet_id,
         service_id: booking.service_snapshot._id!,
         addon_ids: addonIds.length > 0 ? addonIds : undefined,
-        date: new Date().toISOString().split("T")[0],
+        date: booking.date ? new Date(booking.date).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
         pick_up: booking.pick_up || undefined,
-        store_id: booking.pick_up ? booking.store_id : undefined,
-        customer_id: booking.pick_up ? booking.customer_id : undefined,
+        delivery: booking.delivery || undefined,
+        store_id: booking.store_id || undefined,
+        customer_id: booking.customer_id || undefined,
+        exclude_booking_id: id,
       });
       setPricePreviewData(res);
     } catch {
@@ -308,6 +320,7 @@ export default function BookingDetailPage({
           (sum, a) => sum + (a.price ?? 0), 0,
         );
         const allBenefits = (summary.data ?? []).flatMap((m) => m.benefits);
+        const currentBenefitIdsFb = new Set(booking.selected_benefit_ids ?? []);
         const available_benefits = allBenefits
           .filter((b) => {
             if (b.applies_to === "service")
@@ -317,7 +330,7 @@ export default function BookingDetailPage({
                 (booking.service_addon_ids ?? []).length > 0 &&
                 (!b.service_id || addonIdSet.has(b.service_id))
               );
-            if (b.applies_to === "pickup") return booking.pick_up === true;
+            if (b.applies_to === "pickup") return booking.pick_up === true || booking.delivery === true;
             return false;
           })
           .map((b) => {
@@ -341,7 +354,14 @@ export default function BookingDetailPage({
                 ? ((b.value ?? 0) / 100) * discountBase
                 : discountBase
               : 0;
-            return { ...b, description: b.label ?? b.applies_to, amount_discount };
+            // Override can_apply for benefits already used by this booking
+            const effectiveCanApply = b.can_apply || currentBenefitIdsFb.has(b._id);
+            const effectiveAmount = effectiveCanApply
+              ? b.type === "discount"
+                ? ((b.value ?? 0) / 100) * discountBase
+                : discountBase
+              : 0;
+            return { ...b, can_apply: effectiveCanApply, description: b.label ?? b.applies_to, amount_discount: effectiveAmount };
           });
         setPricePreviewData({
           pet_id: booking.pet_id,
@@ -402,6 +422,8 @@ export default function BookingDetailPage({
     setEditAddonPrices({});
     setEditAddonDiscounts({});
     setEditAddonDiscountTypes({});
+    setEditPromotionIds([]);
+    setPricePromoResult(null);
   };
 
   // ── Price edit: benefit toggle (conflict resolution as in new booking) ────
@@ -431,14 +453,14 @@ export default function BookingDetailPage({
         if (!sel || sel.applies_to !== benefit.applies_to) return false;
         if (benefit.type === sel.type) return false;
         if (benefit.applies_to === "service") {
-          const quotaTarget    = (benefit.type === "quota"    ? benefit : sel).service_id || booking?.service_snapshot._id;
+          const quotaTarget = (benefit.type === "quota" ? benefit : sel).service_id || booking?.service_snapshot._id;
           const discountTarget = (benefit.type === "discount" ? benefit : sel).service_id || booking?.service_snapshot._id;
           return quotaTarget === discountTarget;
         }
         if (benefit.applies_to === "addon") {
-          const quotaBenefit    = benefit.type === "quota"    ? benefit : sel;
+          const quotaBenefit = benefit.type === "quota" ? benefit : sel;
           const discountBenefit = benefit.type === "discount" ? benefit : sel;
-          const quotaTarget    = quotaBenefit.service_id;
+          const quotaTarget = quotaBenefit.service_id;
           const discountTarget = discountBenefit.service_id;
           if (quotaTarget && discountTarget) return quotaTarget === discountTarget;
           if (quotaTarget && !discountTarget) {
@@ -471,8 +493,8 @@ export default function BookingDetailPage({
     const svcBase = parseFloat(editServicePrice) || booking.service_snapshot.price || 0;
     const rawSvcDisc = parseFloat(editServiceDiscount) || 0;
     const svcDisc = editServiceDiscountType === "pct" ? Math.min(svcBase, (rawSvcDisc / 100) * svcBase) : Math.min(svcBase, rawSvcDisc);
-    const tFeeBase = booking.pick_up ? (parseFloat(editTravelFee) || booking.travel_fee || 0) : 0;
-    const rawTFeeDisc = booking.pick_up ? (parseFloat(editTravelFeeDiscount) || 0) : 0;
+    const tFeeBase = (booking.pick_up || booking.delivery) ? (parseFloat(editTravelFee) || booking.travel_fee || 0) : 0;
+    const rawTFeeDisc = (booking.pick_up || booking.delivery) ? (parseFloat(editTravelFeeDiscount) || 0) : 0;
     const tFeeDisc = editTravelFeeDiscountType === "pct" ? Math.min(tFeeBase, (rawTFeeDisc / 100) * tFeeBase) : Math.min(tFeeBase, rawTFeeDisc);
     const addonTotal = (booking.service_snapshot.addons ?? []).reduce((sum, addon) => {
       const base = parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0;
@@ -490,16 +512,66 @@ export default function BookingDetailPage({
       selected_benefit_ids: editBenefitIds,
       service_id: booking.service_snapshot._id,
       add_on_ids: (booking.service_addon_ids ?? []).length > 0 ? booking.service_addon_ids : undefined,
-      store_id: booking.pick_up ? booking.store_id : undefined,
+      store_id: booking.store_id || undefined,
       original_total_price: editedSubtotal,
       booking_date: booking.date,
+      pick_up: booking.pick_up || undefined,
+      delivery: booking.delivery || undefined,
+      exclude_booking_id: id,
     })
       .then((res) => { if (!cancelled) setPriceApplyResult(res); })
-      .catch(() => { if (!cancelled) setPriceApplyResult(null); })
+      .catch((err) => { console.error("[applyBenefitPreview] error:", err); if (!cancelled) setPriceApplyResult(null); })
       .finally(() => { if (!cancelled) setLoadingPriceApply(false); });
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editBenefitIds, editServicePrice, editServiceDiscount, editServiceDiscountType, editTravelFee, editTravelFeeDiscount, editTravelFeeDiscountType, editAddonPrices, editAddonDiscounts, editAddonDiscountTypes, editingPrice]);
+
+  // ── Price edit: apply promotion preview ─────────────────────────────────
+  useEffect(() => {
+    if (!editingPrice || !booking || !pricePreviewData) return;
+    if (editPromotionIds.length === 0) {
+      setPricePromoResult(null);
+      setLoadingPricePromo(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingPricePromo(true);
+
+    // Compute original base totals (before admin item discounts) for promo percent calculation
+    const svcBase = parseFloat(editServicePrice) || booking.service_snapshot.price || 0;
+    const tFeeBase = (booking.pick_up || booking.delivery) ? (parseFloat(editTravelFee) || booking.travel_fee || 0) : 0;
+    const addonBaseTotal = (booking.service_snapshot.addons ?? []).reduce((sum, addon) => {
+      const base = parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0;
+      return sum + base;
+    }, 0);
+    // grand_total must be the original price before admin discounts so percent promos work correctly
+    const originalGrandTotal = svcBase + tFeeBase + addonBaseTotal;
+
+    // Build edited addon prices (base prices without discounts) for per-addon promo calculation
+    const editedAddonPrices = (booking.service_snapshot.addons ?? []).map((addon) => ({
+      _id: addon._id!,
+      name: addon.name ?? "",
+      price: parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0,
+    }));
+
+    applyPromotionPreview({
+      selected_promotion_ids: editPromotionIds,
+      service_id: booking.service_snapshot._id,
+      addon_ids: (booking.service_addon_ids ?? []).length > 0 ? booking.service_addon_ids : undefined,
+      original_service_price: svcBase,
+      travel_fee: tFeeBase,
+      grand_total: originalGrandTotal,
+      pick_up: booking.pick_up || undefined,
+      delivery: booking.delivery || undefined,
+      has_active_membership: pricePreviewData.pricing.has_active_membership,
+      addon_prices: editedAddonPrices,
+    })
+      .then((res) => { if (!cancelled) setPricePromoResult(res); })
+      .catch(() => { if (!cancelled) setPricePromoResult(null); })
+      .finally(() => { if (!cancelled) setLoadingPricePromo(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editPromotionIds, editServicePrice, editTravelFee, editAddonPrices, editingPrice, pricePreviewData]);
 
   // ── Price edit: save ──────────────────────────────────────────────────────
   const handleSavePricing = async () => {
@@ -525,10 +597,11 @@ export default function BookingDetailPage({
       });
       await updateBookingPricing(id, {
         selected_benefit_ids: editBenefitIds,
+        selected_promotion_ids: editPromotionIds.length > 0 ? editPromotionIds : undefined,
         service_price: !isNaN(svcPriceNum) ? svcPriceNum : undefined,
         service_discount: svcDiscNominal > 0 ? svcDiscNominal : undefined,
-        travel_fee: booking.pick_up && !isNaN(tFeeNum) ? tFeeNum : undefined,
-        travel_fee_discount: booking.pick_up && tFeeDiscNominal > 0 ? tFeeDiscNominal : undefined,
+        travel_fee: (booking.pick_up || booking.delivery) && !isNaN(tFeeNum) ? tFeeNum : undefined,
+        travel_fee_discount: (booking.pick_up || booking.delivery) && tFeeDiscNominal > 0 ? tFeeDiscNominal : undefined,
         addon_prices: addonPricesPayload.length > 0 ? addonPricesPayload : undefined,
       });
       await refreshBooking();
@@ -545,16 +618,18 @@ export default function BookingDetailPage({
     Promise.all([
       getAdminBookingById(id),
       getUsers({ page: 1, limit: 200, role: "groomer" }),
+      getOptions("session - skill"),
     ])
-      .then(([bookingRes, groomersRes]) => {
+      .then(([bookingRes, groomersRes, optionsRes]) => {
         const b = bookingRes.booking;
         setBooking(b);
         setSelectedStatus("");
         setGroomers(groomersRes.users);
+        setSessionSkillOptions(optionsRes.options.filter((o) => o.is_active));
         if (b.store_id) {
           getStoreById(b.store_id)
             .then((storeRes) => setStoreSessions(storeRes.store.sessions ?? []))
-            .catch(() => {});
+            .catch(() => { });
         }
       })
       .catch(() => setNotFound(true))
@@ -755,7 +830,7 @@ export default function BookingDetailPage({
   }
 
   const isInHome = booking.type === "in home";
-  const isInStorePickup = !isInHome && booking.pick_up === true;
+  const isInStorePickup = !isInHome && (booking.pick_up === true || booking.delivery === true);
 
   // Filter groomers by booking's store
   const storeGroomers = booking.store_id
@@ -832,7 +907,7 @@ export default function BookingDetailPage({
                       >
                         {isReached &&
                           (booking.booking_status === "in progress" &&
-                          status === "in progress" ? (
+                            status === "in progress" ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
                             <CheckCircle className="h-3 w-3" />
@@ -850,17 +925,17 @@ export default function BookingDetailPage({
                 {(booking.booking_status === "cancelled" ||
                   booking.booking_status === "rescheduled" ||
                   booking.booking_status === "waitlist") && (
-                  <>
-                    <div className="mx-2 h-px w-4 shrink-0 bg-border/50" />
-                    <div
-                      className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium capitalize ring-1
+                    <>
+                      <div className="mx-2 h-px w-4 shrink-0 bg-border/50" />
+                      <div
+                        className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium capitalize ring-1
                       ${booking.booking_status === "cancelled" ? "bg-destructive/10 text-destructive ring-destructive/30" : booking.booking_status === "waitlist" ? "bg-yellow-100 text-yellow-800 ring-yellow-300" : "bg-accent/20 text-accent-foreground ring-accent/30"}
                     `}
-                    >
-                      {booking.booking_status}
-                    </div>
-                  </>
-                )}
+                      >
+                        {booking.booking_status}
+                      </div>
+                    </>
+                  )}
               </div>
 
               {/* Update status form */}
@@ -997,6 +1072,28 @@ export default function BookingDetailPage({
                     </p>
                   </div>
                 )}
+                {booking.type === "in store" && (
+                  <div className="col-span-2">
+                    <span className="text-xs text-muted-foreground">Pickup & Delivery</span>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {booking.pick_up && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-400">
+                          <Truck className="h-3 w-3" />
+                          Pickup
+                        </span>
+                      )}
+                      {booking.delivery && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-400">
+                          <Truck className="h-3 w-3" />
+                          Delivery
+                        </span>
+                      )}
+                      {!booking.pick_up && !booking.delivery && (
+                        <span className="text-sm text-muted-foreground">Tidak ada</span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* ── Edit Harga Panel ── */}
@@ -1118,8 +1215,8 @@ export default function BookingDetailPage({
                           </div>
                         );
                       })}
-                      {/* Travel fee */}
-                      {booking.pick_up && (() => {
+                      {/* Travel fee (pickup/delivery/home service) */}
+                      {(booking.pick_up || booking.delivery || booking.type === "in home") && (() => {
                         const tFeeBase = parseFloat(editTravelFee) || booking.travel_fee || 0;
                         const rawDisc = parseFloat(editTravelFeeDiscount) || 0;
                         const tFeeDiscNominal = editTravelFeeDiscountType === "pct" ? Math.min(tFeeBase, (rawDisc / 100) * tFeeBase) : Math.min(tFeeBase, rawDisc);
@@ -1128,7 +1225,13 @@ export default function BookingDetailPage({
                           <div className="flex flex-col gap-1.5 rounded-lg border border-border/50 bg-card p-3">
                             <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
                               <Truck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                              Biaya Pickup
+                              {booking.type === "in home"
+                                ? "Biaya Home Service"
+                                : booking.pick_up && booking.delivery
+                                  ? "Biaya Pickup & Delivery"
+                                  : booking.delivery
+                                    ? "Biaya Delivery"
+                                    : "Biaya Pickup"}
                             </span>
                             <div className="flex items-end gap-2">
                               <div className="flex flex-1 flex-col gap-1">
@@ -1226,20 +1329,25 @@ export default function BookingDetailPage({
                             return false;
                           })();
                           const isDisabled = !canApply || blockedByQuota;
+                          // Use live apply-benefit result when available and selected
+                          const appliedBreakdown = isSelected && priceApplyResult?.breakdown
+                            ? priceApplyResult.breakdown.filter((bd) => bd.benefit?._id === benefit._id)
+                            : [];
+                          const liveDiscount = appliedBreakdown.reduce((sum, bd) => sum + (bd.amount_deducted ?? 0), 0);
+                          const displayDiscount = isSelected && priceApplyResult ? liveDiscount : (benefit.amount_discount ?? 0);
                           return (
                             <label
                               key={benefit._id}
-                              className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-                                isSelected
-                                  ? "border-primary bg-primary/10"
-                                  : isDisabled
-                                    ? "cursor-not-allowed border-border/30 bg-muted/30 opacity-60"
-                                    : "border-border/50 bg-card hover:border-primary/40"
-                              }`}
+                              className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${isSelected
+                                ? "border-primary bg-primary/10"
+                                : isDisabled
+                                  ? "cursor-not-allowed border-border/30 bg-muted/30 opacity-60"
+                                  : "border-border/50 bg-card hover:border-primary/40"
+                                }`}
                             >
                               <Checkbox
                                 checked={isSelected}
-                                onCheckedChange={() => !isDisabled && toggleEditBenefit(benefit._id)}
+                                onCheckedChange={() => (isSelected || !isDisabled) && toggleEditBenefit(benefit._id)}
                                 disabled={isDisabled && !isSelected}
                                 className="mt-0.5 shrink-0"
                               />
@@ -1249,11 +1357,10 @@ export default function BookingDetailPage({
                                     {benefit.label || benefit.description}
                                   </span>
                                   <span
-                                    className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                      isQuotaBenefit
-                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
-                                        : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
-                                    }`}
+                                    className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isQuotaBenefit
+                                      ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                                      : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                                      }`}
                                   >
                                     {isQuotaBenefit
                                       ? "Quota gratis"
@@ -1262,16 +1369,30 @@ export default function BookingDetailPage({
                                         : "Diskon"}
                                   </span>
                                 </div>
+                                <div className="text-xs text-muted-foreground">
+                                  <span className="font-medium text-foreground/70">
+                                    {benefit.applies_to === "service"
+                                      ? `Service: ${(benefit as any).service?.name || booking.service_snapshot.name}`
+                                      : benefit.applies_to === "addon"
+                                        ? (benefit as any).service_id
+                                          ? `Addon: ${(benefit as any).service?.name || (booking.service_snapshot.addons ?? []).find((a) => a._id === (benefit as any).service_id)?.name || "Addon"}`
+                                          : `Addon: ${(booking.service_snapshot.addons ?? []).map((a) => a.name).join(", ") || "Semua addon"}`
+                                        : benefit.applies_to === "pickup"
+                                          ? `Berlaku: ${[booking.pick_up && "Pickup", booking.delivery && "Delivery", booking.type === "in home" && "Home Service"].filter(Boolean).join(" & ") || "Pickup/Delivery"}`
+                                          : benefit.applies_to}
+                                  </span>
+                                </div>
                                 <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                                  <span>{benefit.description}</span>
                                   {benefit.remaining !== null && (
                                     <span className={benefit.remaining === 0 ? "text-destructive" : ""}>
                                       Sisa: {benefit.remaining}/{benefit.limit ?? "∞"}
                                     </span>
                                   )}
-                                  {benefit.amount_discount != null && benefit.amount_discount > 0 && (
-                                    <span className="font-medium text-green-600">
-                                      -{formatPrice(benefit.amount_discount)}
+                                  {isSelected && loadingPriceApply ? (
+                                    <span className="h-3 w-12 animate-pulse rounded bg-green-200/60" />
+                                  ) : displayDiscount > 0 && (
+                                    <span className={`font-medium ${isQuotaBenefit ? "text-blue-600" : "text-green-600"}`}>
+                                      {isQuotaBenefit ? "Gratis" : `-${formatPrice(displayDiscount)}`}
                                     </span>
                                   )}
                                 </div>
@@ -1295,13 +1416,120 @@ export default function BookingDetailPage({
                     )}
                   </div>
 
+                  {/* Promotion selection */}
+                  {pricePreviewData?.pricing?.available_promotions && pricePreviewData.pricing.available_promotions.length > 0 && (
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center gap-2">
+                        <Tag className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                        <p className="text-sm font-semibold text-foreground">Promosi</p>
+                        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/50 dark:text-violet-400">
+                          {pricePreviewData.pricing.available_promotions.length} tersedia
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {pricePreviewData.pricing.available_promotions.map((promo) => {
+                          const selected = editPromotionIds.includes(promo._id);
+                          const hasNonStackableSelected = pricePreviewData.pricing.available_promotions.some(
+                            (p) => editPromotionIds.includes(p._id) && !p.is_stackable,
+                          );
+                          const blockedByStacking = !selected && hasNonStackableSelected;
+                          const blockedByBenefit = (() => {
+                            if (editBenefitIds.length === 0 || !pricePreviewData.pricing.available_benefits) return false;
+                            return pricePreviewData.pricing.available_benefits.some((b: any) => {
+                              if (!editBenefitIds.includes(b._id)) return false;
+                              if (b.applies_to !== promo.applies_to) return false;
+                              const bSid = b.service_id || null;
+                              const pSid = promo.service_id || null;
+                              return bSid === pSid;
+                            });
+                          })();
+                          const isDisabled = blockedByStacking || blockedByBenefit;
+                          return (
+                            <label
+                              key={promo._id}
+                              htmlFor={`edit-promo-${promo._id}`}
+                              className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
+                                isDisabled
+                                  ? "cursor-not-allowed border-border/30 bg-muted/20 opacity-50"
+                                  : selected
+                                    ? "border-violet-500 bg-violet-50 dark:bg-violet-950/20"
+                                    : "border-border bg-card hover:border-violet-400"
+                              }`}
+                            >
+                              <Checkbox
+                                id={`edit-promo-${promo._id}`}
+                                checked={selected}
+                                disabled={isDisabled}
+                                onCheckedChange={() => {
+                                  if (isDisabled) return;
+                                  if (selected) {
+                                    setEditPromotionIds((prev) => prev.filter((id) => id !== promo._id));
+                                  } else {
+                                    if (!promo.is_stackable) {
+                                      setEditPromotionIds([promo._id]);
+                                    } else {
+                                      setEditPromotionIds((prev) => [...prev, promo._id]);
+                                    }
+                                  }
+                                }}
+                                className="mt-0.5 shrink-0"
+                              />
+                              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-foreground">{promo.name}</span>
+                                  <span className="shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/50 dark:text-violet-400">{promo.code}</span>
+                                  {promo.discount_type === "percent" ? (
+                                    <span className="shrink-0 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-700 dark:bg-green-950/50 dark:text-green-400">{promo.value}% off</span>
+                                  ) : (
+                                    <span className="shrink-0 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-700 dark:bg-green-950/50 dark:text-green-400">Rp {promo.value.toLocaleString("id-ID")} off</span>
+                                  )}
+                                  {!promo.is_stackable && (
+                                    <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">Non-stackable</span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                                  {promo.description && <span>{promo.description}</span>}
+                                  <span className="capitalize">
+                                    Berlaku untuk:{" "}
+                                    {promo.applies_to === "booking"
+                                      ? "Semua"
+                                      : promo.service_name
+                                        ? `${promo.applies_to}: ${promo.service_name}`
+                                        : promo.applies_to === "service"
+                                          ? "Semua Service"
+                                          : promo.applies_to === "addon"
+                                            ? "Semua Addon"
+                                            : promo.applies_to === "pickup"
+                                              ? "Pickup/Delivery"
+                                              : promo.applies_to}
+                                  </span>
+                                </div>
+                                {blockedByStacking && (
+                                  <span className="text-[11px] text-amber-600 dark:text-amber-400">Tidak dapat digabung — promo non-stackable sudah dipilih</span>
+                                )}
+                                {blockedByBenefit && (
+                                  <span className="text-[11px] text-amber-600 dark:text-amber-400">Tidak dapat digabung — benefit membership untuk target yang sama sudah dipilih</span>
+                                )}
+                              </div>
+                              {promo.amount_discount > 0 && (
+                                <span className={`shrink-0 text-sm font-bold ${selected ? "text-violet-600 dark:text-violet-400" : "text-muted-foreground"}`}>
+                                  - {formatPrice(promo.amount_discount)}
+                                </span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Live Preview */}
                   {(() => {
                     const svcBase = parseFloat(editServicePrice) || booking.service_snapshot.price || 0;
                     const rawSvcDisc = parseFloat(editServiceDiscount) || 0;
                     const svcDisc = editServiceDiscountType === "pct" ? Math.min(svcBase, (rawSvcDisc / 100) * svcBase) : Math.min(svcBase, rawSvcDisc);
-                    const tFeeBase = booking.pick_up ? (parseFloat(editTravelFee) || booking.travel_fee || 0) : 0;
-                    const rawTFeeDisc = booking.pick_up ? (parseFloat(editTravelFeeDiscount) || 0) : 0;
+                    const tFeeBase = (booking.pick_up || booking.delivery || booking.type === "in home") ? (parseFloat(editTravelFee) || booking.travel_fee || 0) : 0;
+                    const rawTFeeDisc = (booking.pick_up || booking.delivery || booking.type === "in home") ? (parseFloat(editTravelFeeDiscount) || 0) : 0;
                     const tFeeDisc = editTravelFeeDiscountType === "pct" ? Math.min(tFeeBase, (rawTFeeDisc / 100) * tFeeBase) : Math.min(tFeeBase, rawTFeeDisc);
                     const addonBase = (booking.service_snapshot.addons ?? []).reduce((sum, addon) => {
                       return sum + (parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0);
@@ -1315,8 +1543,15 @@ export default function BookingDetailPage({
                     const originalTotal = svcBase + tFeeBase + addonBase;
                     const itemDiscountTotal = svcDisc + tFeeDisc + addonItemDisc;
                     const effectiveSubtotal = Math.max(0, originalTotal - itemDiscountTotal);
-                    const benefitDiscount = priceApplyResult?.total_discount ?? 0;
-                    const previewTotal = Math.max(0, effectiveSubtotal - benefitDiscount);
+                    const benefitDiscount = priceApplyResult?.total_discount ?? (() => {
+                      // Fallback: estimate from preview data when applyBenefitPreview fails
+                      if (editBenefitIds.length === 0 || !pricePreviewData?.pricing?.available_benefits) return 0;
+                      return pricePreviewData.pricing.available_benefits
+                        .filter((b: any) => editBenefitIds.includes(b._id) && b.can_apply)
+                        .reduce((sum: number, b: any) => sum + (b.amount_discount ?? 0), 0);
+                    })();
+                    const promoDiscount = pricePromoResult?.total_discount ?? 0;
+                    const previewTotal = Math.max(0, effectiveSubtotal - benefitDiscount - promoDiscount);
                     return (
                       <div className="divide-y divide-border/40 overflow-hidden rounded-lg border border-border/50 bg-card">
                         <div className="flex items-center justify-between px-4 py-2.5 text-sm">
@@ -1324,37 +1559,182 @@ export default function BookingDetailPage({
                           <span className="font-medium">{formatPrice(originalTotal)}</span>
                         </div>
                         {itemDiscountTotal > 0 && (
-                          <div className="flex items-center justify-between px-4 py-2.5 text-sm">
-                            <span className="text-orange-600 dark:text-orange-400">Diskon Item</span>
-                            <span className="font-medium text-orange-600 dark:text-orange-400">
-                              - {formatPrice(itemDiscountTotal)}
-                            </span>
+                          <div className="flex flex-col">
+                            <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                              <span className="flex items-center gap-1.5 font-medium text-orange-600 dark:text-orange-400">
+                                <Pencil className="h-3.5 w-3.5" />
+                                Diskon Admin
+                              </span>
+                              <span className="font-semibold text-orange-600 dark:text-orange-400">
+                                - {formatPrice(itemDiscountTotal)}
+                              </span>
+                            </div>
+                            <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                              {svcDisc > 0 && (
+                                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                  <span className="truncate pr-4">{booking.service_snapshot.name}</span>
+                                  <span className="shrink-0">- {formatPrice(svcDisc)}</span>
+                                </div>
+                              )}
+                              {(booking.service_snapshot.addons ?? []).map((addon) => {
+                                const base = parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0;
+                                const rawDisc = parseFloat(editAddonDiscounts[addon._id!] ?? "0") || 0;
+                                const discType = editAddonDiscountTypes[addon._id!] ?? "nominal";
+                                const disc = discType === "pct" ? Math.min(base, (rawDisc / 100) * base) : Math.min(base, rawDisc);
+                                if (disc <= 0) return null;
+                                return (
+                                  <div key={addon._id} className="flex items-center justify-between text-xs text-muted-foreground">
+                                    <span className="truncate pr-4">+ {addon.name}</span>
+                                    <span className="shrink-0">- {formatPrice(disc)}</span>
+                                  </div>
+                                );
+                              })}
+                              {tFeeDisc > 0 && (
+                                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                  <span className="truncate pr-4">
+                                    {booking.type === "in home" ? "Home Service" : "Pickup/Delivery"}
+                                  </span>
+                                  <span className="shrink-0">- {formatPrice(tFeeDisc)}</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         )}
-                        {itemDiscountTotal > 0 && (
+                        {/* {itemDiscountTotal > 0 && (
                           <div className="flex items-center justify-between px-4 py-2.5 text-sm font-semibold">
                             <span>Subtotal Setelah Diskon</span>
                             <span>{formatPrice(effectiveSubtotal)}</span>
                           </div>
-                        )}
+                        )} */}
                         {(editBenefitIds.length > 0) && (loadingPriceApply || benefitDiscount > 0) && (
-                          <div className="flex items-center justify-between px-4 py-2.5 text-sm">
-                            <span className="flex items-center gap-1.5 text-green-600">
-                              <Gift className="h-3.5 w-3.5" />
-                              Diskon Benefit
-                            </span>
-                            {loadingPriceApply ? (
-                              <span className="h-4 w-20 animate-pulse rounded bg-primary/20" />
-                            ) : (
-                              <span className="font-medium text-green-600">
-                                - {formatPrice(benefitDiscount)}
+                          <div className="flex flex-col">
+                            <div className="flex items-center justify-between px-4 py-2.5 text-sm border-t border-green-200/50 dark:border-green-800/30">
+                              <span className="flex items-center gap-1.5 font-medium text-green-600">
+                                <Gift className="h-3.5 w-3.5" />
+                                Diskon Membership
                               </span>
+                              {loadingPriceApply ? (
+                                <span className="h-4 w-20 animate-pulse rounded bg-primary/20" />
+                              ) : (
+                                <span className="font-semibold text-green-600">
+                                  - {formatPrice(benefitDiscount)}
+                                </span>
+                              )}
+                            </div>
+                            {!loadingPriceApply && (priceApplyResult?.breakdown?.length ?? 0) > 0 && (
+                              <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                                {priceApplyResult!.breakdown.map((item, idx) => {
+                                  const bLabel = item.benefit?.label || item.description || item.applies_to;
+                                  let itemName: string | null = null;
+                                  if (item.applies_to === "service") {
+                                    itemName = pricePreviewData?.pricing_breakdown?.service?.name
+                                      ?? item.benefit?.service?.name ?? null;
+                                  } else if (item.applies_to === "addon") {
+                                    const addonMatch = pricePreviewData?.pricing_breakdown?.addons?.find(
+                                      (a) => a._id === (item as any).service_id
+                                    ) ?? pricePreviewData?.pricing?.addon_prices?.find(
+                                      (a: any) => a._id === (item as any).service_id
+                                    );
+                                    itemName = addonMatch?.name ?? item.benefit?.service?.name ?? null;
+                                  } else if (item.applies_to === "pick_up" || item.applies_to === "pickup" || item.applies_to === "travel_fee") {
+                                    itemName = booking.type === "in home" ? "Home Service" : "Pickup/Delivery";
+                                  }
+                                  if (!itemName) {
+                                    itemName = item.benefit?.service?.name ?? null;
+                                  }
+                                  const displayLabel = itemName ? `${bLabel}: ${itemName}` : bLabel;
+                                  return (
+                                    <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground">
+                                      <span className="flex items-center gap-1.5 truncate pr-4">
+                                        {item.benefit_type === "quota" ? (
+                                          <span className="shrink-0 rounded bg-blue-100 px-1 py-px text-[9px] font-bold text-blue-700 dark:bg-blue-950/50 dark:text-blue-400">GRATIS</span>
+                                        ) : (
+                                          <span className="shrink-0 rounded bg-green-100 px-1 py-px text-[9px] font-bold text-green-700 dark:bg-green-950/50 dark:text-green-400">{item.benefit_value != null ? `${item.benefit_value}%` : "DISC"}</span>
+                                        )}
+                                        {displayLabel}
+                                      </span>
+                                      <span className="shrink-0">- {formatPrice(item.amount_deducted)}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {!loadingPriceApply && !priceApplyResult && benefitDiscount > 0 && pricePreviewData?.pricing?.available_benefits && (
+                              <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                                {pricePreviewData.pricing.available_benefits
+                                  .filter((b: any) => editBenefitIds.includes(b._id) && b.can_apply && (b.amount_discount ?? 0) > 0)
+                                  .map((b: any) => {
+                                    const bLabel = b.label || b.description || b.applies_to;
+                                    let itemName: string | null = null;
+                                    if (b.applies_to === "service") {
+                                      itemName = pricePreviewData?.pricing_breakdown?.service?.name
+                                        ?? b.service?.name ?? null;
+                                    } else if (b.applies_to === "addon") {
+                                      const addonMatch = pricePreviewData?.pricing_breakdown?.addons?.find(
+                                        (a: any) => a._id === b.service_id
+                                      ) ?? pricePreviewData?.pricing?.addon_prices?.find(
+                                        (a: any) => a._id === b.service_id
+                                      );
+                                      itemName = addonMatch?.name ?? b.service?.name ?? null;
+                                    } else if (b.applies_to === "pick_up" || b.applies_to === "pickup" || b.applies_to === "travel_fee") {
+                                      itemName = booking.type === "in home" ? "Home Service" : "Pickup/Delivery";
+                                    }
+                                    if (!itemName) {
+                                      itemName = b.service?.name ?? null;
+                                    }
+                                    const displayLabel = itemName ? `${bLabel}: ${itemName}` : bLabel;
+                                    return (
+                                      <div key={b._id} className="flex items-center justify-between text-xs text-muted-foreground">
+                                        <span className="flex items-center gap-1.5 truncate pr-4">
+                                          {b.type === "quota" ? (
+                                            <span className="shrink-0 rounded bg-blue-100 px-1 py-px text-[9px] font-bold text-blue-700 dark:bg-blue-950/50 dark:text-blue-400">GRATIS</span>
+                                          ) : (
+                                            <span className="shrink-0 rounded bg-green-100 px-1 py-px text-[9px] font-bold text-green-700 dark:bg-green-950/50 dark:text-green-400">{b.value != null ? `${b.value}%` : "DISC"}</span>
+                                          )}
+                                          {displayLabel}
+                                        </span>
+                                        <span className="shrink-0">- {formatPrice(b.amount_discount)}</span>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {/* Promotion discount row */}
+                        {(editPromotionIds.length > 0) && (loadingPricePromo || promoDiscount > 0) && (
+                          <div className="flex flex-col">
+                            <div className="flex items-center justify-between px-4 py-2.5 text-sm border-t border-violet-200/50 dark:border-violet-800/30">
+                              <span className="flex items-center gap-1.5 font-medium text-violet-600 dark:text-violet-400">
+                                <Tag className="h-3.5 w-3.5" />
+                                Diskon Promosi
+                              </span>
+                              {loadingPricePromo ? (
+                                <span className="h-4 w-20 animate-pulse rounded bg-violet-200 dark:bg-violet-800" />
+                              ) : (
+                                <span className="font-semibold text-violet-600 dark:text-violet-400">
+                                  - {formatPrice(promoDiscount)}
+                                </span>
+                              )}
+                            </div>
+                            {!loadingPricePromo && pricePromoResult && pricePromoResult.breakdown.length > 0 && (
+                              <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                                {pricePromoResult.breakdown.map((item, idx) => (
+                                  <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground">
+                                    <span className="flex items-center gap-1.5 truncate pr-4">
+                                      <span className="shrink-0 rounded bg-violet-100 px-1 py-px text-[9px] font-bold text-violet-700 dark:bg-violet-950/50 dark:text-violet-400">{item.code}</span>
+                                      {item.name}
+                                    </span>
+                                    <span className="shrink-0">- {formatPrice(item.amount_deducted)}</span>
+                                  </div>
+                                ))}
+                              </div>
                             )}
                           </div>
                         )}
                         <div className="flex items-center justify-between bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
                           <span>Total Baru</span>
-                          {loadingPriceApply && editBenefitIds.length > 0 ? (
+                          {(loadingPriceApply && editBenefitIds.length > 0) || (loadingPricePromo && editPromotionIds.length > 0) ? (
                             <span className="h-5 w-24 animate-pulse rounded bg-primary/20" />
                           ) : (
                             <span className="text-base">{formatPrice(previewTotal)}</span>
@@ -1415,11 +1795,10 @@ export default function BookingDetailPage({
                         )}
                         {b && (
                           <span
-                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                              isQuota
-                                ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
-                                : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
-                            }`}
+                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isQuota
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                              : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                              }`}
                           >
                             {isQuota
                               ? "Gratis"
@@ -1498,11 +1877,10 @@ export default function BookingDetailPage({
                         )}
                         {b && (
                           <span
-                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                              isQuota
-                                ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
-                                : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
-                            }`}
+                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isQuota
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                              : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                              }`}
                           >
                             {isQuota
                               ? "Gratis"
@@ -1544,125 +1922,284 @@ export default function BookingDetailPage({
                     </div>
                   );
                 })}
-                {/* Travel fee row */}
-                {(booking.edited_travel_fee != null || booking.travel_fee > 0) &&
-                  (() => {
-                    const b = booking.applied_benefits?.find(
-                      (ab) =>
-                        ab.applies_to === "pick_up" ||
-                        ab.applies_to === "travel_fee" ||
-                        ab.applies_to === "pickup",
-                    );
-                    const isQuota = b?.benefit_type === "quota";
-                    const tFeeBase = booking.edited_travel_fee ?? booking.travel_fee;
-                    const tFeeItemDisc = booking.edited_travel_fee_discount ?? 0;
-                    const tFeeEffective = Math.max(0, tFeeBase - tFeeItemDisc);
-                    const hasItemDisc = tFeeItemDisc > 0;
-                    if (tFeeBase <= 0) return null;
-                    return (
-                      <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="flex items-center gap-1.5 text-muted-foreground">
-                            <Truck className="h-3.5 w-3.5" />
-                            Biaya Pickup
+                {/* Pickup & Delivery fee row (combined) */}
+                {(booking.pick_up || booking.delivery) && (() => {
+                  const tFeeBase = booking.edited_travel_fee ?? booking.travel_fee ?? ((booking.pickup_fee ?? 0) + (booking.delivery_fee ?? 0));
+                  if (tFeeBase <= 0) return null;
+                  const b = booking.applied_benefits?.find(
+                    (ab) =>
+                      ab.applies_to === "pick_up" ||
+                      ab.applies_to === "travel_fee" ||
+                      ab.applies_to === "pickup",
+                  );
+                  const isQuota = b?.benefit_type === "quota";
+                  const feeItemDisc = booking.edited_travel_fee_discount ?? 0;
+                  const feeEffective = Math.max(0, tFeeBase - feeItemDisc);
+                  const hasItemDisc = feeItemDisc > 0;
+                  const benefitDeduction = b ? b.amount_deducted : 0;
+                  const label = booking.pick_up && booking.delivery
+                    ? "Biaya Pickup & Delivery"
+                    : booking.delivery
+                      ? "Biaya Delivery"
+                      : "Biaya Pickup";
+                  return (
+                    <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Truck className="h-3.5 w-3.5" />
+                          {label}
+                        </span>
+                        {booking.edited_travel_fee != null && (
+                          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
+                            Diedit
                           </span>
-                          {booking.edited_travel_fee != null && (
-                            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
-                              Diedit
-                            </span>
-                          )}
-                          {hasItemDisc && (
-                            <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-700 dark:bg-orange-950/50 dark:text-orange-400">
-                              -{formatPrice(tFeeItemDisc)}
-                            </span>
-                          )}
-                          {b && (
-                            <span
-                              className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                isQuota
-                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
-                                  : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
-                              }`}
-                            >
-                              {isQuota
-                                ? "Gratis"
-                                : b.benefit_value != null
-                                  ? `-${b.benefit_value}%`
-                                  : "Diskon"}
-                            </span>
-                          )}
-                        </div>
-                        {(hasItemDisc || b) ? (
-                          <div className="flex flex-col items-end gap-0.5">
-                            <span className="text-xs line-through text-muted-foreground">
-                              {formatPrice(tFeeBase)}
-                            </span>
-                            {hasItemDisc && b ? (
-                              <>
-                                <span className="text-xs line-through text-muted-foreground">
-                                  {formatPrice(tFeeEffective)}
-                                </span>
-                                <span className="font-semibold text-primary">
-                                  {isQuota ? "Gratis" : formatPrice(Math.max(0, tFeeEffective - b.amount_deducted))}
-                                </span>
-                              </>
-                            ) : hasItemDisc ? (
-                              <span className="font-semibold text-foreground">{formatPrice(tFeeEffective)}</span>
-                            ) : (
-                              <span className="font-semibold text-primary">
-                                {isQuota
-                                  ? "Gratis"
-                                  : formatPrice(Math.max(0, tFeeEffective - b!.amount_deducted))}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="font-medium">{formatPrice(tFeeBase)}</span>
+                        )}
+                        {hasItemDisc && (
+                          <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-700 dark:bg-orange-950/50 dark:text-orange-400">
+                            -{formatPrice(feeItemDisc)}
+                          </span>
+                        )}
+                        {b && (
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isQuota ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400" : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"}`}>
+                            {isQuota ? "Gratis" : b.benefit_value != null ? `-${b.benefit_value}%` : "Diskon"}
+                          </span>
                         )}
                       </div>
-                    );
-                  })()}
-                {/* Subtotal + Diskon — hanya jika ada diskon */}
-                {booking.total_discount > 0 && (
-                  <>
-                    <div className="flex items-center justify-between border-t border-border/50 bg-muted/30 px-4 py-2.5 text-sm font-semibold">
-                      <span>Subtotal</span>
-                      <span>{formatPrice(booking.original_total_price)}</span>
-                    </div>
-                    {booking.total_discount > 0 && (
-                      <div className="flex flex-col border-t border-primary/20 bg-primary/5">
-                        <div className="flex items-center justify-between px-4 py-2.5 text-sm">
-                          <span className="flex items-center gap-1.5 font-medium text-primary">
-                            <Gift className="h-3.5 w-3.5" />
-                            Diskon Member
-                          </span>
-                          <span className="font-semibold text-primary">
-                            - {formatPrice(booking.total_discount)}
-                          </span>
+                      {(hasItemDisc || b) ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-xs line-through text-muted-foreground">{formatPrice(tFeeBase)}</span>
+                          {hasItemDisc && b ? (
+                            <>
+                              <span className="text-xs line-through text-muted-foreground">{formatPrice(feeEffective)}</span>
+                              <span className="font-semibold text-primary">{isQuota ? "Gratis" : formatPrice(Math.max(0, feeEffective - benefitDeduction))}</span>
+                            </>
+                          ) : hasItemDisc ? (
+                            <span className="font-semibold text-foreground">{formatPrice(feeEffective)}</span>
+                          ) : (
+                            <span className="font-semibold text-primary">{isQuota ? "Gratis" : formatPrice(Math.max(0, feeEffective - benefitDeduction))}</span>
+                          )}
                         </div>
-                        {booking.applied_benefits?.length > 1 && (
+                      ) : (
+                        <span className="font-medium">{formatPrice(tFeeBase)}</span>
+                      )}
+                    </div>
+                  );
+                })()}
+                {/* Home service travel fee row */}
+                {booking.type === "in home" && booking.travel_fee > 0 && (() => {
+                  const b = booking.applied_benefits?.find(
+                    (ab) =>
+                      ab.applies_to === "pick_up" ||
+                      ab.applies_to === "travel_fee" ||
+                      ab.applies_to === "pickup",
+                  );
+                  const isQuota = b?.benefit_type === "quota";
+                  const tFeeBase = booking.edited_travel_fee ?? booking.travel_fee;
+                  const tFeeItemDisc = booking.edited_travel_fee_discount ?? 0;
+                  const tFeeEffective = Math.max(0, tFeeBase - tFeeItemDisc);
+                  const hasItemDisc = tFeeItemDisc > 0;
+                  return (
+                    <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Truck className="h-3.5 w-3.5" />
+                          Biaya Home Service
+                        </span>
+                        {booking.edited_travel_fee != null && (
+                          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
+                            Diedit
+                          </span>
+                        )}
+                        {hasItemDisc && (
+                          <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-700 dark:bg-orange-950/50 dark:text-orange-400">
+                            -{formatPrice(tFeeItemDisc)}
+                          </span>
+                        )}
+                        {b && (
+                          <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isQuota ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400" : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"}`}>
+                            {isQuota ? "Gratis" : b.benefit_value != null ? `-${b.benefit_value}%` : "Diskon"}
+                          </span>
+                        )}
+                      </div>
+                      {(hasItemDisc || b) ? (
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-xs line-through text-muted-foreground">{formatPrice(tFeeBase)}</span>
+                          {hasItemDisc && b ? (
+                            <>
+                              <span className="text-xs line-through text-muted-foreground">{formatPrice(tFeeEffective)}</span>
+                              <span className="font-semibold text-primary">{isQuota ? "Gratis" : formatPrice(Math.max(0, tFeeEffective - b.amount_deducted))}</span>
+                            </>
+                          ) : hasItemDisc ? (
+                            <span className="font-semibold text-foreground">{formatPrice(tFeeEffective)}</span>
+                          ) : (
+                            <span className="font-semibold text-primary">{isQuota ? "Gratis" : formatPrice(Math.max(0, tFeeEffective - b!.amount_deducted))}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="font-medium">{formatPrice(tFeeBase)}</span>
+                      )}
+                    </div>
+                  );
+                })()}
+                {/* Subtotal + Diskon — separated between admin and member */}
+                {(() => {
+                  // Calculate admin item-level discounts
+                  const svcItemDisc = booking.edited_service_discount ?? 0;
+                  const tFeeItemDisc = booking.edited_travel_fee_discount ?? 0;
+                  const addonItemDisc = (booking.edited_addon_prices ?? []).reduce(
+                    (sum, a) => sum + (a.discount ?? 0), 0,
+                  );
+                  const totalAdminDiscount = svcItemDisc + tFeeItemDisc + addonItemDisc;
+
+                  // Member benefit discount
+                  const totalMemberDiscount = booking.applied_benefits?.reduce(
+                    (sum, ab) => sum + (ab.amount_deducted ?? 0), 0,
+                  ) ?? 0;
+
+                  const hasAnyDiscount = totalAdminDiscount > 0 || totalMemberDiscount > 0;
+
+                  if (!hasAnyDiscount) return null;
+                  return (
+                    <>
+                      <div className="flex items-center justify-between border-t border-border/50 bg-muted/30 px-4 py-2.5 text-sm font-semibold">
+                        <span>Subtotal</span>
+                        <span>{formatPrice(booking.original_total_price)}</span>
+                      </div>
+                      {/* Diskon Admin */}
+                      {totalAdminDiscount > 0 && (
+                        <div className="flex flex-col border-t border-orange-200/50 bg-orange-50/50 dark:border-orange-800/30 dark:bg-orange-950/20">
+                          <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                            <span className="flex items-center gap-1.5 font-medium text-orange-600 dark:text-orange-400">
+                              <Pencil className="h-3.5 w-3.5" />
+                              Diskon Admin
+                            </span>
+                            <span className="font-semibold text-orange-600 dark:text-orange-400">
+                              - {formatPrice(totalAdminDiscount)}
+                            </span>
+                          </div>
                           <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
-                            {booking.applied_benefits.map((ab, i) => (
-                              <div
-                                key={i}
-                                className="flex items-center justify-between text-xs text-muted-foreground"
-                              >
+                            {svcItemDisc > 0 && (
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span className="truncate pr-4">{booking.service_snapshot.name}</span>
+                                <span className="shrink-0">- {formatPrice(svcItemDisc)}</span>
+                              </div>
+                            )}
+                            {(booking.edited_addon_prices ?? []).filter(a => (a.discount ?? 0) > 0).map((a) => {
+                              const addon = booking.service_snapshot.addons?.find(ad => ad._id === a.addon_id);
+                              return (
+                                <div key={a.addon_id} className="flex items-center justify-between text-xs text-muted-foreground">
+                                  <span className="truncate pr-4">+ {addon?.name ?? a.addon_id}</span>
+                                  <span className="shrink-0">- {formatPrice(a.discount ?? 0)}</span>
+                                </div>
+                              );
+                            })}
+                            {tFeeItemDisc > 0 && (
+                              <div className="flex items-center justify-between text-xs text-muted-foreground">
                                 <span className="truncate pr-4">
-                                  {ab.benefit?.label ||
-                                    ab.description ||
-                                    ab.applies_to}
+                                  {booking.type === "in home" ? "Home Service" : "Pickup/Delivery"}
                                 </span>
-                                <span className="shrink-0">
-                                  - {formatPrice(ab.amount_deducted)}
+                                <span className="shrink-0">- {formatPrice(tFeeItemDisc)}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      {/* Diskon Membership */}
+                      {totalMemberDiscount > 0 && (
+                        <div className="flex flex-col border-t border-primary/20 bg-primary/5">
+                          <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                            <span className="flex items-center gap-1.5 font-medium text-primary">
+                              <Gift className="h-3.5 w-3.5" />
+                              Diskon Membership
+                            </span>
+                            <span className="font-semibold text-primary">
+                              - {formatPrice(totalMemberDiscount)}
+                            </span>
+                          </div>
+                          {booking.applied_benefits?.length > 0 && (
+                            <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                              {booking.applied_benefits.map((ab, i) => {
+                                const benefitLabel = ab.benefit?.label || ab.description || ab.applies_to;
+                                let serviceName: string | null = null;
+                                if (ab.applies_to === "service") {
+                                  serviceName = booking.service_snapshot?.name
+                                    ?? ab.benefit?.service?.name
+                                    ?? null;
+                                } else if (ab.applies_to === "addon") {
+                                  if (ab.service_id) {
+                                    const addon = booking.service_snapshot?.addons?.find(
+                                      (a) => a._id === ab.service_id
+                                    );
+                                    serviceName = addon?.name ?? ab.benefit?.service?.name ?? null;
+                                  } else {
+                                    serviceName = ab.benefit?.service?.name ?? null;
+                                  }
+                                } else if (ab.applies_to === "pick_up" || ab.applies_to === "pickup" || ab.applies_to === "travel_fee") {
+                                  serviceName = booking.type === "in home" ? "Home Service" : "Pickup/Delivery";
+                                }
+                                // Fallback: use benefit's service name or translated applies_to
+                                if (!serviceName) {
+                                  serviceName = ab.benefit?.service?.name
+                                    ?? (ab.applies_to === "service" ? "Service" : ab.applies_to === "addon" ? "Addon" : null);
+                                }
+                                const displayName = serviceName ? `${benefitLabel}: ${serviceName}` : benefitLabel;
+                                return (
+                                  <div
+                                    key={i}
+                                    className="flex items-center justify-between text-xs text-muted-foreground"
+                                  >
+                                    <span className="truncate pr-4">
+                                      {displayName}
+                                    </span>
+                                    <span className="shrink-0">
+                                      - {formatPrice(ab.amount_deducted)}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+                {/* Diskon Promosi */}
+                {booking.applied_promotions && booking.applied_promotions.length > 0 && (() => {
+                  const totalPromoDiscount = booking.applied_promotions.reduce(
+                    (sum, p) => sum + (p.amount_deducted ?? 0), 0,
+                  );
+                  return (
+                    <>
+                      {totalPromoDiscount > 0 && (
+                        <div className="border-t border-violet-200/50 dark:border-violet-800/30">
+                          <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                            <span className="flex items-center gap-1.5 font-medium text-violet-600 dark:text-violet-400">
+                              <Tag className="h-3.5 w-3.5" />
+                              Diskon Promosi
+                            </span>
+                            <span className="font-semibold text-violet-600 dark:text-violet-400">
+                              - {formatPrice(totalPromoDiscount)}
+                            </span>
+                          </div>
+                          <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                            {booking.applied_promotions.map((promo, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1.5 truncate pr-4">
+                                  <span className="shrink-0 rounded bg-violet-100 px-1 py-px text-[9px] font-bold text-violet-700 dark:bg-violet-950/50 dark:text-violet-400">
+                                    {promo.code}
+                                  </span>
+                                  {promo.name}
                                 </span>
+                                <span className="shrink-0">- {formatPrice(promo.amount_deducted)}</span>
                               </div>
                             ))}
                           </div>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
                 {/* Total Akhir */}
                 <div className="flex items-center justify-between border-t border-primary/30 bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
                   <span>Total Akhir</span>
@@ -1870,13 +2407,12 @@ export default function BookingDetailPage({
                           {session.type}
                         </span>
                         <Badge
-                          className={`text-xs capitalize ${
-                            session.status === "finished"
-                              ? "bg-secondary/60 text-secondary-foreground"
-                              : session.status === "in progress"
-                                ? "bg-primary/10 text-primary"
-                                : "bg-muted text-muted-foreground"
-                          }`}
+                          className={`text-xs capitalize ${session.status === "finished"
+                            ? "bg-secondary/60 text-secondary-foreground"
+                            : session.status === "in progress"
+                              ? "bg-primary/10 text-primary"
+                              : "bg-muted text-muted-foreground"
+                            }`}
                         >
                           {session.status}
                         </Badge>
@@ -1951,6 +2487,7 @@ export default function BookingDetailPage({
                               className="h-6 px-2 text-xs"
                               onClick={() => {
                                 setAssignGroomerSessionId(session._id!);
+                                setAssignGroomerSessionType(session.type ?? "");
                                 setAssignGroomerValue(session.groomer_id ?? "");
                               }}
                             >
@@ -1971,6 +2508,7 @@ export default function BookingDetailPage({
                               className="h-6 px-2 text-xs"
                               onClick={() => {
                                 setAssignGroomerSessionId(session._id!);
+                                setAssignGroomerSessionType(session.type ?? "");
                                 setAssignGroomerValue("");
                               }}
                             >
@@ -2086,11 +2624,36 @@ export default function BookingDetailPage({
                   <div className="flex flex-col gap-3 rounded-lg border border-dashed border-border/50 p-3 sm:flex-row sm:items-end">
                     <div className="flex flex-1 flex-col gap-1">
                       <Label className="text-xs">Tipe sesi</Label>
-                      <Input
-                        placeholder="bathing, drying, styling..."
-                        value={newSessionType}
-                        onChange={(e) => setNewSessionType(e.target.value)}
-                      />
+                      {(() => {
+                        const usedTypes = booking.sessions.map((s) => s.type.toLowerCase());
+                        const availableOptions = sessionSkillOptions.filter(
+                          (o) => !usedTypes.includes(o.name.toLowerCase()),
+                        );
+                        return availableOptions.length === 0 ? (
+                          <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                            Semua tipe sesi sudah ditambahkan.
+                          </p>
+                        ) : (
+                          <Select
+                            value={newSessionType}
+                            onValueChange={(val) => {
+                              setNewSessionType(val);
+                              setNewSessionGroomerId("");
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Pilih tipe sesi..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableOptions.map((o) => (
+                                <SelectItem key={o._id} value={o.name}>
+                                  {o.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        );
+                      })()}
                     </div>
                     <div className="flex flex-1 flex-col gap-1">
                       <Label className="text-xs">Groomer (opsional)</Label>
@@ -2099,28 +2662,46 @@ export default function BookingDetailPage({
                           Belum ada groomer yang bertugas di store ini. Atur placement melalui edit profile groomer.
                         </p>
                       ) : (
-                        <Select
-                          value={newSessionGroomerId}
-                          onValueChange={setNewSessionGroomerId}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih groomer" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {storeGroomers.map((g) => (
-                              <SelectItem key={g._id} value={g._id} className="px-2">
-                                <div className="flex flex-col">
-                                  <span>{g.username}</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {g.profile?.groomer_skills && g.profile.groomer_skills.length > 0
-                                      ? g.profile.groomer_skills.join(", ")
-                                      : "Belum set skills"}
-                                  </span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        (() => {
+                          const groomersForSession = newSessionType
+                            ? storeGroomers.filter((g) =>
+                              (g.profile?.groomer_skills ?? []).some(
+                                (s) => s.toLowerCase() === newSessionType.toLowerCase(),
+                              ),
+                            )
+                            : storeGroomers;
+                          return (
+                            <Select
+                              value={newSessionGroomerId}
+                              onValueChange={setNewSessionGroomerId}
+                              disabled={!newSessionType}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder={newSessionType ? "Pilih groomer" : "Pilih tipe sesi dulu"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {groomersForSession.length === 0 ? (
+                                  <div className="px-3 py-2 text-xs text-muted-foreground">
+                                    Tidak ada groomer dengan skill &quot;{newSessionType}&quot;
+                                  </div>
+                                ) : (
+                                  groomersForSession.map((g) => (
+                                    <SelectItem key={g._id} value={g._id} textValue={g.username}>
+                                      <div className="flex flex-col text-left">
+                                        <span>{g.username}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {g.profile?.groomer_skills && g.profile.groomer_skills.length > 0
+                                            ? g.profile.groomer_skills.join(", ")
+                                            : "Belum set skills"}
+                                        </span>
+                                      </div>
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                          );
+                        })()
                       )}
                     </div>
                     <Button
@@ -2207,10 +2788,10 @@ export default function BookingDetailPage({
                     ))}
                   {(booking.media ?? []).filter((m) => m.type === "before")
                     .length === 0 && (
-                    <p className="text-sm italic text-muted-foreground">
-                      Belum ada foto before
-                    </p>
-                  )}
+                      <p className="text-sm italic text-muted-foreground">
+                        Belum ada foto before
+                      </p>
+                    )}
                 </div>
               </div>
 
@@ -2274,10 +2855,10 @@ export default function BookingDetailPage({
                     ))}
                   {(booking.media ?? []).filter((m) => m.type === "after")
                     .length === 0 && (
-                    <p className="text-sm italic text-muted-foreground">
-                      Belum ada foto after
-                    </p>
-                  )}
+                      <p className="text-sm italic text-muted-foreground">
+                        Belum ada foto after
+                      </p>
+                    )}
                 </div>
               </div>
             </CardContent>
@@ -2369,6 +2950,7 @@ export default function BookingDetailPage({
         onOpenChange={(open) => {
           if (!open) {
             setAssignGroomerSessionId(null);
+            setAssignGroomerSessionType("");
             setAssignGroomerValue("");
           }
         }}
@@ -2377,7 +2959,7 @@ export default function BookingDetailPage({
           <AlertDialogHeader>
             <AlertDialogTitle>Assign Groomer</AlertDialogTitle>
             <AlertDialogDescription>
-              Pilih groomer untuk sesi ini
+              Pilih groomer untuk sesi{assignGroomerSessionType ? ` "${assignGroomerSessionType}"` : " ini"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-2">
@@ -2386,28 +2968,45 @@ export default function BookingDetailPage({
                 Belum ada groomer yang bertugas di store ini. Atur placement melalui edit profile groomer.
               </p>
             ) : (
-              <Select
-                value={assignGroomerValue}
-                onValueChange={setAssignGroomerValue}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih groomer..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {storeGroomers.map((g) => (
-                    <SelectItem key={g._id} value={g._id} className="px-2">
-                      <div className="flex flex-col">
-                        <span>{g.username}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {g.profile?.groomer_skills && g.profile.groomer_skills.length > 0
-                            ? g.profile.groomer_skills.join(", ")
-                            : "Belum set skills"}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              (() => {
+                const groomersForAssign = assignGroomerSessionType
+                  ? storeGroomers.filter((g) =>
+                    (g.profile?.groomer_skills ?? []).some(
+                      (s) => s.toLowerCase() === assignGroomerSessionType.toLowerCase(),
+                    ),
+                  )
+                  : storeGroomers;
+                return (
+                  <Select
+                    value={assignGroomerValue}
+                    onValueChange={setAssignGroomerValue}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih groomer..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groomersForAssign.length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">
+                          Tidak ada groomer dengan skill &quot;{assignGroomerSessionType}&quot;
+                        </div>
+                      ) : (
+                        groomersForAssign.map((g) => (
+                          <SelectItem key={g._id} value={g._id} textValue={g.username}>
+                            <div className="flex flex-col text-left">
+                              <span>{g.username}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {g.profile?.groomer_skills && g.profile.groomer_skills.length > 0
+                                  ? g.profile.groomer_skills.join(", ")
+                                  : "Belum set skills"}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                );
+              })()
             )}
           </div>
           <AlertDialogFooter>

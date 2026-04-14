@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   Search,
   Mail,
@@ -19,6 +20,10 @@ import {
   EyeOff,
   PawPrint,
   User,
+  MapPin,
+  LocateFixed,
+  ChevronDown,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +57,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -72,27 +78,40 @@ import {
 import {
   type ApiRole,
   type ApiUser,
+  type UserAddress,
   type CreateUserPayload,
   type UpdateUserPayload,
   adminUpdateUserProfile,
   createUser,
   deleteUser as deleteUserRequest,
   getUsers,
+  getUser,
   toggleUserStatus,
   updateUser,
   updateUserPassword,
 } from "@/lib/api/users";
 import { uploadFile } from "@/lib/api/upload";
 import { getStores, type ApiStore } from "@/lib/api/stores";
+import { getOptions, type ApiOption, createOption } from "@/lib/api/options";
 import { toast } from "sonner";
+
+const LocationMap = dynamic(
+  () => import("@/components/location-map").then((mod) => ({ default: mod.LocationMap })),
+  {
+    ssr: false,
+    loading: () => <div className="h-[380px] w-full rounded-md border border-border bg-muted/40 animate-pulse" />,
+  },
+);
 
 // ── Form types ─────────────────────────────────────────────────────────────
 type CreateUserForm = CreateUserPayload;
 type EditUserForm = UpdateUserPayload & {
+  full_name?: string;
   gender?: "Male" | "Female";
   placement?: string;
   groomer_skills?: string[];
   groomer_rating?: number;
+  addresses: UserAddress[];
 };
 
 const ROLE_OPTIONS: ApiRole[] = ["admin", "ops", "groomer", "customer"];
@@ -163,6 +182,8 @@ export default function UsersPage() {
 
   const [users, setUsers] = useState<ApiUser[]>([]);
   const [stores, setStores] = useState<ApiStore[]>([]);
+  const [sessionSkills, setSessionSkills] = useState<ApiOption[]>([]);
+  const [isLoadingSkills, setIsLoadingSkills] = useState(true);
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
@@ -181,8 +202,10 @@ export default function UsersPage() {
     email: "",
     phone_number: "",
     role: "customer",
+    full_name: "",
     groomer_skills: [],
     groomer_rating: 0,
+    addresses: [],
   });
   const [isEditing, setIsEditing] = useState(false);
   const [deleteUser, setDeleteUser] = useState<ApiUser | null>(null);
@@ -192,6 +215,40 @@ export default function UsersPage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [skillInput, setSkillInput] = useState("");
+
+  const [editingAddressIdx, setEditingAddressIdx] = useState<number | null>(null);
+  const [coordInputMode, setCoordInputMode] = useState<"manual" | "map">("manual");
+  const [mapOpen, setMapOpen] = useState(false);
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+
+  function handleDetectLocation() {
+    if (editingAddressIdx === null) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      toast.error("Geolocation tidak didukung oleh browser ini");
+      return;
+    }
+    setIsDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = Number(position.coords.latitude.toFixed(6));
+        const lng = Number(position.coords.longitude.toFixed(6));
+        setEditForm((f) => ({
+          ...f,
+          addresses: f.addresses.map((a, i) =>
+            i === editingAddressIdx
+              ? { ...a, latitude: lat, longitude: lng }
+              : a,
+          ),
+        }));
+        setIsDetectingLocation(false);
+      },
+      () => {
+        toast.error("Gagal mendeteksi lokasi. Pastikan akses lokasi diizinkan.");
+        setIsDetectingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }
 
   const [createImageFile, setCreateImageFile] = useState<File | null>(null);
   const [createImagePreview, setCreateImagePreview] = useState<string | null>(
@@ -217,21 +274,42 @@ export default function UsersPage() {
     }
   };
 
-  const openEdit = (user: ApiUser) => {
+  const openEdit = async (user: ApiUser) => {
     setEditUser(user);
+    // Convert skill names to option IDs for the form
+    const skillIds = (user.profile?.groomer_skills || [])
+      .map((skillName) => {
+        const option = sessionSkills.find((opt) => opt.name === skillName);
+        return option?._id;
+      })
+      .filter((id): id is string => id !== undefined);
+
     setEditForm({
       username: user.username,
       email: user.email,
       phone_number: user.phone_number,
       role: user.role,
+      full_name: user.profile?.full_name ?? "",
       gender: user.profile?.gender,
       placement: user.profile?.placement,
-      groomer_skills: user.profile?.groomer_skills || [],
+      groomer_skills: skillIds,
       groomer_rating: user.profile?.groomer_rating || 0,
+      addresses: user.profile?.addresses ?? [],
     });
     setEditImageFile(null);
     setEditImagePreview(user.profile?.image_url ?? null);
     setSkillInput("");
+    setEditingAddressIdx(null);
+    setCoordInputMode("manual");
+    setMapOpen(false);
+
+    // Fetch full user detail to get addresses with _id
+    try {
+      const detail = await getUser(user._id);
+      if (detail.user?.profile?.addresses) {
+        setEditForm((f) => ({ ...f, addresses: detail.user.profile?.addresses ?? f.addresses }));
+      }
+    } catch {}
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -274,12 +352,27 @@ export default function UsersPage() {
 
       // Update profile fields
       const profilePayload: any = {};
+      if (editForm.full_name) profilePayload.full_name = editForm.full_name;
       if (editForm.gender) profilePayload.gender = editForm.gender;
       if (editForm.placement) profilePayload.placement = editForm.placement;
-      if (editForm.groomer_skills)
-        profilePayload.groomer_skills = editForm.groomer_skills;
+      // Convert option IDs back to skill names
+      if (editForm.groomer_skills) {
+        profilePayload.groomer_skills = editForm.groomer_skills
+          .map((id) => {
+            const option = sessionSkills.find((opt) => opt._id === id);
+            return option?.name;
+          })
+          .filter((name): name is string => name !== undefined);
+      }
       if (editForm.groomer_rating !== undefined)
         profilePayload.groomer_rating = editForm.groomer_rating;
+
+      // Include addresses with created_by
+      profilePayload.addresses = editForm.addresses.map((a) => ({
+        ...a,
+        is_main_address: !!a.is_main_address,
+        created_by: a.created_by ?? "admin",
+      }));
 
       if (editImageFile) {
         const uploaded = await uploadFile(editImageFile, "profiles");
@@ -287,15 +380,14 @@ export default function UsersPage() {
         profilePayload.public_id = uploaded.public_id;
       }
 
-      if (Object.keys(profilePayload).length > 0) {
-        await adminUpdateUserProfile(editUser._id, profilePayload);
-      }
+      await adminUpdateUserProfile(editUser._id, profilePayload);
 
       toast.success("User berhasil diperbarui");
       setEditUser(null);
       setEditImageFile(null);
       setEditImagePreview(null);
       setSkillInput("");
+      setEditingAddressIdx(null);
       fetchUsers();
     } catch (err) {
       toast.error(
@@ -405,6 +497,19 @@ export default function UsersPage() {
     }
   }, []);
 
+  const fetchSessionSkills = useCallback(async () => {
+    setIsLoadingSkills(true);
+    try {
+      const data = await getOptions("session - skill");
+      // Filter hanya yang aktif
+      setSessionSkills((data.options ?? []).filter((opt) => opt.is_active));
+    } catch (err) {
+      console.error("Failed to fetch session skills:", err);
+    } finally {
+      setIsLoadingSkills(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
@@ -412,6 +517,214 @@ export default function UsersPage() {
   useEffect(() => {
     fetchStores();
   }, [fetchStores]);
+
+  useEffect(() => {
+    fetchSessionSkills();
+  }, [fetchSessionSkills]);
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // MultiSelect Component for Skills with Search & Create
+  // ─────────────────────────────────────────────────────────────────────────────
+  function SkillMultiSelect({
+    items,
+    selected,
+    onChange,
+    placeholder = "Pilih skill...",
+    loading = false,
+    onRefresh,
+  }: {
+    items: { _id: string; name: string }[];
+    selected: string[];
+    onChange: (ids: string[]) => void;
+    placeholder?: string;
+    loading?: boolean;
+    onRefresh?: () => void;
+  }) {
+    const [open, setOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [isCreating, setIsCreating] = useState(false);
+
+    if (loading) {
+      return (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          Memuat data skill...
+        </div>
+      );
+    }
+
+    const selectedItems = items.filter((item) => selected.includes(item._id));
+    const displayText =
+      selectedItems.length > 0
+        ? `${selectedItems.length} skill dipilih`
+        : placeholder;
+
+    // Filter items by search query (case insensitive)
+    const filteredItems = items.filter((item) =>
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+
+    const hasExactMatch = items.some(
+      (item) => item.name.toLowerCase() === searchQuery.toLowerCase(),
+    );
+
+    const handleRemove = (id: string) => {
+      onChange(selected.filter((selectedId) => selectedId !== id));
+    };
+
+    const handleCreateNew = async () => {
+      if (!searchQuery.trim() || hasExactMatch) return;
+
+      setIsCreating(true);
+      try {
+        const result = await createOption({
+          name: searchQuery.trim(),
+          category_options: "session - skill",
+          is_active: true,
+        });
+
+        toast.success(
+          `Skill "${searchQuery.trim()}" berhasil dibuat dan dipilih`,
+        );
+        setSearchQuery("");
+
+        // Auto-select the newly created skill
+        if (result.option && result.option._id) {
+          onChange([...selected, result.option._id]);
+        }
+
+        // Refresh the list to show the new option
+        if (onRefresh) {
+          onRefresh();
+        }
+
+        // Close the dropdown
+        setOpen(false);
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Gagal membuat skill baru",
+        );
+      } finally {
+        setIsCreating(false);
+      }
+    };
+
+    return (
+      <div className="flex flex-col gap-2">
+        <DropdownMenu open={open} onOpenChange={setOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              className="w-full justify-between font-normal"
+            >
+              <span className="truncate">{displayText}</span>
+              <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-full min-w-[var(--radix-dropdown-menu-trigger-width)] max-h-[300px] p-0">
+            {/* Search Input */}
+            <div className="p-2 border-b">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Cari atau buat skill baru..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 h-8"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && searchQuery && !hasExactMatch) {
+                      e.preventDefault();
+                      handleCreateNew();
+                    }
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Items List */}
+            <div className="max-h-[200px] overflow-y-auto">
+              {filteredItems.length === 0 && !searchQuery && (
+                <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                  Belum ada skill di master data
+                </div>
+              )}
+
+              {filteredItems.length === 0 && searchQuery && (
+                <div className="px-2 py-2">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-sm font-normal"
+                    onClick={handleCreateNew}
+                    disabled={isCreating}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    {isCreating ? "Membuat..." : `Buat "${searchQuery}"`}
+                  </Button>
+                </div>
+              )}
+
+              {filteredItems.map((item) => (
+                <DropdownMenuCheckboxItem
+                  key={item._id}
+                  checked={selected.includes(item._id)}
+                  onCheckedChange={(checked) => {
+                    onChange(
+                      checked
+                        ? [...selected, item._id]
+                        : selected.filter((id) => id !== item._id),
+                    );
+                  }}
+                >
+                  {item.name}
+                </DropdownMenuCheckboxItem>
+              ))}
+
+              {/* Create option when there are results but no exact match */}
+              {filteredItems.length > 0 && searchQuery && !hasExactMatch && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1">
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-sm font-normal"
+                      onClick={handleCreateNew}
+                      disabled={isCreating}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      {isCreating ? "Membuat..." : `Buat "${searchQuery}"`}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Selected Items as Badges */}
+        {selectedItems.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {selectedItems.map((item) => (
+              <Badge
+                key={item._id}
+                variant="secondary"
+                className="px-2 py-1 text-xs"
+              >
+                {item.name}
+                <button
+                  type="button"
+                  onClick={() => handleRemove(item._id)}
+                  className="ml-1.5 hover:bg-secondary-foreground/20 rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -1247,86 +1560,16 @@ export default function UsersPage() {
               {editForm.role === "groomer" && (
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="e-skills">Skills</Label>
-                  <div className="flex flex-col gap-2">
-                    <div className="flex gap-2">
-                      <Input
-                        id="e-skills"
-                        placeholder="Tambah skill (tekan Enter)"
-                        value={skillInput}
-                        onChange={(e) => setSkillInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            const skill = skillInput.trim();
-                            if (
-                              skill &&
-                              !(editForm.groomer_skills || []).includes(skill)
-                            ) {
-                              setEditForm((p) => ({
-                                ...p,
-                                groomer_skills: [
-                                  ...(p.groomer_skills || []),
-                                  skill,
-                                ],
-                              }));
-                              setSkillInput("");
-                            }
-                          }
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          const skill = skillInput.trim();
-                          if (
-                            skill &&
-                            !(editForm.groomer_skills || []).includes(skill)
-                          ) {
-                            setEditForm((p) => ({
-                              ...p,
-                              groomer_skills: [
-                                ...(p.groomer_skills || []),
-                                skill,
-                              ],
-                            }));
-                            setSkillInput("");
-                          }
-                        }}
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    {editForm.groomer_skills &&
-                      editForm.groomer_skills.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {editForm.groomer_skills.map((skill, idx) => (
-                            <Badge
-                              key={idx}
-                              variant="secondary"
-                              className="gap-1"
-                            >
-                              {skill}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditForm((p) => ({
-                                    ...p,
-                                    groomer_skills: (
-                                      p.groomer_skills || []
-                                    ).filter((_, i) => i !== idx),
-                                  }));
-                                }}
-                                className="ml-1 hover:text-destructive"
-                              >
-                                ×
-                              </button>
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                  </div>
+                  <SkillMultiSelect
+                    items={sessionSkills}
+                    selected={editForm.groomer_skills || []}
+                    onChange={(ids) =>
+                      setEditForm((p) => ({ ...p, groomer_skills: ids }))
+                    }
+                    placeholder="Pilih skill dari master data..."
+                    loading={isLoadingSkills}
+                    onRefresh={fetchSessionSkills}
+                  />
                 </div>
               )}
 
@@ -1353,12 +1596,523 @@ export default function UsersPage() {
                   </div>
                 </div>
               )}
+
+              {/* Full Name */}
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="e-fullname">Nama Lengkap (opsional)</Label>
+                <Input
+                  id="e-fullname"
+                  placeholder="Nama lengkap"
+                  value={editForm.full_name || ""}
+                  onChange={(e) =>
+                    setEditForm((p) => ({ ...p, full_name: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Daftar Alamat Section */}
+            <div className="flex flex-col gap-4">
+              <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
+                Daftar Alamat
+              </h3>
+              {editForm.addresses.length === 0 && (
+                <div className="text-xs text-muted-foreground">
+                  Belum ada alamat.
+                </div>
+              )}
+              {editForm.addresses.map((addr, idx) => (
+                <div
+                  key={addr._id || idx}
+                  className="border rounded-md relative bg-muted/30"
+                >
+                  {editingAddressIdx === idx ? (
+                    <div className="p-3">
+                      <div className="flex gap-2 items-center mb-2">
+                        <input
+                          type="radio"
+                          id={`admin_main_address_${idx}`}
+                          name="admin_main_address"
+                          checked={!!addr.is_main_address}
+                          onChange={() =>
+                            setEditForm((f) => ({
+                              ...f,
+                              addresses: f.addresses.map((a, i) => ({
+                                ...a,
+                                is_main_address: i === idx,
+                              })),
+                            }))
+                          }
+                        />
+                        <Label
+                          htmlFor={`admin_main_address_${idx}`}
+                          className="text-xs font-medium cursor-pointer"
+                        >
+                          Alamat Utama
+                        </Label>
+                        {addr.created_by && (
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1 py-0 h-4 font-normal ${addr.created_by === "admin" ? "border-blue-200 text-blue-700" : "border-green-200 text-green-700"}`}
+                          >
+                            {addr.created_by === "admin"
+                              ? "Admin"
+                              : "Customer"}
+                          </Badge>
+                        )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="ml-auto text-xs h-7"
+                          onClick={() => setEditingAddressIdx(null)}
+                        >
+                          Selesai
+                        </Button>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor={`admin-addr-label-${idx}`}>
+                            Label
+                          </Label>
+                          <Input
+                            id={`admin-addr-label-${idx}`}
+                            value={addr.label || ""}
+                            onChange={(e) =>
+                              setEditForm((f) => ({
+                                ...f,
+                                addresses: f.addresses.map((a, i) =>
+                                  i === idx
+                                    ? { ...a, label: e.target.value }
+                                    : a,
+                                ),
+                              }))
+                            }
+                            placeholder="Label (Rumah, Kantor, dll)"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor={`admin-addr-street-${idx}`}>
+                            Jalan / Alamat
+                          </Label>
+                          <Input
+                            id={`admin-addr-street-${idx}`}
+                            value={addr.street || ""}
+                            onChange={(e) =>
+                              setEditForm((f) => ({
+                                ...f,
+                                addresses: f.addresses.map((a, i) =>
+                                  i === idx
+                                    ? { ...a, street: e.target.value }
+                                    : a,
+                                ),
+                              }))
+                            }
+                            placeholder="Jalan / Alamat"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor={`admin-addr-subdistrict-${idx}`}>
+                            Kelurahan / Desa
+                          </Label>
+                          <Input
+                            id={`admin-addr-subdistrict-${idx}`}
+                            value={addr.subdistrict || ""}
+                            onChange={(e) =>
+                              setEditForm((f) => ({
+                                ...f,
+                                addresses: f.addresses.map((a, i) =>
+                                  i === idx
+                                    ? { ...a, subdistrict: e.target.value }
+                                    : a,
+                                ),
+                              }))
+                            }
+                            placeholder="Kelurahan / Desa"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor={`admin-addr-district-${idx}`}>
+                            Kecamatan
+                          </Label>
+                          <Input
+                            id={`admin-addr-district-${idx}`}
+                            value={addr.district || ""}
+                            onChange={(e) =>
+                              setEditForm((f) => ({
+                                ...f,
+                                addresses: f.addresses.map((a, i) =>
+                                  i === idx
+                                    ? { ...a, district: e.target.value }
+                                    : a,
+                                ),
+                              }))
+                            }
+                            placeholder="Kecamatan"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor={`admin-addr-city-${idx}`}>
+                            Kota / Kabupaten
+                          </Label>
+                          <Input
+                            id={`admin-addr-city-${idx}`}
+                            value={addr.city || ""}
+                            onChange={(e) =>
+                              setEditForm((f) => ({
+                                ...f,
+                                addresses: f.addresses.map((a, i) =>
+                                  i === idx
+                                    ? { ...a, city: e.target.value }
+                                    : a,
+                                ),
+                              }))
+                            }
+                            placeholder="Kota / Kabupaten"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor={`admin-addr-province-${idx}`}>
+                            Provinsi
+                          </Label>
+                          <Input
+                            id={`admin-addr-province-${idx}`}
+                            value={addr.province || ""}
+                            onChange={(e) =>
+                              setEditForm((f) => ({
+                                ...f,
+                                addresses: f.addresses.map((a, i) =>
+                                  i === idx
+                                    ? { ...a, province: e.target.value }
+                                    : a,
+                                ),
+                              }))
+                            }
+                            placeholder="Provinsi"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor={`admin-addr-postal-${idx}`}>
+                            Kode Pos
+                          </Label>
+                          <Input
+                            id={`admin-addr-postal-${idx}`}
+                            value={addr.postal_code || ""}
+                            onChange={(e) =>
+                              setEditForm((f) => ({
+                                ...f,
+                                addresses: f.addresses.map((a, i) =>
+                                  i === idx
+                                    ? { ...a, postal_code: e.target.value }
+                                    : a,
+                                ),
+                              }))
+                            }
+                            placeholder="Kode Pos"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label>Koordinat</Label>
+                          <div className="flex rounded-md border border-border w-fit">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={
+                                coordInputMode === "manual"
+                                  ? "secondary"
+                                  : "ghost"
+                              }
+                              className="rounded-none rounded-l-md"
+                              onClick={() => setCoordInputMode("manual")}
+                            >
+                              Manual
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={
+                                coordInputMode === "map"
+                                  ? "secondary"
+                                  : "ghost"
+                              }
+                              className="rounded-none rounded-r-md border-l border-border"
+                              onClick={() => setCoordInputMode("map")}
+                            >
+                              Dari Peta
+                            </Button>
+                          </div>
+                        </div>
+                        {coordInputMode === "manual" ? (
+                          <>
+                            <div className="flex flex-col gap-1.5">
+                              <Label htmlFor={`admin-addr-lat-${idx}`}>
+                                Latitude
+                              </Label>
+                              <Input
+                                id={`admin-addr-lat-${idx}`}
+                                type="number"
+                                step="any"
+                                value={addr.latitude ?? ""}
+                                onChange={(e) =>
+                                  setEditForm((f) => ({
+                                    ...f,
+                                    addresses: f.addresses.map((a, i) =>
+                                      i === idx
+                                        ? {
+                                            ...a,
+                                            latitude: e.target.value
+                                              ? parseFloat(e.target.value)
+                                              : undefined,
+                                          }
+                                        : a,
+                                    ),
+                                  }))
+                                }
+                                placeholder="-6.208"
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                              <Label htmlFor={`admin-addr-lng-${idx}`}>
+                                Longitude
+                              </Label>
+                              <Input
+                                id={`admin-addr-lng-${idx}`}
+                                type="number"
+                                step="any"
+                                value={addr.longitude ?? ""}
+                                onChange={(e) =>
+                                  setEditForm((f) => ({
+                                    ...f,
+                                    addresses: f.addresses.map((a, i) =>
+                                      i === idx
+                                        ? {
+                                            ...a,
+                                            longitude: e.target.value
+                                              ? parseFloat(e.target.value)
+                                              : undefined,
+                                          }
+                                        : a,
+                                    ),
+                                  }))
+                                }
+                                placeholder="106.845"
+                              />
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-col gap-2 sm:col-span-2">
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setMapOpen(true)}
+                              >
+                                <MapPin className="h-3.5 w-3.5 mr-1" />
+                                Pilih dari Peta
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={isDetectingLocation}
+                                onClick={handleDetectLocation}
+                              >
+                                <LocateFixed className="h-3.5 w-3.5 mr-1" />
+                                {isDetectingLocation
+                                  ? "Mendeteksi..."
+                                  : "Lokasi Saat Ini"}
+                              </Button>
+                            </div>
+                            {addr.latitude != null &&
+                              addr.longitude != null && (
+                                <p className="text-xs text-muted-foreground">
+                                  Koordinat terpilih: {addr.latitude},{" "}
+                                  {addr.longitude}
+                                </p>
+                              )}
+                          </div>
+                        )}
+                        <div className="flex flex-col gap-1.5 sm:col-span-2">
+                          <Label htmlFor={`admin-addr-note-${idx}`}>
+                            Catatan (opsional)
+                          </Label>
+                          <Input
+                            id={`admin-addr-note-${idx}`}
+                            value={addr.note || ""}
+                            onChange={(e) =>
+                              setEditForm((f) => ({
+                                ...f,
+                                addresses: f.addresses.map((a, i) =>
+                                  i === idx
+                                    ? { ...a, note: e.target.value }
+                                    : a,
+                                ),
+                              }))
+                            }
+                            placeholder="Catatan (opsional)"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 px-3 py-2">
+                      <input
+                        type="radio"
+                        id={`admin_main_addr_collapsed_${idx}`}
+                        name="admin_main_address"
+                        checked={!!addr.is_main_address}
+                        onChange={() =>
+                          setEditForm((f) => ({
+                            ...f,
+                            addresses: f.addresses.map((a, i) => ({
+                              ...a,
+                              is_main_address: i === idx,
+                            })),
+                          }))
+                        }
+                        className="shrink-0 cursor-pointer"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <label
+                          htmlFor={`admin_main_addr_collapsed_${idx}`}
+                          className="flex items-center gap-1.5 mb-0.5 cursor-pointer"
+                        >
+                          {addr.is_main_address && (
+                            <span className="text-xs text-primary font-semibold">
+                              Utama
+                            </span>
+                          )}
+                          <span className="text-xs font-medium">
+                            {addr.label || "Alamat"}
+                          </span>
+                          {addr.created_by && (
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] px-1 py-0 h-4 font-normal ${addr.created_by === "admin" ? "border-blue-200 text-blue-700" : "border-green-200 text-green-700"}`}
+                            >
+                              {addr.created_by === "admin"
+                                ? "Admin"
+                                : "Customer"}
+                            </Badge>
+                          )}
+                        </label>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {[
+                            addr.street,
+                            addr.district,
+                            addr.city,
+                            addr.province,
+                          ]
+                            .filter(Boolean)
+                            .join(", ") || "—"}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 shrink-0"
+                        onClick={() => setEditingAddressIdx(idx)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      {addr.created_by !== "customer" && (
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 shrink-0"
+                          onClick={() => {
+                            setEditForm((f) => ({
+                              ...f,
+                              addresses: f.addresses.filter(
+                                (_, i) => i !== idx,
+                              ),
+                            }));
+                            if (editingAddressIdx === idx)
+                              setEditingAddressIdx(null);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const newIdx = editForm.addresses.length;
+                  setEditForm((f) => ({
+                    ...f,
+                    addresses: [
+                      ...f.addresses.map((a) => ({
+                        ...a,
+                        is_main_address: false,
+                      })),
+                      {
+                        is_main_address: f.addresses.length === 0,
+                        label: "",
+                        street: "",
+                        city: "",
+                        created_by: "admin" as const,
+                      },
+                    ],
+                  }));
+                  setEditingAddressIdx(newIdx);
+                }}
+              >
+                <Plus className="h-4 w-4 mr-1" /> Tambah Alamat
+              </Button>
             </div>
 
             <Button type="submit" className="mt-2 w-full" disabled={isEditing}>
               {isEditing ? "Menyimpan..." : "Simpan Perubahan"}
             </Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Map Dialog for Address Editing */}
+      <Dialog open={mapOpen} onOpenChange={setMapOpen}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Pilih Lokasi di Peta</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Klik titik pada peta untuk mengisi koordinat alamat secara otomatis.
+          </p>
+          {mapOpen && editingAddressIdx !== null && (
+            <LocationMap
+              selectedLat={
+                editForm.addresses[editingAddressIdx]?.latitude ?? null
+              }
+              selectedLng={
+                editForm.addresses[editingAddressIdx]?.longitude ?? null
+              }
+              onSelect={(lat, lng) => {
+                setEditForm((f) => ({
+                  ...f,
+                  addresses: f.addresses.map((a, i) =>
+                    i === editingAddressIdx
+                      ? { ...a, latitude: lat, longitude: lng }
+                      : a,
+                  ),
+                }));
+              }}
+            />
+          )}
+          <div className="flex justify-end">
+            <Button type="button" onClick={() => setMapOpen(false)}>
+              Selesai
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
