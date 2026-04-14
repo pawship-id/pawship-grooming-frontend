@@ -23,6 +23,7 @@ import {
   Pencil,
   Sparkles,
   Info,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -62,9 +63,10 @@ import {
   getBookingPreview,
   getPetBenefitsSummary,
   applyBenefitPreview,
+  applyPromotionPreview,
   updateBookingPricing,
 } from "@/lib/api/bookings";
-import type { AdminBooking, BookingPreviewResult, ApplyBenefitPreviewResult } from "@/lib/api/bookings";
+import type { AdminBooking, BookingPreviewResult, ApplyBenefitPreviewResult, ApplyPromotionPreviewResult } from "@/lib/api/bookings";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { applyGroomingFrame } from "@/lib/frame-compositor";
@@ -259,11 +261,15 @@ export default function BookingDetailPage({
   const [loadingPricePreview, setLoadingPricePreview] = useState(false);
   const [loadingPriceApply, setLoadingPriceApply] = useState(false);
   const [savingPrice, setSavingPrice] = useState(false);
+  const [editPromotionIds, setEditPromotionIds] = useState<string[]>([]);
+  const [pricePromoResult, setPricePromoResult] = useState<ApplyPromotionPreviewResult | null>(null);
+  const [loadingPricePromo, setLoadingPricePromo] = useState(false);
 
   // ── Price edit: open handler ──────────────────────────────────────────────
   const handleOpenPriceEdit = async () => {
     if (!booking) return;
     setEditBenefitIds(booking.selected_benefit_ids ?? []);
+    setEditPromotionIds(booking.selected_promotion_ids ?? []);
     setEditServicePrice(String(booking.edited_service_price ?? booking.service_snapshot.price ?? ""));
     setEditServiceDiscount(String(booking.edited_service_discount ?? 0));
     setEditTravelFee((booking.pick_up || booking.delivery) ? String(booking.edited_travel_fee ?? booking.travel_fee ?? "") : "");
@@ -416,6 +422,8 @@ export default function BookingDetailPage({
     setEditAddonPrices({});
     setEditAddonDiscounts({});
     setEditAddonDiscountTypes({});
+    setEditPromotionIds([]);
+    setPricePromoResult(null);
   };
 
   // ── Price edit: benefit toggle (conflict resolution as in new booking) ────
@@ -518,6 +526,52 @@ export default function BookingDetailPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editBenefitIds, editServicePrice, editServiceDiscount, editServiceDiscountType, editTravelFee, editTravelFeeDiscount, editTravelFeeDiscountType, editAddonPrices, editAddonDiscounts, editAddonDiscountTypes, editingPrice]);
 
+  // ── Price edit: apply promotion preview ─────────────────────────────────
+  useEffect(() => {
+    if (!editingPrice || !booking || !pricePreviewData) return;
+    if (editPromotionIds.length === 0) {
+      setPricePromoResult(null);
+      setLoadingPricePromo(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingPricePromo(true);
+
+    // Compute grand total for promo calculation
+    const svcBase = parseFloat(editServicePrice) || booking.service_snapshot.price || 0;
+    const rawSvcDisc = parseFloat(editServiceDiscount) || 0;
+    const svcDisc = editServiceDiscountType === "pct" ? Math.min(svcBase, (rawSvcDisc / 100) * svcBase) : Math.min(svcBase, rawSvcDisc);
+    const tFeeBase = (booking.pick_up || booking.delivery) ? (parseFloat(editTravelFee) || booking.travel_fee || 0) : 0;
+    const rawTFeeDisc = (booking.pick_up || booking.delivery) ? (parseFloat(editTravelFeeDiscount) || 0) : 0;
+    const tFeeDisc = editTravelFeeDiscountType === "pct" ? Math.min(tFeeBase, (rawTFeeDisc / 100) * tFeeBase) : Math.min(tFeeBase, rawTFeeDisc);
+    const addonTotal = (booking.service_snapshot.addons ?? []).reduce((sum, addon) => {
+      const base = parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0;
+      const rawDisc = parseFloat(editAddonDiscounts[addon._id!] ?? "0") || 0;
+      const discType = editAddonDiscountTypes[addon._id!] ?? "nominal";
+      const disc = discType === "pct" ? Math.min(base, (rawDisc / 100) * base) : Math.min(base, rawDisc);
+      return sum + Math.max(0, base - disc);
+    }, 0);
+    const editedGrandTotal = Math.max(0, svcBase - svcDisc) + Math.max(0, tFeeBase - tFeeDisc) + addonTotal;
+
+    applyPromotionPreview({
+      selected_promotion_ids: editPromotionIds,
+      service_id: booking.service_snapshot._id,
+      addon_ids: (booking.service_addon_ids ?? []).length > 0 ? booking.service_addon_ids : undefined,
+      original_service_price: svcBase,
+      travel_fee: tFeeBase,
+      grand_total: editedGrandTotal,
+      pick_up: booking.pick_up || undefined,
+      delivery: booking.delivery || undefined,
+      has_active_membership: pricePreviewData.pricing.has_active_membership,
+      addon_prices: pricePreviewData.pricing.addon_prices,
+    })
+      .then((res) => { if (!cancelled) setPricePromoResult(res); })
+      .catch(() => { if (!cancelled) setPricePromoResult(null); })
+      .finally(() => { if (!cancelled) setLoadingPricePromo(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editPromotionIds, editServicePrice, editServiceDiscount, editServiceDiscountType, editTravelFee, editTravelFeeDiscount, editTravelFeeDiscountType, editAddonPrices, editAddonDiscounts, editAddonDiscountTypes, editingPrice, pricePreviewData]);
+
   // ── Price edit: save ──────────────────────────────────────────────────────
   const handleSavePricing = async () => {
     if (!booking) return;
@@ -542,6 +596,7 @@ export default function BookingDetailPage({
       });
       await updateBookingPricing(id, {
         selected_benefit_ids: editBenefitIds,
+        selected_promotion_ids: editPromotionIds.length > 0 ? editPromotionIds : undefined,
         service_price: !isNaN(svcPriceNum) ? svcPriceNum : undefined,
         service_discount: svcDiscNominal > 0 ? svcDiscNominal : undefined,
         travel_fee: (booking.pick_up || booking.delivery) && !isNaN(tFeeNum) ? tFeeNum : undefined,
@@ -1360,6 +1415,113 @@ export default function BookingDetailPage({
                     )}
                   </div>
 
+                  {/* Promotion selection */}
+                  {pricePreviewData?.pricing?.available_promotions && pricePreviewData.pricing.available_promotions.length > 0 && (
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center gap-2">
+                        <Tag className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                        <p className="text-sm font-semibold text-foreground">Promosi</p>
+                        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/50 dark:text-violet-400">
+                          {pricePreviewData.pricing.available_promotions.length} tersedia
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {pricePreviewData.pricing.available_promotions.map((promo) => {
+                          const selected = editPromotionIds.includes(promo._id);
+                          const hasNonStackableSelected = pricePreviewData.pricing.available_promotions.some(
+                            (p) => editPromotionIds.includes(p._id) && !p.is_stackable,
+                          );
+                          const blockedByStacking = !selected && hasNonStackableSelected;
+                          const blockedByBenefit = (() => {
+                            if (editBenefitIds.length === 0 || !pricePreviewData.pricing.available_benefits) return false;
+                            return pricePreviewData.pricing.available_benefits.some((b: any) => {
+                              if (!editBenefitIds.includes(b._id)) return false;
+                              if (b.applies_to !== promo.applies_to) return false;
+                              const bSid = b.service_id || null;
+                              const pSid = promo.service_id || null;
+                              return bSid === pSid;
+                            });
+                          })();
+                          const isDisabled = blockedByStacking || blockedByBenefit;
+                          return (
+                            <label
+                              key={promo._id}
+                              htmlFor={`edit-promo-${promo._id}`}
+                              className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
+                                isDisabled
+                                  ? "cursor-not-allowed border-border/30 bg-muted/20 opacity-50"
+                                  : selected
+                                    ? "border-violet-500 bg-violet-50 dark:bg-violet-950/20"
+                                    : "border-border bg-card hover:border-violet-400"
+                              }`}
+                            >
+                              <Checkbox
+                                id={`edit-promo-${promo._id}`}
+                                checked={selected}
+                                disabled={isDisabled}
+                                onCheckedChange={() => {
+                                  if (isDisabled) return;
+                                  if (selected) {
+                                    setEditPromotionIds((prev) => prev.filter((id) => id !== promo._id));
+                                  } else {
+                                    if (!promo.is_stackable) {
+                                      setEditPromotionIds([promo._id]);
+                                    } else {
+                                      setEditPromotionIds((prev) => [...prev, promo._id]);
+                                    }
+                                  }
+                                }}
+                                className="mt-0.5 shrink-0"
+                              />
+                              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-foreground">{promo.name}</span>
+                                  <span className="shrink-0 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-bold text-violet-700 dark:bg-violet-950/50 dark:text-violet-400">{promo.code}</span>
+                                  {promo.discount_type === "percent" ? (
+                                    <span className="shrink-0 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-700 dark:bg-green-950/50 dark:text-green-400">{promo.value}% off</span>
+                                  ) : (
+                                    <span className="shrink-0 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-bold text-green-700 dark:bg-green-950/50 dark:text-green-400">Rp {promo.value.toLocaleString("id-ID")} off</span>
+                                  )}
+                                  {!promo.is_stackable && (
+                                    <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">Non-stackable</span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                                  {promo.description && <span>{promo.description}</span>}
+                                  <span className="capitalize">
+                                    Berlaku untuk:{" "}
+                                    {promo.applies_to === "booking"
+                                      ? "Semua"
+                                      : promo.service_name
+                                        ? `${promo.applies_to}: ${promo.service_name}`
+                                        : promo.applies_to === "service"
+                                          ? "Semua Service"
+                                          : promo.applies_to === "addon"
+                                            ? "Semua Addon"
+                                            : promo.applies_to === "pickup"
+                                              ? "Pickup/Delivery"
+                                              : promo.applies_to}
+                                  </span>
+                                </div>
+                                {blockedByStacking && (
+                                  <span className="text-[11px] text-amber-600 dark:text-amber-400">Tidak dapat digabung — promo non-stackable sudah dipilih</span>
+                                )}
+                                {blockedByBenefit && (
+                                  <span className="text-[11px] text-amber-600 dark:text-amber-400">Tidak dapat digabung — benefit membership untuk target yang sama sudah dipilih</span>
+                                )}
+                              </div>
+                              {promo.amount_discount > 0 && (
+                                <span className={`shrink-0 text-sm font-bold ${selected ? "text-violet-600 dark:text-violet-400" : "text-muted-foreground"}`}>
+                                  - {formatPrice(promo.amount_discount)}
+                                </span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Live Preview */}
                   {(() => {
                     const svcBase = parseFloat(editServicePrice) || booking.service_snapshot.price || 0;
@@ -1387,7 +1549,8 @@ export default function BookingDetailPage({
                         .filter((b: any) => editBenefitIds.includes(b._id) && b.can_apply)
                         .reduce((sum: number, b: any) => sum + (b.amount_discount ?? 0), 0);
                     })();
-                    const previewTotal = Math.max(0, effectiveSubtotal - benefitDiscount);
+                    const promoDiscount = pricePromoResult?.total_discount ?? 0;
+                    const previewTotal = Math.max(0, effectiveSubtotal - benefitDiscount - promoDiscount);
                     return (
                       <div className="divide-y divide-border/40 overflow-hidden rounded-lg border border-border/50 bg-card">
                         <div className="flex items-center justify-between px-4 py-2.5 text-sm">
@@ -1537,9 +1700,40 @@ export default function BookingDetailPage({
                             )}
                           </div>
                         )}
+                        {/* Promotion discount row */}
+                        {(editPromotionIds.length > 0) && (loadingPricePromo || promoDiscount > 0) && (
+                          <div className="flex flex-col">
+                            <div className="flex items-center justify-between px-4 py-2.5 text-sm border-t border-violet-200/50 dark:border-violet-800/30">
+                              <span className="flex items-center gap-1.5 font-medium text-violet-600 dark:text-violet-400">
+                                <Tag className="h-3.5 w-3.5" />
+                                Diskon Promosi
+                              </span>
+                              {loadingPricePromo ? (
+                                <span className="h-4 w-20 animate-pulse rounded bg-violet-200 dark:bg-violet-800" />
+                              ) : (
+                                <span className="font-semibold text-violet-600 dark:text-violet-400">
+                                  - {formatPrice(promoDiscount)}
+                                </span>
+                              )}
+                            </div>
+                            {!loadingPricePromo && pricePromoResult && pricePromoResult.breakdown.length > 0 && (
+                              <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                                {pricePromoResult.breakdown.map((item, idx) => (
+                                  <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground">
+                                    <span className="flex items-center gap-1.5 truncate pr-4">
+                                      <span className="shrink-0 rounded bg-violet-100 px-1 py-px text-[9px] font-bold text-violet-700 dark:bg-violet-950/50 dark:text-violet-400">{item.code}</span>
+                                      {item.name}
+                                    </span>
+                                    <span className="shrink-0">- {formatPrice(item.amount_deducted)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                         <div className="flex items-center justify-between bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
                           <span>Total Baru</span>
-                          {loadingPriceApply && editBenefitIds.length > 0 ? (
+                          {(loadingPriceApply && editBenefitIds.length > 0) || (loadingPricePromo && editPromotionIds.length > 0) ? (
                             <span className="h-5 w-24 animate-pulse rounded bg-primary/20" />
                           ) : (
                             <span className="text-base">{formatPrice(previewTotal)}</span>
@@ -1964,6 +2158,42 @@ export default function BookingDetailPage({
                               })}
                             </div>
                           )}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+                {/* Diskon Promosi */}
+                {booking.applied_promotions && booking.applied_promotions.length > 0 && (() => {
+                  const totalPromoDiscount = booking.applied_promotions.reduce(
+                    (sum, p) => sum + (p.amount_deducted ?? 0), 0,
+                  );
+                  return (
+                    <>
+                      {totalPromoDiscount > 0 && (
+                        <div className="border-t border-violet-200/50 dark:border-violet-800/30">
+                          <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                            <span className="flex items-center gap-1.5 font-medium text-violet-600 dark:text-violet-400">
+                              <Tag className="h-3.5 w-3.5" />
+                              Diskon Promosi
+                            </span>
+                            <span className="font-semibold text-violet-600 dark:text-violet-400">
+                              - {formatPrice(totalPromoDiscount)}
+                            </span>
+                          </div>
+                          <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                            {booking.applied_promotions.map((promo, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1.5 truncate pr-4">
+                                  <span className="shrink-0 rounded bg-violet-100 px-1 py-px text-[9px] font-bold text-violet-700 dark:bg-violet-950/50 dark:text-violet-400">
+                                    {promo.code}
+                                  </span>
+                                  {promo.name}
+                                </span>
+                                <span className="shrink-0">- {formatPrice(promo.amount_deducted)}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </>

@@ -720,6 +720,42 @@ export default function CustomerOrderDetailPage() {
                     </>
                   );
                 })()}
+                {/* Diskon Promosi */}
+                {booking.applied_promotions && booking.applied_promotions.length > 0 && (() => {
+                  const totalPromoDiscount = booking.applied_promotions.reduce(
+                    (sum, p) => sum + (p.amount_deducted ?? 0), 0,
+                  );
+                  return (
+                    <>
+                      {totalPromoDiscount > 0 && (
+                        <div className="border-t border-violet-200/50 dark:border-violet-800/30">
+                          <div className="flex items-center justify-between px-4 py-2.5 text-sm">
+                            <span className="flex items-center gap-1.5 font-medium text-violet-600 dark:text-violet-400">
+                              <Tag className="h-3.5 w-3.5" />
+                              Diskon Promosi
+                            </span>
+                            <span className="font-semibold text-violet-600 dark:text-violet-400">
+                              - {formatPrice(totalPromoDiscount)}
+                            </span>
+                          </div>
+                          <div className="flex flex-col gap-0.5 px-4 pb-2.5 -mt-0.5">
+                            {booking.applied_promotions.map((promo, idx) => (
+                              <div key={idx} className="flex items-center justify-between text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1.5 truncate pr-4">
+                                  <span className="shrink-0 rounded bg-violet-100 px-1 py-px text-[9px] font-bold text-violet-700 dark:bg-violet-950/50 dark:text-violet-400">
+                                    {promo.code}
+                                  </span>
+                                  {promo.name}
+                                </span>
+                                <span className="shrink-0">- {formatPrice(promo.amount_deducted)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
                 {/* Total Akhir */}
                 <div className="flex items-center justify-between border-t border-primary/30 bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
                   <span>Total Akhir</span>
