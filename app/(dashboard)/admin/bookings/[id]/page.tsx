@@ -71,6 +71,8 @@ import { applyGroomingFrame } from "@/lib/frame-compositor";
 import { getStoreById } from "@/lib/api/stores";
 import { getUsers } from "@/lib/api/users";
 import type { ApiUser } from "@/lib/api/users";
+import { getOptions } from "@/lib/api/options";
+import type { ApiOption } from "@/lib/api/options";
 
 const statusColors: Record<string, string> = {
   requested: "bg-accent/20 text-accent-foreground",
@@ -198,6 +200,7 @@ export default function BookingDetailPage({
   const [rescheduledDate, setRescheduledDate] = useState("");
   const [rescheduledTimeRange, setRescheduledTimeRange] = useState("");
   const [storeSessions, setStoreSessions] = useState<string[]>([]);
+  const [sessionSkillOptions, setSessionSkillOptions] = useState<ApiOption[]>([]);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // Session management state
@@ -223,6 +226,7 @@ export default function BookingDetailPage({
   const [assignGroomerSessionId, setAssignGroomerSessionId] = useState<
     string | null
   >(null);
+  const [assignGroomerSessionType, setAssignGroomerSessionType] = useState("");
   const [assignGroomerValue, setAssignGroomerValue] = useState("");
   const [savingGroomer, setSavingGroomer] = useState(false);
 
@@ -441,14 +445,14 @@ export default function BookingDetailPage({
         if (!sel || sel.applies_to !== benefit.applies_to) return false;
         if (benefit.type === sel.type) return false;
         if (benefit.applies_to === "service") {
-          const quotaTarget    = (benefit.type === "quota"    ? benefit : sel).service_id || booking?.service_snapshot._id;
+          const quotaTarget = (benefit.type === "quota" ? benefit : sel).service_id || booking?.service_snapshot._id;
           const discountTarget = (benefit.type === "discount" ? benefit : sel).service_id || booking?.service_snapshot._id;
           return quotaTarget === discountTarget;
         }
         if (benefit.applies_to === "addon") {
-          const quotaBenefit    = benefit.type === "quota"    ? benefit : sel;
+          const quotaBenefit = benefit.type === "quota" ? benefit : sel;
           const discountBenefit = benefit.type === "discount" ? benefit : sel;
-          const quotaTarget    = quotaBenefit.service_id;
+          const quotaTarget = quotaBenefit.service_id;
           const discountTarget = discountBenefit.service_id;
           if (quotaTarget && discountTarget) return quotaTarget === discountTarget;
           if (quotaTarget && !discountTarget) {
@@ -511,7 +515,7 @@ export default function BookingDetailPage({
       .catch((err) => { console.error("[applyBenefitPreview] error:", err); if (!cancelled) setPriceApplyResult(null); })
       .finally(() => { if (!cancelled) setLoadingPriceApply(false); });
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editBenefitIds, editServicePrice, editServiceDiscount, editServiceDiscountType, editTravelFee, editTravelFeeDiscount, editTravelFeeDiscountType, editAddonPrices, editAddonDiscounts, editAddonDiscountTypes, editingPrice]);
 
   // ── Price edit: save ──────────────────────────────────────────────────────
@@ -558,16 +562,18 @@ export default function BookingDetailPage({
     Promise.all([
       getAdminBookingById(id),
       getUsers({ page: 1, limit: 200, role: "groomer" }),
+      getOptions("session - skill"),
     ])
-      .then(([bookingRes, groomersRes]) => {
+      .then(([bookingRes, groomersRes, optionsRes]) => {
         const b = bookingRes.booking;
         setBooking(b);
         setSelectedStatus("");
         setGroomers(groomersRes.users);
+        setSessionSkillOptions(optionsRes.options.filter((o) => o.is_active));
         if (b.store_id) {
           getStoreById(b.store_id)
             .then((storeRes) => setStoreSessions(storeRes.store.sessions ?? []))
-            .catch(() => {});
+            .catch(() => { });
         }
       })
       .catch(() => setNotFound(true))
@@ -845,7 +851,7 @@ export default function BookingDetailPage({
                       >
                         {isReached &&
                           (booking.booking_status === "in progress" &&
-                          status === "in progress" ? (
+                            status === "in progress" ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
                             <CheckCircle className="h-3 w-3" />
@@ -863,17 +869,17 @@ export default function BookingDetailPage({
                 {(booking.booking_status === "cancelled" ||
                   booking.booking_status === "rescheduled" ||
                   booking.booking_status === "waitlist") && (
-                  <>
-                    <div className="mx-2 h-px w-4 shrink-0 bg-border/50" />
-                    <div
-                      className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium capitalize ring-1
+                    <>
+                      <div className="mx-2 h-px w-4 shrink-0 bg-border/50" />
+                      <div
+                        className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium capitalize ring-1
                       ${booking.booking_status === "cancelled" ? "bg-destructive/10 text-destructive ring-destructive/30" : booking.booking_status === "waitlist" ? "bg-yellow-100 text-yellow-800 ring-yellow-300" : "bg-accent/20 text-accent-foreground ring-accent/30"}
                     `}
-                    >
-                      {booking.booking_status}
-                    </div>
-                  </>
-                )}
+                      >
+                        {booking.booking_status}
+                      </div>
+                    </>
+                  )}
               </div>
 
               {/* Update status form */}
@@ -1276,13 +1282,12 @@ export default function BookingDetailPage({
                           return (
                             <label
                               key={benefit._id}
-                              className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-                                isSelected
-                                  ? "border-primary bg-primary/10"
-                                  : isDisabled
-                                    ? "cursor-not-allowed border-border/30 bg-muted/30 opacity-60"
-                                    : "border-border/50 bg-card hover:border-primary/40"
-                              }`}
+                              className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${isSelected
+                                ? "border-primary bg-primary/10"
+                                : isDisabled
+                                  ? "cursor-not-allowed border-border/30 bg-muted/30 opacity-60"
+                                  : "border-border/50 bg-card hover:border-primary/40"
+                                }`}
                             >
                               <Checkbox
                                 checked={isSelected}
@@ -1296,11 +1301,10 @@ export default function BookingDetailPage({
                                     {benefit.label || benefit.description}
                                   </span>
                                   <span
-                                    className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                                      isQuotaBenefit
-                                        ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
-                                        : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
-                                    }`}
+                                    className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isQuotaBenefit
+                                      ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                                      : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                                      }`}
                                   >
                                     {isQuotaBenefit
                                       ? "Quota gratis"
@@ -1596,11 +1600,10 @@ export default function BookingDetailPage({
                         )}
                         {b && (
                           <span
-                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                              isQuota
-                                ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
-                                : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
-                            }`}
+                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isQuota
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                              : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                              }`}
                           >
                             {isQuota
                               ? "Gratis"
@@ -1679,11 +1682,10 @@ export default function BookingDetailPage({
                         )}
                         {b && (
                           <span
-                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-                              isQuota
-                                ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
-                                : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
-                            }`}
+                            className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${isQuota
+                              ? "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400"
+                              : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
+                              }`}
                           >
                             {isQuota
                               ? "Gratis"
@@ -2174,13 +2176,12 @@ export default function BookingDetailPage({
                           {session.type}
                         </span>
                         <Badge
-                          className={`text-xs capitalize ${
-                            session.status === "finished"
-                              ? "bg-secondary/60 text-secondary-foreground"
-                              : session.status === "in progress"
-                                ? "bg-primary/10 text-primary"
-                                : "bg-muted text-muted-foreground"
-                          }`}
+                          className={`text-xs capitalize ${session.status === "finished"
+                            ? "bg-secondary/60 text-secondary-foreground"
+                            : session.status === "in progress"
+                              ? "bg-primary/10 text-primary"
+                              : "bg-muted text-muted-foreground"
+                            }`}
                         >
                           {session.status}
                         </Badge>
@@ -2255,6 +2256,7 @@ export default function BookingDetailPage({
                               className="h-6 px-2 text-xs"
                               onClick={() => {
                                 setAssignGroomerSessionId(session._id!);
+                                setAssignGroomerSessionType(session.type ?? "");
                                 setAssignGroomerValue(session.groomer_id ?? "");
                               }}
                             >
@@ -2275,6 +2277,7 @@ export default function BookingDetailPage({
                               className="h-6 px-2 text-xs"
                               onClick={() => {
                                 setAssignGroomerSessionId(session._id!);
+                                setAssignGroomerSessionType(session.type ?? "");
                                 setAssignGroomerValue("");
                               }}
                             >
@@ -2390,11 +2393,36 @@ export default function BookingDetailPage({
                   <div className="flex flex-col gap-3 rounded-lg border border-dashed border-border/50 p-3 sm:flex-row sm:items-end">
                     <div className="flex flex-1 flex-col gap-1">
                       <Label className="text-xs">Tipe sesi</Label>
-                      <Input
-                        placeholder="bathing, drying, styling..."
-                        value={newSessionType}
-                        onChange={(e) => setNewSessionType(e.target.value)}
-                      />
+                      {(() => {
+                        const usedTypes = booking.sessions.map((s) => s.type.toLowerCase());
+                        const availableOptions = sessionSkillOptions.filter(
+                          (o) => !usedTypes.includes(o.name.toLowerCase()),
+                        );
+                        return availableOptions.length === 0 ? (
+                          <p className="rounded-md bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
+                            Semua tipe sesi sudah ditambahkan.
+                          </p>
+                        ) : (
+                          <Select
+                            value={newSessionType}
+                            onValueChange={(val) => {
+                              setNewSessionType(val);
+                              setNewSessionGroomerId("");
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Pilih tipe sesi..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableOptions.map((o) => (
+                                <SelectItem key={o._id} value={o.name}>
+                                  {o.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        );
+                      })()}
                     </div>
                     <div className="flex flex-1 flex-col gap-1">
                       <Label className="text-xs">Groomer (opsional)</Label>
@@ -2403,28 +2431,46 @@ export default function BookingDetailPage({
                           Belum ada groomer yang bertugas di store ini. Atur placement melalui edit profile groomer.
                         </p>
                       ) : (
-                        <Select
-                          value={newSessionGroomerId}
-                          onValueChange={setNewSessionGroomerId}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih groomer" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {storeGroomers.map((g) => (
-                              <SelectItem key={g._id} value={g._id} className="px-2">
-                                <div className="flex flex-col">
-                                  <span>{g.username}</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {g.profile?.groomer_skills && g.profile.groomer_skills.length > 0
-                                      ? g.profile.groomer_skills.join(", ")
-                                      : "Belum set skills"}
-                                  </span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        (() => {
+                          const groomersForSession = newSessionType
+                            ? storeGroomers.filter((g) =>
+                              (g.profile?.groomer_skills ?? []).some(
+                                (s) => s.toLowerCase() === newSessionType.toLowerCase(),
+                              ),
+                            )
+                            : storeGroomers;
+                          return (
+                            <Select
+                              value={newSessionGroomerId}
+                              onValueChange={setNewSessionGroomerId}
+                              disabled={!newSessionType}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder={newSessionType ? "Pilih groomer" : "Pilih tipe sesi dulu"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {groomersForSession.length === 0 ? (
+                                  <div className="px-3 py-2 text-xs text-muted-foreground">
+                                    Tidak ada groomer dengan skill &quot;{newSessionType}&quot;
+                                  </div>
+                                ) : (
+                                  groomersForSession.map((g) => (
+                                    <SelectItem key={g._id} value={g._id} textValue={g.username}>
+                                      <div className="flex flex-col text-left">
+                                        <span>{g.username}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {g.profile?.groomer_skills && g.profile.groomer_skills.length > 0
+                                            ? g.profile.groomer_skills.join(", ")
+                                            : "Belum set skills"}
+                                        </span>
+                                      </div>
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                          );
+                        })()
                       )}
                     </div>
                     <Button
@@ -2511,10 +2557,10 @@ export default function BookingDetailPage({
                     ))}
                   {(booking.media ?? []).filter((m) => m.type === "before")
                     .length === 0 && (
-                    <p className="text-sm italic text-muted-foreground">
-                      Belum ada foto before
-                    </p>
-                  )}
+                      <p className="text-sm italic text-muted-foreground">
+                        Belum ada foto before
+                      </p>
+                    )}
                 </div>
               </div>
 
@@ -2578,10 +2624,10 @@ export default function BookingDetailPage({
                     ))}
                   {(booking.media ?? []).filter((m) => m.type === "after")
                     .length === 0 && (
-                    <p className="text-sm italic text-muted-foreground">
-                      Belum ada foto after
-                    </p>
-                  )}
+                      <p className="text-sm italic text-muted-foreground">
+                        Belum ada foto after
+                      </p>
+                    )}
                 </div>
               </div>
             </CardContent>
@@ -2673,6 +2719,7 @@ export default function BookingDetailPage({
         onOpenChange={(open) => {
           if (!open) {
             setAssignGroomerSessionId(null);
+            setAssignGroomerSessionType("");
             setAssignGroomerValue("");
           }
         }}
@@ -2681,7 +2728,7 @@ export default function BookingDetailPage({
           <AlertDialogHeader>
             <AlertDialogTitle>Assign Groomer</AlertDialogTitle>
             <AlertDialogDescription>
-              Pilih groomer untuk sesi ini
+              Pilih groomer untuk sesi{assignGroomerSessionType ? ` "${assignGroomerSessionType}"` : " ini"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="py-2">
@@ -2690,28 +2737,45 @@ export default function BookingDetailPage({
                 Belum ada groomer yang bertugas di store ini. Atur placement melalui edit profile groomer.
               </p>
             ) : (
-              <Select
-                value={assignGroomerValue}
-                onValueChange={setAssignGroomerValue}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih groomer..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {storeGroomers.map((g) => (
-                    <SelectItem key={g._id} value={g._id} className="px-2">
-                      <div className="flex flex-col">
-                        <span>{g.username}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {g.profile?.groomer_skills && g.profile.groomer_skills.length > 0
-                            ? g.profile.groomer_skills.join(", ")
-                            : "Belum set skills"}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              (() => {
+                const groomersForAssign = assignGroomerSessionType
+                  ? storeGroomers.filter((g) =>
+                    (g.profile?.groomer_skills ?? []).some(
+                      (s) => s.toLowerCase() === assignGroomerSessionType.toLowerCase(),
+                    ),
+                  )
+                  : storeGroomers;
+                return (
+                  <Select
+                    value={assignGroomerValue}
+                    onValueChange={setAssignGroomerValue}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih groomer..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {groomersForAssign.length === 0 ? (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">
+                          Tidak ada groomer dengan skill &quot;{assignGroomerSessionType}&quot;
+                        </div>
+                      ) : (
+                        groomersForAssign.map((g) => (
+                          <SelectItem key={g._id} value={g._id} textValue={g.username}>
+                            <div className="flex flex-col text-left">
+                              <span>{g.username}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {g.profile?.groomer_skills && g.profile.groomer_skills.length > 0
+                                  ? g.profile.groomer_skills.join(", ")
+                                  : "Belum set skills"}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                );
+              })()
             )}
           </div>
           <AlertDialogFooter>
