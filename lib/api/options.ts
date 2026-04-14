@@ -35,7 +35,7 @@ export async function getOptions(category?: CategoryOption) {
 }
 
 export async function createOption(payload: OptionPayload) {
-  return apiAuthRequest<{ message: string }>("/options", {
+  return apiAuthRequest<{ message: string; option: ApiOption }>("/options", {
     method: "POST",
     body: JSON.stringify(payload),
   });
