@@ -15,6 +15,7 @@ export interface UserAddress {
   latitude?: number;
   longitude?: number;
   is_main_address?: boolean;
+  created_by?: "admin" | "customer";
 }
 
 export interface UserProfile {
