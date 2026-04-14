@@ -537,21 +537,22 @@ export default function BookingDetailPage({
     let cancelled = false;
     setLoadingPricePromo(true);
 
-    // Compute grand total for promo calculation
+    // Compute original base totals (before admin item discounts) for promo percent calculation
     const svcBase = parseFloat(editServicePrice) || booking.service_snapshot.price || 0;
-    const rawSvcDisc = parseFloat(editServiceDiscount) || 0;
-    const svcDisc = editServiceDiscountType === "pct" ? Math.min(svcBase, (rawSvcDisc / 100) * svcBase) : Math.min(svcBase, rawSvcDisc);
     const tFeeBase = (booking.pick_up || booking.delivery) ? (parseFloat(editTravelFee) || booking.travel_fee || 0) : 0;
-    const rawTFeeDisc = (booking.pick_up || booking.delivery) ? (parseFloat(editTravelFeeDiscount) || 0) : 0;
-    const tFeeDisc = editTravelFeeDiscountType === "pct" ? Math.min(tFeeBase, (rawTFeeDisc / 100) * tFeeBase) : Math.min(tFeeBase, rawTFeeDisc);
-    const addonTotal = (booking.service_snapshot.addons ?? []).reduce((sum, addon) => {
+    const addonBaseTotal = (booking.service_snapshot.addons ?? []).reduce((sum, addon) => {
       const base = parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0;
-      const rawDisc = parseFloat(editAddonDiscounts[addon._id!] ?? "0") || 0;
-      const discType = editAddonDiscountTypes[addon._id!] ?? "nominal";
-      const disc = discType === "pct" ? Math.min(base, (rawDisc / 100) * base) : Math.min(base, rawDisc);
-      return sum + Math.max(0, base - disc);
+      return sum + base;
     }, 0);
-    const editedGrandTotal = Math.max(0, svcBase - svcDisc) + Math.max(0, tFeeBase - tFeeDisc) + addonTotal;
+    // grand_total must be the original price before admin discounts so percent promos work correctly
+    const originalGrandTotal = svcBase + tFeeBase + addonBaseTotal;
+
+    // Build edited addon prices (base prices without discounts) for per-addon promo calculation
+    const editedAddonPrices = (booking.service_snapshot.addons ?? []).map((addon) => ({
+      _id: addon._id!,
+      name: addon.name ?? "",
+      price: parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0,
+    }));
 
     applyPromotionPreview({
       selected_promotion_ids: editPromotionIds,
@@ -559,18 +560,18 @@ export default function BookingDetailPage({
       addon_ids: (booking.service_addon_ids ?? []).length > 0 ? booking.service_addon_ids : undefined,
       original_service_price: svcBase,
       travel_fee: tFeeBase,
-      grand_total: editedGrandTotal,
+      grand_total: originalGrandTotal,
       pick_up: booking.pick_up || undefined,
       delivery: booking.delivery || undefined,
       has_active_membership: pricePreviewData.pricing.has_active_membership,
-      addon_prices: pricePreviewData.pricing.addon_prices,
+      addon_prices: editedAddonPrices,
     })
       .then((res) => { if (!cancelled) setPricePromoResult(res); })
       .catch(() => { if (!cancelled) setPricePromoResult(null); })
       .finally(() => { if (!cancelled) setLoadingPricePromo(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editPromotionIds, editServicePrice, editServiceDiscount, editServiceDiscountType, editTravelFee, editTravelFeeDiscount, editTravelFeeDiscountType, editAddonPrices, editAddonDiscounts, editAddonDiscountTypes, editingPrice, pricePreviewData]);
+  }, [editPromotionIds, editServicePrice, editTravelFee, editAddonPrices, editingPrice, pricePreviewData]);
 
   // ── Price edit: save ──────────────────────────────────────────────────────
   const handleSavePricing = async () => {
