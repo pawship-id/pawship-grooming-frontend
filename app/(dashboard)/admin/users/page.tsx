@@ -196,6 +196,7 @@ export default function UsersPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateUserForm>(DEFAULT_CREATE);
   const [isCreating, setIsCreating] = useState(false);
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
   const [editUser, setEditUser] = useState<ApiUser | null>(null);
   const [editForm, setEditForm] = useState<EditUserForm>({
     username: "",
@@ -1227,6 +1228,7 @@ export default function UsersPage() {
             setCreateForm(DEFAULT_CREATE);
             setCreateImageFile(null);
             setCreateImagePreview(null);
+            setShowCreatePassword(false);
           }
         }}
       >
@@ -1314,17 +1316,32 @@ export default function UsersPage() {
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="c-password">Password</Label>
-              <Input
-                id="c-password"
-                type="password"
-                placeholder="Minimal 6 karakter"
-                required
-                minLength={6}
-                value={createForm.password}
-                onChange={(e) =>
-                  setCreateForm((p) => ({ ...p, password: e.target.value }))
-                }
-              />
+              <div className="relative">
+                <Input
+                  id="c-password"
+                  type={showCreatePassword ? "text" : "password"}
+                  placeholder="Minimal 6 karakter"
+                  required
+                  minLength={6}
+                  value={createForm.password}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({ ...p, password: e.target.value }))
+                  }
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowCreatePassword((v) => !v)}
+                  tabIndex={-1}
+                >
+                  {showCreatePassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="c-role">Role</Label>
@@ -1614,7 +1631,7 @@ export default function UsersPage() {
             <Separator />
 
             {/* Daftar Alamat Section */}
-            <div className="flex flex-col gap-4">
+            {editForm.role === "customer" && <div className="flex flex-col gap-4">
               <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">
                 Daftar Alamat
               </h3>
@@ -2070,7 +2087,7 @@ export default function UsersPage() {
               >
                 <Plus className="h-4 w-4 mr-1" /> Tambah Alamat
               </Button>
-            </div>
+            </div>}
 
             <Button type="submit" className="mt-2 w-full" disabled={isEditing}>
               {isEditing ? "Menyimpan..." : "Simpan Perubahan"}
