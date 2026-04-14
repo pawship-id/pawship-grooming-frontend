@@ -141,6 +141,8 @@ export interface AdminBooking {
   booking_status: string;
   status_logs: StatusLog[];
   service_addon_ids: string[];
+  pickup_fee: number;
+  delivery_fee: number;
   travel_fee: number;
   sub_total_service: number;
   original_total_price: number;
@@ -386,6 +388,7 @@ export async function getBookingPreview(payload: {
   delivery?: boolean;
   store_id?: string;
   customer_id?: string;
+  exclude_booking_id?: string;
 }) {
   return apiAuthRequest<{ message: string } & BookingPreviewResult>(
     "/bookings/preview",
@@ -406,6 +409,7 @@ export async function applyBenefitPreview(payload: {
   booking_date?: string;
   pick_up?: boolean;
   delivery?: boolean;
+  exclude_booking_id?: string;
 }) {
   return apiAuthRequest<{ message: string } & ApplyBenefitPreviewResult>(
     "/bookings/public/apply-benefit",
@@ -417,7 +421,7 @@ export async function applyBenefitPreview(payload: {
 }
 
 export async function createAdminBooking(payload: CreateBookingPayload) {
-  return apiAuthRequest<{ message: string }>("/bookings", {
+  return apiAuthRequest<{ message: string; _id?: string }>("/bookings", {
     method: "POST",
     body: JSON.stringify(payload),
   });

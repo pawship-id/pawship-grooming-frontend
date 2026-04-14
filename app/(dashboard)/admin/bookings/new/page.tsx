@@ -622,7 +622,7 @@ export default function NewBookingPage() {
     try {
       const isInHomeService = form.type === "in home";
 
-      await createAdminBooking({
+      const result = await createAdminBooking({
         service_type_id: form.service_type_id,
         customer_id: form.customer_id,
         pet_id: form.pet_id,
@@ -646,7 +646,11 @@ export default function NewBookingPage() {
         note: form.note || undefined,
       });
       toast.success("Booking berhasil dibuat");
-      router.push("/admin/bookings");
+      router.push(
+        result?._id
+          ? `/admin/bookings/${result._id}`
+          : "/admin/bookings",
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal membuat booking");
     } finally {
@@ -1536,10 +1540,115 @@ export default function NewBookingPage() {
                 {!loadingPreview &&
                   !previewData &&
                   (previewError ? (
-                    previewError.toLowerCase().includes("location") ||
-                    previewError.toLowerCase().includes("latitude") ||
-                    previewError.toLowerCase().includes("longitude") ||
-                    previewError.toLowerCase().includes("alamat") ? (
+                    // Store location not configured (e.g. "Store location not properly configured")
+                    previewError.toLowerCase().includes("store location") ? (
+                      <div className="flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 dark:border-red-700 dark:bg-red-950/30">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+                        <div className="flex flex-col gap-2">
+                          <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                            Lokasi store belum dikonfigurasi
+                          </p>
+                          <p className="text-xs text-red-700 dark:text-red-400">
+                            Store ini belum mengatur koordinat lokasi
+                            (latitude/longitude). Silakan lengkapi lokasi store
+                            terlebih dahulu agar layanan pickup/delivery dan
+                            home service dapat dihitung.
+                          </p>
+                          <Link
+                            href="/admin/stores"
+                            className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-lg bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800 transition-colors hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900"
+                          >
+                            <MapPin className="h-3 w-3" />
+                            Atur lokasi store
+                          </Link>
+                        </div>
+                      </div>
+                    ) : // Store has no zones configured (e.g. "Store has no pickup/delivery zones configured")
+                    previewError.toLowerCase().includes("store has no") &&
+                      previewError.toLowerCase().includes("zone") ? (
+                      <div className="flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 dark:border-red-700 dark:bg-red-950/30">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+                        <div className="flex flex-col gap-2">
+                          <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                            {previewError
+                              .toLowerCase()
+                              .includes("home service")
+                              ? "Zona home service belum diatur"
+                              : "Zona pickup/delivery belum diatur"}
+                          </p>
+                          <p className="text-xs text-red-700 dark:text-red-400">
+                            {previewError
+                              .toLowerCase()
+                              .includes("home service")
+                              ? "Store ini belum memiliki zona home service. Silakan tambahkan zona home service pada pengaturan store."
+                              : "Store ini belum memiliki zona pickup/delivery. Silakan tambahkan zona pickup/delivery pada pengaturan store."}
+                          </p>
+                          <Link
+                            href="/admin/stores"
+                            className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-lg bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800 transition-colors hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900"
+                          >
+                            <AlertTriangle className="h-3 w-3" />
+                            Atur zona store
+                          </Link>
+                        </div>
+                      </div>
+                    ) : // Customer outside all zones (e.g. "Customer location is outside all ... zones. Distance: 5.23km")
+                    // Must come BEFORE "customer + location" check since it also contains those words
+                    previewError.toLowerCase().includes("outside") ||
+                      (previewError.toLowerCase().includes("zone") &&
+                        previewError.toLowerCase().includes("distance")) ? (
+                      (() => {
+                        // Extract distance from error like "Distance: 5.23km"
+                        const distMatch = previewError.match(
+                          /distance:\s*([\d.]+)\s*km/i,
+                        );
+                        const distKm = distMatch ? distMatch[1] : null;
+                        const isHomeService = previewError
+                          .toLowerCase()
+                          .includes("home service");
+                        return (
+                          <div className="flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 dark:border-red-700 dark:bg-red-950/30">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+                            <div className="flex flex-col gap-2">
+                              <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                                Lokasi customer di luar jangkauan zona
+                              </p>
+                              <p className="text-xs text-red-700 dark:text-red-400">
+                                Lokasi customer berada di luar radius maksimal
+                                zona{" "}
+                                {isHomeService
+                                  ? "home service"
+                                  : "pickup/delivery"}{" "}
+                                yang tersedia di store ini.
+                                {distKm && (
+                                  <>
+                                    {" "}
+                                    Jarak customer ke store:{" "}
+                                    <strong>{distKm} km</strong>.
+                                  </>
+                                )}
+                              </p>
+                              <p className="text-xs text-red-600 dark:text-red-400">
+                                Silakan tambahkan zona dengan radius yang lebih
+                                besar pada pengaturan store, atau pilih store
+                                lain yang lebih dekat dengan lokasi customer.
+                              </p>
+                              <Link
+                                href="/admin/stores"
+                                className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-lg bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800 transition-colors hover:bg-red-200 dark:bg-red-900/50 dark:text-red-300 dark:hover:bg-red-900"
+                              >
+                                <MapPin className="h-3 w-3" />
+                                Atur zona store
+                              </Link>
+                            </div>
+                          </div>
+                        );
+                      })()
+                    ) : // Customer location missing (e.g. "Customer must have a location...")
+                    previewError.toLowerCase().includes("customer") &&
+                      (previewError.toLowerCase().includes("location") ||
+                        previewError.toLowerCase().includes("latitude") ||
+                        previewError.toLowerCase().includes("longitude")) ? (
                       <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-700 dark:bg-amber-950/30">
                         <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                         <div className="flex flex-col gap-2">
@@ -1562,26 +1671,34 @@ export default function NewBookingPage() {
                           )}
                         </div>
                       </div>
-                    ) : previewError.toLowerCase().includes("zone") ||
-                      previewError.toLowerCase().includes("zona") ||
-                      previewError.toLowerCase().includes("outside") ||
-                      previewError.toLowerCase().includes("distance") ? (
+                    ) : // Fallback: generic location/alamat errors
+                    previewError.toLowerCase().includes("location") ||
+                      previewError.toLowerCase().includes("latitude") ||
+                      previewError.toLowerCase().includes("longitude") ||
+                      previewError.toLowerCase().includes("alamat") ? (
+                      <div className="flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-700 dark:bg-amber-950/30">
+                        <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                        <div className="flex flex-col gap-2">
+                          <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                            Data lokasi belum lengkap
+                          </p>
+                          <p className="text-xs text-amber-700 dark:text-amber-400">
+                            {previewError}
+                          </p>
+                        </div>
+                      </div>
+                    ) : // Other zone/zona errors
+                    previewError.toLowerCase().includes("zone") ||
+                      previewError.toLowerCase().includes("zona") ? (
                       <div className="flex items-start gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 dark:border-red-700 dark:bg-red-950/30">
                         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
                         <div className="flex flex-col gap-2">
                           <p className="text-sm font-semibold text-red-800 dark:text-red-300">
-                            Zona tidak ditemukan
+                            Masalah zona layanan
                           </p>
                           <p className="text-xs text-red-700 dark:text-red-400">
-                            Lokasi customer berada di luar jangkauan zona
-                            layanan yang tersedia di store ini. {previewError}
+                            {previewError}
                           </p>
-                          <div className="mt-1 rounded-lg bg-red-100 px-2.5 py-2 dark:bg-red-900/50">
-                            <p className="text-xs font-medium text-red-800 dark:text-red-300">
-                              Silakan hubungi admin di nomor{" "}
-                              <strong>12345</strong> untuk bantuan lebih lanjut.
-                            </p>
-                          </div>
                         </div>
                       </div>
                     ) : (
