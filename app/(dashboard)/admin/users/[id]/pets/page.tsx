@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   CalendarDays,
@@ -13,40 +13,67 @@ import {
   Tag,
   X,
   CreditCard,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { Switch } from "@/components/ui/switch"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Separator } from "@/components/ui/separator"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { type ApiPet, type ApiCurrentUser, getUser } from "@/lib/api/users"
-import { type CreatePetPayload, type UpdatePetPayload, createPet, deletePet, updatePet } from "@/lib/api/pets"
-import { uploadFile } from "@/lib/api/upload"
-import { getOptions, type ApiOption } from "@/lib/api/options"
-import { toast } from "sonner"
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Combobox } from "@/components/ui/combobox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { type ApiPet, type ApiCurrentUser, getUser } from "@/lib/api/users";
+import {
+  type CreatePetPayload,
+  type UpdatePetPayload,
+  createPet,
+  deletePet,
+  updatePet,
+} from "@/lib/api/pets";
+import { uploadFile } from "@/lib/api/upload";
+import { getOptions, type ApiOption } from "@/lib/api/options";
+import { toast } from "sonner";
 
 // ── Form types ─────────────────────────────────────────────────────────────
 type PetForm = {
-  name: string
-  description: string
-  internal_note: string
-  pet_type_id: string
-  hair_category_id: string
-  size_category_id: string
-  breed_category_id: string
-  birthday: string
-  weight: string
-  tags: string[]
-  is_active: boolean
-}
+  name: string;
+  description: string;
+  internal_note: string;
+  pet_type_id: string;
+  hair_category_id: string;
+  size_category_id: string;
+  breed_category_id: string;
+  birthday: string;
+  weight: string;
+  tags: string[];
+  is_active: boolean;
+};
 
 const DEFAULT_FORM: PetForm = {
   name: "",
@@ -60,7 +87,7 @@ const DEFAULT_FORM: PetForm = {
   weight: "",
   tags: [],
   is_active: true,
-}
+};
 
 function petToForm(pet: ApiPet): PetForm {
   return {
@@ -75,7 +102,7 @@ function petToForm(pet: ApiPet): PetForm {
     weight: pet.weight != null ? String(pet.weight) : "",
     tags: pet.tags ?? [],
     is_active: pet.is_active,
-  }
+  };
 }
 
 function formToPayload(form: PetForm, customerId: string): CreatePetPayload {
@@ -92,15 +119,15 @@ function formToPayload(form: PetForm, customerId: string): CreatePetPayload {
     tags: form.tags.length > 0 ? form.tags : undefined,
     is_active: form.is_active,
     customer_id: customerId,
-  }
+  };
 }
 
 // ── Options store ─────────────────────────────────────────────────────────
 interface OptionGroups {
-  petTypes: ApiOption[]
-  hairCategories: ApiOption[]
-  sizeCategories: ApiOption[]
-  breedCategories: ApiOption[]
+  petTypes: ApiOption[];
+  hairCategories: ApiOption[];
+  sizeCategories: ApiOption[];
+  breedCategories: ApiOption[];
 }
 
 // ── Pet Card ──────────────────────────────────────────────────────────────
@@ -110,12 +137,12 @@ function PetCard({
   onDelete,
   onMembership,
 }: {
-  pet: ApiPet
-  onEdit: (pet: ApiPet) => void
-  onDelete: (pet: ApiPet) => void
-  onMembership: (pet: ApiPet) => void
+  pet: ApiPet;
+  onEdit: (pet: ApiPet) => void;
+  onDelete: (pet: ApiPet) => void;
+  onMembership: (pet: ApiPet) => void;
 }) {
-  const initials = pet.name.slice(0, 2).toUpperCase()
+  const initials = pet.name.slice(0, 2).toUpperCase();
 
   return (
     <Card className="border-border/50">
@@ -123,21 +150,35 @@ function PetCard({
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10">
-              {pet.profile_image?.secure_url && <AvatarImage src={pet.profile_image.secure_url} alt={pet.name} className="object-cover" />}
+              {pet.profile_image?.secure_url && (
+                <AvatarImage
+                  src={pet.profile_image.secure_url}
+                  alt={pet.name}
+                  className="object-cover"
+                />
+              )}
               <AvatarFallback className="bg-primary/10 text-primary font-bold text-sm">
                 {initials}
               </AvatarFallback>
             </Avatar>
             <div>
-              <h3 className="font-display font-bold text-foreground leading-tight">{pet.name}</h3>
+              <h3 className="font-display font-bold text-foreground leading-tight">
+                {pet.name}
+              </h3>
               <div className="flex flex-wrap gap-1 mt-1">
                 {pet.pet_type && (
-                  <Badge variant="outline" className="text-xs bg-sky-50 text-sky-700 border-sky-200">
+                  <Badge
+                    variant="outline"
+                    className="text-xs bg-sky-50 text-sky-700 border-sky-200"
+                  >
                     {pet.pet_type.name}
                   </Badge>
                 )}
                 {pet.breed && (
-                  <Badge variant="outline" className="text-xs bg-violet-50 text-violet-700 border-violet-200">
+                  <Badge
+                    variant="outline"
+                    className="text-xs bg-violet-50 text-violet-700 border-violet-200"
+                  >
                     {pet.breed.name}
                   </Badge>
                 )}
@@ -151,10 +192,21 @@ function PetCard({
             </div>
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <Button variant="ghost" size="icon" className="h-7 w-7" title="Membership" onClick={() => onMembership(pet)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              title="Membership"
+              onClick={() => onMembership(pet)}
+            >
               <CreditCard className="h-3.5 w-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(pet)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => onEdit(pet)}
+            >
               <Pencil className="h-3.5 w-3.5" />
             </Button>
             <Button
@@ -169,7 +221,9 @@ function PetCard({
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
-        {pet.description && <p className="text-foreground/80 text-xs">{pet.description}</p>}
+        {pet.description && (
+          <p className="text-foreground/80 text-xs">{pet.description}</p>
+        )}
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           {pet.size && (
             <span className="flex items-center gap-1">
@@ -194,9 +248,7 @@ function PetCard({
             </span>
           )}
         </div>
-        {pet.hair && (
-          <span className="text-xs">Bulu: {pet.hair.name}</span>
-        )}
+        {pet.hair && <span className="text-xs">Bulu: {pet.hair.name}</span>}
         {pet.tags && pet.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
             {pet.tags.map((tag) => (
@@ -209,7 +261,7 @@ function PetCard({
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
 
 // ── Pet Form Dialog ───────────────────────────────────────────────────────
@@ -225,31 +277,31 @@ function PetFormDialog({
   imagePreview,
   onImageChange,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  form: PetForm
-  setForm: React.Dispatch<React.SetStateAction<PetForm>>
-  options: OptionGroups
-  onSubmit: (e: React.FormEvent) => void
-  isLoading: boolean
-  mode: "create" | "edit"
-  imagePreview: string | null
-  onImageChange: (file: File | null, preview: string | null) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  form: PetForm;
+  setForm: React.Dispatch<React.SetStateAction<PetForm>>;
+  options: OptionGroups;
+  onSubmit: (e: React.FormEvent) => void;
+  isLoading: boolean;
+  mode: "create" | "edit";
+  imagePreview: string | null;
+  onImageChange: (file: File | null, preview: string | null) => void;
 }) {
-  const [tagInput, setTagInput] = useState("")
-  const petImageRef = useRef<HTMLInputElement>(null)
+  const [tagInput, setTagInput] = useState("");
+  const petImageRef = useRef<HTMLInputElement>(null);
 
   const addTag = () => {
-    const tag = tagInput.trim().toLowerCase()
+    const tag = tagInput.trim().toLowerCase();
     if (tag && !form.tags.includes(tag)) {
-      setForm((p) => ({ ...p, tags: [...p.tags, tag] }))
+      setForm((p) => ({ ...p, tags: [...p.tags, tag] }));
     }
-    setTagInput("")
-  }
+    setTagInput("");
+  };
 
   const removeTag = (tag: string) => {
-    setForm((p) => ({ ...p, tags: p.tags.filter((t) => t !== tag) }))
-  }
+    setForm((p) => ({ ...p, tags: p.tags.filter((t) => t !== tag) }));
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -262,34 +314,51 @@ function PetFormDialog({
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           {/* Pet Photo */}
           <div className="flex flex-col items-center gap-2">
-            <button type="button" onClick={() => petImageRef.current?.click()}
+            <button
+              type="button"
+              onClick={() => petImageRef.current?.click()}
               className="relative group w-20 h-20 rounded-lg overflow-hidden border-2 border-border focus:outline-none"
             >
               {imagePreview ? (
-                <img src={imagePreview} alt="Foto pet" className="w-full h-full object-cover" />
+                <img
+                  src={imagePreview}
+                  alt="Foto pet"
+                  className="w-full h-full object-cover"
+                />
               ) : (
                 <div className="w-full h-full bg-primary/10 flex items-center justify-center">
                   <PawPrint className="h-7 w-7 text-primary/50" />
                 </div>
               )}
               <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-white text-xs font-medium">{imagePreview ? "Ganti" : "Upload"}</span>
+                <span className="text-white text-xs font-medium">
+                  {imagePreview ? "Ganti" : "Upload"}
+                </span>
               </div>
             </button>
-            <span className="text-xs text-muted-foreground">Foto Pet (opsional)</span>
-            <input ref={petImageRef} type="file" accept="image/*" className="hidden"
+            <span className="text-xs text-muted-foreground">
+              Foto Pet (opsional)
+            </span>
+            <input
+              ref={petImageRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0]
-                if (!file) return
-                const reader = new FileReader()
-                reader.onload = (ev) => onImageChange(file, ev.target?.result as string)
-                reader.readAsDataURL(file)
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) =>
+                  onImageChange(file, ev.target?.result as string);
+                reader.readAsDataURL(file);
               }}
             />
           </div>
           {/* Name */}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="pet-name">Nama Pet <span className="text-destructive">*</span></Label>
+            <Label htmlFor="pet-name">
+              Nama Pet <span className="text-destructive">*</span>
+            </Label>
             <Input
               id="pet-name"
               placeholder="Buddy"
@@ -302,76 +371,80 @@ function PetFormDialog({
           {/* Pet Type & Breed */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="pet-type">Jenis Hewan <span className="text-destructive">*</span></Label>
-              <Select
+              <Label htmlFor="pet-type">
+                Jenis Hewan <span className="text-destructive">*</span>
+              </Label>
+              <Combobox
+                options={options.petTypes.map((o) => ({
+                  value: o._id,
+                  label: o.name,
+                }))}
                 value={form.pet_type_id}
-                onValueChange={(v) => setForm((p) => ({ ...p, pet_type_id: v }))}
-                required
-              >
-                <SelectTrigger id="pet-type">
-                  <SelectValue placeholder="Pilih jenis" />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.petTypes.map((o) => (
-                    <SelectItem key={o._id} value={o._id}>{o.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onValueChange={(v) =>
+                  setForm((p) => ({ ...p, pet_type_id: v }))
+                }
+                placeholder="Pilih jenis hewan"
+                searchPlaceholder="Cari jenis hewan..."
+                emptyText="Jenis hewan tidak ditemukan."
+              />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="pet-breed">Ras <span className="text-destructive">*</span></Label>
-              <Select
+              <Label htmlFor="pet-breed">
+                Ras <span className="text-destructive">*</span>
+              </Label>
+              <Combobox
+                options={options.breedCategories.map((o) => ({
+                  value: o._id,
+                  label: o.name,
+                }))}
                 value={form.breed_category_id}
-                onValueChange={(v) => setForm((p) => ({ ...p, breed_category_id: v }))}
-                required
-              >
-                <SelectTrigger id="pet-breed">
-                  <SelectValue placeholder="Pilih ras" />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.breedCategories.map((o) => (
-                    <SelectItem key={o._id} value={o._id}>{o.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onValueChange={(v) =>
+                  setForm((p) => ({ ...p, breed_category_id: v }))
+                }
+                placeholder="Pilih ras"
+                searchPlaceholder="Cari ras..."
+                emptyText="Ras tidak ditemukan."
+              />
             </div>
           </div>
 
           {/* Size & Hair */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="pet-size">Ukuran <span className="text-destructive">*</span></Label>
-              <Select
+              <Label htmlFor="pet-size">
+                Ukuran <span className="text-destructive">*</span>
+              </Label>
+              <Combobox
+                options={options.sizeCategories.map((o) => ({
+                  value: o._id,
+                  label: o.name,
+                }))}
                 value={form.size_category_id}
-                onValueChange={(v) => setForm((p) => ({ ...p, size_category_id: v }))}
-                required
-              >
-                <SelectTrigger id="pet-size">
-                  <SelectValue placeholder="Pilih ukuran" />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.sizeCategories.map((o) => (
-                    <SelectItem key={o._id} value={o._id}>{o.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onValueChange={(v) =>
+                  setForm((p) => ({ ...p, size_category_id: v }))
+                }
+                placeholder="Pilih ukuran"
+                searchPlaceholder="Cari ukuran..."
+                emptyText="Ukuran tidak ditemukan."
+              />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="pet-hair">Jenis Bulu <span className="text-destructive">*</span></Label>
-              <Select
+              <Label htmlFor="pet-hair">
+                Jenis Bulu <span className="text-destructive">*</span>
+              </Label>
+              <Combobox
+                options={options.hairCategories.map((o) => ({
+                  value: o._id,
+                  label: o.name,
+                }))}
                 value={form.hair_category_id}
-                onValueChange={(v) => setForm((p) => ({ ...p, hair_category_id: v }))}
-                required
-              >
-                <SelectTrigger id="pet-hair">
-                  <SelectValue placeholder="Pilih bulu" />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.hairCategories.map((o) => (
-                    <SelectItem key={o._id} value={o._id}>{o.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onValueChange={(v) =>
+                  setForm((p) => ({ ...p, hair_category_id: v }))
+                }
+                placeholder="Pilih jenis bulu"
+                searchPlaceholder="Cari jenis bulu..."
+                emptyText="Jenis bulu tidak ditemukan."
+              />
             </div>
           </div>
 
@@ -383,7 +456,9 @@ function PetFormDialog({
                 id="pet-birthday"
                 type="date"
                 value={form.birthday}
-                onChange={(e) => setForm((p) => ({ ...p, birthday: e.target.value }))}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, birthday: e.target.value }))
+                }
               />
             </div>
             <div className="flex flex-col gap-2">
@@ -395,7 +470,9 @@ function PetFormDialog({
                 step="0.1"
                 placeholder="15"
                 value={form.weight}
-                onChange={(e) => setForm((p) => ({ ...p, weight: e.target.value }))}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, weight: e.target.value }))
+                }
               />
             </div>
           </div>
@@ -408,7 +485,9 @@ function PetFormDialog({
               placeholder="Deskripsi singkat tentang pet..."
               rows={2}
               value={form.description}
-              onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, description: e.target.value }))
+              }
             />
           </div>
 
@@ -420,7 +499,9 @@ function PetFormDialog({
               placeholder="Catatan untuk groomer..."
               rows={2}
               value={form.internal_note}
-              onChange={(e) => setForm((p) => ({ ...p, internal_note: e.target.value }))}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, internal_note: e.target.value }))
+              }
             />
           </div>
 
@@ -434,12 +515,17 @@ function PetFormDialog({
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    e.preventDefault()
-                    addTag()
+                    e.preventDefault();
+                    addTag();
                   }
                 }}
               />
-              <Button type="button" variant="outline" size="sm" onClick={addTag}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addTag}
+              >
                 Tambah
               </Button>
             </div>
@@ -472,68 +558,74 @@ function PetFormDialog({
           </div>
 
           <Button type="submit" className="mt-2 w-full" disabled={isLoading}>
-            {isLoading ? "Menyimpan..." : mode === "create" ? "Tambah Pet" : "Simpan Perubahan"}
+            {isLoading
+              ? "Menyimpan..."
+              : mode === "create"
+                ? "Tambah Pet"
+                : "Simpan Perubahan"}
           </Button>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────
 export default function CustomerPetsPage() {
-  const params = useParams()
-  const router = useRouter()
-  const userId = params.id as string
+  const params = useParams();
+  const router = useRouter();
+  const userId = params.id as string;
 
-  const [user, setUser] = useState<ApiCurrentUser | null>(null)
-  const [pets, setPets] = useState<ApiPet[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState("")
+  const [user, setUser] = useState<ApiCurrentUser | null>(null);
+  const [pets, setPets] = useState<ApiPet[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const [options, setOptions] = useState<OptionGroups>({
     petTypes: [],
     hairCategories: [],
     sizeCategories: [],
     breedCategories: [],
-  })
+  });
 
   // Create dialog state
-  const [addOpen, setAddOpen] = useState(false)
-  const [createForm, setCreateForm] = useState<PetForm>(DEFAULT_FORM)
-  const [isCreating, setIsCreating] = useState(false)
+  const [addOpen, setAddOpen] = useState(false);
+  const [createForm, setCreateForm] = useState<PetForm>(DEFAULT_FORM);
+  const [isCreating, setIsCreating] = useState(false);
 
   // Edit dialog state
-  const [editPet, setEditPet] = useState<ApiPet | null>(null)
-  const [editForm, setEditForm] = useState<PetForm>(DEFAULT_FORM)
-  const [isEditing, setIsEditing] = useState(false)
+  const [editPet, setEditPet] = useState<ApiPet | null>(null);
+  const [editForm, setEditForm] = useState<PetForm>(DEFAULT_FORM);
+  const [isEditing, setIsEditing] = useState(false);
 
   // Delete dialog state
-  const [deletingPet, setDeletingPet] = useState<ApiPet | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [deletingPet, setDeletingPet] = useState<ApiPet | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const [createImageFile, setCreateImageFile] = useState<File | null>(null)
-  const [createImagePreview, setCreateImagePreview] = useState<string | null>(null)
-  const [editImageFile, setEditImageFile] = useState<File | null>(null)
-  const [editImagePreview, setEditImagePreview] = useState<string | null>(null)
+  const [createImageFile, setCreateImageFile] = useState<File | null>(null);
+  const [createImagePreview, setCreateImagePreview] = useState<string | null>(
+    null,
+  );
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
 
   const fetchUserWithPets = useCallback(async () => {
-    setIsLoading(true)
-    setError("")
+    setIsLoading(true);
+    setError("");
     try {
-      const data = await getUser(userId)
-      setUser(data.user)
-      setPets(data.user.pets ?? [])
+      const data = await getUser(userId);
+      setUser(data.user);
+      setPets(data.user.pets ?? []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal memuat data.")
+      setError(err instanceof Error ? err.message : "Gagal memuat data.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [userId])
+  }, [userId]);
 
   useEffect(() => {
-    fetchUserWithPets()
-  }, [fetchUserWithPets])
+    fetchUserWithPets();
+  }, [fetchUserWithPets]);
 
   useEffect(() => {
     Promise.all([
@@ -541,52 +633,59 @@ export default function CustomerPetsPage() {
       getOptions("hair category"),
       getOptions("size category"),
       getOptions("breed category"),
-    ]).then(([petTypes, hair, size, breed]) => {
-      setOptions({
-        petTypes: petTypes.options,
-        hairCategories: hair.options,
-        sizeCategories: size.options,
-        breedCategories: breed.options,
+    ])
+      .then(([petTypes, hair, size, breed]) => {
+        setOptions({
+          petTypes: petTypes.options,
+          hairCategories: hair.options,
+          sizeCategories: size.options,
+          breedCategories: breed.options,
+        });
       })
-    }).catch(() => {
-      // Options failing silently is acceptable — user sees empty selects
-    })
-  }, [])
+      .catch(() => {
+        // Options failing silently is acceptable — user sees empty selects
+      });
+  }, []);
 
   const openEdit = (pet: ApiPet) => {
-    setEditPet(pet)
-    setEditForm(petToForm(pet))
-    setEditImageFile(null)
-    setEditImagePreview(pet.profile_image?.secure_url ?? null)
-  }
+    setEditPet(pet);
+    setEditForm(petToForm(pet));
+    setEditImageFile(null);
+    setEditImagePreview(pet.profile_image?.secure_url ?? null);
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsCreating(true)
+    e.preventDefault();
+    setIsCreating(true);
     try {
-      const payload = formToPayload(createForm, userId)
+      const payload = formToPayload(createForm, userId);
       if (createImageFile) {
-        const uploaded = await uploadFile(createImageFile, "pets")
-        payload.profile_image = { secure_url: uploaded.image_url, public_id: uploaded.public_id }
+        const uploaded = await uploadFile(createImageFile, "pets");
+        payload.profile_image = {
+          secure_url: uploaded.image_url,
+          public_id: uploaded.public_id,
+        };
       }
-      await createPet(payload)
-      toast.success("Pet berhasil ditambahkan")
-      setAddOpen(false)
-      setCreateForm(DEFAULT_FORM)
-      setCreateImageFile(null)
-      setCreateImagePreview(null)
-      fetchUserWithPets()
+      await createPet(payload);
+      toast.success("Pet berhasil ditambahkan");
+      setAddOpen(false);
+      setCreateForm(DEFAULT_FORM);
+      setCreateImageFile(null);
+      setCreateImagePreview(null);
+      fetchUserWithPets();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal menambahkan pet.")
+      toast.error(
+        err instanceof Error ? err.message : "Gagal menambahkan pet.",
+      );
     } finally {
-      setIsCreating(false)
+      setIsCreating(false);
     }
-  }
+  };
 
   const handleEdit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editPet) return
-    setIsEditing(true)
+    e.preventDefault();
+    if (!editPet) return;
+    setIsEditing(true);
     const payload: UpdatePetPayload = {
       name: editForm.name,
       description: editForm.description || undefined,
@@ -599,39 +698,44 @@ export default function CustomerPetsPage() {
       weight: editForm.weight ? Number(editForm.weight) : undefined,
       tags: editForm.tags.length > 0 ? editForm.tags : undefined,
       is_active: editForm.is_active,
-    }
+    };
     try {
       if (editImageFile) {
-        const uploaded = await uploadFile(editImageFile, "pets")
-        payload.profile_image = { secure_url: uploaded.image_url, public_id: uploaded.public_id }
+        const uploaded = await uploadFile(editImageFile, "pets");
+        payload.profile_image = {
+          secure_url: uploaded.image_url,
+          public_id: uploaded.public_id,
+        };
       }
-      await updatePet(editPet._id, payload)
-      toast.success("Pet berhasil diperbarui")
-      setEditPet(null)
-      setEditImageFile(null)
-      setEditImagePreview(null)
-      fetchUserWithPets()
+      await updatePet(editPet._id, payload);
+      toast.success("Pet berhasil diperbarui");
+      setEditPet(null);
+      setEditImageFile(null);
+      setEditImagePreview(null);
+      fetchUserWithPets();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal memperbarui pet.")
+      toast.error(
+        err instanceof Error ? err.message : "Gagal memperbarui pet.",
+      );
     } finally {
-      setIsEditing(false)
+      setIsEditing(false);
     }
-  }
+  };
 
   const handleDelete = async () => {
-    if (!deletingPet) return
-    setIsDeleting(true)
+    if (!deletingPet) return;
+    setIsDeleting(true);
     try {
-      await deletePet(deletingPet._id)
-      toast.success(`Pet ${deletingPet.name} berhasil dihapus`)
-      setDeletingPet(null)
-      fetchUserWithPets()
+      await deletePet(deletingPet._id);
+      toast.success(`Pet ${deletingPet.name} berhasil dihapus`);
+      setDeletingPet(null);
+      fetchUserWithPets();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal menghapus pet.")
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus pet.");
     } finally {
-      setIsDeleting(false)
+      setIsDeleting(false);
     }
-  }
+  };
 
   return (
     <>
@@ -667,7 +771,10 @@ export default function CustomerPetsPage() {
             </div>
           </div>
           <Button
-            onClick={() => { setCreateForm(DEFAULT_FORM); setAddOpen(true) }}
+            onClick={() => {
+              setCreateForm(DEFAULT_FORM);
+              setAddOpen(true);
+            }}
             className="shrink-0"
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -710,7 +817,11 @@ export default function CustomerPetsPage() {
                   pet={pet}
                   onEdit={openEdit}
                   onDelete={setDeletingPet}
-                  onMembership={(p) => router.push(`/admin/users/${userId}/pets/${p._id}/memberships`)}
+                  onMembership={(p) =>
+                    router.push(
+                      `/admin/users/${userId}/pets/${p._id}/memberships`,
+                    )
+                  }
                 />
               ))}
 
@@ -721,7 +832,10 @@ export default function CustomerPetsPage() {
               <Button
                 variant="outline"
                 className="mt-4"
-                onClick={() => { setCreateForm(DEFAULT_FORM); setAddOpen(true) }}
+                onClick={() => {
+                  setCreateForm(DEFAULT_FORM);
+                  setAddOpen(true);
+                }}
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Tambah Pet Pertama
@@ -734,7 +848,14 @@ export default function CustomerPetsPage() {
       {/* Create Pet Dialog */}
       <PetFormDialog
         open={addOpen}
-        onOpenChange={(o) => { setAddOpen(o); if (!o) { setCreateForm(DEFAULT_FORM); setCreateImageFile(null); setCreateImagePreview(null) } }}
+        onOpenChange={(o) => {
+          setAddOpen(o);
+          if (!o) {
+            setCreateForm(DEFAULT_FORM);
+            setCreateImageFile(null);
+            setCreateImagePreview(null);
+          }
+        }}
         form={createForm}
         setForm={setCreateForm}
         options={options}
@@ -742,13 +863,22 @@ export default function CustomerPetsPage() {
         isLoading={isCreating}
         mode="create"
         imagePreview={createImagePreview}
-        onImageChange={(file, preview) => { setCreateImageFile(file); setCreateImagePreview(preview) }}
+        onImageChange={(file, preview) => {
+          setCreateImageFile(file);
+          setCreateImagePreview(preview);
+        }}
       />
 
       {/* Edit Pet Dialog */}
       <PetFormDialog
         open={!!editPet}
-        onOpenChange={(o) => { if (!o) { setEditPet(null); setEditImageFile(null); setEditImagePreview(null) } }}
+        onOpenChange={(o) => {
+          if (!o) {
+            setEditPet(null);
+            setEditImageFile(null);
+            setEditImagePreview(null);
+          }
+        }}
         form={editForm}
         setForm={setEditForm}
         options={options}
@@ -756,18 +886,28 @@ export default function CustomerPetsPage() {
         isLoading={isEditing}
         mode="edit"
         imagePreview={editImagePreview}
-        onImageChange={(file, preview) => { setEditImageFile(file); setEditImagePreview(preview) }}
+        onImageChange={(file, preview) => {
+          setEditImageFile(file);
+          setEditImagePreview(preview);
+        }}
       />
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deletingPet} onOpenChange={(o) => { if (!o) setDeletingPet(null) }}>
+      <AlertDialog
+        open={!!deletingPet}
+        onOpenChange={(o) => {
+          if (!o) setDeletingPet(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus Pet</AlertDialogTitle>
             <AlertDialogDescription>
               Apakah kamu yakin ingin menghapus pet{" "}
-              <span className="font-semibold text-foreground">{deletingPet?.name}</span>?
-              Tindakan ini tidak dapat dibatalkan.
+              <span className="font-semibold text-foreground">
+                {deletingPet?.name}
+              </span>
+              ? Tindakan ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -783,5 +923,5 @@ export default function CustomerPetsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </>
-  )
+  );
 }
