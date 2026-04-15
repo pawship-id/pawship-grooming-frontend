@@ -379,6 +379,29 @@ function MultiCheck({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Helper function to highlight matching text
+// ─────────────────────────────────────────────────────────────────────────────
+function highlightText(text: string, search: string) {
+  if (!search.trim()) return text;
+
+  const regex = new RegExp(
+    `(${search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`,
+    "gi",
+  );
+  const parts = text.split(regex);
+
+  return parts.map((part, index) =>
+    regex.test(part) ? (
+      <mark key={index} className="bg-yellow-200 text-foreground font-medium">
+        {part}
+      </mark>
+    ) : (
+      part
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MultiSelect with Search & Create
 // ─────────────────────────────────────────────────────────────────────────────
 function MultiSelect({
@@ -521,7 +544,7 @@ function MultiSelect({
                   );
                 }}
               >
-                {item.name}
+                <span>{highlightText(item.name, searchQuery)}</span>
               </DropdownMenuCheckboxItem>
             ))}
 
