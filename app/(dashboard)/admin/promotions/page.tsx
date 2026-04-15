@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import {
   Table,
   TableBody,
@@ -707,24 +708,22 @@ export default function PromotionsPage() {
                     (kosongkan = berlaku untuk semua)
                   </span>
                 </Label>
-                <Select
+                <Combobox
+                  options={[
+                    { value: "__all__", label: "Semua Layanan" },
+                    ...filteredServices.map((s) => ({
+                      value: s._id,
+                      label: s.name,
+                    })),
+                  ]}
                   value={form.service_id || "__all__"}
                   onValueChange={(v) =>
                     setField("service_id", v === "__all__" ? "" : v)
                   }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih layanan..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Semua Layanan</SelectItem>
-                    {filteredServices.map((s) => (
-                      <SelectItem key={s._id} value={s._id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Pilih layanan..."
+                  searchPlaceholder="Cari layanan..."
+                  emptyText="Layanan tidak ditemukan."
+                />
               </div>
             )}
 
@@ -895,14 +894,10 @@ export default function PromotionsPage() {
                   <span
                     className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${
                       {
-                        service:
-                          "bg-blue-50 text-blue-700 border-blue-200",
-                        addon:
-                          "bg-purple-50 text-purple-700 border-purple-200",
-                        pickup:
-                          "bg-amber-50 text-amber-700 border-amber-200",
-                        booking:
-                          "bg-green-50 text-green-700 border-green-200",
+                        service: "bg-blue-50 text-blue-700 border-blue-200",
+                        addon: "bg-purple-50 text-purple-700 border-purple-200",
+                        pickup: "bg-amber-50 text-amber-700 border-amber-200",
+                        booking: "bg-green-50 text-green-700 border-green-200",
                       }[viewTarget.applies_to]
                     }`}
                   >
@@ -929,7 +924,9 @@ export default function PromotionsPage() {
                     </span>
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-xs text-muted-foreground">Diskon</span>
+                    <span className="text-xs text-muted-foreground">
+                      Diskon
+                    </span>
                     <span className="font-medium">
                       {viewTarget.discount_type === "percent"
                         ? `${viewTarget.value}%`
@@ -948,7 +945,9 @@ export default function PromotionsPage() {
                     </span>
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-xs text-muted-foreground">Berakhir</span>
+                    <span className="text-xs text-muted-foreground">
+                      Berakhir
+                    </span>
                     <span className="font-medium">
                       {viewTarget.end_date
                         ? formatDate(viewTarget.end_date)
@@ -961,7 +960,9 @@ export default function PromotionsPage() {
                 {(viewTarget.applies_to === "service" ||
                   viewTarget.applies_to === "addon") && (
                   <div className="flex flex-col gap-0.5 text-sm">
-                    <span className="text-xs text-muted-foreground">Layanan</span>
+                    <span className="text-xs text-muted-foreground">
+                      Layanan
+                    </span>
                     <span className="font-medium">
                       {viewTarget.service
                         ? viewTarget.service.name

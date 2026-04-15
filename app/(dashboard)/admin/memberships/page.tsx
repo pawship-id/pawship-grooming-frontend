@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react";
 import {
   Plus,
   Pencil,
@@ -14,24 +14,64 @@ import {
   CalendarDays,
   Check,
   Trash,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Switch } from "@/components/ui/switch"
-import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Separator } from "@/components/ui/separator"
-import { toast } from "sonner"
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Separator } from "@/components/ui/separator";
+import { Combobox } from "@/components/ui/combobox";
+import { toast } from "sonner";
 
 import {
   type MembershipPlan,
@@ -45,22 +85,25 @@ import {
   createMembership,
   updateMembership,
   deleteMembership,
-} from "@/lib/api/memberships"
-import { getOptions, type ApiOption } from "@/lib/api/options"
-import { getAdminServices, type AdminService } from "@/lib/api/services"
+} from "@/lib/api/memberships";
+import { getOptions, type ApiOption } from "@/lib/api/options";
+import { getAdminServices, type AdminService } from "@/lib/api/services";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function formatRupiah(value: number) {
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value)
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
-
 
 // ── Benefit form ───────────────────────────────────────────────────────────
 
 interface BenefitForm extends BenefitPayload {
-  _localId: string
-  label: string
+  _localId: string;
+  label: string;
 }
 
 const DEFAULT_BENEFIT_FORM: Omit<BenefitForm, "_localId"> = {
@@ -71,36 +114,36 @@ const DEFAULT_BENEFIT_FORM: Omit<BenefitForm, "_localId"> = {
   value: undefined,
   service_id: "",
   limit: undefined,
-}
+};
 
 const BENEFIT_TYPE_LABEL: Record<BenefitType, string> = {
   discount: "Diskon (%)",
   quota: "Kuota Sesi",
-}
+};
 
 const PERIOD_LABEL: Record<BenefitPeriod, string> = {
   weekly: "Mingguan",
   monthly: "Bulanan",
   unlimited: "Tidak terbatas",
-}
+};
 
 const APPLIES_TO_LABEL: Record<BenefitAppliesTo, string> = {
   service: "Layanan",
   addon: "Addon",
   pickup: "Pickup",
-}
+};
 
 // ── Membership Plan form ───────────────────────────────────────────────────
 
 interface MembershipForm {
-  name: string
-  description: string
-  duration_months: string
-  price: string
-  note: string
-  pet_type_ids: string[]
-  is_active: boolean
-  benefits: BenefitForm[]
+  name: string;
+  description: string;
+  duration_months: string;
+  price: string;
+  note: string;
+  pet_type_ids: string[];
+  is_active: boolean;
+  benefits: BenefitForm[];
 }
 
 const DEFAULT_MEMBERSHIP_FORM: MembershipForm = {
@@ -112,7 +155,7 @@ const DEFAULT_MEMBERSHIP_FORM: MembershipForm = {
   pet_type_ids: [],
   is_active: true,
   benefits: [],
-}
+};
 
 function membershipToForm(m: MembershipPlan): MembershipForm {
   return {
@@ -135,7 +178,7 @@ function membershipToForm(m: MembershipPlan): MembershipForm {
       service_id: b.service?._id ?? "",
       limit: b.limit ?? undefined,
     })),
-  }
+  };
 }
 
 function formToPayload(form: MembershipForm): MembershipPayload {
@@ -150,15 +193,18 @@ function formToPayload(form: MembershipForm): MembershipPayload {
     benefits: form.benefits.map(({ _localId: _, label, ...b }) => ({
       ...b,
       label: !b.service_id && label ? label : undefined,
-      value: b.type === "discount" && b.value !== undefined ? Number(b.value) : undefined,
+      value:
+        b.type === "discount" && b.value !== undefined
+          ? Number(b.value)
+          : undefined,
       service_id: b.service_id || undefined,
       limit: b.limit !== undefined ? Number(b.limit) : null,
     })),
-  }
+  };
 }
 
 function newLocalId() {
-  return `_new_${Date.now()}_${Math.random()}`
+  return `_new_${Date.now()}_${Math.random()}`;
 }
 
 // ── Benefit Form Fields (top-level to preserve focus) ─────────────────────
@@ -170,23 +216,27 @@ function BenefitFormFields({
   sourceTab,
   onSourceTabChange,
 }: {
-  value: Omit<BenefitForm, "_localId">
-  onChange: React.Dispatch<React.SetStateAction<Omit<BenefitForm, "_localId">>>
-  services: AdminService[]
-  sourceTab: "layanan" | "label"
-  onSourceTabChange: (src: "layanan" | "label") => void
+  value: Omit<BenefitForm, "_localId">;
+  onChange: React.Dispatch<React.SetStateAction<Omit<BenefitForm, "_localId">>>;
+  services: AdminService[];
+  sourceTab: "layanan" | "label";
+  onSourceTabChange: (src: "layanan" | "label") => void;
 }) {
   // value-derived source takes priority when a value is already set
-  const benefitSource: "layanan" | "label" = value.service_id ? "layanan" : (value.label ? "label" : sourceTab)
+  const benefitSource: "layanan" | "label" = value.service_id
+    ? "layanan"
+    : value.label
+      ? "label"
+      : sourceTab;
 
   const switchSource = (src: "layanan" | "label") => {
-    onSourceTabChange(src)
+    onSourceTabChange(src);
     if (src === "layanan") {
-      onFieldChange((p) => ({ ...p, label: "", service_id: "" }))
+      onFieldChange((p) => ({ ...p, label: "", service_id: "" }));
     } else {
-      onFieldChange((p) => ({ ...p, service_id: "", label: "" }))
+      onFieldChange((p) => ({ ...p, service_id: "", label: "" }));
     }
-  }
+  };
 
   return (
     <>
@@ -195,7 +245,9 @@ function BenefitFormFields({
         <Label className="text-xs">Berlaku Untuk</Label>
         <Select
           value={value.applies_to}
-          onValueChange={(v) => onFieldChange((p) => ({ ...p, applies_to: v as BenefitAppliesTo }))}
+          onValueChange={(v) =>
+            onFieldChange((p) => ({ ...p, applies_to: v as BenefitAppliesTo }))
+          }
         >
           <SelectTrigger className="h-8 text-xs">
             <SelectValue />
@@ -231,22 +283,22 @@ function BenefitFormFields({
         {/* Layanan tab — service dropdown (optional) */}
         {benefitSource === "layanan" && (
           <div className="flex gap-1.5 mt-0.5">
-            <Select
+            <Combobox
+              options={services.map((s) => ({ value: s._id, label: s.name }))}
               value={value.service_id ?? ""}
               onValueChange={(v) => {
-                const svc = services.find((s) => s._id === v)
-                onFieldChange((p) => ({ ...p, service_id: v, label: svc?.name ?? p.label }))
+                const svc = services.find((s) => s._id === v);
+                onFieldChange((p) => ({
+                  ...p,
+                  service_id: v,
+                  label: svc?.name ?? p.label,
+                }));
               }}
-            >
-              <SelectTrigger className="h-8 text-xs flex-1">
-                <SelectValue placeholder="Pilih layanan..." />
-              </SelectTrigger>
-              <SelectContent>
-                {services.map((s) => (
-                  <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder="Pilih layanan..."
+              searchPlaceholder="Cari layanan..."
+              emptyText="Layanan tidak ditemukan."
+              className="flex-1 h-8 text-xs"
+            />
             {/* {value.service_id && (
               <Button
                 type="button"
@@ -267,7 +319,9 @@ function BenefitFormFields({
             className="h-8 text-xs mt-0.5"
             placeholder="cth. Grooming gratis"
             value={value.label ?? ""}
-            onChange={(e) => onFieldChange((p) => ({ ...p, label: e.target.value }))}
+            onChange={(e) =>
+              onFieldChange((p) => ({ ...p, label: e.target.value }))
+            }
           />
         )}
       </div>
@@ -278,8 +332,8 @@ function BenefitFormFields({
         <Select
           value={value.type}
           onValueChange={(v) => {
-            const t = v as BenefitType
-            onFieldChange((p) => ({ ...p, type: t }))
+            const t = v as BenefitType;
+            onFieldChange((p) => ({ ...p, type: t }));
           }}
         >
           <SelectTrigger className="h-8 text-xs">
@@ -303,28 +357,36 @@ function BenefitFormFields({
             max={100}
             placeholder="10"
             value={value.value ?? ""}
-            onChange={(e) => onFieldChange((p) => ({ ...p, value: e.target.value === "" ? undefined : Number(e.target.value) }))}
+            onChange={(e) =>
+              onFieldChange((p) => ({
+                ...p,
+                value:
+                  e.target.value === "" ? undefined : Number(e.target.value),
+              }))
+            }
           />
         </div>
       )}
 
       {/* 5. Periode */}
       <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">Periode Reset</Label>
-          <Select
-            value={value.period ?? "monthly"}
-            onValueChange={(v) => onFieldChange((p) => ({ ...p, period: v as BenefitPeriod }))}
-          >
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="monthly">Bulanan</SelectItem>
-              <SelectItem value="weekly">Mingguan</SelectItem>
-              <SelectItem value="unlimited">Tidak terbatas</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <Label className="text-xs">Periode Reset</Label>
+        <Select
+          value={value.period ?? "monthly"}
+          onValueChange={(v) =>
+            onFieldChange((p) => ({ ...p, period: v as BenefitPeriod }))
+          }
+        >
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="monthly">Bulanan</SelectItem>
+            <SelectItem value="weekly">Mingguan</SelectItem>
+            <SelectItem value="unlimited">Tidak terbatas</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* 7. Batas Penggunaan — for non-unlimited period */}
       {value.period !== "unlimited" && (
@@ -336,23 +398,40 @@ function BenefitFormFields({
             min={1}
             placeholder="1"
             value={value.limit ?? ""}
-            onChange={(e) => onFieldChange((p) => ({ ...p, limit: e.target.value === "" ? undefined : Number(e.target.value) }))}
+            onChange={(e) =>
+              onFieldChange((p) => ({
+                ...p,
+                limit:
+                  e.target.value === "" ? undefined : Number(e.target.value),
+              }))
+            }
           />
         </div>
       )}
     </>
-  )
+  );
 }
 
 // ── Benefit validation ─────────────────────────────────────────────────────
 
-function validateBenefit(b: Omit<BenefitForm, "_localId">, sourceTab: "layanan" | "label"): string | null {
-  const effectiveSource: "layanan" | "label" = b.service_id ? "layanan" : (b.label ? "label" : sourceTab)
-  if (effectiveSource === "layanan" && !b.service_id) return "Layanan harus dipilih"
-  if (effectiveSource === "label" && !b.label) return "Label benefit harus diisi"
-  if (b.type === "discount" && (b.value === undefined || b.value === null)) return "Nilai diskon harus diisi"
-  if (b.period !== "unlimited" && (b.limit === undefined || b.limit === null)) return "Batas penggunaan harus diisi"
-  return null
+function validateBenefit(
+  b: Omit<BenefitForm, "_localId">,
+  sourceTab: "layanan" | "label",
+): string | null {
+  const effectiveSource: "layanan" | "label" = b.service_id
+    ? "layanan"
+    : b.label
+      ? "label"
+      : sourceTab;
+  if (effectiveSource === "layanan" && !b.service_id)
+    return "Layanan harus dipilih";
+  if (effectiveSource === "label" && !b.label)
+    return "Label benefit harus diisi";
+  if (b.type === "discount" && (b.value === undefined || b.value === null))
+    return "Nilai diskon harus diisi";
+  if (b.period !== "unlimited" && (b.limit === undefined || b.limit === null))
+    return "Batas penggunaan harus diisi";
+  return null;
 }
 
 // ── Benefit Editor Sub-Component ──────────────────────────────────────────
@@ -362,52 +441,75 @@ function BenefitEditor({
   onChange,
   services,
 }: {
-  benefits: BenefitForm[]
-  onChange: (benefits: BenefitForm[]) => void
-  services: AdminService[]
+  benefits: BenefitForm[];
+  onChange: (benefits: BenefitForm[]) => void;
+  services: AdminService[];
 }) {
-  const [newBenefit, setNewBenefit] = useState<Omit<BenefitForm, "_localId">>({ ...DEFAULT_BENEFIT_FORM })
-  const [newSourceTab, setNewSourceTab] = useState<"layanan" | "label">("layanan")
-  const [newError, setNewError] = useState<string | null>(null)
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [editingLocalId, setEditingLocalId] = useState<string | null>(null)
-  const [editBenefit, setEditBenefit] = useState<Omit<BenefitForm, "_localId">>({ ...DEFAULT_BENEFIT_FORM })
-  const [editSourceTab, setEditSourceTab] = useState<"layanan" | "label">("layanan")
-  const [editError, setEditError] = useState<string | null>(null)
+  const [newBenefit, setNewBenefit] = useState<Omit<BenefitForm, "_localId">>({
+    ...DEFAULT_BENEFIT_FORM,
+  });
+  const [newSourceTab, setNewSourceTab] = useState<"layanan" | "label">(
+    "layanan",
+  );
+  const [newError, setNewError] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingLocalId, setEditingLocalId] = useState<string | null>(null);
+  const [editBenefit, setEditBenefit] = useState<Omit<BenefitForm, "_localId">>(
+    { ...DEFAULT_BENEFIT_FORM },
+  );
+  const [editSourceTab, setEditSourceTab] = useState<"layanan" | "label">(
+    "layanan",
+  );
+  const [editError, setEditError] = useState<string | null>(null);
 
   const addBenefit = () => {
-    const err = validateBenefit(newBenefit, newSourceTab)
-    if (err) { setNewError(err); return }
-    onChange([...benefits, { ...newBenefit, _localId: newLocalId() }])
-    setNewBenefit({ ...DEFAULT_BENEFIT_FORM })
-    setNewSourceTab("layanan")
-    setNewError(null)
-    setShowAddForm(false)
-  }
+    const err = validateBenefit(newBenefit, newSourceTab);
+    if (err) {
+      setNewError(err);
+      return;
+    }
+    onChange([...benefits, { ...newBenefit, _localId: newLocalId() }]);
+    setNewBenefit({ ...DEFAULT_BENEFIT_FORM });
+    setNewSourceTab("layanan");
+    setNewError(null);
+    setShowAddForm(false);
+  };
 
   const removeBenefit = (localId: string) => {
-    onChange(benefits.filter((b) => b._localId !== localId))
-    if (editingLocalId === localId) setEditingLocalId(null)
-  }
+    onChange(benefits.filter((b) => b._localId !== localId));
+    if (editingLocalId === localId) setEditingLocalId(null);
+  };
 
   const startEdit = (b: BenefitForm) => {
-    const { _localId: _, ...rest } = b
-    setEditBenefit(rest)
-    setEditSourceTab(b.label && !b.service_id ? "label" : "layanan")
-    setEditError(null)
-    setEditingLocalId(b._localId)
-  }
+    const { _localId: _, ...rest } = b;
+    setEditBenefit(rest);
+    setEditSourceTab(b.label && !b.service_id ? "label" : "layanan");
+    setEditError(null);
+    setEditingLocalId(b._localId);
+  };
 
   const saveEdit = () => {
-    if (!editingLocalId) return
-    const err = validateBenefit(editBenefit, editSourceTab)
-    if (err) { setEditError(err); return }
-    onChange(benefits.map((b) => b._localId === editingLocalId ? { ...editBenefit, _localId: editingLocalId } : b))
-    setEditingLocalId(null)
-    setEditError(null)
-  }
+    if (!editingLocalId) return;
+    const err = validateBenefit(editBenefit, editSourceTab);
+    if (err) {
+      setEditError(err);
+      return;
+    }
+    onChange(
+      benefits.map((b) =>
+        b._localId === editingLocalId
+          ? { ...editBenefit, _localId: editingLocalId }
+          : b,
+      ),
+    );
+    setEditingLocalId(null);
+    setEditError(null);
+  };
 
-  const cancelEdit = () => { setEditingLocalId(null); setEditError(null) }
+  const cancelEdit = () => {
+    setEditingLocalId(null);
+    setEditError(null);
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -415,18 +517,26 @@ function BenefitEditor({
       {benefits.length > 0 && (
         <div className="flex flex-col gap-2">
           {benefits.map((b) => (
-            <div key={b._localId} className="rounded-md border border-border/50 bg-muted/30 text-sm">
+            <div
+              key={b._localId}
+              className="rounded-md border border-border/50 bg-muted/30 text-sm"
+            >
               {editingLocalId === b._localId ? (
                 /* Inline edit form */
                 <div className="flex flex-col gap-3 p-3">
                   <BenefitFormFields
                     value={editBenefit}
-                    onChange={(v) => { setEditBenefit(v); setEditError(null) }}
+                    onChange={(v) => {
+                      setEditBenefit(v);
+                      setEditError(null);
+                    }}
                     services={services}
                     sourceTab={editSourceTab}
                     onSourceTabChange={setEditSourceTab}
                   />
-                  {editError && <p className="text-xs text-destructive">{editError}</p>}
+                  {editError && (
+                    <p className="text-xs text-destructive">{editError}</p>
+                  )}
                   <div className="flex items-center w-full justify-end gap-1 shrink-0">
                     <Button
                       type="button"
@@ -454,28 +564,38 @@ function BenefitEditor({
                   <div className="flex flex-col gap-0.5">
                     <span className="font-medium text-foreground">
                       {b.service_id ? (
-                      <span>
-                        {services.find((s) => s._id === b.service_id)?.name ?? b.service_id}
-                      </span>
-                    ) : b.label ? (
-                      <span>{b.label}</span>
-                    ) : null}
+                        <span>
+                          {services.find((s) => s._id === b.service_id)?.name ??
+                            b.service_id}
+                        </span>
+                      ) : b.label ? (
+                        <span>{b.label}</span>
+                      ) : null}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {BENEFIT_TYPE_LABEL[b.type]}
-                      {b.type === "discount" && b.value !== undefined && ` — ${b.value}%`}
+                      {b.type === "discount" &&
+                        b.value !== undefined &&
+                        ` — ${b.value}%`}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {APPLIES_TO_LABEL[b.applies_to]} · {PERIOD_LABEL[b.period ?? "unlimited"]}
+                      {APPLIES_TO_LABEL[b.applies_to]} ·{" "}
+                      {PERIOD_LABEL[b.period ?? "unlimited"]}
                       {b.limit != null && ` · Maks ${b.limit}x`}
-                      {b.limit == null && b.period === "unlimited" && " · Tidak terbatas"}
+                      {b.limit == null &&
+                        b.period === "unlimited" &&
+                        " · Tidak terbatas"}
                     </span>
                     {b.service_id ? (
                       <span className="text-xs text-muted-foreground">
-                        Layanan: {services.find((s) => s._id === b.service_id)?.name ?? b.service_id}
+                        Layanan:{" "}
+                        {services.find((s) => s._id === b.service_id)?.name ??
+                          b.service_id}
                       </span>
                     ) : b.label ? (
-                      <span className="text-xs text-muted-foreground">Label: {b.label}</span>
+                      <span className="text-xs text-muted-foreground">
+                        Label: {b.label}
+                      </span>
                     ) : null}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -509,19 +629,29 @@ function BenefitEditor({
       {showAddForm ? (
         <Card className="border-dashed border-border/50">
           <CardHeader className="pb-2 pt-3 px-3">
-            <CardTitle className="text-sm font-medium">Tambah Benefit</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Tambah Benefit
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 px-3 pb-3">
             <BenefitFormFields
               value={newBenefit}
-              onChange={(v) => { setNewBenefit(v); setNewError(null) }}
+              onChange={(v) => {
+                setNewBenefit(v);
+                setNewError(null);
+              }}
               services={services}
               sourceTab={newSourceTab}
               onSourceTabChange={setNewSourceTab}
             />
             {newError && <p className="text-xs text-destructive">{newError}</p>}
             <div className="flex gap-2">
-              <Button type="button" size="sm" className="h-7 text-xs flex-1" onClick={addBenefit}>
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 text-xs flex-1"
+                onClick={addBenefit}
+              >
                 <Plus className="h-3.5 w-3.5 mr-1" />
                 Simpan
               </Button>
@@ -530,7 +660,12 @@ function BenefitEditor({
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs"
-                onClick={() => { setShowAddForm(false); setNewBenefit({ ...DEFAULT_BENEFIT_FORM }); setNewSourceTab("layanan"); setNewError(null) }}
+                onClick={() => {
+                  setShowAddForm(false);
+                  setNewBenefit({ ...DEFAULT_BENEFIT_FORM });
+                  setNewSourceTab("layanan");
+                  setNewError(null);
+                }}
               >
                 Batal
               </Button>
@@ -550,7 +685,7 @@ function BenefitEditor({
         </Button>
       )}
     </div>
-  )
+  );
 }
 
 // ── Membership Detail Sheet ───────────────────────────────────────────────
@@ -562,13 +697,13 @@ function MembershipDetailSheet({
   petTypes,
   services,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  membership: MembershipPlan | null
-  petTypes: ApiOption[]
-  services: AdminService[]
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  membership: MembershipPlan | null;
+  petTypes: ApiOption[];
+  services: AdminService[];
 }) {
-  if (!membership) return null
+  if (!membership) return null;
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-md overflow-y-auto">
@@ -581,24 +716,35 @@ function MembershipDetailSheet({
         <div className="flex flex-col gap-5 mt-4">
           {/* Status + basic info */}
           <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className={membership.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}>
+            <Badge
+              variant="outline"
+              className={
+                membership.is_active
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-gray-100 text-gray-500 border-gray-200"
+              }
+            >
               {membership.is_active ? "Aktif" : "Nonaktif"}
             </Badge>
             {(membership.pet_types?.length
               ? membership.pet_types
-              : petTypes.filter((pt) => (membership.pet_type_ids ?? []).includes(pt._id))
+              : petTypes.filter((pt) =>
+                  (membership.pet_type_ids ?? []).includes(pt._id),
+                )
             ).map((pt) => (
-                <Badge key={pt._id} variant="secondary" className="text-xs">
-                  <Tag className="h-3 w-3 mr-1" />
-                  {pt.name}
-                </Badge>
-              ))}
+              <Badge key={pt._id} variant="secondary" className="text-xs">
+                <Tag className="h-3 w-3 mr-1" />
+                {pt.name}
+              </Badge>
+            ))}
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="flex flex-col gap-0.5">
               <span className="text-xs text-muted-foreground">Harga</span>
-              <span className="font-medium">{formatRupiah(membership.price)}</span>
+              <span className="font-medium">
+                {formatRupiah(membership.price)}
+              </span>
             </div>
             <div className="flex flex-col gap-0.5">
               <span className="text-xs text-muted-foreground">Durasi</span>
@@ -611,14 +757,20 @@ function MembershipDetailSheet({
 
           {membership.description && (
             <div className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground font-medium">Deskripsi</span>
-              <p className="text-sm text-foreground">{membership.description}</p>
+              <span className="text-xs text-muted-foreground font-medium">
+                Deskripsi
+              </span>
+              <p className="text-sm text-foreground">
+                {membership.description}
+              </p>
             </div>
           )}
 
           {membership.note && (
             <div className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground font-medium">Catatan</span>
+              <span className="text-xs text-muted-foreground font-medium">
+                Catatan
+              </span>
               <p className="text-sm text-foreground">{membership.note}</p>
             </div>
           )}
@@ -627,27 +779,40 @@ function MembershipDetailSheet({
 
           {/* Benefits */}
           <div className="flex flex-col gap-2">
-            <span className="text-sm font-medium">Benefits ({membership.benefits.length})</span>
+            <span className="text-sm font-medium">
+              Benefits ({membership.benefits.length})
+            </span>
             {membership.benefits.length === 0 ? (
               <p className="text-xs text-muted-foreground">Tidak ada benefit</p>
             ) : (
               <div className="flex flex-col gap-2">
                 {membership.benefits.map((b) => {
                   const serviceName = b.service
-                    ? (services.find((s) => s._id === b.service!._id)?.name ?? b.service.name ?? b.service._id)
-                    : null
-                  const title = serviceName ?? b.label ?? BENEFIT_TYPE_LABEL[b.type]
+                    ? (services.find((s) => s._id === b.service!._id)?.name ??
+                      b.service.name ??
+                      b.service._id)
+                    : null;
+                  const title =
+                    serviceName ?? b.label ?? BENEFIT_TYPE_LABEL[b.type];
                   const appliesToColor: Record<BenefitAppliesTo, string> = {
                     service: "bg-blue-50 text-blue-700 border-blue-200",
                     addon: "bg-violet-50 text-violet-700 border-violet-200",
                     pickup: "bg-amber-50 text-amber-700 border-amber-200",
-                  }
+                  };
                   return (
-                    <div key={b._id} className="rounded-md border border-border/50 bg-muted/20 p-3 text-sm flex flex-col gap-2">
+                    <div
+                      key={b._id}
+                      className="rounded-md border border-border/50 bg-muted/20 p-3 text-sm flex flex-col gap-2"
+                    >
                       {/* Title row */}
                       <div className="flex items-start justify-between gap-2">
-                        <span className="font-medium text-foreground leading-tight">{title}</span>
-                        <Badge variant="outline" className={`text-xs shrink-0 ${appliesToColor[b.applies_to]}`}>
+                        <span className="font-medium text-foreground leading-tight">
+                          {title}
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs shrink-0 ${appliesToColor[b.applies_to]}`}
+                        >
                           {APPLIES_TO_LABEL[b.applies_to]}
                         </Badge>
                       </div>
@@ -657,12 +822,16 @@ function MembershipDetailSheet({
                           <span className="text-muted-foreground">Tipe</span>
                           <span className="font-medium text-foreground">
                             {BENEFIT_TYPE_LABEL[b.type]}
-                            {b.type === "discount" && b.value != null && ` — ${b.value}%`}
+                            {b.type === "discount" &&
+                              b.value != null &&
+                              ` — ${b.value}%`}
                           </span>
                         </div>
                         <div className="flex flex-col gap-0.5">
                           <span className="text-muted-foreground">Periode</span>
-                          <span className="font-medium text-foreground">{PERIOD_LABEL[b.period]}</span>
+                          <span className="font-medium text-foreground">
+                            {PERIOD_LABEL[b.period]}
+                          </span>
                         </div>
                         <div className="flex flex-col gap-0.5">
                           <span className="text-muted-foreground">Batas</span>
@@ -672,7 +841,7 @@ function MembershipDetailSheet({
                         </div>
                       </div>
                     </div>
-                  )
+                  );
                 })}
               </div>
             )}
@@ -680,7 +849,7 @@ function MembershipDetailSheet({
         </div>
       </SheetContent>
     </Sheet>
-  )
+  );
 }
 
 // ── Membership Form Dialog ─────────────────────────────────────────────────
@@ -696,28 +865,32 @@ function MembershipFormDialog({
   isLoading,
   mode,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  form: MembershipForm
-  setForm: React.Dispatch<React.SetStateAction<MembershipForm>>
-  petTypes: ApiOption[]
-  services: AdminService[]
-  onSubmit: (e: React.FormEvent) => void
-  isLoading: boolean
-  mode: "create" | "edit"
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  form: MembershipForm;
+  setForm: React.Dispatch<React.SetStateAction<MembershipForm>>;
+  petTypes: ApiOption[];
+  services: AdminService[];
+  onSubmit: (e: React.FormEvent) => void;
+  isLoading: boolean;
+  mode: "create" | "edit";
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display">
-            {mode === "create" ? "Tambah Paket Membership" : "Edit Paket Membership"}
+            {mode === "create"
+              ? "Tambah Paket Membership"
+              : "Edit Paket Membership"}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           {/* Name */}
           <div className="flex flex-col gap-2">
-            <Label htmlFor="mem-name">Nama Paket <span className="text-destructive">*</span></Label>
+            <Label htmlFor="mem-name">
+              Nama Paket <span className="text-destructive">*</span>
+            </Label>
             <Input
               id="mem-name"
               placeholder="Gold Membership"
@@ -735,14 +908,18 @@ function MembershipFormDialog({
               placeholder="Deskripsi paket..."
               rows={2}
               value={form.description}
-              onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, description: e.target.value }))
+              }
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             {/* Duration */}
             <div className="flex flex-col gap-2">
-              <Label htmlFor="mem-duration">Durasi (bulan) <span className="text-destructive">*</span></Label>
+              <Label htmlFor="mem-duration">
+                Durasi (bulan) <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="mem-duration"
                 type="number"
@@ -750,22 +927,30 @@ function MembershipFormDialog({
                 required
                 placeholder="12"
                 value={form.duration_months}
-                onChange={(e) => setForm((p) => ({ ...p, duration_months: e.target.value }))}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, duration_months: e.target.value }))
+                }
               />
             </div>
             {/* Price */}
             <div className="flex flex-col gap-2">
-              <Label htmlFor="mem-price">Harga (Rp) <span className="text-destructive">*</span></Label>
+              <Label htmlFor="mem-price">
+                Harga (Rp) <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="mem-price"
                 type="text"
                 inputMode="numeric"
                 required
                 placeholder="1.200.000"
-                value={form.price ? Number(form.price).toLocaleString("id-ID") : ""}
+                value={
+                  form.price ? Number(form.price).toLocaleString("id-ID") : ""
+                }
                 onChange={(e) => {
-                  const raw = e.target.value.replace(/\./g, "").replace(/\D/g, "")
-                  setForm((p) => ({ ...p, price: raw }))
+                  const raw = e.target.value
+                    .replace(/\./g, "")
+                    .replace(/\D/g, "");
+                  setForm((p) => ({ ...p, price: raw }));
                 }}
               />
             </div>
@@ -785,10 +970,15 @@ function MembershipFormDialog({
 
           {/* Pet Types */}
           <div className="flex flex-col gap-2">
-            <Label>Jenis Hewan <span className="text-destructive">*</span></Label>
+            <Label>
+              Jenis Hewan <span className="text-destructive">*</span>
+            </Label>
             <div className="flex flex-wrap gap-3">
               {petTypes.map((pt) => (
-                <label key={pt._id} className="flex items-center gap-2 cursor-pointer text-sm">
+                <label
+                  key={pt._id}
+                  className="flex items-center gap-2 cursor-pointer text-sm"
+                >
                   <Checkbox
                     checked={(form.pet_type_ids ?? []).includes(pt._id)}
                     onCheckedChange={(checked) => {
@@ -797,7 +987,7 @@ function MembershipFormDialog({
                         pet_type_ids: checked
                           ? [...p.pet_type_ids, pt._id]
                           : p.pet_type_ids.filter((id) => id !== pt._id),
-                      }))
+                      }));
                     }}
                   />
                   {pt.name}
@@ -829,7 +1019,11 @@ function MembershipFormDialog({
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
               Batal
             </Button>
             <Button type="submit" disabled={isLoading}>
@@ -839,115 +1033,123 @@ function MembershipFormDialog({
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 // ── Memberships Tab ────────────────────────────────────────────────────────
 
 function MembershipsTab() {
-  const [memberships, setMemberships] = useState<MembershipPlan[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [search, setSearch] = useState("")
-  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all")
-  const [petTypes, setPetTypes] = useState<ApiOption[]>([])
-  const [services, setServices] = useState<AdminService[]>([])
+  const [memberships, setMemberships] = useState<MembershipPlan[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [filterActive, setFilterActive] = useState<
+    "all" | "active" | "inactive"
+  >("all");
+  const [petTypes, setPetTypes] = useState<ApiOption[]>([]);
+  const [services, setServices] = useState<AdminService[]>([]);
 
-  const [form, setForm] = useState<MembershipForm>(DEFAULT_MEMBERSHIP_FORM)
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [dialogMode, setDialogMode] = useState<"create" | "edit">("create")
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<MembershipPlan | null>(null)
-  const [viewTarget, setViewTarget] = useState<MembershipPlan | null>(null)
-  const [detailOpen, setDetailOpen] = useState(false)
+  const [form, setForm] = useState<MembershipForm>(DEFAULT_MEMBERSHIP_FORM);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<"create" | "edit">("create");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<MembershipPlan | null>(null);
+  const [viewTarget, setViewTarget] = useState<MembershipPlan | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   const loadMemberships = useCallback(async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      const res = await getMemberships()
-      setMemberships(res.data)
+      const res = await getMemberships();
+      setMemberships(res.data);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal memuat data membership")
+      toast.error(
+        err instanceof Error ? err.message : "Gagal memuat data membership",
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    loadMemberships()
-    getOptions("pet type").then((res) => setPetTypes(res.options)).catch(() => {})
-    getAdminServices({ limit: 200 }).then((res) => setServices(res.services)).catch(() => {})
-  }, [loadMemberships])
+    loadMemberships();
+    getOptions("pet type")
+      .then((res) => setPetTypes(res.options))
+      .catch(() => {});
+    getAdminServices({ limit: 200 })
+      .then((res) => setServices(res.services))
+      .catch(() => {});
+  }, [loadMemberships]);
 
   const filtered = memberships.filter((m) => {
-    const matchSearch = m.name.toLowerCase().includes(search.toLowerCase())
+    const matchSearch = m.name.toLowerCase().includes(search.toLowerCase());
     const matchActive =
       filterActive === "all" ||
       (filterActive === "active" && m.is_active) ||
-      (filterActive === "inactive" && !m.is_active)
-    return matchSearch && matchActive
-  })
+      (filterActive === "inactive" && !m.is_active);
+    return matchSearch && matchActive;
+  });
 
   const openCreate = () => {
-    setForm(DEFAULT_MEMBERSHIP_FORM)
-    setDialogMode("create")
-    setEditingId(null)
-    setDialogOpen(true)
-  }
+    setForm(DEFAULT_MEMBERSHIP_FORM);
+    setDialogMode("create");
+    setEditingId(null);
+    setDialogOpen(true);
+  };
 
   const openDetail = (m: MembershipPlan) => {
-    setViewTarget(m)
-    setDetailOpen(true)
-  }
+    setViewTarget(m);
+    setDetailOpen(true);
+  };
 
   const openEdit = async (m: MembershipPlan) => {
     try {
-      const res = await getMembershipById(m._id)
-      setForm(membershipToForm(res.data))
+      const res = await getMembershipById(m._id);
+      setForm(membershipToForm(res.data));
     } catch {
-      setForm(membershipToForm(m))
+      setForm(membershipToForm(m));
     }
-    setDialogMode("edit")
-    setEditingId(m._id)
-    setDialogOpen(true)
-  }
+    setDialogMode("edit");
+    setEditingId(m._id);
+    setDialogOpen(true);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (form.pet_type_ids.length === 0) {
-      toast.error("Pilih minimal satu jenis hewan")
-      return
+      toast.error("Pilih minimal satu jenis hewan");
+      return;
     }
-    setIsSaving(true)
+    setIsSaving(true);
     try {
-      const payload = formToPayload(form)
+      const payload = formToPayload(form);
       if (dialogMode === "create") {
-        await createMembership(payload)
-        toast.success("Paket membership berhasil ditambahkan")
+        await createMembership(payload);
+        toast.success("Paket membership berhasil ditambahkan");
       } else if (editingId) {
-        await updateMembership(editingId, payload)
-        toast.success("Paket membership berhasil diperbarui")
+        await updateMembership(editingId, payload);
+        toast.success("Paket membership berhasil diperbarui");
       }
-      setDialogOpen(false)
-      loadMemberships()
+      setDialogOpen(false);
+      loadMemberships();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Terjadi kesalahan")
+      toast.error(err instanceof Error ? err.message : "Terjadi kesalahan");
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
-  }
+  };
 
   const handleDelete = async () => {
-    if (!deleteTarget) return
+    if (!deleteTarget) return;
     try {
-      await deleteMembership(deleteTarget._id)
-      toast.success("Paket membership berhasil dihapus")
-      setDeleteTarget(null)
-      loadMemberships()
+      await deleteMembership(deleteTarget._id);
+      toast.success("Paket membership berhasil dihapus");
+      setDeleteTarget(null);
+      loadMemberships();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal menghapus")
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus");
     }
-  }
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -962,7 +1164,10 @@ function MembershipsTab() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Select value={filterActive} onValueChange={(v) => setFilterActive(v as typeof filterActive)}>
+        <Select
+          value={filterActive}
+          onValueChange={(v) => setFilterActive(v as typeof filterActive)}
+        >
           <SelectTrigger className="w-36">
             <SelectValue />
           </SelectTrigger>
@@ -996,14 +1201,21 @@ function MembershipsTab() {
               Array.from({ length: 4 }).map((_, i) => (
                 <TableRow key={i}>
                   {Array.from({ length: 6 }).map((__, j) => (
-                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                    <TableCell key={j}>
+                      <Skeleton className="h-4 w-full" />
+                    </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  {search || filterActive !== "all" ? "Tidak ada hasil yang sesuai" : "Belum ada paket membership"}
+                <TableCell
+                  colSpan={6}
+                  className="text-center text-muted-foreground py-8"
+                >
+                  {search || filterActive !== "all"
+                    ? "Tidak ada hasil yang sesuai"
+                    : "Belum ada paket membership"}
                 </TableCell>
               </TableRow>
             ) : (
@@ -1016,18 +1228,30 @@ function MembershipsTab() {
                   <TableCell>
                     <div className="font-medium text-foreground">{m.name}</div>
                     {m.description && (
-                      <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{m.description}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                        {m.description}
+                      </div>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm">{m.duration_months} bulan</TableCell>
-                  <TableCell className="text-sm">{formatRupiah(m.price)}</TableCell>
+                  <TableCell className="text-sm">
+                    {m.duration_months} bulan
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {formatRupiah(m.price)}
+                  </TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className="text-xs">{m.benefits.length} benefit</Badge>
+                    <Badge variant="secondary" className="text-xs">
+                      {m.benefits.length} benefit
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <Badge
                       variant="outline"
-                      className={m.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}
+                      className={
+                        m.is_active
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-gray-100 text-gray-500 border-gray-200"
+                      }
                     >
                       {m.is_active ? "Aktif" : "Nonaktif"}
                     </Badge>
@@ -1090,24 +1314,31 @@ function MembershipsTab() {
       />
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus Paket Membership</AlertDialogTitle>
             <AlertDialogDescription>
-              Yakin ingin menghapus paket <strong>{deleteTarget?.name}</strong>? Tindakan ini tidak dapat dibatalkan.
+              Yakin ingin menghapus paket <strong>{deleteTarget?.name}</strong>?
+              Tindakan ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={handleDelete}>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={handleDelete}
+            >
               Hapus
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
+  );
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────
@@ -1118,13 +1349,15 @@ export default function MembershipsPage() {
       <div className="flex items-center gap-3">
         <CreditCard className="h-6 w-6 text-primary" />
         <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">Memberships</h1>
-          <p className="text-sm text-muted-foreground">Kelola paket membership</p>
+          <h1 className="font-display text-2xl font-bold text-foreground">
+            Memberships
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Kelola paket membership
+          </p>
         </div>
       </div>
       <MembershipsTab />
     </div>
-  )
+  );
 }
-
-
