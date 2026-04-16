@@ -272,6 +272,9 @@ export interface PublicStore {
   sessions?: string[];
   is_active: boolean;
   is_default_store?: boolean;
+  is_pickup_delivery_available?: boolean;
+  pickup_delivery_zones?: PickupDeliveryZone[];
+  home_service_zones?: HomeServiceZone[];
   serviceTypes: PublicServiceType[];
 }
 
@@ -309,6 +312,8 @@ export interface PublicService {
   show_in_homepage?: boolean;
   is_active: boolean;
   service_type?: { _id: string; title: string };
+  service_location_type?: string[];
+  is_pickup_delivery_available?: boolean;
 }
 
 export interface PublicServicesResponse {
@@ -490,6 +495,21 @@ export interface PublicPreviewBenefit {
   description: string
 }
 
+export interface PublicPreviewPromotion {
+  _id: string
+  code: string
+  name: string
+  description: string | null
+  applies_to: string
+  service_id: string | null
+  service_name: string | null
+  discount_type: string
+  value: number
+  is_stackable: boolean
+  is_available_to_membership: boolean
+  amount_discount: number
+}
+
 export interface PublicPreviewResult {
   pet_id: string
   pet_name: string
@@ -499,14 +519,20 @@ export interface PublicPreviewResult {
     original_service_price: number
     addon_prices: { _id: string; name: string; price: number }[]
     subtotal_before_benefits: number
+    pickup_fee?: number
+    delivery_fee?: number
+    travel_fee?: number
     has_active_membership: boolean
     available_benefits: PublicPreviewBenefit[]
+    available_promotions: PublicPreviewPromotion[]
     estimated_total_discount: number
     estimated_final_price: number
   }
   pricing_breakdown: {
     service: { name: string; price: number }
     addons: { _id: string; name: string; price: number }[]
+    pickup_fee?: number
+    delivery_fee?: number
     travel_fee?: number
     subtotal: number
     grand_total: number
@@ -551,6 +577,11 @@ export async function getPublicBookingPreview(payload: {
   addon_ids?: string[]
   date: string
   time_range?: string
+  service_location_type?: string
+  pick_up?: boolean
+  delivery?: boolean
+  store_id?: string
+  customer_id?: string
 }) {
   return apiRequest<{ message: string } & PublicPreviewResult>(
     "/bookings/public/preview",
@@ -566,9 +597,94 @@ export async function publicApplyBenefitPreview(payload: {
   add_on_ids?: string[]
   original_total_price?: number
   booking_date?: string
+  pick_up?: boolean
+  delivery?: boolean
 }) {
   return apiRequest<{ message: string } & PublicApplyBenefitResult>(
     "/bookings/public/apply-benefit",
     { method: "POST", body: JSON.stringify(payload) }
+  )
+}
+
+// ── Public apply promotion preview ───────────────────────────────────────────
+
+export interface PublicApplyPromotionResult {
+  applied_promotions: {
+    promotion_id: string
+    code: string
+    name: string
+    applies_to: string
+    discount_type: string
+    value: number
+    amount_deducted: number
+    applied_at: string
+  }[]
+  total_discount: number
+  breakdown: {
+    promotion_id: string
+    code: string
+    name: string
+    applies_to: string
+    discount_type: string
+    value: number
+    base_price: number
+    amount_deducted: number
+    service_id: string | null
+    applied_at: string
+  }[]
+}
+
+export async function publicApplyPromotionPreview(payload: {
+  selected_promotion_ids: string[]
+  service_id: string
+  addon_ids?: string[]
+  original_service_price?: number
+  travel_fee?: number
+  grand_total?: number
+  pick_up?: boolean
+  delivery?: boolean
+  has_active_membership?: boolean
+  addon_prices?: { _id: string; name: string; price: number }[]
+}) {
+  return apiRequest<{ message: string } & PublicApplyPromotionResult>(
+    "/bookings/public/apply-promotion",
+    { method: "POST", body: JSON.stringify(payload) }
+  )
+}
+
+// ── Public create booking ────────────────────────────────────────────────────
+
+export async function createPublicBooking(payload: {
+  service_type_id: string
+  customer_id?: string
+  customer_name?: string
+  customer_phone?: string
+  customer_email?: string
+  pet_id?: string
+  pet_name?: string
+  pet_type_id?: string
+  breed_category_id?: string
+  size_category_id?: string
+  store_id: string
+  service_id: string
+  date: string
+  time_range: string
+  type: "in home" | "in store"
+  service_addon_ids?: string[]
+  pick_up?: boolean
+  delivery?: boolean
+  selected_benefit_ids?: string[]
+  selected_promotion_ids?: string[]
+  note?: string
+}, authToken?: string) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  }
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`
+  }
+  return apiRequest<{ message: string }>(
+    "/bookings/public",
+    { method: "POST", body: JSON.stringify(payload), headers }
   )
 }

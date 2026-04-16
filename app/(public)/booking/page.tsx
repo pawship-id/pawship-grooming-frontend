@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic"
 
 import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { MapPin, Clock, CheckCircle2, MessageCircle, Check, Plus, Minus, Hash, User, PawPrint, ArrowRight, Info, Loader2, CalendarDays, Truck, Sparkles } from "lucide-react"
+import { MapPin, Clock, CheckCircle2, MessageCircle, Check, Plus, Minus, Hash, User, PawPrint, ArrowRight, Info, Loader2, CalendarDays, Truck, Sparkles, Home, Store, Tag } from "lucide-react"
 import {
   getPublicStores,
   getPublicServices,
@@ -14,6 +14,8 @@ import {
   addPublicPet,
   getPublicBookingPreview,
   publicApplyBenefitPreview,
+  publicApplyPromotionPreview,
+  createPublicBooking,
 } from "@/lib/api/stores"
 import type {
   PublicStore,
@@ -24,6 +26,8 @@ import type {
   PublicOption,
   PublicPreviewResult,
   PublicApplyBenefitResult,
+  PublicApplyPromotionResult,
+  PublicPreviewPromotion,
 } from "@/lib/api/stores"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -273,12 +277,12 @@ function SelectableAddonCard({ service, selected, onToggle }: { service: PublicS
           </button>
         </div>
 
-        <div className="mt-3 flex items-end justify-end">
+        {/* <div className="mt-3 flex items-end justify-end">
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />
             {service.duration} menit
           </div>
-        </div>
+        </div> */}
       </div>
 
       {/* Description modal (mobile) */}
@@ -352,6 +356,9 @@ function BookingContent() {
               }
             }
           }
+        } else if (activeStores.length > 0) {
+          // Auto-select default store when no store is specified
+          setSelectedStoreId(activeStores[0]._id)
         }
       })
       .catch(() => setStoresError("Gagal memuat daftar store. Silakan coba lagi."))
@@ -456,7 +463,7 @@ function BookingContent() {
         setEmail(u.email)
         setPhone(u.phone_number ?? "")
         setPhoneChecked(true)
-        setExistingUser({ _id: u._id, username: u.username, email: u.email })
+        setExistingUser({ _id: u._id, username: u.username, email: u.email, phone_number: u.phone_number ?? "", role: u.role ?? "customer" })
         // Map ApiPet[] to PublicUserPet[]
         const pets: PublicUserPet[] = (u.pets ?? [])
           .filter((p) => p.is_active && !p.isDeleted)
@@ -495,8 +502,12 @@ function BookingContent() {
   const [userInfoConfirmed, setUserInfoConfirmed] = useState(false)
   const [confirmedPetId, setConfirmedPetId] = useState("")
 
-  // Pick-up state
+  // Pick-up & delivery state
   const [isPickup, setIsPickup] = useState(false)
+  const [isDelivery, setIsDelivery] = useState(false)
+
+  // Service location type state
+  const [selectedLocationType, setSelectedLocationType] = useState<"in home" | "in store" | "">("")
 
   // Pricing preview state
   const [previewData, setPreviewData] = useState<PublicPreviewResult | null>(null)
@@ -507,14 +518,31 @@ function BookingContent() {
   const [applyBenefitResult, setApplyBenefitResult] = useState<PublicApplyBenefitResult | null>(null)
   const [applyBenefitLoading, setApplyBenefitLoading] = useState(false)
 
-  // Step 5 state
+  // Promotion state
+  const [selectedPromotionIds, setSelectedPromotionIds] = useState<string[]>([])
+  const [applyPromotionResult, setApplyPromotionResult] = useState<PublicApplyPromotionResult | null>(null)
+  const [applyPromotionLoading, setApplyPromotionLoading] = useState(false)
+
+  // Booking submit state
   const [bookingCreated, setBookingCreated] = useState(false)
+  const [submittingBooking, setSubmittingBooking] = useState(false)
 
   const selectedStore = stores.find((s) => s._id === selectedStoreId)
   const selectedServiceType = selectedStore?.serviceTypes.find((t) => t._id === selectedServiceTypeId)
   const selectedService = services.find((s) => s._id === selectedServiceId)
   const selectedAddons = addOnServices.filter((a) => selectedAddonIds.includes(a._id))
   const availablePets = existingPets
+
+  // Derived: does this service need a location type choice?
+  const serviceLocationTypes = selectedService?.service_location_type ?? []
+  const needsLocationChoice = serviceLocationTypes.length > 1
+  const locationResolved = selectedLocationType !== ""
+
+  // Derived: can use pickup/delivery?
+  const canUsePickupDelivery =
+    selectedLocationType === "in store" &&
+    selectedService?.is_pickup_delivery_available === true &&
+    selectedStore?.is_pickup_delivery_available === true
 
   // Dynamic step numbers — add-ons step is skipped when no add-on services exist
   const hasAddons = addOnServices.length > 0
@@ -543,6 +571,7 @@ function BookingContent() {
     setAddOnServices([])
     setSelectedAddonIds([])
     setShowAddons(false)
+    setSelectedLocationType("")
     setSelectedDate("")
     setSelectedTimeRange("")
     resetUserInfo()
@@ -569,20 +598,27 @@ function BookingContent() {
     setUserInfoConfirmed(false)
     setConfirmedPetId("")
     setIsPickup(false)
+    setIsDelivery(false)
     setPreviewData(null)
     setPreviewLoading(false)
     setSelectedBenefitIds([])
     setApplyBenefitResult(null)
     setApplyBenefitLoading(false)
+    setSelectedPromotionIds([])
+    setApplyPromotionResult(null)
+    setApplyPromotionLoading(false)
     setBookingCreated(false)
+    setSubmittingBooking(false)
   }
 
   // ── Preview: auto-fetch pricing when user info is confirmed ──
   useEffect(() => {
-    if (!userInfoConfirmed || !selectedServiceId || !selectedDate || !confirmedPetId) {
+    if (!userInfoConfirmed || !selectedServiceId || !selectedDate || !confirmedPetId || !selectedLocationType) {
       setPreviewData(null)
       setSelectedBenefitIds([])
       setApplyBenefitResult(null)
+      setSelectedPromotionIds([])
+      setApplyPromotionResult(null)
       return
     }
     let cancelled = false
@@ -590,18 +626,25 @@ function BookingContent() {
     setPreviewData(null)
     setSelectedBenefitIds([])
     setApplyBenefitResult(null)
+    setSelectedPromotionIds([])
+    setApplyPromotionResult(null)
     getPublicBookingPreview({
       pet_id: confirmedPetId,
       service_id: selectedServiceId,
       addon_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
       date: selectedDate,
       time_range: selectedTimeRange || undefined,
+      service_location_type: selectedLocationType || undefined,
+      pick_up: selectedLocationType === "in store" && isPickup ? true : undefined,
+      delivery: selectedLocationType === "in store" && isDelivery ? true : undefined,
+      store_id: selectedStoreId || undefined,
+      customer_id: existingUser?._id || undefined,
     })
       .then((res) => { if (!cancelled) setPreviewData(res) })
       .catch(() => { if (!cancelled) setPreviewData(null) })
       .finally(() => { if (!cancelled) setPreviewLoading(false) })
     return () => { cancelled = true }
-  }, [userInfoConfirmed, confirmedPetId, selectedServiceId, selectedAddonIds, selectedDate, selectedTimeRange])
+  }, [userInfoConfirmed, confirmedPetId, selectedServiceId, selectedAddonIds, selectedDate, selectedTimeRange, selectedLocationType, isPickup, isDelivery])
 
   // ── Apply benefit: auto-fetch when benefit selection changes ──
   useEffect(() => {
@@ -621,12 +664,42 @@ function BookingContent() {
       store_id: selectedStoreId || undefined,
       original_total_price: previewData?.pricing_breakdown?.grand_total,
       booking_date: selectedDate || undefined,
+      pick_up: selectedLocationType === "in store" && isPickup ? true : undefined,
+      delivery: selectedLocationType === "in store" && isDelivery ? true : undefined,
     })
       .then((res) => { if (!cancelled) setApplyBenefitResult(res) })
       .catch(() => { if (!cancelled) setApplyBenefitResult(null) })
       .finally(() => { if (!cancelled) setApplyBenefitLoading(false) })
     return () => { cancelled = true }
   }, [selectedBenefitIds, confirmedPetId, selectedServiceId, selectedAddonIds])
+
+  // ── Apply promotion: auto-fetch when promotion selection changes ──
+  useEffect(() => {
+    if (!selectedServiceId || !previewData) return
+    if (selectedPromotionIds.length === 0) {
+      setApplyPromotionResult(null)
+      setApplyPromotionLoading(false)
+      return
+    }
+    let cancelled = false
+    setApplyPromotionLoading(true)
+    publicApplyPromotionPreview({
+      selected_promotion_ids: selectedPromotionIds,
+      service_id: selectedServiceId,
+      addon_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
+      original_service_price: previewData.pricing.original_service_price,
+      travel_fee: (previewData.pricing_breakdown.pickup_fee ?? 0) + (previewData.pricing_breakdown.delivery_fee ?? 0) + (previewData.pricing_breakdown.travel_fee ?? 0),
+      grand_total: previewData.pricing_breakdown.grand_total,
+      pick_up: selectedLocationType === "in store" && isPickup ? true : undefined,
+      delivery: selectedLocationType === "in store" && isDelivery ? true : undefined,
+      has_active_membership: previewData.pricing.has_active_membership,
+      addon_prices: previewData.pricing.addon_prices,
+    })
+      .then((res) => { if (!cancelled) setApplyPromotionResult(res) })
+      .catch(() => { if (!cancelled) setApplyPromotionResult(null) })
+      .finally(() => { if (!cancelled) setApplyPromotionLoading(false) })
+    return () => { cancelled = true }
+  }, [selectedPromotionIds, selectedServiceId, selectedAddonIds])
 
   // Benefit toggle with conflict detection
   function toggleBenefit(id: string) {
@@ -671,6 +744,72 @@ function BookingContent() {
       })
       return [...prev.filter((b) => !conflicts.includes(b)), id]
     })
+  }
+
+  // Promotion toggle with stacking & conflict detection
+  function togglePromotion(id: string) {
+    if (!previewData) return
+    const promo = previewData.pricing.available_promotions?.find((p) => p._id === id)
+    if (!promo) return
+
+    setSelectedPromotionIds((prev) => {
+      if (prev.includes(id)) return prev.filter((p) => p !== id)
+      // Non-stackable promo replaces all
+      if (!promo.is_stackable) return [id]
+      // If a non-stackable promo is already selected, can't add more
+      const hasNonStackable = prev.some((pid) => {
+        const p = previewData.pricing.available_promotions?.find((x) => x._id === pid)
+        return p && !p.is_stackable
+      })
+      if (hasNonStackable) return [id]
+      return [...prev, id]
+    })
+  }
+
+  async function handleCreateBooking() {
+    if (!selectedStoreId || !selectedServiceId || !selectedDate || !selectedTimeRange) return
+    setSubmittingBooking(true)
+    setFormError("")
+    try {
+      const locationType = (selectedLocationType || "in store") as "in home" | "in store"
+
+      const payload: Parameters<typeof createPublicBooking>[0] = {
+        store_id: selectedStoreId,
+        service_id: selectedServiceId,
+        service_type_id: selectedServiceTypeId,
+        service_addon_ids: selectedAddonIds,
+        date: selectedDate,
+        time_range: selectedTimeRange,
+        type: locationType,
+        pick_up: isPickup,
+        delivery: isDelivery,
+        selected_benefit_ids: selectedBenefitIds,
+        selected_promotion_ids: selectedPromotionIds,
+        note: "",
+      }
+
+      if (existingUser && selectedPetId) {
+        payload.customer_id = existingUser._id
+        payload.pet_id = selectedPetId
+        payload.customer_phone = phone.replace(/\D/g, "")
+      } else {
+        payload.customer_name = userName
+        payload.customer_phone = phone.replace(/\D/g, "")
+        payload.customer_email = email
+        payload.pet_name = newPetName
+        payload.pet_type_id = newPetTypeId
+        payload.breed_category_id = newBreedId
+        payload.size_category_id = newSizeId
+      }
+
+      await createPublicBooking(payload)
+      setBookingCreated(true)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Gagal membuat booking. Coba lagi."
+      setFormError(msg)
+    } finally {
+      setSubmittingBooking(false)
+    }
   }
 
   async function handleCheckPhone() {
@@ -853,6 +992,7 @@ function BookingContent() {
                     setSelectedServiceId("")
                     setSelectedAddonIds([])
                     setShowAddons(false)
+                    setSelectedLocationType("")
                     resetUserInfo()
                   }}
                 />
@@ -886,6 +1026,13 @@ function BookingContent() {
                       setSelectedServiceId(svc._id)
                       setSelectedAddonIds([])
                       setShowAddons(false)
+                      // Auto-set location type if service only supports one
+                      const locs = svc.service_location_type ?? []
+                      if (locs.length === 1) {
+                        setSelectedLocationType(locs[0] as "in home" | "in store")
+                      } else {
+                        setSelectedLocationType("")
+                      }
                       resetUserInfo()
                     }}
                   />
@@ -951,8 +1098,69 @@ function BookingContent() {
           </section>
         )}
 
+        {/* ── Location Type Selection (if service supports both) ── */}
+        {selectedService && needsLocationChoice && (
+          <section className="flex flex-col gap-4">
+            <StepHeader step={hasAddons ? stepAddOns + 1 : stepAddOns} title="Pilih Lokasi Layanan" done={locationResolved} />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedLocationType("in store")
+                  setIsPickup(false)
+                  setIsDelivery(false)
+                  setUserInfoConfirmed(false)
+                  setBookingCreated(false)
+                }}
+                className={`group relative flex items-center gap-3 rounded-2xl border-2 p-4 text-left transition-all duration-200 cursor-pointer ${
+                  selectedLocationType === "in store" ? "border-primary bg-primary/5 shadow-md" : "border-border bg-card hover:border-primary/40 hover:shadow-sm"
+                }`}
+              >
+                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                  selectedLocationType === "in store" ? "border-primary bg-primary" : "border-border"
+                }`}>
+                  {selectedLocationType === "in store" && <Check className="h-3.5 w-3.5 text-primary-foreground" />}
+                </span>
+                <div>
+                  <p className={`text-sm font-semibold ${selectedLocationType === "in store" ? "text-primary" : "text-foreground"}`}>
+                    <Store className="mr-1.5 inline-block h-4 w-4" />
+                    In Store
+                  </p>
+                  <p className="text-xs text-muted-foreground">Anabul datang atau dijemput ke store</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedLocationType("in home")
+                  setIsPickup(false)
+                  setIsDelivery(false)
+                  setUserInfoConfirmed(false)
+                  setBookingCreated(false)
+                }}
+                className={`group relative flex items-center gap-3 rounded-2xl border-2 p-4 text-left transition-all duration-200 cursor-pointer ${
+                  selectedLocationType === "in home" ? "border-primary bg-primary/5 shadow-md" : "border-border bg-card hover:border-primary/40 hover:shadow-sm"
+                }`}
+              >
+                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                  selectedLocationType === "in home" ? "border-primary bg-primary" : "border-border"
+                }`}>
+                  {selectedLocationType === "in home" && <Check className="h-3.5 w-3.5 text-primary-foreground" />}
+                </span>
+                <div>
+                  <p className={`text-sm font-semibold ${selectedLocationType === "in home" ? "text-primary" : "text-foreground"}`}>
+                    <Home className="mr-1.5 inline-block h-4 w-4" />
+                    Home Service
+                  </p>
+                  <p className="text-xs text-muted-foreground">Groomer datang ke lokasi kamu</p>
+                </div>
+              </button>
+            </div>
+          </section>
+        )}
+
         {/* ── Schedule Step: Pilih Jadwal ── */}
-        {selectedService && (
+        {selectedService && locationResolved && (
           <section className="flex flex-col gap-4">
             <StepHeader step={stepSchedule} title="Pilih Jadwal" done={!!selectedDate && !!selectedTimeRange} />
             <Card className="border-border/60">
@@ -995,31 +1203,58 @@ function BookingContent() {
                   </div>
                 </div>
 
-                {/* Pick-up toggle */}
-                {selectedService?.is_pick_up_available && selectedStore?.is_pick_up_available && (
+                {/* Pickup & Delivery toggles — only for in-store services */}
+                {canUsePickupDelivery && (
                   <>
                     <Separator />
-                    <label
-                      htmlFor="pickup"
-                      className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
-                        isPickup ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/40"
-                      }`}
-                    >
-                      <Checkbox
-                        id="pickup"
-                        checked={isPickup}
-                        onCheckedChange={(checked) => {
-                          setIsPickup(!!checked)
-                          setUserInfoConfirmed(false)
-                          setBookingCreated(false)
-                        }}
-                        className="shrink-0"
-                      />
-                      <div className="flex items-center gap-2">
-                        <Truck className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">Aktifkan Pickup (Jemput / Antar)</span>
+                    <div className="flex flex-col gap-2">
+                      <p className="text-xs font-medium text-muted-foreground">Pickup & Delivery (opsional)</p>
+                      <p className="text-[11px] text-muted-foreground">Jika tidak memilih, kamu bawa sendiri anabul ke store. Biaya dihitung berdasarkan zona lokasi.</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <label
+                          htmlFor="pickup"
+                          className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
+                            isPickup ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/40"
+                          }`}
+                        >
+                          <Checkbox
+                            id="pickup"
+                            checked={isPickup}
+                            onCheckedChange={(checked) => {
+                              setIsPickup(!!checked)
+                              setUserInfoConfirmed(false)
+                              setBookingCreated(false)
+                            }}
+                            className="shrink-0"
+                          />
+                          <div className="flex items-center gap-2">
+                            <Truck className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">Pickup (Jemput Pet)</span>
+                          </div>
+                        </label>
+                        <label
+                          htmlFor="delivery"
+                          className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-all duration-150 ${
+                            isDelivery ? "border-primary bg-primary/5" : "border-border bg-card hover:border-primary/40"
+                          }`}
+                        >
+                          <Checkbox
+                            id="delivery"
+                            checked={isDelivery}
+                            onCheckedChange={(checked) => {
+                              setIsDelivery(!!checked)
+                              setUserInfoConfirmed(false)
+                              setBookingCreated(false)
+                            }}
+                            className="shrink-0"
+                          />
+                          <div className="flex items-center gap-2">
+                            <Truck className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">Delivery (Antar Pet)</span>
+                          </div>
+                        </label>
                       </div>
-                    </label>
+                    </div>
                   </>
                 )}
               </CardContent>
@@ -1027,8 +1262,8 @@ function BookingContent() {
           </section>
         )}
 
-        {/* ── Step 5: User & Pet Info ── */}
-        {selectedService && selectedDate && selectedTimeRange && (
+        {/* ── Step: User & Pet Info ── */}
+        {selectedService && locationResolved && selectedDate && selectedTimeRange && (
           <section className="flex flex-col gap-4">
             <StepHeader step={stepUserInfo} title="Informasi Kamu & Anabul" done={userInfoConfirmed} />
             <Card className="border-border/60">
@@ -1350,14 +1585,34 @@ function BookingContent() {
                   </>
                 )}
 
-                {/* Pick-up indicator */}
-                {isPickup && (
+                {/* Location type & Pickup/Delivery indicators */}
+                {selectedLocationType && (
                   <>
                     <Separator />
                     <div className="flex items-center gap-2">
-                      <Truck className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-medium text-foreground">Pick-up ke lokasi</span>
+                      {selectedLocationType === "in home" ? (
+                        <Home className="h-4 w-4 text-primary" />
+                      ) : (
+                        <Store className="h-4 w-4 text-primary" />
+                      )}
+                      <span className="text-sm font-medium text-foreground">
+                        {selectedLocationType === "in home" ? "Home Service" : "In Store"}
+                      </span>
                     </div>
+                    {selectedLocationType === "in store" && (isPickup || isDelivery) && (
+                      <div className="flex flex-wrap gap-2 ml-6">
+                        {isPickup && (
+                          <Badge variant="outline" className="bg-accent/20 text-accent-foreground border-accent/30 text-[10px]">
+                            <Truck className="mr-1 h-3 w-3" /> Pickup
+                          </Badge>
+                        )}
+                        {isDelivery && (
+                          <Badge variant="outline" className="bg-accent/20 text-accent-foreground border-accent/30 text-[10px]">
+                            <Truck className="mr-1 h-3 w-3" /> Delivery
+                          </Badge>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -1451,9 +1706,33 @@ function BookingContent() {
 
                       {/* Subtotal */}
                       <div className="flex items-center justify-between border-t border-border/50 bg-muted/30 px-4 py-2.5 text-sm font-semibold">
-                        <span>Subtotal</span>
-                        <span>{formatPrice(previewData.pricing_breakdown.grand_total)}</span>
+                        <span>Subtotal Layanan</span>
+                        <span>{formatPrice(previewData.pricing_breakdown.subtotal)}</span>
                       </div>
+
+                      {/* Pickup fee */}
+                      {(previewData.pricing_breakdown.pickup_fee ?? 0) > 0 && (
+                        <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                          <span className="text-muted-foreground">Biaya Pickup</span>
+                          <span className="font-medium">{formatPrice(previewData.pricing_breakdown.pickup_fee!)}</span>
+                        </div>
+                      )}
+
+                      {/* Delivery fee */}
+                      {(previewData.pricing_breakdown.delivery_fee ?? 0) > 0 && (
+                        <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                          <span className="text-muted-foreground">Biaya Delivery</span>
+                          <span className="font-medium">{formatPrice(previewData.pricing_breakdown.delivery_fee!)}</span>
+                        </div>
+                      )}
+
+                      {/* Travel fee (in-home) */}
+                      {selectedLocationType === "in home" && (previewData.pricing_breakdown.travel_fee ?? 0) > 0 && (
+                        <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
+                          <span className="text-muted-foreground">Biaya Perjalanan</span>
+                          <span className="font-medium">{formatPrice(previewData.pricing_breakdown.travel_fee!)}</span>
+                        </div>
+                      )}
 
                       {/* Diskon Member */}
                       {selectedBenefitIds.length > 0 && (applyBenefitLoading || (applyBenefitResult && applyBenefitResult.total_discount > 0)) && (
@@ -1470,11 +1749,27 @@ function BookingContent() {
                         </div>
                       )}
 
+                      {/* Diskon Promo */}
+                      {selectedPromotionIds.length > 0 && (applyPromotionLoading || (applyPromotionResult && applyPromotionResult.total_discount > 0)) && (
+                        <div className="flex items-center justify-between border-t border-green-500/20 bg-green-50 dark:bg-green-950/20 px-4 py-2.5 text-sm">
+                          <span className="flex items-center gap-1.5 font-medium text-green-700 dark:text-green-400">
+                            <Tag className="h-3.5 w-3.5" />
+                            Diskon Promo
+                          </span>
+                          {applyPromotionLoading ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-green-600" />
+                          ) : (
+                            <span className="font-semibold text-green-700 dark:text-green-400">- {formatPrice(applyPromotionResult!.total_discount)}</span>
+                          )}
+                        </div>
+                      )}
+
                       {/* Total Akhir */}
                       {(() => {
                         const grandTotal = previewData.pricing_breakdown.grand_total
-                        const hasDiscount = selectedBenefitIds.length > 0 && applyBenefitResult != null && applyBenefitResult.total_discount > 0
-                        const displayTotal = hasDiscount ? applyBenefitResult!.final_price : grandTotal
+                        const benefitDiscount = selectedBenefitIds.length > 0 && applyBenefitResult ? applyBenefitResult.total_discount : 0
+                        const promoDiscount = selectedPromotionIds.length > 0 && applyPromotionResult ? applyPromotionResult.total_discount : 0
+                        const displayTotal = grandTotal - benefitDiscount - promoDiscount
                         return (
                           <div className="flex items-center justify-between border-t border-primary/30 bg-primary/10 px-4 py-3 text-sm font-bold text-primary">
                             <span>Total Akhir</span>
@@ -1567,9 +1862,101 @@ function BookingContent() {
                   </>
                 )}
 
+                {/* ── Promotion Selection ── */}
+                {previewData && (previewData.pricing.available_promotions?.length ?? 0) > 0 && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col gap-2.5">
+                      <div className="flex items-center gap-2">
+                        <Tag className="h-4 w-4 text-green-600" />
+                        <p className="text-sm font-semibold text-foreground">Promo Tersedia</p>
+                        <span className="rounded-full bg-green-100 dark:bg-green-950/40 px-2 py-0.5 text-[10px] font-bold text-green-700 dark:text-green-400">
+                          {previewData.pricing.available_promotions.length}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {previewData.pricing.available_promotions.map((promo) => {
+                          const selected = selectedPromotionIds.includes(promo._id)
+                          // Check stacking: if a non-stackable is already selected, block others
+                          const hasNonStackableSelected = previewData.pricing.available_promotions.some(
+                            (p) => selectedPromotionIds.includes(p._id) && !p.is_stackable
+                          )
+                          const blockedByStacking = !selected && hasNonStackableSelected
+                          // Check conflict with benefit on same target
+                          const blockedByBenefit = (() => {
+                            if (selectedBenefitIds.length === 0) return false
+                            const benefits = previewData.pricing.available_benefits
+                            return benefits.some((b) => {
+                              if (!selectedBenefitIds.includes(b._id)) return false
+                              if (b.applies_to !== promo.applies_to) return false
+                              const bSid = b.service_id || null
+                              const pSid = promo.service_id || null
+                              return bSid === pSid
+                            })
+                          })()
+                          const isDisabled = blockedByStacking || blockedByBenefit
+
+                          return (
+                            <label
+                              key={promo._id}
+                              className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                                isDisabled
+                                  ? "cursor-not-allowed border-border/30 bg-muted/20 opacity-50"
+                                  : selected
+                                    ? "border-green-500 bg-green-50 dark:bg-green-950/20"
+                                    : "border-border bg-card hover:border-green-400/60"
+                              }`}
+                            >
+                              <Checkbox
+                                checked={selected}
+                                disabled={isDisabled}
+                                onCheckedChange={() => !isDisabled && togglePromotion(promo._id)}
+                                className="mt-0.5"
+                              />
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-foreground">{promo.name}</span>
+                                  <Badge variant="outline" className="text-[10px] bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400 border-green-300 dark:border-green-800">
+                                    {promo.code}
+                                  </Badge>
+                                  {!promo.is_stackable && (
+                                    <span className="text-[10px] text-amber-600 dark:text-amber-400">Tidak dapat ditumpuk</span>
+                                  )}
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {promo.discount_type === "percent" ? `${promo.value}% off` : formatPrice(promo.value)}
+                                  {promo.applies_to === "service" ? " · Layanan" : promo.applies_to === "addon" ? " · Add-on" : promo.applies_to === "pickup" ? " · Pickup/Delivery" : " · Booking"}
+                                  {promo.service_name ? ` (${promo.service_name})` : ""}
+                                </span>
+                                {promo.description && (
+                                  <span className="text-[11px] text-muted-foreground">{promo.description}</span>
+                                )}
+                                {promo.amount_discount > 0 && (
+                                  <span className="text-[11px] font-medium text-green-600 dark:text-green-400">
+                                    Hemat {formatPrice(promo.amount_discount)}
+                                  </span>
+                                )}
+                                {blockedByStacking && <span className="text-[11px] text-amber-600 dark:text-amber-400">Tidak dapat ditumpuk dengan promo lain</span>}
+                                {blockedByBenefit && <span className="text-[11px] text-amber-600 dark:text-amber-400">Tidak dapat digabung — sudah ada benefit membership pada target yang sama</span>}
+                              </div>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {formError && <p className="text-sm text-destructive">{formError}</p>}
+
                 {!bookingCreated ? (
-                  <Button size="lg" className="w-full font-display font-bold" onClick={() => setBookingCreated(true)}>
-                    Konfirmasi Booking
+                  <Button
+                    size="lg"
+                    className="w-full font-display font-bold"
+                    onClick={handleCreateBooking}
+                    disabled={submittingBooking || previewLoading}
+                  >
+                    {submittingBooking ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Membuat Booking...</> : "Konfirmasi Booking"}
                   </Button>
                 ) : (
                   <div className="flex flex-col gap-3">
@@ -1582,7 +1969,7 @@ function BookingContent() {
                     </div>
                     {selectedStore.contact?.whatsapp && (
                       <a
-                        href={`https://wa.me/${selectedStore.contact.whatsapp}?text=${encodeURIComponent(`Halo! Saya ${existingUser ? existingUser.username : userName} sudah booking ${selectedService.name} di ${selectedStore.name} untuk anabul saya (${petLabel})${selectedDate ? ` pada tanggal ${new Date(selectedDate + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}` : ""}${selectedTimeRange ? ` sesi ${selectedTimeRange}` : ""}${isPickup ? " (pick-up ke lokasi)" : ""}${previewData ? `. Total: ${formatPrice(applyBenefitResult && applyBenefitResult.total_discount > 0 ? applyBenefitResult.final_price : previewData.pricing_breakdown.grand_total)}` : ""} melalui website Pawship.`)}`}
+                        href={`https://wa.me/${selectedStore.contact.whatsapp}?text=${encodeURIComponent(`Halo! Saya ${existingUser ? existingUser.username : userName} sudah booking ${selectedService.name} di ${selectedStore.name} untuk anabul saya (${petLabel})${selectedDate ? ` pada tanggal ${new Date(selectedDate + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}` : ""}${selectedTimeRange ? ` sesi ${selectedTimeRange}` : ""}${isPickup ? " (pickup)" : ""}${isDelivery ? " (delivery)" : ""}${previewData ? `. Total: ${formatPrice((() => { const g = previewData.pricing_breakdown.grand_total; const bd = applyBenefitResult?.total_discount ?? 0; const pd = applyPromotionResult?.total_discount ?? 0; return Math.max(0, g - bd - pd) })())}` : ""} melalui website Pawship.`)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                       >
