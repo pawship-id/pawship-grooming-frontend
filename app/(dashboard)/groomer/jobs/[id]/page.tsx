@@ -5,7 +5,7 @@ import Link from "next/link"
 import {
   ArrowLeft, Play, CheckCircle, Camera, Calendar, Clock,
   User, MapPin, Loader2, ChevronDown, ChevronUp,
-  X, Scissors, UserPlus,
+  X, Scissors, UserPlus, AlertCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,8 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { applyGroomingFrame } from "@/lib/frame-compositor"
-import {
-  getAdminBookingById,
+import { getAdminBookingById,
   startBookingSession,
   finishBookingSession,
   uploadBookingMedia,
@@ -27,6 +26,7 @@ import {
   type AdminBooking,
   type BookingSession,
 } from "@/lib/api/bookings"
+import { getCurrentUser } from "@/lib/api/users"
 import { useAuth } from "@/lib/auth-context"
 
 const sessionStatusColors: Record<string, string> = {
@@ -39,6 +39,7 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
   const { id } = use(params)
   const { user } = useAuth()
   const [booking, setBooking] = useState<AdminBooking | null>(null)
+  const [groomerSkills, setGroomerSkills] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -53,8 +54,12 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
     try {
       setLoading(true)
       setError(null)
-      const res = await getAdminBookingById(id)
+      const [res, meRes] = await Promise.all([
+        getAdminBookingById(id),
+        getCurrentUser(),
+      ])
       setBooking(res.booking)
+      setGroomerSkills(meRes.user?.profile?.groomer_skills ?? [])
       // Auto-expand the first non-finished session
       const firstActive = res.booking.sessions?.find((s) => s.status !== "finished")
       if (firstActive?._id) {
@@ -189,6 +194,10 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
 
   const sessions = [...(booking.sessions || [])].sort((a, b) => a.order - b.order)
   const addons = booking.service_snapshot?.addons || []
+
+  const isSkillMatch = (sessionType: string) =>
+    groomerSkills.length === 0 ||
+    groomerSkills.some((sk) => sk.toLowerCase() === sessionType.toLowerCase())
 
   return (
     <div className="flex flex-col gap-6">
@@ -359,7 +368,14 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                         </p>
                       )}
                       {isUnassigned && (
-                        <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Open — belum ada groomer</p>
+                        isSkillMatch(session.type) ? (
+                          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Open — belum ada groomer</p>
+                        ) : (
+                          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <AlertCircle className="h-3 w-3 text-amber-500" />
+                            Open — bukan skill kamu
+                          </p>
+                        )
                       )}
                     </div>
                   </div>
@@ -431,23 +447,32 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                       </div>
                     )}
 
-                    {/* Unassigned session — show claim button */}
+                    {/* Unassigned session — show claim button or skill mismatch info */}
                     {isUnassigned && (
-                      <div className="flex items-center gap-3">
-                        <Button
-                          size="sm"
-                          onClick={() => session._id && handleClaimSession(session._id)}
-                          disabled={claimingId === session._id}
-                        >
-                          {claimingId === session._id ? (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          ) : (
-                            <UserPlus className="mr-2 h-4 w-4" />
-                          )}
-                          Claim Session
-                        </Button>
-                        <span className="text-xs text-muted-foreground">Klaim session ini untuk ditangani oleh Anda</span>
-                      </div>
+                      isSkillMatch(session.type) ? (
+                        <div className="flex items-center gap-3">
+                          <Button
+                            size="sm"
+                            onClick={() => session._id && handleClaimSession(session._id)}
+                            disabled={claimingId === session._id}
+                          >
+                            {claimingId === session._id ? (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                              <UserPlus className="mr-2 h-4 w-4" />
+                            )}
+                            Claim Session
+                          </Button>
+                          <span className="text-xs text-muted-foreground">Klaim session ini untuk ditangani oleh Anda</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2">
+                          <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                          <p className="text-xs text-amber-700 dark:text-amber-400">
+                            Kamu tidak bisa mengklaim session <span className="font-semibold capitalize">{session.type}</span> karena skill ini tidak terdaftar pada profilmu.
+                          </p>
+                        </div>
+                      )
                     )}
 
                     {/* Other groomer's session — read only */}
