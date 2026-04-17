@@ -16,6 +16,7 @@ import {
   publicApplyBenefitPreview,
   publicApplyPromotionPreview,
   createPublicBooking,
+  updatePublicUserAddress,
 } from "@/lib/api/stores"
 import type {
   PublicStore,
@@ -26,7 +27,9 @@ import type {
   PublicPreviewResult,
   PublicApplyBenefitResult,
   PublicApplyPromotionResult,
+  PublicAddressEntry,
 } from "@/lib/api/stores"
+import { EMPTY_ADDRESS_ENTRY } from "@/lib/api/stores"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MessageCircle } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
@@ -38,6 +41,7 @@ import { SelectableServiceCard } from "./_components/selectable-service-card"
 import { SelectableAddonCard } from "./_components/selectable-addon-card"
 import { StepSchedule } from "./_components/step-schedule"
 import { StepUserInfo } from "./_components/step-user-info"
+import { LoginModal } from "./_components/login-modal"
 import { StepPreview } from "./_components/step-preview"
 import { StepSummary } from "./_components/step-summary"
 
@@ -97,10 +101,11 @@ function BookingContent() {
   const [selectedDate, setSelectedDate] = useState("")
   const [selectedTimeRange, setSelectedTimeRange] = useState("")
 
-  // Options from API (pet types, breeds, sizes)
+  // Options from API (pet types, breeds, sizes, hair)
   const [petTypes, setPetTypes] = useState<PublicOption[]>([])
   const [breedCategories, setBreedCategories] = useState<PublicOption[]>([])
   const [sizeCategories, setSizeCategories] = useState<PublicOption[]>([])
+  const [hairCategories, setHairCategories] = useState<PublicOption[]>([])
   const [optionsLoading, setOptionsLoading] = useState(false)
 
   // User & pet info state
@@ -117,11 +122,19 @@ function BookingContent() {
   const [newPetTypeId, setNewPetTypeId] = useState("")
   const [newBreedId, setNewBreedId] = useState("")
   const [newSizeId, setNewSizeId] = useState("")
+  const [newHairId, setNewHairId] = useState("")
   const [phoneError, setPhoneError] = useState("")
   const [formError, setFormError] = useState("")
   const [submittingUserInfo, setSubmittingUserInfo] = useState(false)
   const [userInfoConfirmed, setUserInfoConfirmed] = useState(false)
   const [confirmedPetId, setConfirmedPetId] = useState("")
+  const [confirmedCustomerId, setConfirmedCustomerId] = useState("")
+
+  // Login modal state
+  const [showLoginModal, setShowLoginModal] = useState(false)
+
+  // Address state
+  const [addresses, setAddresses] = useState<PublicAddressEntry[]>([])
 
   // Pick-up & delivery state
   const [isPickup, setIsPickup] = useState(false)
@@ -168,6 +181,9 @@ function BookingContent() {
   const pickupDeliveryHasZones = (selectedStore?.pickup_delivery_zones ?? []).length > 0
   const canUsePickupDelivery = pickupDeliveryIsInStore && pickupDeliveryServiceSupports && pickupDeliveryStoreSupports && pickupDeliveryHasZones
   const showPickupDeliverySection = locationResolved && pickupDeliveryIsInStore
+
+  // Derived: does the current booking need a customer address?
+  const needsAddress = selectedLocationType === "in home" || (selectedLocationType === "in store" && (isPickup || isDelivery))
 
   // Dynamic step numbers — add-ons step is skipped when no add-on services exist
   const hasAddons = addOnServices.length > 0
@@ -220,11 +236,14 @@ function BookingContent() {
     setNewPetTypeId("")
     setNewBreedId("")
     setNewSizeId("")
+    setNewHairId("")
     setPhoneError("")
     setFormError("")
     setSubmittingUserInfo(false)
     setUserInfoConfirmed(false)
     setConfirmedPetId("")
+    setConfirmedCustomerId("")
+    setAddresses([])
     setIsPickup(false)
     setIsDelivery(false)
     setPreviewData(null)
@@ -322,6 +341,23 @@ function BookingContent() {
         setSelectedPetId(res.pets[0]?._id ?? "")
         setUserName(res.user.username)
         setEmail(res.user.email)
+        // Initialize address state from existing user's saved addresses
+        setAddresses(
+          (res.user.addresses ?? []).map((a) => ({
+            _id: a._id,
+            label: a.label ?? "",
+            street: a.street ?? "",
+            subdistrict: a.subdistrict ?? "",
+            district: a.district ?? "",
+            city: a.city ?? "",
+            province: a.province ?? "",
+            postal_code: a.postal_code ?? "",
+            note: a.note ?? "",
+            latitude: a.latitude ?? null,
+            longitude: a.longitude ?? null,
+            is_main_address: !!a.is_main_address,
+          }))
+        )
       } else {
         setExistingUser(null)
         setExistingPets([])
@@ -333,6 +369,8 @@ function BookingContent() {
         setNewPetTypeId("")
         setNewBreedId("")
         setNewSizeId("")
+        // For new user: pre-add one empty address entry if service needs location
+        setAddresses(needsAddress ? [{ ...EMPTY_ADDRESS_ENTRY, _isNew: true }] : [])
       }
     } catch {
       setPhoneError("Gagal memeriksa nomor HP. Silakan coba lagi.")
@@ -346,13 +384,21 @@ function BookingContent() {
     if (!existingUser && (!userName.trim() || !email.trim())) { setFormError("Nama dan email wajib diisi."); return }
     if (!existingUser && !newPetName.trim()) { setFormError("Nama pet wajib diisi."); return }
     if (!existingUser && !newPetTypeId) { setFormError("Tipe pet wajib dipilih."); return }
-    if (!existingUser && !newBreedId) { setFormError("Breed pet wajib dipilih."); return }
     if (!existingUser && !newSizeId) { setFormError("Ukuran pet wajib dipilih."); return }
+    if (!existingUser && !newHairId) { setFormError("Jenis bulu pet wajib dipilih."); return }
     if (existingUser && petMode === "select" && !selectedPetId) { setFormError("Silakan pilih pet."); return }
     if (existingUser && petMode === "create" && !newPetName.trim()) { setFormError("Nama pet baru wajib diisi."); return }
     if (existingUser && petMode === "create" && !newPetTypeId) { setFormError("Tipe pet baru wajib dipilih."); return }
-    if (existingUser && petMode === "create" && !newBreedId) { setFormError("Breed pet baru wajib dipilih."); return }
     if (existingUser && petMode === "create" && !newSizeId) { setFormError("Ukuran pet baru wajib dipilih."); return }
+    if (existingUser && petMode === "create" && !newHairId) { setFormError("Jenis bulu pet baru wajib dipilih."); return }
+    // Address validation for services that need location (non-authenticated users only)
+    if (needsAddress && !isAuthenticated) {
+      const mainAddr = addresses.find((a) => a.is_main_address)
+      if (!mainAddr || mainAddr.latitude == null || mainAddr.longitude == null) {
+        setFormError("Pilih lokasi utama di peta sebelum melanjutkan.")
+        return
+      }
+    }
     setFormError("")
     setSubmittingUserInfo(true)
     try {
@@ -369,20 +415,49 @@ function BookingContent() {
             pet: {
               name: newPetName.trim(),
               pet_type_id: newPetTypeId,
-              breed_category_id: newBreedId,
+              breed_category_id: newBreedId || undefined,
               size_category_id: newSizeId,
+              hair_category_id: newHairId,
             },
           }) as any
           if (res?.pet?._id) resolvedPetId = res.pet._id
+          if (res?.user?._id) setConfirmedCustomerId(res.user._id)
         } else if (petMode === "create") {
           const res = await addPublicPet({
             phone_number: normalizedPhone,
             pet_name: newPetName.trim(),
             pet_type_id: newPetTypeId,
-            breed_category_id: newBreedId,
+            breed_category_id: newBreedId || undefined,
             size_category_id: newSizeId,
+            hair_category_id: newHairId,
           }) as any
           if (res?.pet?._id) resolvedPetId = res.pet._id
+        }
+
+        // Save new/modified addresses for services that need location
+        if (needsAddress) {
+          const toSave = addresses.filter(
+            (a) => (a._isNew || a._isModified) && a.latitude != null && a.longitude != null,
+          )
+          for (const addr of toSave) {
+            await updatePublicUserAddress({
+              phone_number: normalizedPhone,
+              address_id: addr._isNew ? undefined : addr._id,
+              address: {
+                label: addr.label || undefined,
+                street: addr.street || undefined,
+                subdistrict: addr.subdistrict || undefined,
+                district: addr.district || undefined,
+                city: addr.city || undefined,
+                province: addr.province || undefined,
+                postal_code: addr.postal_code || undefined,
+                note: addr.note || undefined,
+                latitude: addr.latitude!,
+                longitude: addr.longitude!,
+                is_main_address: addr.is_main_address || undefined,
+              },
+            })
+          }
         }
       }
       setConfirmedPetId(resolvedPetId)
@@ -414,10 +489,16 @@ function BookingContent() {
         selected_promotion_ids: selectedPromotionIds,
         note: "",
       }
-      if (existingUser && selectedPetId) {
+      if (existingUser) {
         payload.customer_id = existingUser._id
-        payload.pet_id = selectedPetId
+        payload.pet_id = petMode === "select" ? selectedPetId : confirmedPetId
         payload.customer_phone = phone.replace(/\D/g, "")
+      } else if (confirmedCustomerId) {
+        payload.customer_id = confirmedCustomerId
+        payload.pet_id = confirmedPetId
+        payload.customer_phone = phone.replace(/\D/g, "")
+        payload.customer_name = userName
+        payload.customer_email = email
       } else {
         payload.customer_name = userName
         payload.customer_phone = phone.replace(/\D/g, "")
@@ -511,11 +592,13 @@ function BookingContent() {
       getPublicOptions("pet type"),
       getPublicOptions("breed category"),
       getPublicOptions("size category"),
+      getPublicOptions("hair category"),
     ])
-      .then(([typesRes, breedsRes, sizesRes]) => {
+      .then(([typesRes, breedsRes, sizesRes, hairRes]) => {
         setPetTypes(typesRes.options.filter((o) => o.is_active))
         setBreedCategories(breedsRes.options.filter((o) => o.is_active))
         setSizeCategories(sizesRes.options.filter((o) => o.is_active))
+        setHairCategories(hairRes.options.filter((o) => o.is_active))
       })
       .catch(() => {})
       .finally(() => setOptionsLoading(false))
@@ -531,7 +614,23 @@ function BookingContent() {
         setEmail(u.email)
         setPhone(u.phone_number ?? "")
         setPhoneChecked(true)
-        setExistingUser({ _id: u._id, username: u.username, email: u.email, phone_number: u.phone_number ?? "", role: u.role ?? "customer" })
+        setExistingUser({
+          _id: u._id,
+          username: u.username,
+          email: u.email,
+          phone_number: u.phone_number ?? "",
+          role: u.role ?? "customer",
+          is_idle: false,
+          addresses: (u.profile?.addresses ?? []).map((a) => ({
+            _id: a._id,
+            label: a.label,
+            street: a.street,
+            latitude: a.latitude,
+            longitude: a.longitude,
+            note: a.note,
+            is_main_address: a.is_main_address,
+          })),
+        })
         const pets: PublicUserPet[] = (u.pets ?? [])
           .filter((p) => p.is_active && !p.isDeleted)
           .map((p) => ({
@@ -578,13 +677,13 @@ function BookingContent() {
       pick_up: selectedLocationType === "in store" && isPickup ? true : undefined,
       delivery: selectedLocationType === "in store" && isDelivery ? true : undefined,
       store_id: selectedStoreId || undefined,
-      customer_id: existingUser?._id || undefined,
+      customer_id: existingUser?._id || confirmedCustomerId || undefined,
     })
       .then((res) => { if (!cancelled) { setPreviewData(res); setPreviewError("") } })
       .catch((err: unknown) => { if (!cancelled) { setPreviewData(null); setPreviewError(err instanceof Error ? err.message : "Gagal menghitung harga.") } })
       .finally(() => { if (!cancelled) setPreviewLoading(false) })
     return () => { cancelled = true }
-  }, [userInfoConfirmed, confirmedPetId, selectedServiceId, selectedAddonIds, selectedDate, selectedTimeRange, selectedLocationType, isPickup, isDelivery])
+  }, [userInfoConfirmed, confirmedPetId, confirmedCustomerId, selectedServiceId, selectedAddonIds, selectedDate, selectedTimeRange, selectedLocationType, isPickup, isDelivery])
 
   // Apply benefit: auto-fetch when benefit selection changes
   useEffect(() => {
@@ -900,9 +999,12 @@ function BookingContent() {
               setNewBreedId={setNewBreedId}
               newSizeId={newSizeId}
               setNewSizeId={setNewSizeId}
+              newHairId={newHairId}
+              setNewHairId={setNewHairId}
               petTypes={petTypes}
               breedCategories={breedCategories}
               sizeCategories={sizeCategories}
+              hairCategories={hairCategories}
               optionsLoading={optionsLoading}
               formError={formError}
               submittingUserInfo={submittingUserInfo}
@@ -911,6 +1013,24 @@ function BookingContent() {
               handleConfirmUserInfo={handleConfirmUserInfo}
               resetUserInfo={resetUserInfo}
               onPhoneInputChange={() => {
+                setPhoneChecked(false)
+                setExistingUser(null)
+                setExistingPets([])
+                setUserInfoConfirmed(false)
+                setBookingCreated(false)
+                setAddresses([])
+              }}
+              showLoginModal={showLoginModal}
+              setShowLoginModal={setShowLoginModal}
+              needsAddress={needsAddress}
+              addresses={addresses}
+              setAddresses={setAddresses}
+            />
+            <LoginModal
+              open={showLoginModal}
+              onOpenChange={setShowLoginModal}
+              onSuccess={() => {
+                // loginSilent sets isAuthenticated → the useEffect will auto-fetch user data
                 setPhoneChecked(false)
                 setExistingUser(null)
                 setExistingPets([])

@@ -340,12 +340,63 @@ export interface PublicUserPet {
   breed: PublicUserPetRef;
 }
 
+export interface PublicUserAddress {
+  _id?: string;
+  label?: string;
+  street?: string;
+  subdistrict?: string;
+  district?: string;
+  city?: string;
+  province?: string;
+  postal_code?: string;
+  note?: string;
+  latitude?: number;
+  longitude?: number;
+  is_main_address?: boolean;
+}
+
+/** Richer address entry used for the public booking address form state */
+export interface PublicAddressEntry {
+  _id?: string;
+  label: string;
+  street: string;
+  subdistrict: string;
+  district: string;
+  city: string;
+  province: string;
+  postal_code: string;
+  note: string;
+  latitude: number | null;
+  longitude: number | null;
+  is_main_address: boolean;
+  /** true if this entry was added during this session (not yet saved) */
+  _isNew?: boolean;
+  /** true if this entry was edited during this session */
+  _isModified?: boolean;
+}
+
+export const EMPTY_ADDRESS_ENTRY: PublicAddressEntry = {
+  label: "",
+  street: "",
+  subdistrict: "",
+  district: "",
+  city: "",
+  province: "",
+  postal_code: "",
+  note: "",
+  latitude: null,
+  longitude: null,
+  is_main_address: true,
+};
+
 export interface PublicUser {
   _id: string;
   username: string;
   email: string;
   phone_number: string;
   role: string;
+  is_idle: boolean;
+  addresses: PublicUserAddress[];
 }
 
 export interface CheckUserResponse {
@@ -374,8 +425,9 @@ export interface RegisterPublicPayload {
   pet: {
     name: string;
     pet_type_id: string;
-    breed_category_id: string;
+    breed_category_id?: string;
     size_category_id: string;
+    hair_category_id: string;
   };
 }
 
@@ -383,8 +435,9 @@ export interface AddPublicPetPayload {
   phone_number: string;
   pet_name: string;
   pet_type_id: string;
-  breed_category_id: string;
+  breed_category_id?: string;
   size_category_id: string;
+  hair_category_id: string;
 }
 
 export async function checkUserByPhone(phone: string) {
@@ -409,6 +462,34 @@ export async function registerPublicUser(payload: RegisterPublicPayload) {
 export async function addPublicPet(payload: AddPublicPetPayload) {
   return apiRequest<{ message: string }>("/bookings/public/pets", {
     method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface UpdatePublicAddressPayload {
+  phone_number: string;
+  /** When provided, update this specific address; when omitted, add a new address */
+  address_id?: string;
+  address: {
+    label?: string;
+    street?: string;
+    subdistrict?: string;
+    district?: string;
+    city?: string;
+    province?: string;
+    postal_code?: string;
+    note?: string;
+    latitude?: number;
+    longitude?: number;
+    is_main_address?: boolean;
+  };
+}
+
+export async function updatePublicUserAddress(
+  payload: UpdatePublicAddressPayload,
+) {
+  return apiRequest<{ message: string }>("/bookings/public/user/address", {
+    method: "PATCH",
     body: JSON.stringify(payload),
   });
 }
