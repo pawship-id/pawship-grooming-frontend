@@ -247,6 +247,12 @@ export interface BookingPreviewPromotion {
   is_stackable: boolean;
   is_available_to_membership: boolean;
   amount_discount: number;
+  limit_type?: string;
+  max_usage?: number | null;
+  usage_period?: string;
+  can_use?: boolean;
+  usage_count?: number;
+  limit_message?: string | null;
 }
 
 export interface BookingPreviewResult {

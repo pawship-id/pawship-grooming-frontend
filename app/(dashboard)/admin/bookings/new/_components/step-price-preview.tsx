@@ -100,8 +100,8 @@ export function StepPricePreview({
             <div className="flex items-center gap-2 rounded-xl border border-border/40 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
               <Info className="h-4 w-4 shrink-0" />
               <span>
-                Hewan ini tidak memiliki membership aktif. Tidak ada benefit yang
-                tersedia.
+                Hewan ini tidak memiliki membership aktif. Tidak ada benefit
+                yang tersedia.
               </span>
             </div>
           )}
@@ -223,8 +223,8 @@ function PreviewError({
           </p>
           <p className="text-xs text-red-700 dark:text-red-400">
             Lokasi customer berada di luar radius maksimal zona{" "}
-            {isHomeService ? "home service" : "pickup/delivery"} yang tersedia di
-            store ini.
+            {isHomeService ? "home service" : "pickup/delivery"} yang tersedia
+            di store ini.
             {distKm && (
               <>
                 {" "}
@@ -233,8 +233,9 @@ function PreviewError({
             )}
           </p>
           <p className="text-xs text-red-600 dark:text-red-400">
-            Silakan tambahkan zona dengan radius yang lebih besar pada pengaturan
-            store, atau pilih store lain yang lebih dekat dengan lokasi customer.
+            Silakan tambahkan zona dengan radius yang lebih besar pada
+            pengaturan store, atau pilih store lain yang lebih dekat dengan
+            lokasi customer.
           </p>
           <Link
             href="/admin/stores"
@@ -383,7 +384,9 @@ function BenefitSection({
                 id={`benefit-${benefit._id}`}
                 checked={selected}
                 disabled={isDisabled}
-                onCheckedChange={() => !isDisabled && toggleBenefit(benefit._id)}
+                onCheckedChange={() =>
+                  !isDisabled && toggleBenefit(benefit._id)
+                }
                 className="mt-0.5 shrink-0"
               />
               <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -479,7 +482,9 @@ function computeBlockedByQuota(
       const hasAllCoverQuota = selectedQuotas.some((x: any) => !x.service_id);
       if (hasAllCoverQuota) return true;
       const coveredIds = new Set(
-        selectedQuotas.filter((x: any) => x.service_id).map((x: any) => x.service_id),
+        selectedQuotas
+          .filter((x: any) => x.service_id)
+          .map((x: any) => x.service_id),
       );
       return addonIds.every((id) => coveredIds.has(id));
     }
@@ -502,6 +507,24 @@ function PromotionSection({
   selectedBenefitIds: string[];
   availableBenefits: any[];
 }) {
+  const getLimitLabel = (promo: any) => {
+    if (!promo.limit_type || promo.limit_type === "none") return null;
+
+    const limitTypeLabel =
+      promo.limit_type === "per_user" ? "Per User" : "Per Pet";
+    const periodLabel =
+      promo.usage_period === "daily"
+        ? "Harian"
+        : promo.usage_period === "weekly"
+          ? "Mingguan"
+          : promo.usage_period === "monthly"
+            ? "Bulanan"
+            : "Selamanya";
+
+    const remaining = (promo.max_usage || 0) - (promo.usage_count || 0);
+    return `${limitTypeLabel} - ${remaining}/${promo.max_usage} tersisa (${periodLabel})`;
+  };
+
   return (
     <div className="flex flex-col gap-2.5">
       <div className="flex items-center gap-2">
@@ -515,8 +538,7 @@ function PromotionSection({
         {promotions.map((promo: any) => {
           const selected = selectedPromotionIds.includes(promo._id);
           const hasNonStackableSelected = promotions.some(
-            (p: any) =>
-              selectedPromotionIds.includes(p._id) && !p.is_stackable,
+            (p: any) => selectedPromotionIds.includes(p._id) && !p.is_stackable,
           );
           const blockedByStacking = !selected && hasNonStackableSelected;
 
@@ -531,7 +553,11 @@ function PromotionSection({
             });
           })();
 
-          const isDisabled = blockedByStacking || blockedByBenefit;
+          const blockedByLimit = promo.can_use === false;
+          const isDisabled =
+            blockedByStacking || blockedByBenefit || blockedByLimit;
+
+          const limitLabel = getLimitLabel(promo);
 
           return (
             <label
@@ -605,6 +631,20 @@ function PromotionSection({
                               : promo.applies_to}
                   </span>
                 </div>
+                {limitLabel && (
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <Info className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                    <span
+                      className={
+                        blockedByLimit
+                          ? "text-red-600 dark:text-red-400 font-medium"
+                          : "text-blue-600 dark:text-blue-400"
+                      }
+                    >
+                      {limitLabel}
+                    </span>
+                  </div>
+                )}
                 {blockedByStacking && (
                   <span className="text-[11px] text-amber-600 dark:text-amber-400">
                     Tidak dapat digabung — promo non-stackable sudah dipilih
@@ -614,6 +654,11 @@ function PromotionSection({
                   <span className="text-[11px] text-amber-600 dark:text-amber-400">
                     Tidak dapat digabung — benefit membership untuk target yang
                     sama sudah dipilih
+                  </span>
+                )}
+                {blockedByLimit && (
+                  <span className="text-[11px] text-red-600 dark:text-red-400 font-medium">
+                    {promo.limit_message || "Limit penggunaan telah tercapai"}
                   </span>
                 )}
               </div>
@@ -685,9 +730,7 @@ function PricingBreakdown({
                 <span className="text-muted-foreground">
                   {previewData.pricing_breakdown.service.name}
                 </span>
-                {b && (
-                  <BenefitBadge isQuota={isQuota!} value={b.value} />
-                )}
+                {b && <BenefitBadge isQuota={isQuota!} value={b.value} />}
               </div>
               {b ? (
                 <PriceWithDiscount
@@ -793,16 +836,13 @@ function PricingBreakdown({
         {/* Subtotal */}
         <div className="flex items-center justify-between border-t border-border/50 bg-muted/30 px-4 py-2.5 text-sm font-semibold">
           <span>Subtotal</span>
-          <span>
-            {formatPrice(previewData.pricing_breakdown.grand_total)}
-          </span>
+          <span>{formatPrice(previewData.pricing_breakdown.grand_total)}</span>
         </div>
 
         {/* Member discount */}
         {selectedBenefitIds.length > 0 &&
           (loadingApplyBenefit ||
-            (applyBenefitResult &&
-              applyBenefitResult.total_discount > 0)) && (
+            (applyBenefitResult && applyBenefitResult.total_discount > 0)) && (
             <div className="flex flex-col border-t border-primary/20 bg-primary/5">
               <div className="flex items-center justify-between px-4 py-2.5 text-sm">
                 <span className="flex items-center gap-1.5 font-medium text-primary">

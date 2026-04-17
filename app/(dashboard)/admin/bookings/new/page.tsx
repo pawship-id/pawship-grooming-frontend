@@ -493,6 +493,9 @@ export default function NewBookingPage() {
       delivery: needsPickupDelivery ? isDelivery : undefined,
       has_active_membership: previewData.pricing.has_active_membership,
       addon_prices: previewData.pricing.addon_prices,
+      customer_id: form.customer_id || undefined,
+      pet_id: form.pet_id || undefined,
+      booking_date: form.date || undefined,
     })
       .then((res) => {
         if (!cancelled) setApplyPromotionResult(res);
@@ -510,6 +513,9 @@ export default function NewBookingPage() {
     selectedPromotionIds,
     form.service_id,
     form.type,
+    form.customer_id,
+    form.pet_id,
+    form.date,
     selectedAddonIds,
     isPickup,
     isDelivery,

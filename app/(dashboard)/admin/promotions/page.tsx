@@ -73,6 +73,8 @@ import {
   type PromotionPayload,
   type AppliesTo,
   type DiscountType,
+  type PromotionLimitType,
+  type PromotionUsagePeriod,
   getPromotions,
   createPromotion,
   updatePromotion,
@@ -129,6 +131,9 @@ interface PromotionForm {
   is_available_to_membership: boolean;
   is_stackable: boolean;
   is_active: boolean;
+  limit_type: PromotionLimitType;
+  max_usage: string;
+  usage_period: PromotionUsagePeriod;
 }
 
 const DEFAULT_FORM: PromotionForm = {
@@ -144,6 +149,9 @@ const DEFAULT_FORM: PromotionForm = {
   is_available_to_membership: false,
   is_stackable: false,
   is_active: true,
+  limit_type: "none",
+  max_usage: "",
+  usage_period: "lifetime",
 };
 
 function promotionToForm(p: Promotion): PromotionForm {
@@ -160,12 +168,16 @@ function promotionToForm(p: Promotion): PromotionForm {
     is_available_to_membership: p.is_available_to_membership,
     is_stackable: p.is_stackable,
     is_active: p.is_active,
+    limit_type: p.limit_type ?? "none",
+    max_usage: p.max_usage != null ? String(p.max_usage) : "",
+    usage_period: p.usage_period ?? "lifetime",
   };
 }
 
 function formToPayload(form: PromotionForm): PromotionPayload {
   const needsService =
     form.applies_to === "service" || form.applies_to === "addon";
+  const hasLimit = form.limit_type !== "none";
   return {
     code: form.code,
     name: form.name,
@@ -179,6 +191,9 @@ function formToPayload(form: PromotionForm): PromotionPayload {
     is_available_to_membership: form.is_available_to_membership,
     is_stackable: form.is_stackable,
     is_active: form.is_active,
+    limit_type: form.limit_type,
+    max_usage: hasLimit && form.max_usage ? Number(form.max_usage) : null,
+    usage_period: hasLimit ? form.usage_period : "lifetime",
   };
 }
 
@@ -844,6 +859,104 @@ export default function PromotionsPage() {
               </div>
             </div>
 
+            {/* Usage Limits Section */}
+            <div className="flex flex-col gap-3 rounded-lg border p-4 bg-muted/30">
+              <div className="flex flex-col gap-1">
+                <p className="text-sm font-semibold">Batasan Penggunaan</p>
+                <p className="text-xs text-muted-foreground">
+                  Atur limit maksimal berapa kali promo ini bisa digunakan
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="limit_type">Tipe Batasan</Label>
+                <Select
+                  value={form.limit_type}
+                  onValueChange={(v) => {
+                    setField("limit_type", v as PromotionLimitType);
+                    if (v === "none") {
+                      setField("max_usage", "");
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Tidak ada batasan</SelectItem>
+                    <SelectItem value="per_user">
+                      Per User — limit per akun customer
+                    </SelectItem>
+                    <SelectItem value="per_pet">
+                      Per Pet — limit per hewan peliharaan
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {form.limit_type !== "none" && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="max_usage">
+                        Maksimal Penggunaan{" "}
+                        <span className="text-destructive">*</span>
+                      </Label>
+                      <Input
+                        id="max_usage"
+                        type="number"
+                        min={1}
+                        value={form.max_usage}
+                        onChange={(e) => setField("max_usage", e.target.value)}
+                        placeholder="Contoh: 3"
+                        required={form.limit_type !== "none"}
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="usage_period">
+                        Periode Reset{" "}
+                        <span className="text-destructive">*</span>
+                      </Label>
+                      <Select
+                        value={form.usage_period}
+                        onValueChange={(v) =>
+                          setField("usage_period", v as PromotionUsagePeriod)
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="lifetime">
+                            Lifetime — tidak reset
+                          </SelectItem>
+                          <SelectItem value="daily">
+                            Daily — reset harian
+                          </SelectItem>
+                          <SelectItem value="weekly">
+                            Weekly — reset mingguan
+                          </SelectItem>
+                          <SelectItem value="monthly">
+                            Monthly — reset bulanan
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {form.limit_type === "per_user"
+                      ? `Setiap user hanya dapat menggunakan promo ini ${form.max_usage || "X"} kali`
+                      : `Setiap hewan peliharaan hanya dapat menggunakan promo ini ${form.max_usage || "X"} kali`}
+                    {form.usage_period !== "lifetime" &&
+                      ` per ${form.usage_period === "daily" ? "hari" : form.usage_period === "weekly" ? "minggu" : "bulan"}`}
+                    .
+                  </p>
+                </>
+              )}
+            </div>
+
             {/* Submit */}
             <div className="flex justify-end gap-2 pt-1">
               <Button
@@ -979,6 +1092,50 @@ export default function PromotionsPage() {
                         Deskripsi
                       </span>
                       <p className="text-sm">{viewTarget.description}</p>
+                    </div>
+                  </>
+                )}
+
+                {/* Usage Limits Display */}
+                {viewTarget.limit_type && viewTarget.limit_type !== "none" && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col gap-2">
+                      <span className="text-xs text-muted-foreground font-medium">
+                        Batasan Penggunaan
+                      </span>
+                      <div className="flex flex-col gap-1 text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Tipe:</span>
+                          <Badge variant="outline" className="text-xs">
+                            {viewTarget.limit_type === "per_user"
+                              ? "Per User"
+                              : "Per Pet"}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">
+                            Maksimal:
+                          </span>
+                          <span className="font-medium">
+                            {viewTarget.max_usage ?? "—"} kali
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">
+                            Periode:
+                          </span>
+                          <span className="font-medium capitalize">
+                            {viewTarget.usage_period === "lifetime"
+                              ? "Lifetime"
+                              : viewTarget.usage_period === "daily"
+                                ? "Harian"
+                                : viewTarget.usage_period === "weekly"
+                                  ? "Mingguan"
+                                  : "Bulanan"}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </>
                 )}
