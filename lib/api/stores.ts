@@ -27,11 +27,6 @@ export interface StoreCapacity {
   overbooking_limit_minutes?: number | null;
 }
 
-export interface ZonePriceItem {
-  size_category_id: string;
-  price: number;
-}
-
 export interface HomeServiceZone {
   area_name: string;
   min_radius_km: number;
@@ -45,7 +40,7 @@ export interface PickupDeliveryZone {
   min_radius_km: number;
   max_radius_km: number;
   travel_time_minutes: number;
-  prices: ZonePriceItem[];
+  price: number;
 }
 
 /** @deprecated Use HomeServiceZone instead */

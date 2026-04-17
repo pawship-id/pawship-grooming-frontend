@@ -75,7 +75,6 @@ import {
   updateStore,
   updateStoreStatus,
 } from "@/lib/api/stores";
-import { getOptions, type ApiOption } from "@/lib/api/options";
 import { toast } from "sonner";
 
 const StoreLocationMap = dynamic(
@@ -89,11 +88,6 @@ const StoreLocationMap = dynamic(
 );
 
 // ── Types ──────────────────────────────────────────────────────────────────
-interface ZonePriceItemForm {
-  size_category_id: string;
-  price: string;
-}
-
 interface HomeServiceZoneForm {
   area_name: string;
   min_radius_km: string;
@@ -107,7 +101,7 @@ interface PickupDeliveryZoneForm {
   min_radius_km: string;
   max_radius_km: string;
   travel_time_minutes: string;
-  prices: ZonePriceItemForm[];
+  price: string;
 }
 
 interface StoreForm {
@@ -159,11 +153,6 @@ const INDONESIA_TIMEZONES = [
 ];
 const LIMIT = 10;
 
-const DEFAULT_PRICE_ITEM: ZonePriceItemForm = {
-  size_category_id: "",
-  price: "",
-};
-
 const DEFAULT_HOME_SERVICE_ZONE: HomeServiceZoneForm = {
   area_name: "",
   min_radius_km: "",
@@ -177,7 +166,7 @@ const DEFAULT_PICKUP_DELIVERY_ZONE: PickupDeliveryZoneForm = {
   min_radius_km: "",
   max_radius_km: "",
   travel_time_minutes: "",
-  prices: [],
+  price: "",
 };
 
 const DEFAULT_FORM: StoreForm = {
@@ -249,22 +238,6 @@ function StoreFormFields({
     "manual",
   );
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
-  const [sizeCategories, setSizeCategories] = useState<ApiOption[]>([]);
-  const [loadingSizes, setLoadingSizes] = useState(true);
-
-  // Fetch size categories
-  useEffect(() => {
-    getOptions("size category")
-      .then((res) => {
-        setSizeCategories(res.options.filter((opt) => opt.is_active));
-        setLoadingSizes(false);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch size categories:", err);
-        toast.error("Gagal memuat kategori ukuran");
-        setLoadingSizes(false);
-      });
-  }, []);
 
   useEffect(() => {
     if (form.location.latitude != null && form.location.longitude != null)
@@ -816,7 +789,7 @@ function StoreFormFields({
         {form.home_service_zones.map((zone, idx) => (
           <div
             key={idx}
-            className="flex flex-col gap-3 rounded-lg border border-border/60 p-3 bg-muted/20"
+            className="flex flex-col gap-2 rounded-lg border border-border/60 p-3 bg-muted/20"
           >
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">
@@ -839,21 +812,39 @@ function StoreFormFields({
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Nama Area *</Label>
-              <Input
-                placeholder="contoh: Zona Jakarta Selatan"
-                value={zone.area_name}
-                onChange={(e) => {
-                  const next = [...form.home_service_zones];
-                  next[idx] = { ...next[idx], area_name: e.target.value };
-                  setForm((p) => ({ ...p, home_service_zones: next }));
-                }}
-              />
+            {/* Row 1: Nama Area + Harga */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-col gap-1 col-span-2">
+                <Label className="text-xs">Nama Area *</Label>
+                <Input
+                  placeholder="contoh: Zona Jakarta Selatan"
+                  value={zone.area_name}
+                  onChange={(e) => {
+                    const next = [...form.home_service_zones];
+                    next[idx] = { ...next[idx], area_name: e.target.value };
+                    setForm((p) => ({ ...p, home_service_zones: next }));
+                  }}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs">Harga (Rp) *</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="50000"
+                  value={zone.price}
+                  onChange={(e) => {
+                    const next = [...form.home_service_zones];
+                    next[idx] = { ...next[idx], price: e.target.value };
+                    setForm((p) => ({ ...p, home_service_zones: next }));
+                  }}
+                />
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex flex-col gap-1.5">
-                <Label>Min Radius (km) *</Label>
+            {/* Row 2: Min Radius, Max Radius, Travel Time */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs">Min Radius (km) *</Label>
                 <Input
                   type="number"
                   min={0}
@@ -867,8 +858,8 @@ function StoreFormFields({
                   }}
                 />
               </div>
-              <div className="flex flex-col gap-1.5">
-                <Label>Max Radius (km) *</Label>
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs">Max Radius (km) *</Label>
                 <Input
                   type="number"
                   min={0}
@@ -882,260 +873,23 @@ function StoreFormFields({
                   }}
                 />
               </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Waktu Perjalanan (menit) *</Label>
-              <Input
-                type="number"
-                min={0}
-                placeholder="15"
-                value={zone.travel_time_minutes}
-                onChange={(e) => {
-                  const next = [...form.home_service_zones];
-                  next[idx] = {
-                    ...next[idx],
-                    travel_time_minutes: e.target.value,
-                  };
-                  setForm((p) => ({ ...p, home_service_zones: next }));
-                }}
-              />
-            </div>
-
-            {/* Flat price for home service */}
-            <div className="flex flex-col gap-1.5">
-              <Label>Harga (Rp) *</Label>
-              <Input
-                type="number"
-                min={0}
-                placeholder="50000"
-                value={zone.price}
-                onChange={(e) => {
-                  const next = [...form.home_service_zones];
-                  next[idx] = { ...next[idx], price: e.target.value };
-                  setForm((p) => ({ ...p, home_service_zones: next }));
-                }}
-              />
-              <p className="text-xs text-muted-foreground">
-                Harga flat untuk home service tidak dibedakan berdasarkan ukuran
-                pet
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <Separator />
-
-      {/* Pickup/Delivery Zones */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Zona Pickup & Delivery
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Zona untuk antar-jemput pet in-store
-            </p>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              setForm((p) => ({
-                ...p,
-                pickup_delivery_zones: [
-                  ...p.pickup_delivery_zones,
-                  { ...DEFAULT_PICKUP_DELIVERY_ZONE },
-                ],
-              }))
-            }
-          >
-            + Tambah Zona
-          </Button>
-        </div>
-        {form.pickup_delivery_zones.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            Belum ada zona pickup/delivery.
-          </p>
-        )}
-        {form.pickup_delivery_zones.map((zone, idx) => (
-          <div
-            key={idx}
-            className="flex flex-col gap-3 rounded-lg border border-border/60 p-3 bg-muted/20"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">
-                Zona Pickup/Delivery {idx + 1}
-              </span>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                onClick={() =>
-                  setForm((p) => ({
-                    ...p,
-                    pickup_delivery_zones: p.pickup_delivery_zones.filter(
-                      (_, i) => i !== idx,
-                    ),
-                  }))
-                }
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Nama Area *</Label>
-              <Input
-                placeholder="contoh: Zona Jakarta Pusat"
-                value={zone.area_name}
-                onChange={(e) => {
-                  const next = [...form.pickup_delivery_zones];
-                  next[idx] = { ...next[idx], area_name: e.target.value };
-                  setForm((p) => ({ ...p, pickup_delivery_zones: next }));
-                }}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex flex-col gap-1.5">
-                <Label>Min Radius (km) *</Label>
+              <div className="flex flex-col gap-1">
+                <Label className="text-xs">Waktu (menit) *</Label>
                 <Input
                   type="number"
                   min={0}
-                  step="any"
-                  placeholder="0"
-                  value={zone.min_radius_km}
+                  placeholder="15"
+                  value={zone.travel_time_minutes}
                   onChange={(e) => {
-                    const next = [...form.pickup_delivery_zones];
-                    next[idx] = { ...next[idx], min_radius_km: e.target.value };
-                    setForm((p) => ({ ...p, pickup_delivery_zones: next }));
-                  }}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label>Max Radius (km) *</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  step="any"
-                  placeholder="5"
-                  value={zone.max_radius_km}
-                  onChange={(e) => {
-                    const next = [...form.pickup_delivery_zones];
-                    next[idx] = { ...next[idx], max_radius_km: e.target.value };
-                    setForm((p) => ({ ...p, pickup_delivery_zones: next }));
-                  }}
-                />
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Waktu Perjalanan (menit) *</Label>
-              <Input
-                type="number"
-                min={0}
-                placeholder="15"
-                value={zone.travel_time_minutes}
-                onChange={(e) => {
-                  const next = [...form.pickup_delivery_zones];
-                  next[idx] = {
-                    ...next[idx],
-                    travel_time_minutes: e.target.value,
-                  };
-                  setForm((p) => ({ ...p, pickup_delivery_zones: next }));
-                }}
-              />
-            </div>
-
-            {/* Prices per size category */}
-            <div className="flex flex-col gap-2 pt-2 border-t">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs">Harga per Ukuran Pet *</Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    const next = [...form.pickup_delivery_zones];
+                    const next = [...form.home_service_zones];
                     next[idx] = {
                       ...next[idx],
-                      prices: [...next[idx].prices, { ...DEFAULT_PRICE_ITEM }],
+                      travel_time_minutes: e.target.value,
                     };
-                    setForm((p) => ({ ...p, pickup_delivery_zones: next }));
+                    setForm((p) => ({ ...p, home_service_zones: next }));
                   }}
-                >
-                  + Tambah Harga
-                </Button>
+                />
               </div>
-              {loadingSizes && (
-                <p className="text-xs text-muted-foreground">
-                  Memuat kategori ukuran...
-                </p>
-              )}
-              {!loadingSizes && zone.prices.length === 0 && (
-                <p className="text-xs text-muted-foreground">
-                  Belum ada harga. Tambahkan minimal 1 harga.
-                </p>
-              )}
-              {zone.prices.map((price, priceIdx) => (
-                <div key={priceIdx} className="flex items-center gap-2">
-                  <Select
-                    value={price.size_category_id}
-                    onValueChange={(val) => {
-                      const next = [...form.pickup_delivery_zones];
-                      next[idx].prices[priceIdx] = {
-                        ...next[idx].prices[priceIdx],
-                        size_category_id: val,
-                      };
-                      setForm((p) => ({ ...p, pickup_delivery_zones: next }));
-                    }}
-                  >
-                    <SelectTrigger className="flex-1">
-                      <SelectValue placeholder="Pilih ukuran" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sizeCategories.map((size) => (
-                        <SelectItem key={size._id} value={size._id}>
-                          {size.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="number"
-                    min={0}
-                    placeholder="Harga"
-                    value={price.price}
-                    className="flex-1"
-                    onChange={(e) => {
-                      const next = [...form.pickup_delivery_zones];
-                      next[idx].prices[priceIdx] = {
-                        ...next[idx].prices[priceIdx],
-                        price: e.target.value,
-                      };
-                      setForm((p) => ({ ...p, pickup_delivery_zones: next }));
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="h-9 w-9 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => {
-                      const next = [...form.pickup_delivery_zones];
-                      next[idx] = {
-                        ...next[idx],
-                        prices: next[idx].prices.filter(
-                          (_, i) => i !== priceIdx,
-                        ),
-                      };
-                      setForm((p) => ({ ...p, pickup_delivery_zones: next }));
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
             </div>
           </div>
         ))}
@@ -1156,21 +910,176 @@ function StoreFormFields({
           />
           <Label htmlFor="f-active">Aktif</Label>
         </div>
-        <div className="flex items-center gap-3">
-          <Switch
-            id="f-pickup-delivery"
-            checked={form.is_pickup_delivery_available}
-            onCheckedChange={(v) =>
-              setForm((p) => ({ ...p, is_pickup_delivery_available: v }))
-            }
-          />
-          <Label htmlFor="f-pickup-delivery" className="flex flex-col">
-            <span>Layanan Pickup & Delivery</span>
-            <span className="text-xs font-normal text-muted-foreground">
-              Aktifkan jika store menyediakan layanan antar-jemput pet
-            </span>
-          </Label>
+      </div>
+
+      <Separator />
+
+      {/* Pickup/Delivery Zones — toggle first, then zones */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Zona Pickup & Delivery
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Zona untuk antar-jemput pet in-store
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="f-pickup-delivery"
+              checked={form.is_pickup_delivery_available}
+              onCheckedChange={(v) =>
+                setForm((p) => ({ ...p, is_pickup_delivery_available: v }))
+              }
+            />
+            <Label htmlFor="f-pickup-delivery" className="text-xs">Aktif</Label>
+          </div>
         </div>
+
+        {form.is_pickup_delivery_available && (
+          <>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                Tambahkan minimal 1 zona pickup/delivery.
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setForm((p) => ({
+                    ...p,
+                    pickup_delivery_zones: [
+                      ...p.pickup_delivery_zones,
+                      { ...DEFAULT_PICKUP_DELIVERY_ZONE },
+                    ],
+                  }))
+                }
+              >
+                + Tambah Zona
+              </Button>
+            </div>
+            {form.pickup_delivery_zones.length === 0 && (
+              <p className="text-sm text-amber-600 dark:text-amber-400">
+                Belum ada zona. Tambahkan minimal 1 zona untuk menyimpan.
+              </p>
+            )}
+            {form.pickup_delivery_zones.map((zone, idx) => (
+              <div
+                key={idx}
+                className="flex flex-col gap-2 rounded-lg border border-border/60 p-3 bg-muted/20"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">
+                    Zona {idx + 1}
+                  </span>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() =>
+                      setForm((p) => ({
+                        ...p,
+                        pickup_delivery_zones: p.pickup_delivery_zones.filter(
+                          (_, i) => i !== idx,
+                        ),
+                      }))
+                    }
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                {/* Row 1: Nama Area + Harga */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="flex flex-col gap-1 col-span-2">
+                    <Label className="text-xs">Nama Area *</Label>
+                    <Input
+                      placeholder="contoh: Zona Jakarta Pusat"
+                      value={zone.area_name}
+                      onChange={(e) => {
+                        const next = [...form.pickup_delivery_zones];
+                        next[idx] = { ...next[idx], area_name: e.target.value };
+                        setForm((p) => ({ ...p, pickup_delivery_zones: next }));
+                      }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Harga (Rp) *</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="25000"
+                      value={zone.price}
+                      onChange={(e) => {
+                        const next = [...form.pickup_delivery_zones];
+                        next[idx] = { ...next[idx], price: e.target.value };
+                        setForm((p) => ({ ...p, pickup_delivery_zones: next }));
+                      }}
+                    />
+                  </div>
+                </div>
+                {/* Row 2: Min Radius, Max Radius, Travel Time */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Min Radius (km) *</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="any"
+                      placeholder="0"
+                      value={zone.min_radius_km}
+                      onChange={(e) => {
+                        const next = [...form.pickup_delivery_zones];
+                        next[idx] = { ...next[idx], min_radius_km: e.target.value };
+                        setForm((p) => ({ ...p, pickup_delivery_zones: next }));
+                      }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Max Radius (km) *</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="any"
+                      placeholder="5"
+                      value={zone.max_radius_km}
+                      onChange={(e) => {
+                        const next = [...form.pickup_delivery_zones];
+                        next[idx] = { ...next[idx], max_radius_km: e.target.value };
+                        setForm((p) => ({ ...p, pickup_delivery_zones: next }));
+                      }}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <Label className="text-xs">Waktu (menit) *</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="15"
+                      value={zone.travel_time_minutes}
+                      onChange={(e) => {
+                        const next = [...form.pickup_delivery_zones];
+                        next[idx] = {
+                          ...next[idx],
+                          travel_time_minutes: e.target.value,
+                        };
+                        setForm((p) => ({ ...p, pickup_delivery_zones: next }));
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {!form.is_pickup_delivery_available && (
+          <p className="text-sm text-muted-foreground">
+            Aktifkan toggle di atas untuk mengatur zona pickup & delivery.
+          </p>
+        )}
       </div>
 
       <Dialog open={mapOpen} onOpenChange={setMapOpen}>
@@ -1261,22 +1170,16 @@ function formToPayload(form: StoreForm) {
             }))
         : undefined,
     pickup_delivery_zones:
-      form.pickup_delivery_zones.filter(
-        (z) => z.area_name.trim() && z.prices.length > 0,
-      ).length > 0
+      form.pickup_delivery_zones.filter((z) => z.area_name.trim() && z.price)
+        .length > 0
         ? form.pickup_delivery_zones
-            .filter((z) => z.area_name.trim() && z.prices.length > 0)
+            .filter((z) => z.area_name.trim() && z.price)
             .map((z) => ({
               area_name: z.area_name,
               min_radius_km: Number(z.min_radius_km),
               max_radius_km: Number(z.max_radius_km),
               travel_time_minutes: Number(z.travel_time_minutes),
-              prices: z.prices
-                .filter((p) => p.size_category_id && p.price)
-                .map((p) => ({
-                  size_category_id: p.size_category_id,
-                  price: Number(p.price),
-                })),
+              price: Number(z.price),
             }))
         : undefined,
     is_pickup_delivery_available: form.is_pickup_delivery_available,
@@ -1335,10 +1238,7 @@ function storeToForm(store: ApiStore): StoreForm {
         min_radius_km: String(z.min_radius_km),
         max_radius_km: String(z.max_radius_km),
         travel_time_minutes: String(z.travel_time_minutes),
-        prices: (z.prices ?? []).map((p: any) => ({
-          size_category_id: p.size_category_id,
-          price: String(p.price),
-        })),
+        price: String(z.price ?? 0),
       }),
     ),
     is_pickup_delivery_available: store.is_pickup_delivery_available ?? false,
