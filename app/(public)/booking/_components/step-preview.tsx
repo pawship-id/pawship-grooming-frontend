@@ -114,7 +114,11 @@ function PreviewError({ error, selectedLocationType }: { error: string; selected
             Lokasi kamu berada di luar radius zona {isHomeService ? "home service" : "pickup/delivery"} yang tersedia.
             {distKm && <> Jarak ke store: <strong>{distKm} km</strong>.</>}
           </p>
-          <p className="text-xs text-red-600 dark:text-red-400">Silakan hubungi store untuk informasi lebih lanjut.</p>
+          <ul className="mt-0.5 flex flex-col gap-0.5 text-xs text-red-700 dark:text-red-400">
+            <li>• Coba pilih store lain yang lebih dekat dengan lokasimu.</li>
+            <li>• Pastikan alamat di profil kamu sudah sesuai dan koordinatnya akurat.</li>
+            <li>• Jika masih bermasalah, hubungi store untuk informasi lebih lanjut.</li>
+          </ul>
         </div>
       </div>
     )
