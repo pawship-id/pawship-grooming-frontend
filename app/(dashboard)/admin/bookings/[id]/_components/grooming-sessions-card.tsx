@@ -346,6 +346,7 @@ export function GroomingSessionsCard({
                             size="sm"
                             onClick={() => handleStartSession(session._id!)}
                             disabled={
+                              !session.groomer_detail ||
                               [
                                 "requested",
                                 "waitlist",
@@ -404,7 +405,11 @@ export function GroomingSessionsCard({
                           onClick={() => {
                             setAssignGroomerSessionId(session._id!);
                             setAssignGroomerSessionType(session.type ?? "");
-                            setAssignGroomerValue(session.groomer_id ?? "");
+                            setAssignGroomerValue(
+                              session.groomer_detail?._id ||
+                                session.groomer_id ||
+                                "",
+                            );
                           }}
                         >
                           Ganti Groomer
@@ -416,19 +421,21 @@ export function GroomingSessionsCard({
                       <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-400">
                         Belum ada groomer
                       </span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-6 px-2 text-xs"
-                        onClick={() => {
-                          setAssignGroomerSessionId(session._id!);
-                          setAssignGroomerSessionType(session.type ?? "");
-                          setAssignGroomerValue("");
-                        }}
-                      >
-                        Assign Groomer
-                      </Button>
+                      {session.status === "not started" && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-6 px-2 text-xs"
+                          onClick={() => {
+                            setAssignGroomerSessionId(session._id!);
+                            setAssignGroomerSessionType(session.type ?? "");
+                            setAssignGroomerValue("");
+                          }}
+                        >
+                          Assign Groomer
+                        </Button>
+                      )}
                     </>
                   )}
                 </div>
@@ -808,6 +815,23 @@ export function GroomingSessionsCard({
                       ),
                     )
                   : storeGroomers;
+
+                // Ensure current groomer is always in the list
+                const currentGroomerInList = groomersForAssign.find(
+                  (g) => g._id === assignGroomerValue,
+                );
+                const currentGroomerFromAll = storeGroomers.find(
+                  (g) => g._id === assignGroomerValue,
+                );
+
+                // If current groomer exists but not in filtered list, add them
+                const finalGroomerList =
+                  assignGroomerValue &&
+                  currentGroomerFromAll &&
+                  !currentGroomerInList
+                    ? [currentGroomerFromAll, ...groomersForAssign]
+                    : groomersForAssign;
+
                 return (
                   <Select
                     value={assignGroomerValue}
@@ -817,13 +841,13 @@ export function GroomingSessionsCard({
                       <SelectValue placeholder="Pilih groomer..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {groomersForAssign.length === 0 ? (
+                      {finalGroomerList.length === 0 ? (
                         <div className="px-3 py-2 text-sm text-muted-foreground">
                           Tidak ada groomer dengan skill &quot;
                           {assignGroomerSessionType}&quot;
                         </div>
                       ) : (
-                        groomersForAssign.map((g) => (
+                        finalGroomerList.map((g) => (
                           <SelectItem
                             key={g._id}
                             value={g._id}
