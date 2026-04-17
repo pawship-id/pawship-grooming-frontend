@@ -356,6 +356,8 @@ export interface UpdateSessionPayload {
   notes?: string;
   internal_note?: string;
   groomer_id?: string;
+  started_at?: string;
+  finished_at?: string;
 }
 
 export interface FinishSessionPayload {

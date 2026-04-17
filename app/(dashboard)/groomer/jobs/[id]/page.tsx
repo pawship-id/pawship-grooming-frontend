@@ -1,23 +1,42 @@
-"use client"
+"use client";
 
-import React, { use, useState, useEffect, useCallback } from "react"
-import Link from "next/link"
+import React, { use, useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
-  ArrowLeft, Play, CheckCircle, Camera, Calendar, Clock,
-  User, MapPin, Loader2, ChevronDown, ChevronUp,
-  X, Scissors, UserPlus, AlertCircle,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Skeleton } from "@/components/ui/skeleton"
-import { toast } from "sonner"
-import { applyGroomingFrame } from "@/lib/frame-compositor"
-import { getAdminBookingById,
+  ArrowLeft,
+  Play,
+  CheckCircle,
+  Camera,
+  Calendar,
+  Clock,
+  User,
+  MapPin,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+  X,
+  Scissors,
+  UserPlus,
+  AlertCircle,
+  Edit,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
+import { applyGroomingFrame } from "@/lib/frame-compositor";
+import {
+  getAdminBookingById,
   startBookingSession,
   finishBookingSession,
   uploadBookingMedia,
@@ -25,147 +44,226 @@ import { getAdminBookingById,
   claimSession,
   type AdminBooking,
   type BookingSession,
-} from "@/lib/api/bookings"
-import { getCurrentUser } from "@/lib/api/users"
-import { useAuth } from "@/lib/auth-context"
+} from "@/lib/api/bookings";
+import { getCurrentUser } from "@/lib/api/users";
+import { useAuth } from "@/lib/auth-context";
 
 const sessionStatusColors: Record<string, string> = {
   "not started": "bg-accent/20 text-accent-foreground",
   "in progress": "bg-primary/10 text-primary",
   finished: "bg-secondary/60 text-secondary-foreground",
-}
+};
 
-export default function GroomerJobDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
-  const { user } = useAuth()
-  const [booking, setBooking] = useState<AdminBooking | null>(null)
-  const [groomerSkills, setGroomerSkills] = useState<string[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [uploadOpen, setUploadOpen] = useState(false)
-  const [previewImage, setPreviewImage] = useState<string | null>(null)
-  const [noteSessionId, setNoteSessionId] = useState<string | null>(null)
-  const [noteValue, setNoteValue] = useState("")
-  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
-  const [claimingId, setClaimingId] = useState<string | null>(null)
+export default function GroomerJobDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
+  const { user } = useAuth();
+  const [booking, setBooking] = useState<AdminBooking | null>(null);
+  const [groomerSkills, setGroomerSkills] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [noteSessionId, setNoteSessionId] = useState<string | null>(null);
+  const [noteValue, setNoteValue] = useState("");
+  const [expandedSessions, setExpandedSessions] = useState<Set<string>>(
+    new Set(),
+  );
+  const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [editSessionStartOpen, setEditSessionStartOpen] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [newSessionStartDate, setNewSessionStartDate] = useState("");
+  const [newSessionStartTime, setNewSessionStartTime] = useState("");
+  const [editSessionFinishOpen, setEditSessionFinishOpen] = useState(false);
+  const [editingFinishSessionId, setEditingFinishSessionId] = useState<
+    string | null
+  >(null);
+  const [newSessionFinishDate, setNewSessionFinishDate] = useState("");
+  const [newSessionFinishTime, setNewSessionFinishTime] = useState("");
 
   const fetchBooking = useCallback(async () => {
     try {
-      setLoading(true)
-      setError(null)
+      setLoading(true);
+      setError(null);
       const [res, meRes] = await Promise.all([
         getAdminBookingById(id),
         getCurrentUser(),
-      ])
-      setBooking(res.booking)
-      setGroomerSkills(meRes.user?.profile?.groomer_skills ?? [])
+      ]);
+      setBooking(res.booking);
+      setGroomerSkills(meRes.user?.profile?.groomer_skills ?? []);
       // Auto-expand the first non-finished session
-      const firstActive = res.booking.sessions?.find((s) => s.status !== "finished")
+      const firstActive = res.booking.sessions?.find(
+        (s) => s.status !== "finished",
+      );
       if (firstActive?._id) {
-        setExpandedSessions(new Set([firstActive._id]))
+        setExpandedSessions(new Set([firstActive._id]));
       }
     } catch (err: any) {
-      setError(err.message || "Gagal memuat data")
+      setError(err.message || "Gagal memuat data");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [id])
+  }, [id]);
 
   useEffect(() => {
-    fetchBooking()
-  }, [fetchBooking])
+    fetchBooking();
+  }, [fetchBooking]);
 
   const toggleSession = (sessionId: string) => {
     setExpandedSessions((prev) => {
-      const next = new Set(prev)
-      if (next.has(sessionId)) next.delete(sessionId)
-      else next.add(sessionId)
-      return next
-    })
-  }
+      const next = new Set(prev);
+      if (next.has(sessionId)) next.delete(sessionId);
+      else next.add(sessionId);
+      return next;
+    });
+  };
 
   const handleStartSession = async (sessionId: string) => {
-    if (!booking) return
-    setActionLoading(`start-${sessionId}`)
+    if (!booking) return;
+    setActionLoading(`start-${sessionId}`);
     try {
-      await startBookingSession(booking._id, sessionId)
-      toast.success("Session started")
-      await fetchBooking()
+      await startBookingSession(booking._id, sessionId);
+      toast.success("Session started");
+      await fetchBooking();
     } catch (err: any) {
-      toast.error(err.message || "Gagal memulai session")
+      toast.error(err.message || "Gagal memulai session");
     } finally {
-      setActionLoading(null)
+      setActionLoading(null);
     }
-  }
+  };
 
   const handleFinishSession = async (sessionId: string) => {
-    if (!booking) return
-    setActionLoading(`finish-${sessionId}`)
+    if (!booking) return;
+    setActionLoading(`finish-${sessionId}`);
     try {
-      await finishBookingSession(booking._id, sessionId, {})
-      toast.success("Session finished")
-      await fetchBooking()
+      await finishBookingSession(booking._id, sessionId, {});
+      toast.success("Session finished");
+      await fetchBooking();
     } catch (err: any) {
-      toast.error(err.message || "Gagal menyelesaikan session")
+      toast.error(err.message || "Gagal menyelesaikan session");
     } finally {
-      setActionLoading(null)
+      setActionLoading(null);
     }
-  }
+  };
 
   const handleClaimSession = async (sessionId: string) => {
-    if (!booking) return
-    setClaimingId(sessionId)
+    if (!booking) return;
+    setClaimingId(sessionId);
     try {
-      await claimSession(booking._id, sessionId)
-      toast.success("Session berhasil diklaim!")
-      await fetchBooking()
+      await claimSession(booking._id, sessionId);
+      toast.success("Session berhasil diklaim!");
+      await fetchBooking();
     } catch (err: any) {
-      toast.error(err.message || "Gagal mengklaim session")
+      toast.error(err.message || "Gagal mengklaim session");
     } finally {
-      setClaimingId(null)
+      setClaimingId(null);
     }
-  }
+  };
 
   const handleSaveNote = async (sessionId: string) => {
-    if (!booking) return
-    setActionLoading(`note-${sessionId}`)
+    if (!booking) return;
+    setActionLoading(`note-${sessionId}`);
     try {
-      await updateBookingSession(booking._id, sessionId, { notes: noteValue })
-      toast.success("Note saved")
-      setNoteSessionId(null)
-      setNoteValue("")
-      await fetchBooking()
+      await updateBookingSession(booking._id, sessionId, { notes: noteValue });
+      toast.success("Note saved");
+      setNoteSessionId(null);
+      setNoteValue("");
+      await fetchBooking();
     } catch (err: any) {
-      toast.error(err.message || "Gagal menyimpan note")
+      toast.error(err.message || "Gagal menyimpan note");
     } finally {
-      setActionLoading(null)
+      setActionLoading(null);
     }
-  }
+  };
+
+  const handleUpdateSessionStartDate = async () => {
+    if (
+      !booking ||
+      !editingSessionId ||
+      !newSessionStartDate ||
+      !newSessionStartTime
+    )
+      return;
+    setActionLoading("update-session-start");
+    try {
+      // Combine date and time into ISO string
+      const startedAt = new Date(
+        `${newSessionStartDate}T${newSessionStartTime}`,
+      ).toISOString();
+      await updateBookingSession(booking._id, editingSessionId, {
+        started_at: startedAt,
+      });
+      toast.success("Tanggal dan waktu start session berhasil diubah");
+      setEditSessionStartOpen(false);
+      setEditingSessionId(null);
+      await fetchBooking();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal mengubah tanggal start session");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUpdateSessionFinishDateTime = async () => {
+    if (
+      !booking ||
+      !editingFinishSessionId ||
+      !newSessionFinishDate ||
+      !newSessionFinishTime
+    )
+      return;
+    setActionLoading("update-session-finish");
+    try {
+      // Combine date and time into ISO string
+      const finishedAt = new Date(
+        `${newSessionFinishDate}T${newSessionFinishTime}`,
+      ).toISOString();
+      await updateBookingSession(booking._id, editingFinishSessionId, {
+        finished_at: finishedAt,
+      });
+      toast.success("Tanggal dan waktu finish session berhasil diubah");
+      setEditSessionFinishOpen(false);
+      setEditingFinishSessionId(null);
+      await fetchBooking();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal mengubah tanggal finish session");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const getToday = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
 
   const handleUploadMedia = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    if (!booking) return
-    const formData = new FormData(e.currentTarget)
-    const type = formData.get("mediaType") as "before" | "after"
-    const rawFile = formData.get("photo") as File | null
+    e.preventDefault();
+    if (!booking) return;
+    const formData = new FormData(e.currentTarget);
+    const type = formData.get("mediaType") as "before" | "after";
+    const rawFile = formData.get("photo") as File | null;
     if (!rawFile || rawFile.size === 0) {
-      toast.error("Pilih foto terlebih dahulu")
-      return
+      toast.error("Pilih foto terlebih dahulu");
+      return;
     }
-    setActionLoading("upload-booking")
+    setActionLoading("upload-booking");
     try {
-      const framedFile = await applyGroomingFrame(rawFile, type)
-      await uploadBookingMedia(booking._id, framedFile, type)
-      toast.success(`Foto ${type} berhasil diupload`)
-      setUploadOpen(false)
-      await fetchBooking()
+      const framedFile = await applyGroomingFrame(rawFile, type);
+      await uploadBookingMedia(booking._id, framedFile, type);
+      toast.success(`Foto ${type} berhasil diupload`);
+      setUploadOpen(false);
+      await fetchBooking();
     } catch (err: any) {
-      toast.error(err.message || "Gagal mengupload foto")
+      toast.error(err.message || "Gagal mengupload foto");
     } finally {
-      setActionLoading(null)
+      setActionLoading(null);
     }
-  }
+  };
 
   if (loading) {
     return (
@@ -178,7 +276,7 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
         </div>
         <Skeleton className="h-64 rounded-lg" />
       </div>
-    )
+    );
   }
 
   if (error || !booking) {
@@ -189,15 +287,19 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
           <Link href="/groomer/dashboard">Back to Dashboard</Link>
         </Button>
       </div>
-    )
+    );
   }
 
-  const sessions = [...(booking.sessions || [])].sort((a, b) => a.order - b.order)
-  const addons = booking.service_snapshot?.addons || []
+  const sessions = [...(booking.sessions || [])].sort(
+    (a, b) => a.order - b.order,
+  );
+  const addons = booking.service_snapshot?.addons || [];
+  const bookingDate = booking.date?.split("T")[0] || "";
+  const today = getToday();
 
   const isSkillMatch = (sessionType: string) =>
     groomerSkills.length === 0 ||
-    groomerSkills.some((sk) => sk.toLowerCase() === sessionType.toLowerCase())
+    groomerSkills.some((sk) => sk.toLowerCase() === sessionType.toLowerCase());
 
   return (
     <div className="flex flex-col gap-6">
@@ -213,9 +315,13 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
           <h1 className="font-display text-2xl font-bold text-foreground">
             {booking.pet_snapshot?.name} - {booking.service_snapshot?.name}
           </h1>
-          <p className="text-sm text-muted-foreground">{booking.customer?.username}</p>
+          <p className="text-sm text-muted-foreground">
+            {booking.customer?.username}
+          </p>
         </div>
-        <Badge className={`text-sm ${sessionStatusColors[booking.booking_status] || "bg-muted"}`}>
+        <Badge
+          className={`text-sm ${sessionStatusColors[booking.booking_status] || "bg-muted"}`}
+        >
           {booking.booking_status}
         </Badge>
       </div>
@@ -229,7 +335,7 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
           <CardContent className="flex flex-col gap-3">
             <div className="flex items-center gap-3 text-sm">
               <Calendar className="h-4 w-4 text-primary" />
-              <span className="text-foreground">{booking.date?.split("T")[0]}</span>
+              <span className="text-foreground">{bookingDate}</span>
             </div>
             <div className="flex items-center gap-3 text-sm">
               <Clock className="h-4 w-4 text-primary" />
@@ -238,7 +344,9 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
             {booking.customer && (
               <div className="flex items-center gap-3 text-sm">
                 <User className="h-4 w-4 text-primary" />
-                <span className="text-foreground">{booking.customer.username}</span>
+                <span className="text-foreground">
+                  {booking.customer.username}
+                </span>
               </div>
             )}
             {booking.type === "in home" && (
@@ -247,33 +355,47 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                 <span className="text-foreground">Home Visit</span>
               </div>
             )}
-            <Badge variant="outline" className="w-fit capitalize">{booking.type}</Badge>
+            <Badge variant="outline" className="w-fit capitalize">
+              {booking.type}
+            </Badge>
           </CardContent>
         </Card>
 
         <Card className="border-border/50">
           <CardHeader>
-            <CardTitle className="font-display text-lg">Service Details</CardTitle>
+            <CardTitle className="font-display text-lg">
+              Service Details
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             <div>
-              <span className="text-xs text-muted-foreground">Main Service</span>
-              <p className="font-medium text-foreground">{booking.service_snapshot?.name}</p>
+              <span className="text-xs text-muted-foreground">
+                Main Service
+              </span>
+              <p className="font-medium text-foreground">
+                {booking.service_snapshot?.name}
+              </p>
             </div>
             {addons.length > 0 && (
               <div>
                 <span className="text-xs text-muted-foreground">Add-ons</span>
                 <div className="mt-1 flex flex-wrap gap-1">
                   {addons.map((a) => (
-                    <Badge key={a._id} variant="outline" className="text-xs">{a.name}</Badge>
+                    <Badge key={a._id} variant="outline" className="text-xs">
+                      {a.name}
+                    </Badge>
                   ))}
                 </div>
               </div>
             )}
             {booking.note && (
               <div>
-                <span className="text-xs text-muted-foreground">Customer Notes</span>
-                <p className="mt-1 rounded-md bg-muted/50 p-2 text-sm text-foreground">{booking.note}</p>
+                <span className="text-xs text-muted-foreground">
+                  Customer Notes
+                </span>
+                <p className="mt-1 rounded-md bg-muted/50 p-2 text-sm text-foreground">
+                  {booking.note}
+                </p>
               </div>
             )}
           </CardContent>
@@ -283,7 +405,9 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
       {/* Before / After Photos (Booking Level) */}
       <Card className="border-border/50">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="font-display text-lg">Before &amp; After Photos</CardTitle>
+          <CardTitle className="font-display text-lg">
+            Before &amp; After Photos
+          </CardTitle>
           <Button
             size="sm"
             variant="outline"
@@ -298,13 +422,18 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {booking.media.map((m, idx) => (
                 <div key={m._id || idx} className="flex flex-col gap-1">
-                  <Badge variant="outline" className="w-fit text-[10px] capitalize">
+                  <Badge
+                    variant="outline"
+                    className="w-fit text-[10px] capitalize"
+                  >
                     {m.type}
                   </Badge>
                   <button
                     type="button"
                     className="aspect-[9/16] overflow-hidden rounded-lg border border-border/50 bg-muted cursor-pointer transition-opacity hover:opacity-80"
-                    onClick={() => setPreviewImage(m.secure_url || m.url || null)}
+                    onClick={() =>
+                      setPreviewImage(m.secure_url || m.url || null)
+                    }
                   >
                     <img
                       src={m.secure_url || m.url || "/placeholder.svg"}
@@ -313,7 +442,9 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                     />
                   </button>
                   {m.note && (
-                    <span className="text-[10px] text-muted-foreground">{m.note}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {m.note}
+                    </span>
                   )}
                 </div>
               ))}
@@ -330,16 +461,29 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
           Sessions ({sessions.length})
         </h2>
         {sessions.map((session, idx) => {
-          const isExpanded = expandedSessions.has(session._id || "")
+          const isExpanded = expandedSessions.has(session._id || "");
           const previousAllFinished = sessions
             .filter((s) => s.order < session.order)
-            .every((s) => s.status === "finished")
-          const canStart = session.status === "not started" && previousAllFinished
-          const canFinish = session.status === "in progress"
+            .every((s) => s.status === "finished");
 
-          const isMySession = !!(user?.id && (session.groomer_id === user.id || session.groomer_detail?._id === user.id))
-          const isUnassigned = !session.groomer_id && !session.groomer_detail
-          const isOtherGroomer = !isMySession && !isUnassigned
+          // Check if session has a scheduled start date
+          const sessionStartDate =
+            session.started_at?.split("T")[0] || bookingDate;
+          const isBeforeSessionStart = today < sessionStartDate;
+
+          const canStart =
+            session.status === "not started" &&
+            previousAllFinished &&
+            !isBeforeSessionStart;
+          const canFinish = session.status === "in progress";
+
+          const isMySession = !!(
+            user?.id &&
+            (session.groomer_id === user.id ||
+              session.groomer_detail?._id === user.id)
+          );
+          const isUnassigned = !session.groomer_id && !session.groomer_detail;
+          const isOtherGroomer = !isMySession && !isUnassigned;
 
           return (
             <Card key={session._id} className="border-border/50">
@@ -355,7 +499,9 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                       {session.order + 1}
                     </span>
                     <div>
-                      <span className="font-medium capitalize text-foreground">{session.type}</span>
+                      <span className="font-medium capitalize text-foreground">
+                        {session.type}
+                      </span>
                       {isMySession && session.groomer_detail && (
                         <p className="text-xs text-primary font-medium">
                           {session.groomer_detail.username} (You)
@@ -367,20 +513,25 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                           {session.groomer_detail.username}
                         </p>
                       )}
-                      {isUnassigned && (
-                        isSkillMatch(session.type) ? (
-                          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Open — belum ada groomer</p>
+                      {isUnassigned &&
+                        (isSkillMatch(session.type) ? (
+                          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                            Open — belum ada groomer
+                          </p>
                         ) : (
                           <p className="flex items-center gap-1 text-xs text-muted-foreground">
                             <AlertCircle className="h-3 w-3 text-amber-500" />
                             Open — bukan skill kamu
                           </p>
-                        )
-                      )}
+                        ))}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge className={sessionStatusColors[session.status] || "bg-muted"}>
+                    <Badge
+                      className={
+                        sessionStatusColors[session.status] || "bg-muted"
+                      }
+                    >
                       {session.status}
                     </Badge>
                     {isExpanded ? (
@@ -394,15 +545,137 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                 {/* Session body — expandable */}
                 {isExpanded && (
                   <div className="border-t border-border/50 p-4 flex flex-col gap-4">
+                    {/* Timestamps - Start & Finish (for assigned groomer) */}
+                    {isMySession && (
+                      <div className="flex flex-col gap-2">
+                        {/* Session start date/time display with edit button */}
+                        {session.started_at && (
+                          <div className="flex items-center justify-between rounded-md bg-muted/30 px-3 py-2">
+                            <span className="text-xs text-muted-foreground">
+                              Started:{" "}
+                              <span className="font-medium text-foreground">
+                                {new Date(session.started_at).toLocaleString(
+                                  "en-US",
+                                  {
+                                    month: "numeric",
+                                    day: "numeric",
+                                    year: "numeric",
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                  },
+                                )}
+                              </span>
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              onClick={() => {
+                                setEditingSessionId(session._id || null);
+                                const startDate = new Date(session.started_at!);
+                                setNewSessionStartDate(
+                                  startDate.toISOString().split("T")[0],
+                                );
+                                setNewSessionStartTime(
+                                  startDate.toTimeString().slice(0, 5),
+                                );
+                                setEditSessionStartOpen(true);
+                              }}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Session finish date/time display with edit button */}
+                        {session.finished_at && (
+                          <div className="flex items-center justify-between rounded-md bg-muted/30 px-3 py-2">
+                            <span className="text-xs text-muted-foreground">
+                              Finished:{" "}
+                              <span className="font-medium text-foreground">
+                                {new Date(session.finished_at).toLocaleString(
+                                  "en-US",
+                                  {
+                                    month: "numeric",
+                                    day: "numeric",
+                                    year: "numeric",
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                  },
+                                )}
+                              </span>
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              onClick={() => {
+                                setEditingFinishSessionId(session._id || null);
+                                const finishDate = new Date(
+                                  session.finished_at!,
+                                );
+                                setNewSessionFinishDate(
+                                  finishDate.toISOString().split("T")[0],
+                                );
+                                setNewSessionFinishTime(
+                                  finishDate.toTimeString().slice(0, 5),
+                                );
+                                setEditSessionFinishOpen(true);
+                              }}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Action Buttons — assigned to current groomer */}
                     {isMySession && (
                       <div className="flex flex-col gap-2">
+                        {/* Session start date info for scheduling */}
+                        {!session.started_at && (
+                          <div className="flex items-center justify-between rounded-md bg-muted/30 px-3 py-2">
+                            <div className="flex items-center gap-2 text-sm">
+                              <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-muted-foreground">
+                                Tanggal mulai:{" "}
+                                <span className="font-medium text-foreground">
+                                  {sessionStartDate}
+                                </span>
+                              </span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              onClick={() => {
+                                setEditingSessionId(session._id || null);
+                                setNewSessionStartDate(sessionStartDate);
+                                const now = new Date();
+                                setNewSessionStartTime(
+                                  now.toTimeString().slice(0, 5),
+                                );
+                                setEditSessionStartOpen(true);
+                              }}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )}
                         <div className="flex flex-wrap gap-2">
                           {session.status === "not started" && (
                             <Button
                               size="sm"
-                              onClick={() => session._id && handleStartSession(session._id)}
-                              disabled={!canStart || actionLoading === `start-${session._id}`}
+                              onClick={() =>
+                                session._id && handleStartSession(session._id)
+                              }
+                              disabled={
+                                !canStart ||
+                                actionLoading === `start-${session._id}`
+                              }
                             >
                               {actionLoading === `start-${session._id}` ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -415,8 +688,12 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                           {canFinish && (
                             <Button
                               size="sm"
-                              onClick={() => session._id && handleFinishSession(session._id)}
-                              disabled={actionLoading === `finish-${session._id}`}
+                              onClick={() =>
+                                session._id && handleFinishSession(session._id)
+                              }
+                              disabled={
+                                actionLoading === `finish-${session._id}`
+                              }
                             >
                               {actionLoading === `finish-${session._id}` ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -431,29 +708,40 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                               size="sm"
                               variant="outline"
                               onClick={() => {
-                                setNoteSessionId(session._id || null)
-                                setNoteValue(session.notes || "")
+                                setNoteSessionId(session._id || null);
+                                setNoteValue(session.notes || "");
                               }}
                             >
                               Add Note
                             </Button>
                           ) : null}
                         </div>
-                        {session.status === "not started" && !previousAllFinished && (
-                          <p className="text-xs text-amber-600 dark:text-amber-400">
-                            Selesaikan session sebelumnya terlebih dahulu untuk memulai session ini.
-                          </p>
-                        )}
+                        {session.status === "not started" &&
+                          !previousAllFinished && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400">
+                              Selesaikan session sebelumnya terlebih dahulu
+                              untuk memulai session ini.
+                            </p>
+                          )}
+                        {session.status === "not started" &&
+                          isBeforeSessionStart && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400">
+                              Session hanya bisa dimulai pada atau setelah
+                              tanggal {sessionStartDate}.
+                            </p>
+                          )}
                       </div>
                     )}
 
                     {/* Unassigned session — show claim button or skill mismatch info */}
-                    {isUnassigned && (
-                      isSkillMatch(session.type) ? (
+                    {isUnassigned &&
+                      (isSkillMatch(session.type) ? (
                         <div className="flex items-center gap-3">
                           <Button
                             size="sm"
-                            onClick={() => session._id && handleClaimSession(session._id)}
+                            onClick={() =>
+                              session._id && handleClaimSession(session._id)
+                            }
                             disabled={claimingId === session._id}
                           >
                             {claimingId === session._id ? (
@@ -463,21 +751,29 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                             )}
                             Claim Session
                           </Button>
-                          <span className="text-xs text-muted-foreground">Klaim session ini untuk ditangani oleh Anda</span>
+                          <span className="text-xs text-muted-foreground">
+                            Klaim session ini untuk ditangani oleh Anda
+                          </span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2">
                           <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                           <p className="text-xs text-amber-700 dark:text-amber-400">
-                            Kamu tidak bisa mengklaim session <span className="font-semibold capitalize">{session.type}</span> karena skill ini tidak terdaftar pada profilmu.
+                            Kamu tidak bisa mengklaim session{" "}
+                            <span className="font-semibold capitalize">
+                              {session.type}
+                            </span>{" "}
+                            karena skill ini tidak terdaftar pada profilmu.
                           </p>
                         </div>
-                      )
-                    )}
+                      ))}
 
                     {/* Other groomer's session — read only */}
                     {isOtherGroomer && (
-                      <p className="text-xs text-muted-foreground italic">Sesi ini ditangani oleh {session.groomer_detail?.username} — hanya bisa dilihat.</p>
+                      <p className="text-xs text-muted-foreground italic">
+                        Sesi ini ditangani oleh{" "}
+                        {session.groomer_detail?.username} — hanya bisa dilihat.
+                      </p>
                     )}
 
                     {/* Note editor — only for assigned groomer */}
@@ -492,7 +788,9 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                         <div className="flex gap-2">
                           <Button
                             size="sm"
-                            onClick={() => session._id && handleSaveNote(session._id)}
+                            onClick={() =>
+                              session._id && handleSaveNote(session._id)
+                            }
                             disabled={actionLoading === `note-${session._id}`}
                           >
                             {actionLoading === `note-${session._id}` ? (
@@ -504,8 +802,8 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                             size="sm"
                             variant="ghost"
                             onClick={() => {
-                              setNoteSessionId(null)
-                              setNoteValue("")
+                              setNoteSessionId(null);
+                              setNoteValue("");
                             }}
                           >
                             Cancel
@@ -517,25 +815,19 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
                     {/* Existing notes (read-only for all) */}
                     {session.notes && noteSessionId !== session._id && (
                       <div className="rounded-md bg-muted/50 p-3">
-                        <span className="text-xs font-medium text-muted-foreground">Note:</span>
-                        <p className="mt-1 text-sm text-foreground">{session.notes}</p>
+                        <span className="text-xs font-medium text-muted-foreground">
+                          Note:
+                        </span>
+                        <p className="mt-1 text-sm text-foreground">
+                          {session.notes}
+                        </p>
                       </div>
                     )}
-
-                    {/* Timestamps */}
-                    <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                      {session.started_at && (
-                        <span>Started: {new Date(session.started_at).toLocaleString()}</span>
-                      )}
-                      {session.finished_at && (
-                        <span>Finished: {new Date(session.finished_at).toLocaleString()}</span>
-                      )}
-                    </div>
                   </div>
                 )}
               </CardContent>
             </Card>
-          )
+          );
         })}
       </div>
 
@@ -566,22 +858,172 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
         </div>
       )}
 
+      {/* Edit Session Start Date & Time Dialog */}
+      <Dialog
+        open={editSessionStartOpen}
+        onOpenChange={setEditSessionStartOpen}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">
+              Edit Tanggal & Waktu Mulai Session
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="newSessionStartDate">Tanggal Mulai</Label>
+              <Input
+                id="newSessionStartDate"
+                type="date"
+                min={bookingDate}
+                value={newSessionStartDate}
+                onChange={(e) => setNewSessionStartDate(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="newSessionStartTime">
+                Waktu Mulai (Jam:Menit)
+              </Label>
+              <Input
+                id="newSessionStartTime"
+                type="time"
+                value={newSessionStartTime}
+                onChange={(e) => setNewSessionStartTime(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Tanggal tidak bisa lebih awal dari tanggal booking (
+                {bookingDate})
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleUpdateSessionStartDate}
+                className="flex-1 font-display font-bold"
+                disabled={
+                  !newSessionStartDate ||
+                  !newSessionStartTime ||
+                  actionLoading === "update-session-start"
+                }
+              >
+                {actionLoading === "update-session-start" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Simpan
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditSessionStartOpen(false);
+                  setEditingSessionId(null);
+                }}
+                disabled={actionLoading === "update-session-start"}
+              >
+                Batal
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Session Finish Date & Time Dialog */}
+      <Dialog
+        open={editSessionFinishOpen}
+        onOpenChange={setEditSessionFinishOpen}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">
+              Edit Tanggal & Waktu Finish Session
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="newSessionFinishDate">Tanggal Finish</Label>
+              <Input
+                id="newSessionFinishDate"
+                type="date"
+                min={bookingDate}
+                value={newSessionFinishDate}
+                onChange={(e) => setNewSessionFinishDate(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Tanggal tidak bisa lebih awal dari tanggal booking (
+                {bookingDate})
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="newSessionFinishTime">
+                Waktu Finish (Jam:Menit)
+              </Label>
+              <Input
+                id="newSessionFinishTime"
+                type="time"
+                value={newSessionFinishTime}
+                onChange={(e) => setNewSessionFinishTime(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Format 24 jam (contoh: 14:30)
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleUpdateSessionFinishDateTime}
+                className="flex-1 font-display font-bold"
+                disabled={
+                  !newSessionFinishDate ||
+                  !newSessionFinishTime ||
+                  actionLoading === "update-session-finish"
+                }
+              >
+                {actionLoading === "update-session-finish" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                Simpan
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditSessionFinishOpen(false);
+                  setEditingFinishSessionId(null);
+                }}
+                disabled={actionLoading === "update-session-finish"}
+              >
+                Batal
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Upload Photo Dialog */}
       <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="font-display">Upload Before/After Photo</DialogTitle>
+            <DialogTitle className="font-display">
+              Upload Before/After Photo
+            </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleUploadMedia} className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
               <Label>Photo Type</Label>
               <div className="flex gap-3">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="mediaType" value="before" defaultChecked className="accent-[hsl(var(--primary))]" />
+                  <input
+                    type="radio"
+                    name="mediaType"
+                    value="before"
+                    defaultChecked
+                    className="accent-[hsl(var(--primary))]"
+                  />
                   <span className="text-sm text-foreground">Before</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="radio" name="mediaType" value="after" className="accent-[hsl(var(--primary))]" />
+                  <input
+                    type="radio"
+                    name="mediaType"
+                    value="after"
+                    className="accent-[hsl(var(--primary))]"
+                  />
                   <span className="text-sm text-foreground">After</span>
                 </label>
               </div>
@@ -590,7 +1032,11 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
               <Label htmlFor="photo">Photo</Label>
               <Input id="photo" name="photo" type="file" accept="image/*" />
             </div>
-            <Button type="submit" className="font-display font-bold" disabled={actionLoading === "upload-booking"}>
+            <Button
+              type="submit"
+              className="font-display font-bold"
+              disabled={actionLoading === "upload-booking"}
+            >
               {actionLoading === "upload-booking" ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
@@ -600,5 +1046,5 @@ export default function GroomerJobDetailPage({ params }: { params: Promise<{ id:
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }
