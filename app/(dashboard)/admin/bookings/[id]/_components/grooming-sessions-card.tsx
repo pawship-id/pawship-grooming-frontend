@@ -8,10 +8,12 @@ import {
   Play,
   CheckCircle,
   Scissors,
+  Edit,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -31,6 +33,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   createBookingSession,
@@ -85,6 +93,19 @@ export function GroomingSessionsCard({
   const [assignGroomerSessionType, setAssignGroomerSessionType] = useState("");
   const [assignGroomerValue, setAssignGroomerValue] = useState("");
   const [savingGroomer, setSavingGroomer] = useState(false);
+
+  // Edit session start/finish time
+  const [editSessionStartOpen, setEditSessionStartOpen] = useState(false);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [newSessionStartDate, setNewSessionStartDate] = useState("");
+  const [newSessionStartTime, setNewSessionStartTime] = useState("");
+  const [editSessionFinishOpen, setEditSessionFinishOpen] = useState(false);
+  const [editingFinishSessionId, setEditingFinishSessionId] = useState<
+    string | null
+  >(null);
+  const [newSessionFinishDate, setNewSessionFinishDate] = useState("");
+  const [newSessionFinishTime, setNewSessionFinishTime] = useState("");
+  const [updatingSessionTime, setUpdatingSessionTime] = useState(false);
 
   // Derived values
   const storeGroomers = booking.store_id
@@ -196,6 +217,66 @@ export function GroomingSessionsCard({
     }
   };
 
+  const handleUpdateSessionStartDate = async () => {
+    if (!editingSessionId || !newSessionStartDate || !newSessionStartTime)
+      return;
+    setUpdatingSessionTime(true);
+    try {
+      // Combine date and time into ISO string
+      const startedAt = new Date(
+        `${newSessionStartDate}T${newSessionStartTime}`,
+      ).toISOString();
+      await updateBookingSession(bookingId, editingSessionId, {
+        started_at: startedAt,
+      });
+      await refreshBooking();
+      toast.success("Tanggal dan waktu start session berhasil diubah");
+      setEditSessionStartOpen(false);
+      setEditingSessionId(null);
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Gagal mengubah tanggal start session",
+      );
+    } finally {
+      setUpdatingSessionTime(false);
+    }
+  };
+
+  const handleUpdateSessionFinishDateTime = async () => {
+    if (
+      !editingFinishSessionId ||
+      !newSessionFinishDate ||
+      !newSessionFinishTime
+    )
+      return;
+    setUpdatingSessionTime(true);
+    try {
+      // Combine date and time into ISO string
+      const finishedAt = new Date(
+        `${newSessionFinishDate}T${newSessionFinishTime}`,
+      ).toISOString();
+      await updateBookingSession(bookingId, editingFinishSessionId, {
+        finished_at: finishedAt,
+      });
+      await refreshBooking();
+      toast.success("Tanggal dan waktu finish session berhasil diubah");
+      setEditSessionFinishOpen(false);
+      setEditingFinishSessionId(null);
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Gagal mengubah tanggal finish session",
+      );
+    } finally {
+      setUpdatingSessionTime(false);
+    }
+  };
+
+  const bookingDate = booking.date?.split("T")[0] || "";
+
   return (
     <>
       <Card className="border-border/50">
@@ -245,12 +326,13 @@ export function GroomingSessionsCard({
                       {session.type}
                     </span>
                     <Badge
-                      className={`text-xs capitalize ${session.status === "finished"
-                        ? "bg-secondary/60 text-secondary-foreground"
-                        : session.status === "in progress"
-                          ? "bg-primary/10 text-primary"
-                          : "bg-muted text-muted-foreground"
-                        }`}
+                      className={`text-xs capitalize ${
+                        session.status === "finished"
+                          ? "bg-secondary/60 text-secondary-foreground"
+                          : session.status === "in progress"
+                            ? "bg-primary/10 text-primary"
+                            : "bg-muted text-muted-foreground"
+                      }`}
                     >
                       {session.status}
                     </Badge>
@@ -264,6 +346,7 @@ export function GroomingSessionsCard({
                             size="sm"
                             onClick={() => handleStartSession(session._id!)}
                             disabled={
+                              !session.groomer_detail ||
                               [
                                 "requested",
                                 "waitlist",
@@ -285,9 +368,7 @@ export function GroomingSessionsCard({
                             size="sm"
                             variant="ghost"
                             className="text-destructive hover:text-destructive"
-                            onClick={() =>
-                              setDeletingSessionId(session._id!)
-                            }
+                            onClick={() => setDeletingSessionId(session._id!)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -324,7 +405,11 @@ export function GroomingSessionsCard({
                           onClick={() => {
                             setAssignGroomerSessionId(session._id!);
                             setAssignGroomerSessionType(session.type ?? "");
-                            setAssignGroomerValue(session.groomer_id ?? "");
+                            setAssignGroomerValue(
+                              session.groomer_detail?._id ||
+                                session.groomer_id ||
+                                "",
+                            );
                           }}
                         >
                           Ganti Groomer
@@ -357,16 +442,82 @@ export function GroomingSessionsCard({
 
                 {/* Timestamps */}
                 {(session.started_at || session.finished_at) && (
-                  <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                  <div className="flex flex-col gap-2">
                     {session.started_at && (
-                      <span>
-                        Mulai: {formatDateTime(session.started_at)}
-                      </span>
+                      <div className="flex items-center justify-between rounded-md bg-muted/30 px-3 py-2">
+                        <span className="text-xs text-muted-foreground">
+                          Mulai:{" "}
+                          <span className="font-medium text-foreground">
+                            {new Date(session.started_at).toLocaleString(
+                              "en-US",
+                              {
+                                month: "numeric",
+                                day: "numeric",
+                                year: "numeric",
+                                hour: "numeric",
+                                minute: "2-digit",
+                                hour12: true,
+                              },
+                            )}
+                          </span>
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          onClick={() => {
+                            setEditingSessionId(session._id || null);
+                            const startDate = new Date(session.started_at!);
+                            setNewSessionStartDate(
+                              startDate.toISOString().split("T")[0],
+                            );
+                            setNewSessionStartTime(
+                              startDate.toTimeString().slice(0, 5),
+                            );
+                            setEditSessionStartOpen(true);
+                          }}
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     )}
                     {session.finished_at && (
-                      <span>
-                        Selesai: {formatDateTime(session.finished_at)}
-                      </span>
+                      <div className="flex items-center justify-between rounded-md bg-muted/30 px-3 py-2">
+                        <span className="text-xs text-muted-foreground">
+                          Selesai:{" "}
+                          <span className="font-medium text-foreground">
+                            {new Date(session.finished_at).toLocaleString(
+                              "en-US",
+                              {
+                                month: "numeric",
+                                day: "numeric",
+                                year: "numeric",
+                                hour: "numeric",
+                                minute: "2-digit",
+                                hour12: true,
+                              },
+                            )}
+                          </span>
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0"
+                          onClick={() => {
+                            setEditingFinishSessionId(session._id || null);
+                            const finishDate = new Date(session.finished_at!);
+                            setNewSessionFinishDate(
+                              finishDate.toISOString().split("T")[0],
+                            );
+                            setNewSessionFinishTime(
+                              finishDate.toTimeString().slice(0, 5),
+                            );
+                            setEditSessionFinishOpen(true);
+                          }}
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 )}
@@ -571,10 +722,7 @@ export function GroomingSessionsCard({
       </Card>
 
       {/* Open Job Confirmation */}
-      <AlertDialog
-        open={confirmingOpenJob}
-        onOpenChange={setConfirmingOpenJob}
-      >
+      <AlertDialog open={confirmingOpenJob} onOpenChange={setConfirmingOpenJob}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Tambah sebagai Open Job?</AlertDialogTitle>
@@ -667,6 +815,23 @@ export function GroomingSessionsCard({
                       ),
                     )
                   : storeGroomers;
+
+                // Ensure current groomer is always in the list
+                const currentGroomerInList = groomersForAssign.find(
+                  (g) => g._id === assignGroomerValue,
+                );
+                const currentGroomerFromAll = storeGroomers.find(
+                  (g) => g._id === assignGroomerValue,
+                );
+
+                // If current groomer exists but not in filtered list, add them
+                const finalGroomerList =
+                  assignGroomerValue &&
+                  currentGroomerFromAll &&
+                  !currentGroomerInList
+                    ? [currentGroomerFromAll, ...groomersForAssign]
+                    : groomersForAssign;
+
                 return (
                   <Select
                     value={assignGroomerValue}
@@ -676,13 +841,13 @@ export function GroomingSessionsCard({
                       <SelectValue placeholder="Pilih groomer..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {groomersForAssign.length === 0 ? (
+                      {finalGroomerList.length === 0 ? (
                         <div className="px-3 py-2 text-sm text-muted-foreground">
                           Tidak ada groomer dengan skill &quot;
                           {assignGroomerSessionType}&quot;
                         </div>
                       ) : (
-                        groomersForAssign.map((g) => (
+                        finalGroomerList.map((g) => (
                           <SelectItem
                             key={g._id}
                             value={g._id}
@@ -717,6 +882,137 @@ export function GroomingSessionsCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Session Start Date & Time Dialog */}
+      <Dialog
+        open={editSessionStartOpen}
+        onOpenChange={setEditSessionStartOpen}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">
+              Edit Tanggal & Waktu Mulai Session
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="newSessionStartDate">Tanggal Mulai</Label>
+              <Input
+                id="newSessionStartDate"
+                type="date"
+                min={bookingDate}
+                value={newSessionStartDate}
+                onChange={(e) => setNewSessionStartDate(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="newSessionStartTime">
+                Waktu Mulai (Jam:Menit)
+              </Label>
+              <Input
+                id="newSessionStartTime"
+                type="time"
+                value={newSessionStartTime}
+                onChange={(e) => setNewSessionStartTime(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Tanggal tidak bisa lebih awal dari tanggal booking (
+                {bookingDate})
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleUpdateSessionStartDate}
+                className="flex-1 font-display font-bold"
+                disabled={
+                  !newSessionStartDate ||
+                  !newSessionStartTime ||
+                  updatingSessionTime
+                }
+              >
+                {updatingSessionTime ? "Menyimpan..." : "Simpan"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditSessionStartOpen(false);
+                  setEditingSessionId(null);
+                }}
+                disabled={updatingSessionTime}
+              >
+                Batal
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Session Finish Date & Time Dialog */}
+      <Dialog
+        open={editSessionFinishOpen}
+        onOpenChange={setEditSessionFinishOpen}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">
+              Edit Tanggal & Waktu Finish Session
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="newSessionFinishDate">Tanggal Finish</Label>
+              <Input
+                id="newSessionFinishDate"
+                type="date"
+                min={bookingDate}
+                value={newSessionFinishDate}
+                onChange={(e) => setNewSessionFinishDate(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Tanggal tidak bisa lebih awal dari tanggal booking (
+                {bookingDate})
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="newSessionFinishTime">
+                Waktu Finish (Jam:Menit)
+              </Label>
+              <Input
+                id="newSessionFinishTime"
+                type="time"
+                value={newSessionFinishTime}
+                onChange={(e) => setNewSessionFinishTime(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Format 24 jam (contoh: 14:30)
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleUpdateSessionFinishDateTime}
+                className="flex-1 font-display font-bold"
+                disabled={
+                  !newSessionFinishDate ||
+                  !newSessionFinishTime ||
+                  updatingSessionTime
+                }
+              >
+                {updatingSessionTime ? "Menyimpan..." : "Simpan"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditSessionFinishOpen(false);
+                  setEditingFinishSessionId(null);
+                }}
+                disabled={updatingSessionTime}
+              >
+                Batal
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
