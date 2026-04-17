@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Calendar, Clock, MapPin, Store, Loader2, RefreshCw, UserPlus, Scissors, CheckCircle } from "lucide-react"
+import { Calendar, Clock, MapPin, Store, Loader2, RefreshCw, UserPlus, Scissors, CheckCircle, AlertCircle } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,10 +22,12 @@ import {
   type AdminBooking,
   type BookingSession,
 } from "@/lib/api/bookings"
+import { getCurrentUser } from "@/lib/api/users"
 
 export default function OpenJobsPage() {
   const router = useRouter()
   const [bookings, setBookings] = useState<AdminBooking[]>([])
+  const [groomerSkills, setGroomerSkills] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [claimingId, setClaimingId] = useState<string | null>(null)
@@ -35,8 +37,12 @@ export default function OpenJobsPage() {
     try {
       setLoading(true)
       setError(null)
-      const res = await getGroomerOpenJobs({ limit: 50 })
+      const [res, meRes] = await Promise.all([
+        getGroomerOpenJobs({ limit: 50 }),
+        getCurrentUser(),
+      ])
       setBookings(res.bookings)
+      setGroomerSkills(meRes.user?.profile?.groomer_skills ?? [])
     } catch (err: any) {
       setError(err.message || "Gagal memuat data")
     } finally {
@@ -113,9 +119,14 @@ export default function OpenJobsPage() {
         <div className="flex flex-col gap-4">
           {bookings.map((booking) => {
             const sessions = booking.sessions || []
-            const unclaimedSessions = sessions.filter(
-              (s) => !s.groomer_id && !s.groomer_detail,
+            // A session is claimable when: unclaimed AND matches one of the groomer's skills (by name, case-insensitive)
+            const isSkillMatch = (sessionType: string) =>
+              groomerSkills.length === 0 ||
+              groomerSkills.some((sk) => sk.toLowerCase() === sessionType.toLowerCase())
+            const claimableSessions = sessions.filter(
+              (s) => !s.groomer_id && !s.groomer_detail && isSkillMatch(s.type),
             )
+            const unclaimedSessions = claimableSessions
             const claimedSessions = sessions.filter(
               (s) => s.groomer_id || s.groomer_detail,
             )
@@ -187,6 +198,7 @@ export default function OpenJobsPage() {
                     </span>
                     {sessions.map((session) => {
                       const isClaimed = !!(session.groomer_id || session.groomer_detail)
+                      const canClaim = !isClaimed && isSkillMatch(session.type)
 
                       return (
                         <div
@@ -207,13 +219,17 @@ export default function OpenJobsPage() {
                                 <Scissors className="h-3 w-3" />
                                 {session.groomer_detail?.username ?? "Assigned"}
                               </span>
-                            ) : (
+                            ) : canClaim ? (
                               <Badge className="bg-amber-100 text-xs text-amber-800 dark:bg-amber-950/50 dark:text-amber-400">
+                                Open
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs text-amber-700 dark:text-amber-500 border-amber-300 dark:border-amber-700">
                                 Open
                               </Badge>
                             )}
                           </div>
-                          {!isClaimed && (
+                          {canClaim ? (
                             <Button
                               size="sm"
                               onClick={() =>
@@ -228,6 +244,11 @@ export default function OpenJobsPage() {
                               )}
                               Claim
                             </Button>
+                          ) : !isClaimed && (
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                              Bukan skill kamu
+                            </span>
                           )}
                         </div>
                       )

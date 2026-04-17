@@ -299,20 +299,9 @@ export default function StoreDetailPage() {
                           {zone.travel_time_minutes} mnt
                         </td>
                         <td className="py-1.5 text-right">
-                          {zone.prices && zone.prices.length > 0 ? (
-                            <div className="flex flex-col gap-0.5">
-                              {zone.prices.map((p, idx) => (
-                                <span
-                                  key={idx}
-                                  className="font-medium text-[10px]"
-                                >
-                                  Rp {p.price.toLocaleString("id-ID")}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
+                          <span className="font-medium text-[10px]">
+                            Rp {zone.price.toLocaleString("id-ID")}
+                          </span>
                         </td>
                       </tr>
                     ))}
