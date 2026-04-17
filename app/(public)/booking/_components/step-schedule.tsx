@@ -100,6 +100,14 @@ export function StepSchedule({
     return false
   }
 
+  /** Closed / holiday matcher — red styling (excludes past dates) */
+  const isClosedDay = (date: Date) => {
+    if (date < today) return false
+    if (operationalDayNums.size > 0 && !operationalDayNums.has(date.getDay())) return true
+    if (closedDateSet.has(toYYYYMMDD(date))) return true
+    return false
+  }
+
   const selectedDateObj = selectedDate ? parseLocalDate(selectedDate) : undefined
 
   const openDaysLabel = (selectedStore.operational?.operational_days ?? [])
@@ -136,6 +144,8 @@ export function StepSchedule({
                     setCalOpen(false)
                   }}
                   disabled={isDateDisabled}
+                  modifiers={{ closed: isClosedDay }}
+                  modifiersClassNames={{ closed: "!text-red-500 !opacity-60" }}
                   initialFocus
                 />
               </PopoverContent>
