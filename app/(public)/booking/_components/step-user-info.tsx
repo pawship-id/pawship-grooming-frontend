@@ -188,8 +188,8 @@ export function StepUserInfo({
   const mainAddressHasLocation = addresses.some(
     (a) => a.is_main_address && a.latitude != null && a.longitude != null,
   )
-  // Show address section when service needs location and user is not authenticated
-  const showAddressSection = needsAddress && !isAuthenticated && phoneChecked
+  // Show address section when service needs location
+  const showAddressSection = needsAddress && ((isAuthenticated && authDataLoaded) || (!isAuthenticated && phoneChecked))
 
   return (
     <>
@@ -240,38 +240,15 @@ export function StepUserInfo({
               onClick={() => setShowLoginModal(true)}
             >
               <LogIn className="h-3.5 w-3.5" />
-              Sudah punya akun? Login di sini
+              {phoneChecked && existingUser && !existingUser.is_idle
+                ? "Akun dengan nomor ini sudah aktif. Login di sini"
+                : "Sudah punya akun? Login di sini"}
             </button>
           </div>
         )}
 
-        {/* ── Scenario 3: Active user (is_idle=false) — must login ── */}
-        {!isAuthenticated && phoneChecked && existingUser && !existingUser.is_idle && (
-          <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 dark:border-amber-800 dark:bg-amber-950/30">
-            <div className="flex items-center gap-2">
-              <User className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                Akun dengan nomor ini sudah aktif.
-              </p>
-            </div>
-            <p className="text-xs text-amber-700 dark:text-amber-300">
-              Silakan login terlebih dahulu untuk melanjutkan booking dengan akun kamu.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="self-start"
-              onClick={() => setShowLoginModal(true)}
-            >
-              <LogIn className="mr-2 h-4 w-4" />
-              Login Sekarang
-            </Button>
-          </div>
-        )}
-
-        {/* ── Scenario 2: Idle user (is_idle=true) — can book without login ── */}
-        {((phoneChecked && existingUser && (isAuthenticated || existingUser.is_idle)) || (isAuthenticated && authDataLoaded && existingUser)) && (
+        {/* ── Existing user (idle or active) — can book without login ── */}
+        {((phoneChecked && existingUser) || (isAuthenticated && authDataLoaded && existingUser)) && (
           <>
             {!isAuthenticated && (
               <div className="flex items-center gap-2 rounded-lg bg-primary/5 px-4 py-3">
@@ -340,8 +317,28 @@ export function StepUserInfo({
               )}
             </div>
 
-            {/* Address section for idle users */}
-            {showAddressSection && existingUser?.is_idle && (
+            {/* Address section for existing users (idle or active) */}
+            {showAddressSection && !isAuthenticated && existingUser && (
+              <>
+                <Separator />
+                <AddressSection
+                  addresses={addresses}
+                  editingIdx={editingAddressIdx}
+                  setEditingIdx={setEditingAddressIdx}
+                  onUpdate={updateAddress}
+                  onSetMain={setMainAddress}
+                  onAddNew={addNewAddress}
+                  onRemove={removeAddress}
+                  onOpenMap={(idx) => { setMapTargetIdx(idx); setMapOpen(true) }}
+                  onDetectLocation={detectLocation}
+                  isDetectingLocation={isDetectingLocation}
+                  disabled={userInfoConfirmed}
+                />
+              </>
+            )}
+
+            {/* Address section for authenticated users */}
+            {showAddressSection && isAuthenticated && (
               <>
                 <Separator />
                 <AddressSection
@@ -424,8 +421,7 @@ export function StepUserInfo({
 
         {formError && <p className="text-sm text-destructive">{formError}</p>}
 
-        {/* Hide confirm button for active users that need to login */}
-        {(!isAuthenticated && phoneChecked && existingUser && !existingUser.is_idle) ? null : !userInfoConfirmed ? (
+        {!userInfoConfirmed ? (
           <Button
             className="w-full font-display font-bold"
             onClick={handleConfirmUserInfo}

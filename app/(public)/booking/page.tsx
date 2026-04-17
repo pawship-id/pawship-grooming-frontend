@@ -33,7 +33,7 @@ import { EMPTY_ADDRESS_ENTRY } from "@/lib/api/stores"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MessageCircle } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
-import { getCurrentUser } from "@/lib/api/users"
+import { getCurrentUser, updateMyProfile } from "@/lib/api/users"
 
 import { ServiceTypeCard } from "./_components/service-type-card"
 import { StoreCard } from "./_components/store-card"
@@ -243,7 +243,7 @@ function BookingContent() {
     setUserInfoConfirmed(false)
     setConfirmedPetId("")
     setConfirmedCustomerId("")
-    setAddresses([])
+    if (!isAuthenticated) setAddresses([])
     setIsPickup(false)
     setIsDelivery(false)
     setPreviewData(null)
@@ -391,8 +391,8 @@ function BookingContent() {
     if (existingUser && petMode === "create" && !newPetTypeId) { setFormError("Tipe pet baru wajib dipilih."); return }
     if (existingUser && petMode === "create" && !newSizeId) { setFormError("Ukuran pet baru wajib dipilih."); return }
     if (existingUser && petMode === "create" && !newHairId) { setFormError("Jenis bulu pet baru wajib dipilih."); return }
-    // Address validation for services that need location (non-authenticated users only)
-    if (needsAddress && !isAuthenticated) {
+    // Address validation for services that need location
+    if (needsAddress) {
       const mainAddr = addresses.find((a) => a.is_main_address)
       if (!mainAddr || mainAddr.latitude == null || mainAddr.longitude == null) {
         setFormError("Pilih lokasi utama di peta sebelum melanjutkan.")
@@ -405,6 +405,28 @@ function BookingContent() {
       let resolvedPetId = selectedPetId
       if (isAuthenticated && existingUser) {
         resolvedPetId = petMode === "select" ? selectedPetId : ""
+        if (needsAddress) {
+          const hasChanges = addresses.some((a) => a._isNew || a._isModified)
+          if (hasChanges) {
+            await updateMyProfile({
+              addresses: addresses.map((a) => ({
+                _id: a._id,
+                label: a.label || undefined,
+                street: a.street || undefined,
+                subdistrict: a.subdistrict || undefined,
+                district: a.district || undefined,
+                city: a.city || undefined,
+                province: a.province || undefined,
+                postal_code: a.postal_code || undefined,
+                note: a.note || undefined,
+                latitude: a.latitude ?? undefined,
+                longitude: a.longitude ?? undefined,
+                is_main_address: a.is_main_address,
+                created_by: "customer" as const,
+              })),
+            })
+          }
+        }
       } else {
         const normalizedPhone = phone.replace(/\D/g, "")
         if (!existingUser) {
@@ -631,6 +653,22 @@ function BookingContent() {
             is_main_address: a.is_main_address,
           })),
         })
+        setAddresses(
+          (u.profile?.addresses ?? []).map((a) => ({
+            _id: a._id,
+            label: a.label ?? "",
+            street: a.street ?? "",
+            subdistrict: a.subdistrict ?? "",
+            district: a.district ?? "",
+            city: a.city ?? "",
+            province: a.province ?? "",
+            postal_code: a.postal_code ?? "",
+            note: a.note ?? "",
+            latitude: a.latitude ?? null,
+            longitude: a.longitude ?? null,
+            is_main_address: a.is_main_address ?? false,
+          }))
+        )
         const pets: PublicUserPet[] = (u.pets ?? [])
           .filter((p) => p.is_active && !p.isDeleted)
           .map((p) => ({
@@ -741,6 +779,9 @@ function BookingContent() {
           <h1 className="font-display text-3xl font-extrabold text-foreground">Book a Service</h1>
           <p className="mt-1 text-sm text-muted-foreground">Pilih store, jenis layanan, layanan, lalu isi informasi kamu.</p>
         </div>
+
+        {/* ── Wrapper: disable all input sections after booking is created ── */}
+        <div className={bookingCreated ? "pointer-events-none opacity-50 select-none flex flex-col gap-10" : "contents"}>
 
         {/* ── Step 1: Store ── */}
         <section className="flex flex-col gap-4">
@@ -1063,6 +1104,9 @@ function BookingContent() {
             />
           </section>
         )}
+
+        {/* ── end disable wrapper ── */}
+        </div>
 
         {/* ── Ringkasan Booking ── */}
         {userInfoConfirmed && selectedService && selectedStore && (

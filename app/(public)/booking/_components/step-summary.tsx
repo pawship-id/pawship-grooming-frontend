@@ -4,7 +4,6 @@ import { MapPin, User, PawPrint, Clock, CalendarDays, Truck, Home, Store, CheckC
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
 import { formatPrice } from "@/lib/format"
 import type { PublicStore, PublicService, PublicServiceType, PublicUser, PublicPreviewResult, PublicApplyBenefitResult, PublicApplyPromotionResult } from "@/lib/api/stores"
 
@@ -61,165 +60,151 @@ export function StepSummary({
   formError,
   handleCreateBooking,
 }: StepSummaryProps) {
+  const grandTotal = previewData?.pricing_breakdown.grand_total ?? 0
+  const benefitDiscount = selectedBenefitIds.length > 0 && applyBenefitResult ? applyBenefitResult.total_discount : 0
+  const promoDiscount = selectedPromotionIds.length > 0 && applyPromotionResult ? applyPromotionResult.total_discount : 0
+  const displayTotal = Math.max(0, grandTotal - benefitDiscount - promoDiscount)
+
   return (
     <Card className="border-border/60">
-      <CardContent className="flex flex-col gap-4 p-6">
+      <CardContent className="flex flex-col gap-0 p-0 divide-y divide-border/60">
+
         {/* Store */}
-        <div className="flex items-start gap-3">
+        <div className="flex items-start gap-3 px-6 py-4">
           <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-          <div>
-            <p className="text-xs text-muted-foreground">Store</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Store</p>
             <p className="text-sm font-semibold text-foreground">{selectedStore.name}</p>
-            <p className="text-xs text-muted-foreground">
-              {[selectedStore.location?.address, selectedStore.location?.city].filter(Boolean).join(", ")}
-            </p>
+            {(selectedStore.location?.address || selectedStore.location?.city) && (
+              <p className="text-xs text-muted-foreground truncate">
+                {[selectedStore.location?.address, selectedStore.location?.city].filter(Boolean).join(", ")}
+              </p>
+            )}
           </div>
         </div>
-
-        <Separator />
 
         {/* User & Pet */}
-        <div className="flex items-start gap-3">
-          <User className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-          <div>
-            <p className="text-xs text-muted-foreground">Pemilik</p>
-            <p className="text-sm font-semibold text-foreground">{existingUser ? existingUser.username : userName}</p>
-            <p className="text-xs text-muted-foreground">{phone}</p>
-          </div>
-          <div className="ml-auto flex items-start gap-3 text-right">
-            <div>
-              <p className="text-xs text-muted-foreground">Anabul</p>
-              <p className="text-sm font-semibold text-foreground">{petLabel}</p>
+        <div className="grid grid-cols-2 divide-x divide-border/60">
+          <div className="flex items-start gap-3 px-6 py-4">
+            <User className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Pemilik</p>
+              <p className="text-sm font-semibold text-foreground truncate">{existingUser ? existingUser.username : userName}</p>
+              <p className="text-xs text-muted-foreground">{phone}</p>
             </div>
+          </div>
+          <div className="flex items-start gap-3 px-6 py-4">
             <PawPrint className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Anabul</p>
+              <p className="text-sm font-semibold text-foreground truncate">{petLabel}</p>
+            </div>
           </div>
         </div>
 
-        <Separator />
-
         {/* Service */}
-        <div>
-          <p className="text-xs text-muted-foreground">Jenis Layanan</p>
-          <p className="text-xs font-medium text-primary">{selectedServiceType?.title}</p>
-          <p className="mt-1 text-sm font-semibold text-foreground">{selectedService.name}</p>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock className="h-3 w-3" />
-            {selectedService.duration} menit
+        <div className="flex items-start gap-3 px-6 py-4">
+          <div className="mt-0.5 h-4 w-4 shrink-0 flex items-center justify-center">
+            <span className="h-2 w-2 rounded-full bg-primary" />
           </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Layanan</p>
+            {selectedServiceType && (
+              <p className="text-[11px] text-primary font-medium">{selectedServiceType.title}</p>
+            )}
+            <p className="text-sm font-semibold text-foreground">{selectedService.name}</p>
+            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+              <Clock className="h-3 w-3" />
+              {selectedService.duration} menit
+            </div>
+          </div>
+          {/* Location badge */}
+          {selectedLocationType && (
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <Badge variant="secondary" className="text-[10px] gap-1">
+                {selectedLocationType === "in home"
+                  ? <><Home className="h-3 w-3" /> Home Service</>
+                  : <><Store className="h-3 w-3" /> In Store</>}
+              </Badge>
+              {selectedLocationType === "in store" && (isPickup || isDelivery) && (
+                <div className="flex gap-1">
+                  {isPickup && <Badge variant="outline" className="text-[10px] gap-1 bg-accent/10"><Truck className="h-3 w-3" />Pickup</Badge>}
+                  {isDelivery && <Badge variant="outline" className="text-[10px] gap-1 bg-accent/10"><Truck className="h-3 w-3" />Delivery</Badge>}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Schedule */}
         {selectedDate && selectedTimeRange && (
-          <>
-            <Separator />
-            <div className="flex items-start gap-3">
-              <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              <div>
-                <p className="text-xs text-muted-foreground">Jadwal</p>
-                <p className="text-sm font-semibold text-foreground">
-                  {new Date(selectedDate + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-                </p>
-                <p className="text-xs text-muted-foreground">{selectedTimeRange}</p>
-              </div>
+          <div className="flex items-start gap-3 px-6 py-4">
+            <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Jadwal</p>
+              <p className="text-sm font-semibold text-foreground">
+                {new Date(selectedDate + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+              </p>
+              <p className="text-xs text-muted-foreground">{selectedTimeRange}</p>
             </div>
-          </>
+          </div>
         )}
 
         {/* Add-ons */}
         {selectedAddons.length > 0 && (
-          <>
-            <Separator />
-            <div className="flex flex-col gap-2">
-              <p className="text-xs text-muted-foreground">Add-On ({selectedAddons.length})</p>
+          <div className="px-6 py-4">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-2">Add-On ({selectedAddons.length})</p>
+            <div className="flex flex-col gap-1.5">
               {selectedAddons.map((addon) => (
-                <div key={addon._id} className="flex items-center gap-1.5">
-                  <Badge variant="outline" className="bg-accent/20 text-accent-foreground border-accent/30 text-[10px]">
-                    add-on
-                  </Badge>
+                <div key={addon._id} className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-accent/10 text-[10px]">add-on</Badge>
                   <span className="text-sm text-foreground">{addon.name}</span>
                 </div>
               ))}
             </div>
-          </>
+          </div>
         )}
 
-        {/* Location type & Pickup/Delivery indicators */}
-        {selectedLocationType && (
-          <>
-            <Separator />
-            <div className="flex items-center gap-2">
-              {selectedLocationType === "in home" ? (
-                <Home className="h-4 w-4 text-primary" />
-              ) : (
-                <Store className="h-4 w-4 text-primary" />
-              )}
-              <span className="text-sm font-medium text-foreground">
-                {selectedLocationType === "in home" ? "Home Service" : "In Store"}
-              </span>
-            </div>
-            {selectedLocationType === "in store" && (isPickup || isDelivery) && (
-              <div className="flex flex-wrap gap-2 ml-6">
-                {isPickup && (
-                  <Badge variant="outline" className="bg-accent/20 text-accent-foreground border-accent/30 text-[10px]">
-                    <Truck className="mr-1 h-3 w-3" /> Pickup
-                  </Badge>
-                )}
-                {isDelivery && (
-                  <Badge variant="outline" className="bg-accent/20 text-accent-foreground border-accent/30 text-[10px]">
-                    <Truck className="mr-1 h-3 w-3" /> Delivery
-                  </Badge>
-                )}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Compact Total */}
+        {/* Total */}
         {previewData && (
-          <>
-            <Separator />
-            {(() => {
-              const grandTotal = previewData.pricing_breakdown.grand_total
-              const benefitDiscount = selectedBenefitIds.length > 0 && applyBenefitResult ? applyBenefitResult.total_discount : 0
-              const promoDiscount = selectedPromotionIds.length > 0 && applyPromotionResult ? applyPromotionResult.total_discount : 0
-              const displayTotal = Math.max(0, grandTotal - benefitDiscount - promoDiscount)
-              return (
-                <div className="flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-4 py-3">
-                  <span className="text-sm font-bold text-primary">Total yang Harus Dibayar</span>
-                  <span className="text-base font-bold text-primary">{formatPrice(displayTotal)}</span>
-                </div>
-              )
-            })()}
-          </>
+          <div className="px-6 py-4">
+            <div className="flex items-center justify-between rounded-xl border border-primary/30 bg-primary/10 px-4 py-3">
+              <span className="text-sm font-bold text-primary">Total yang Harus Dibayar</span>
+              <span className="text-base font-bold text-primary">{formatPrice(displayTotal)}</span>
+            </div>
+          </div>
         )}
 
-        {formError && <p className="text-sm text-destructive">{formError}</p>}
+        {/* CTA */}
+        <div className="px-6 py-5 flex flex-col gap-3">
+          {formError && <p className="text-sm text-destructive">{formError}</p>}
+          {!bookingCreated ? (
+            <Button
+              size="lg"
+              className="w-full font-display font-bold"
+              onClick={handleCreateBooking}
+              disabled={submittingBooking || previewLoading}
+            >
+              {submittingBooking ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Membuat Booking...</> : "Konfirmasi Booking"}
+            </Button>
+          ) : (
+            <BookingSuccess
+              selectedStore={selectedStore}
+              selectedService={selectedService}
+              existingUser={existingUser}
+              userName={userName}
+              petLabel={petLabel}
+              selectedDate={selectedDate}
+              selectedTimeRange={selectedTimeRange}
+              isPickup={isPickup}
+              isDelivery={isDelivery}
+              previewData={previewData}
+              applyBenefitResult={applyBenefitResult}
+              applyPromotionResult={applyPromotionResult}
+            />
+          )}
+        </div>
 
-        {!bookingCreated ? (
-          <Button
-            size="lg"
-            className="w-full font-display font-bold"
-            onClick={handleCreateBooking}
-            disabled={submittingBooking || previewLoading}
-          >
-            {submittingBooking ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Membuat Booking...</> : "Konfirmasi Booking"}
-          </Button>
-        ) : (
-          <BookingSuccess
-            selectedStore={selectedStore}
-            selectedService={selectedService}
-            existingUser={existingUser}
-            userName={userName}
-            petLabel={petLabel}
-            selectedDate={selectedDate}
-            selectedTimeRange={selectedTimeRange}
-            isPickup={isPickup}
-            isDelivery={isDelivery}
-            previewData={previewData}
-            applyBenefitResult={applyBenefitResult}
-            applyPromotionResult={applyPromotionResult}
-          />
-        )}
       </CardContent>
     </Card>
   )
