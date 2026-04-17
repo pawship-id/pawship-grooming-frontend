@@ -1,13 +1,40 @@
 "use client"
 
-import { Truck, Check } from "lucide-react"
+import { useState } from "react"
+import { Truck, Check, CalendarDays } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
 import type { PublicStore } from "@/lib/api/stores"
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+const DAY_NAME_TO_NUM: Record<string, number> = {
+  Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3,
+  Thursday: 4, Friday: 5, Saturday: 6,
+}
+
+const DAY_LABELS: Record<string, string> = {
+  Monday: "Sen", Tuesday: "Sel", Wednesday: "Rab", Thursday: "Kam",
+  Friday: "Jum", Saturday: "Sab", Sunday: "Min",
+}
+
+function toYYYYMMDD(d: Date) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+function parseLocalDate(s: string): Date {
+  const [y, m, d] = s.split("-").map(Number)
+  return new Date(y, m - 1, d)
+}
 
 interface StepScheduleProps {
   stepNumber: number
@@ -52,22 +79,64 @@ export function StepSchedule({
   onTimeChange,
   onPickupDeliveryChange,
 }: StepScheduleProps) {
+  const [calOpen, setCalOpen] = useState(false)
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const operationalDayNums = new Set<number>(
+    (selectedStore.operational?.operational_days ?? []).map((d) => DAY_NAME_TO_NUM[d] ?? -1)
+  )
+
+  const isDateDisabled = (date: Date) => {
+    if (date < today) return true
+    if (operationalDayNums.size > 0 && !operationalDayNums.has(date.getDay())) return true
+    return false
+  }
+
+  const selectedDateObj = selectedDate ? parseLocalDate(selectedDate) : undefined
+
+  const openDaysLabel = (selectedStore.operational?.operational_days ?? [])
+    .map((d) => DAY_LABELS[d] ?? d)
+    .join(", ")
+
   return (
     <Card className="border-border/60">
       <CardContent className="flex flex-col gap-5 p-6">
         <div className="grid gap-4 sm:grid-cols-2">
+          {/* Date picker */}
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="booking-date">Tanggal</Label>
-            <Input
-              id="booking-date"
-              type="date"
-              min={new Date().toISOString().split("T")[0]}
-              value={selectedDate}
-              onChange={(e) => {
-                setSelectedDate(e.target.value)
-                onDateChange()
-              }}
-            />
+            <Label>Tanggal</Label>
+            <Popover open={calOpen} onOpenChange={setCalOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={`w-full justify-start text-left font-normal ${!selectedDate ? "text-muted-foreground" : ""}`}
+                >
+                  <CalendarDays className="mr-2 h-4 w-4 shrink-0" />
+                  {selectedDate
+                    ? parseLocalDate(selectedDate).toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "long", year: "numeric" })
+                    : "Pilih tanggal"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedDateObj}
+                  onSelect={(date) => {
+                    if (!date) return
+                    setSelectedDate(toYYYYMMDD(date))
+                    onDateChange()
+                    setCalOpen(false)
+                  }}
+                  disabled={isDateDisabled}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+            {openDaysLabel && (
+              <p className="text-[11px] text-muted-foreground">Buka: {openDaysLabel}</p>
+            )}
           </div>
           <div className="flex flex-col gap-1.5">
             <Label>Sesi</Label>
