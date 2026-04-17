@@ -130,8 +130,8 @@ export function Combobox({
                       key={option.value}
                       value={option.value}
                       className={cn(
-                        isSelected &&
-                          "bg-primary/10 text-primary data-[selected='true']:bg-primary/20",
+                        "data-[selected='true']:bg-transparent hover:data-[selected='true']:bg-accent",
+                        isSelected && "bg-primary/10 text-primary",
                       )}
                       onSelect={(currentValue) => {
                         onValueChange?.(
