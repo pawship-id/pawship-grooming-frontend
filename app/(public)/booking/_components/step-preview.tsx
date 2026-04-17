@@ -115,6 +115,9 @@ function PreviewError({ error, selectedLocationType }: { error: string; selected
             {distKm && <> Jarak ke store: <strong>{distKm} km</strong>.</>}
           </p>
           <ul className="mt-0.5 flex flex-col gap-0.5 text-xs text-red-700 dark:text-red-400">
+            {isHomeService && (
+              <li>• Coba pilih layanan <strong>In Store</strong> sebagai alternatif.</li>
+            )}
             <li>• Coba pilih store lain yang lebih dekat dengan lokasimu.</li>
             <li>• Pastikan alamat di profil kamu sudah sesuai dan koordinatnya akurat.</li>
             <li>• Jika masih bermasalah, hubungi store untuk informasi lebih lanjut.</li>
