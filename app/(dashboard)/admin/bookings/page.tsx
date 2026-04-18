@@ -10,6 +10,8 @@ import {
   ChevronRight,
   Download,
   FileSpreadsheet,
+  Truck,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +47,8 @@ import {
 } from "@/lib/api/bookings";
 import type { AdminBooking } from "@/lib/api/bookings";
 import { exportBookingsToExcel } from "@/lib/export-booking";
+import { getStores } from "@/lib/api/stores";
+import type { ApiStore } from "@/lib/api/stores";
 import { useToast } from "@/hooks/use-toast";
 
 const statusColors: Record<string, string> = {
@@ -56,6 +60,7 @@ const statusColors: Record<string, string> = {
   arrived: "bg-primary/10 text-primary",
   "in progress": "bg-primary/10 text-primary",
   completed: "bg-secondary/60 text-secondary-foreground",
+  returned: "bg-slate-100 text-slate-700 dark:bg-slate-800/50 dark:text-slate-300",
   rescheduled: "bg-accent/20 text-accent-foreground",
   cancelled: "bg-destructive/10 text-destructive",
 };
@@ -118,6 +123,8 @@ export default function BookingsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [createdByFilter, setCreatedByFilter] = useState<string>("all");
+  const [storeFilter, setStoreFilter] = useState<string>("all");
+  const [stores, setStores] = useState<ApiStore[]>([]);
   const [datePreset, setDatePreset] = useState<DatePreset>("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -157,6 +164,7 @@ export default function BookingsPage() {
         date_to: to || undefined,
         created_by_role:
           createdByFilter === "all" ? undefined : createdByFilter,
+        store_id: storeFilter === "all" ? undefined : storeFilter,
       })
         .then((res) => {
           setBookings(res.bookings);
@@ -165,13 +173,20 @@ export default function BookingsPage() {
         .catch(() => {})
         .finally(() => setLoading(false));
     },
-    [statusFilter, createdByFilter, datePreset, dateFrom, dateTo],
+    [statusFilter, createdByFilter, storeFilter, datePreset, dateFrom, dateTo],
   );
+
+  // Fetch stores for filter
+  useEffect(() => {
+    getStores({ page: 1, limit: 100 })
+      .then((res) => setStores(res.stores ?? []))
+      .catch(() => {});
+  }, []);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, createdByFilter, datePreset, dateFrom, dateTo]);
+  }, [statusFilter, createdByFilter, storeFilter, datePreset, dateFrom, dateTo]);
 
   useEffect(() => {
     fetchBookings(currentPage);
@@ -351,7 +366,7 @@ export default function BookingsPage() {
             </div>
 
             {/* Filters row */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-muted-foreground">
                   Status
@@ -374,6 +389,7 @@ export default function BookingsPage() {
                     <SelectItem value="arrived">Arrived</SelectItem>
                     <SelectItem value="in progress">In Progress</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="returned">Returned</SelectItem>
                     <SelectItem value="rescheduled">Rescheduled</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
@@ -395,6 +411,25 @@ export default function BookingsPage() {
                     <SelectItem value="all">Semua</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="customer">Customer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Store
+                </label>
+                <Select value={storeFilter} onValueChange={setStoreFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Store" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Store</SelectItem>
+                    {stores.map((store) => (
+                      <SelectItem key={store._id} value={store._id}>
+                        {store.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -458,6 +493,7 @@ export default function BookingsPage() {
             {/* Active filter summary + reset */}
             {(statusFilter !== "all" ||
               createdByFilter !== "all" ||
+              storeFilter !== "all" ||
               datePreset !== "") && (
               <div className="flex items-center justify-between border-t pt-2">
                 <div className="flex flex-wrap gap-1">
@@ -469,6 +505,11 @@ export default function BookingsPage() {
                   {createdByFilter !== "all" && (
                     <Badge variant="secondary" className="text-xs capitalize">
                       {createdByFilter}
+                    </Badge>
+                  )}
+                  {storeFilter !== "all" && (
+                    <Badge variant="secondary" className="text-xs">
+                      {stores.find((s) => s._id === storeFilter)?.name ?? storeFilter}
                     </Badge>
                   )}
                   {datePreset !== "" && datePreset !== "custom" && (
@@ -493,6 +534,7 @@ export default function BookingsPage() {
                   onClick={() => {
                     setStatusFilter("all");
                     setCreatedByFilter("all");
+                    setStoreFilter("all");
                     setDatePreset("");
                     setDateFrom("");
                     setDateTo("");
@@ -509,11 +551,11 @@ export default function BookingsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Tgl Booking</TableHead>
-                  <TableHead>Waktu</TableHead>
+                  <TableHead>Tanggal</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Hewan</TableHead>
                   <TableHead>Layanan</TableHead>
+                  <TableHead>Store</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Dibuat</TableHead>
                   <TableHead className="text-right">Harga</TableHead>
@@ -548,22 +590,49 @@ export default function BookingsPage() {
                         router.push(`/admin/bookings/${booking._id}`)
                       }
                     >
-                      <TableCell>{formatDate(booking.date)}</TableCell>
                       <TableCell className="whitespace-nowrap">
-                        {booking.time_range}
+                        <div className="flex flex-col">
+                          <span>{formatDate(booking.date)}</span>
+                          <span className="text-xs text-muted-foreground">{booking.time_range}</span>
+                        </div>
                       </TableCell>
                       <TableCell className="font-medium">
                         {booking.customer?.username ?? "-"}
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-col">
-                          <span>{booking.pet_snapshot.name}</span>
-                          <span className="text-xs text-muted-foreground capitalize">
-                            {booking.type}
-                          </span>
+                        {booking.pet_snapshot.name}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                          <span>{booking.service_snapshot.name}</span>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="text-xs text-muted-foreground capitalize flex items-center gap-0.5">
+                              <MapPin className="h-3 w-3" />
+                              {booking.type}
+                            </span>
+                            {(booking.service_addon_ids?.length ?? 0) > 0 && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+                                +{booking.service_addon_ids!.length} addon
+                              </Badge>
+                            )}
+                            {booking.pick_up && (
+                              <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4 gap-0.5">
+                                <Truck className="h-2.5 w-2.5" />
+                                Pickup
+                              </Badge>
+                            )}
+                            {booking.delivery && (
+                              <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4 gap-0.5">
+                                <Truck className="h-2.5 w-2.5" />
+                                Delivery
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
-                      <TableCell>{booking.service_snapshot.name}</TableCell>
+                      <TableCell className="text-sm">
+                        {booking.store?.name ?? "-"}
+                      </TableCell>
                       <TableCell>
                         <Badge
                           className={
@@ -724,6 +793,7 @@ export default function BookingsPage() {
                             In Progress
                           </SelectItem>
                           <SelectItem value="completed">Completed</SelectItem>
+                          <SelectItem value="returned">Returned</SelectItem>
                           <SelectItem value="rescheduled">
                             Rescheduled
                           </SelectItem>

@@ -247,6 +247,12 @@ export interface BookingPreviewPromotion {
   is_stackable: boolean;
   is_available_to_membership: boolean;
   amount_discount: number;
+  limit_type?: string;
+  max_usage?: number | null;
+  usage_period?: string;
+  can_use?: boolean;
+  usage_count?: number;
+  limit_message?: string | null;
 }
 
 export interface BookingPreviewResult {
@@ -344,12 +350,17 @@ export interface UpdateBookingPricingPayload {
   addon_prices?: { addon_id: string; price?: number; discount?: number }[];
   selected_benefit_ids?: string[];
   selected_promotion_ids?: string[];
+  service_addon_ids?: string[];
+  pick_up?: boolean;
+  delivery?: boolean;
 }
 
 export interface UpdateSessionPayload {
   notes?: string;
   internal_note?: string;
   groomer_id?: string;
+  started_at?: string;
+  finished_at?: string;
 }
 
 export interface FinishSessionPayload {
@@ -373,6 +384,7 @@ export interface GetAdminBookingsParams {
   date_to?: string;
   created_by_role?: string;
   customer_id?: string;
+  store_id?: string;
 }
 
 export async function getAdminBookings(params?: GetAdminBookingsParams) {
@@ -385,6 +397,7 @@ export async function getAdminBookings(params?: GetAdminBookingsParams) {
   if (params?.created_by_role)
     qs.set("created_by_role", params.created_by_role);
   if (params?.customer_id) qs.set("customer_id", params.customer_id);
+  if (params?.store_id) qs.set("store_id", params.store_id);
   const query = qs.toString();
   return apiAuthRequest<BookingsResponse>(
     query ? `/bookings?${query}` : "/bookings",

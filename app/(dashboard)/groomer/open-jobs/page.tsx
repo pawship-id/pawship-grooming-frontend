@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Calendar, Clock, MapPin, Store, Loader2, RefreshCw, UserPlus, Scissors, CheckCircle } from "lucide-react"
+import { Calendar, Clock, MapPin, Store, Loader2, RefreshCw, UserPlus, Scissors, CheckCircle, AlertCircle } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -224,12 +224,12 @@ export default function OpenJobsPage() {
                                 Open
                               </Badge>
                             ) : (
-                              <Badge variant="outline" className="text-xs text-muted-foreground">
+                              <Badge variant="outline" className="text-xs text-amber-700 dark:text-amber-500 border-amber-300 dark:border-amber-700">
                                 Open
                               </Badge>
                             )}
                           </div>
-                          {canClaim && (
+                          {canClaim ? (
                             <Button
                               size="sm"
                               onClick={() =>
@@ -244,6 +244,11 @@ export default function OpenJobsPage() {
                               )}
                               Claim
                             </Button>
+                          ) : !isClaimed && (
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                              Bukan skill kamu
+                            </span>
                           )}
                         </div>
                       )

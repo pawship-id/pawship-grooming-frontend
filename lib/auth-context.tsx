@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import type { AuthUser } from "./types"
 import { authUsers } from "./mock-data"
 import { clearAuthTokens, loginRequest, setAuthTokens } from "./api/index"
+import { getAccessToken } from "./api/storage"
 import { SESSION_EXPIRED_EVENT } from "./api/client"
 
 const AUTH_STORAGE_KEY = "pawship-auth"
@@ -24,6 +25,7 @@ interface TokenPayload {
 interface AuthContextType {
   user: AuthUser | null
   login: (email: string, password: string) => Promise<LoginResult>
+  loginSilent: (email: string, password: string) => Promise<LoginResult>
   logout: () => void
   isAuthenticated: boolean
 }
@@ -47,7 +49,10 @@ function parseJwtPayload(token: string): TokenPayload | null {
 
 function resolveRole(email: string, tokenPayload: TokenPayload | null): AuthUser["role"] {
   const role = tokenPayload?.role
-  if (role === "admin" || role === "groomer" || role === "customer") {
+  if (role === "admin" || role === "ops") {
+    return "admin"
+  }
+  if (role === "groomer" || role === "customer") {
     return role
   }
 
@@ -78,7 +83,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem(AUTH_STORAGE_KEY)
-      return saved ? JSON.parse(saved) : null
+      if (!saved) return null
+      const parsed = JSON.parse(saved) as AuthUser
+      // Re-resolve role from the stored token so cached sessions pick up
+      // role-mapping changes (e.g. ops → admin).
+      const token = getAccessToken()
+      if (token) {
+        const payload = parseJwtPayload(token)
+        const resolved = resolveRole(parsed.email, payload)
+        if (resolved !== parsed.role) {
+          parsed.role = resolved
+          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(parsed))
+        }
+      }
+      return parsed
     }
     return null
   })
@@ -113,6 +131,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [router]
   )
 
+  /** Authenticate and set tokens without redirecting — used by inline login modals */
+  const loginSilent = useCallback(
+    async (email: string, password: string) => {
+      try {
+        const response = await loginRequest(email, password)
+        const authenticatedUser = mapUserFromToken(email, response.access_token)
+
+        setUser(authenticatedUser)
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authenticatedUser))
+        setAuthTokens(response.access_token, response.refresh_token)
+
+        return { success: true }
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : "Login failed",
+        }
+      }
+    },
+    []
+  )
+
   const logout = useCallback(() => {
     setUser(null)
     localStorage.removeItem(AUTH_STORAGE_KEY)
@@ -137,6 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         login,
+        loginSilent,
         logout,
         isAuthenticated: !!user,
       }}

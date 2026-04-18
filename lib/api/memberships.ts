@@ -80,6 +80,7 @@ export interface MembershipPayload {
   pet_type_ids?: string[]
   is_active?: boolean
   benefits?: BenefitPayload[]
+  apply_retroactive?: boolean
 }
 
 export interface GetMembershipsParams {
@@ -148,6 +149,8 @@ export interface PetMembership {
   is_active: boolean
   status: MembershipStatus
   benefits_snapshot: BenefitSnapshot[]
+  purchase_price?: number
+  purchase_note?: string
   createdAt: string
   updatedAt: string
 }
@@ -199,6 +202,8 @@ export interface PurchasePetMembershipPayload {
   pet_id: string
   membership_plan_id: string
   start_date?: string
+  purchase_price?: number
+  purchase_note?: string
 }
 
 export interface UpdatePetMembershipPayload {
@@ -366,6 +371,7 @@ export interface MembershipHistoryItem {
   event_date: string
   start_date: string
   end_date: string
+  purchase_price?: number | null
   membership: {
     _id: string
     name: string
