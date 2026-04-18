@@ -39,10 +39,11 @@ export interface UserProfile {
 export interface ApiUser {
   _id: string;
   username: string;
-  email: string;
+  email?: string;
   phone_number: string;
   role: ApiRole;
   is_active: boolean;
+  is_idle?: boolean;
   createdAt: string;
   updatedAt: string;
   pet_count?: number;
@@ -148,16 +149,16 @@ export type GetUsersParams = {
 
 export type CreateUserPayload = {
   username: string;
-  email: string;
+  email?: string;
   phone_number: string;
-  password: string;
+  password?: string;
   role: ApiRole;
   is_active: boolean;
 };
 
 export type UpdateUserPayload = {
   username: string;
-  email: string;
+  email?: string;
   phone_number: string;
   role: ApiRole;
 };

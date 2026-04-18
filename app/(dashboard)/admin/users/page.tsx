@@ -150,6 +150,13 @@ const LIMIT = 12;
 type IsActiveFilter = "all" | "true" | "false";
 type ViewMode = "card" | "list";
 
+// ── Email validation helper ──────────────────────────────────────────────
+function isValidEmail(email: string): boolean {
+  if (!email || email.trim() === "") return false; // Empty is invalid for password input
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
 // ── Highlight helper ──────────────────────────────────────────────────────
 function Highlight({ text, query }: { text: string; query: string }) {
   if (!query.trim()) return <>{text}</>;
@@ -298,7 +305,7 @@ export default function UsersPage() {
 
     setEditForm({
       username: user.username,
-      email: user.email,
+      email: user.email || "",
       phone_number: user.phone_number,
       role: user.role,
       full_name: user.profile?.full_name ?? "",
@@ -331,7 +338,29 @@ export default function UsersPage() {
     e.preventDefault();
     setIsCreating(true);
     try {
-      const res = await createUser(createForm);
+      // Validate: non-customer roles require email and password
+      if (createForm.role !== "customer") {
+        if (!createForm.email || createForm.email.trim() === "") {
+          toast.error("Email wajib diisi untuk role selain customer");
+          setIsCreating(false);
+          return;
+        }
+        if (!createForm.password || createForm.password.trim() === "") {
+          toast.error("Password wajib diisi untuk role selain customer");
+          setIsCreating(false);
+          return;
+        }
+      }
+
+      // Remove email and password from payload if empty
+      const { email, password, ...rest } = createForm;
+      const payload: CreateUserPayload = {
+        ...rest,
+        ...(email && email.trim() !== "" && { email }),
+        ...(password && password.trim() !== "" && { password }),
+      };
+
+      const res = await createUser(payload);
       if (createImageFile && res.user?._id) {
         const uploaded = await uploadFile(createImageFile, "profiles");
         await adminUpdateUserProfile(res.user._id, {
@@ -358,12 +387,18 @@ export default function UsersPage() {
     setIsEditing(true);
     try {
       // Update user basic fields only
-      await updateUser(editUser._id, {
+      const payload: UpdateUserPayload = {
         username: editForm.username,
-        email: editForm.email,
         phone_number: editForm.phone_number,
         role: editForm.role,
-      });
+      };
+
+      // Only include email if not empty
+      if (editForm.email && editForm.email.trim() !== "") {
+        payload.email = editForm.email;
+      }
+
+      await updateUser(editUser._id, payload);
 
       // Update profile fields
       const profilePayload: any = {};
@@ -911,6 +946,16 @@ export default function UsersPage() {
                               >
                                 {user.is_active ? "Aktif" : "Nonaktif"}
                               </Badge>
+                              {user.role === "customer" &&
+                                (user.is_idle === true ||
+                                  user.is_idle === null) && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs w-fit bg-amber-50 text-amber-700 border-amber-200"
+                                  >
+                                    Idle
+                                  </Badge>
+                                )}
                             </div>
                           </div>
                         </div>
@@ -967,10 +1012,16 @@ export default function UsersPage() {
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Mail className="h-3.5 w-3.5 shrink-0" />
                         <span className="truncate">
-                          <Highlight
-                            text={user.email}
-                            query={debouncedSearch}
-                          />
+                          {user.email ? (
+                            <Highlight
+                              text={user.email}
+                              query={debouncedSearch}
+                            />
+                          ) : (
+                            <span className="italic text-muted-foreground">
+                              Tidak ada email
+                            </span>
+                          )}
                         </span>
                       </div>
                       {user.phone_number && (
@@ -1093,10 +1144,16 @@ export default function UsersPage() {
                               </div>
                             </TableCell>
                             <TableCell className="text-muted-foreground">
-                              <Highlight
-                                text={user.email}
-                                query={debouncedSearch}
-                              />
+                              {user.email ? (
+                                <Highlight
+                                  text={user.email}
+                                  query={debouncedSearch}
+                                />
+                              ) : (
+                                <span className="italic text-muted-foreground/60">
+                                  Tidak ada email
+                                </span>
+                              )}
                             </TableCell>
                             <TableCell className="text-muted-foreground">
                               {user.phone_number ? (
@@ -1127,12 +1184,24 @@ export default function UsersPage() {
                               )}
                             </TableCell>
                             <TableCell>
-                              <Badge
-                                variant="outline"
-                                className={`text-xs ${user.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}
-                              >
-                                {user.is_active ? "Aktif" : "Nonaktif"}
-                              </Badge>
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <Badge
+                                  variant="outline"
+                                  className={`text-xs ${user.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}
+                                >
+                                  {user.is_active ? "Aktif" : "Nonaktif"}
+                                </Badge>
+                                {user.role === "customer" &&
+                                  (user.is_idle === true ||
+                                    user.is_idle === null) && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs bg-amber-50 text-amber-700 border-amber-200"
+                                    >
+                                      Idle
+                                    </Badge>
+                                  )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               {user.role === "customer" && (
@@ -1315,7 +1384,9 @@ export default function UsersPage() {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="c-username">Username</Label>
+              <Label htmlFor="c-username">
+                Username <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="c-username"
                 placeholder="johndoe"
@@ -1327,20 +1398,9 @@ export default function UsersPage() {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="c-email">Email</Label>
-              <Input
-                id="c-email"
-                type="email"
-                placeholder="user@pawship.com"
-                required
-                value={createForm.email}
-                onChange={(e) =>
-                  setCreateForm((p) => ({ ...p, email: e.target.value }))
-                }
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="c-phone">Nomor Telepon</Label>
+              <Label htmlFor="c-phone">
+                Nomor Telepon <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="c-phone"
                 placeholder="08xxxxxxxxxx"
@@ -1352,18 +1412,48 @@ export default function UsersPage() {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="c-password">Password</Label>
+              <Label htmlFor="c-email">
+                Email
+                {createForm.role !== "customer" && (
+                  <span className="text-red-500"> *</span>
+                )}
+              </Label>
+              <Input
+                id="c-email"
+                type="email"
+                placeholder={
+                  createForm.role !== "customer"
+                    ? "user@pawship.com (wajib)"
+                    : "user@pawship.com (opsional)"
+                }
+                value={createForm.email}
+                onChange={(e) =>
+                  setCreateForm((p) => ({ ...p, email: e.target.value }))
+                }
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="c-password">
+                Password
+                {createForm.role !== "customer" && (
+                  <span className="text-red-500"> *</span>
+                )}
+              </Label>
               <div className="relative">
                 <Input
                   id="c-password"
                   type={showCreatePassword ? "text" : "password"}
-                  placeholder="Minimal 6 karakter"
-                  required
+                  placeholder={
+                    createForm.role !== "customer"
+                      ? "Minimal 6 karakter (wajib)"
+                      : "Minimal 6 karakter (opsional)"
+                  }
                   minLength={6}
                   value={createForm.password}
                   onChange={(e) =>
                     setCreateForm((p) => ({ ...p, password: e.target.value }))
                   }
+                  disabled={!isValidEmail(createForm.email ?? "")}
                   className="pr-10"
                 />
                 <button
@@ -1379,6 +1469,11 @@ export default function UsersPage() {
                   )}
                 </button>
               </div>
+              {createForm.email?.trim() && !isValidEmail(createForm.email) && (
+                <p className="text-xs text-amber-600">
+                  Masukkan email dengan format yang benar untuk mengisi password
+                </p>
+              )}
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="c-role">Role</Label>
@@ -1484,7 +1579,9 @@ export default function UsersPage() {
               </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="e-username">Username</Label>
+                  <Label htmlFor="e-username">
+                    Username <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     id="e-username"
                     placeholder="johndoe"
@@ -1496,22 +1593,9 @@ export default function UsersPage() {
                   />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="e-email">Email</Label>
-                  <Input
-                    id="e-email"
-                    type="email"
-                    placeholder="user@pawship.com"
-                    required
-                    value={editForm.email}
-                    onChange={(e) =>
-                      setEditForm((p) => ({ ...p, email: e.target.value }))
-                    }
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="e-phone">Nomor Telepon</Label>
+                  <Label htmlFor="e-phone">
+                    Nomor Telepon <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     id="e-phone"
                     placeholder="08xxxxxxxxxx"
@@ -1522,6 +1606,20 @@ export default function UsersPage() {
                         ...p,
                         phone_number: e.target.value,
                       }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="e-email">Email</Label>
+                  <Input
+                    id="e-email"
+                    type="email"
+                    placeholder="user@pawship.com"
+                    value={editForm.email}
+                    onChange={(e) =>
+                      setEditForm((p) => ({ ...p, email: e.target.value }))
                     }
                   />
                 </div>
