@@ -27,6 +27,8 @@ import type {
   ApplyBenefitPreviewResult,
   ApplyPromotionPreviewResult,
 } from "@/lib/api/bookings";
+import { getAdminServiceById } from "@/lib/api/services";
+import type { AdminServiceAddon } from "@/lib/api/services";
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -62,11 +64,19 @@ export function PriceEditPanel({
   const [editPromotionIds, setEditPromotionIds] = useState<string[]>([]);
   const [pricePromoResult, setPricePromoResult] = useState<ApplyPromotionPreviewResult | null>(null);
   const [loadingPricePromo, setLoadingPricePromo] = useState(false);
+  const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
+  const [allServiceAddons, setAllServiceAddons] = useState<{ _id: string; name: string; code?: string; price?: number }[]>([]);
+  const [loadingServiceAddons, setLoadingServiceAddons] = useState(false);
+  const [editPickup, setEditPickup] = useState(false);
+  const [editDelivery, setEditDelivery] = useState(false);
 
   // ── Initialize on mount ────────────────────────────────────────────────────
   useEffect(() => {
     setEditBenefitIds(booking.selected_benefit_ids ?? []);
     setEditPromotionIds(booking.selected_promotion_ids ?? []);
+    setSelectedAddonIds((booking.service_addon_ids ?? []).filter(Boolean));
+    setEditPickup(booking.pick_up ?? false);
+    setEditDelivery(booking.delivery ?? false);
     setEditServicePrice(String(booking.edited_service_price ?? booking.service_snapshot.price ?? ""));
     setEditServiceDiscount(String(booking.edited_service_discount ?? 0));
     setEditTravelFee((booking.pick_up || booking.delivery) ? String(booking.edited_travel_fee ?? booking.travel_fee ?? "") : "");
@@ -195,6 +205,59 @@ export function PriceEditPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Helper: resolve addon price based on pet attributes ────────────────────
+  const resolveAddonPrice = (addon: { price?: number; price_type?: string; prices?: { pet_type_id?: string; size_id?: string; hair_id?: string; price: number }[] }): number => {
+    if (!addon.price_type || addon.price_type === "single") return addon.price ?? 0;
+    const petTypeId = booking.pet_snapshot?.pet_type?._id;
+    const sizeId = booking.pet_snapshot?.size?._id;
+    const hairId = booking.pet_snapshot?.hair?._id;
+    const match = (addon.prices ?? []).find((p) => {
+      const petOk = petTypeId ? p.pet_type_id === petTypeId : !p.pet_type_id;
+      const sizeOk = sizeId ? p.size_id === sizeId : !p.size_id;
+      const hairOk = hairId ? p.hair_id === hairId : !p.hair_id;
+      return petOk && sizeOk && hairOk;
+    });
+    return match?.price ?? addon.price ?? 0;
+  };
+
+  // ── Fetch all available addons from live service ───────────────────────────
+  useEffect(() => {
+    const serviceId = booking.service_snapshot._id;
+    if (!serviceId) return;
+    setLoadingServiceAddons(true);
+    getAdminServiceById(serviceId)
+      .then((res) => {
+        const liveAddons = (res.service.addons ?? []).map((a) => ({
+          _id: a._id,
+          name: a.name,
+          code: a.code,
+          price: resolveAddonPrice(a),
+          price_type: a.price_type,
+          prices: a.prices,
+          duration: a.duration,
+        }));
+        // Merge: live addons + any snapshotted addons not in live (deleted addons still in booking)
+        const liveIdSet = new Set(liveAddons.map((a) => a._id));
+        const snapshotOnly = (booking.service_snapshot.addons ?? [])
+          .filter((a) => !liveIdSet.has(a._id))
+          .map((a) => ({ _id: a._id, name: a.name, code: a.code, price: a.price }));
+        setAllServiceAddons([...liveAddons, ...snapshotOnly]);
+      })
+      .catch(() => {
+        // Fallback to snapshotted addons
+        setAllServiceAddons(
+          (booking.service_snapshot.addons ?? []).map((a) => ({
+            _id: a._id,
+            name: a.name,
+            code: a.code,
+            price: a.price,
+          })),
+        );
+      })
+      .finally(() => setLoadingServiceAddons(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Benefit conflict resolution toggle ─────────────────────────────────────
   const toggleEditBenefit = (benefitId: string) => {
     if (!pricePreviewData) {
@@ -214,7 +277,7 @@ export function PriceEditPanel({
     }
     setEditBenefitIds((prev) => {
       if (prev.includes(benefitId)) return prev.filter((b) => b !== benefitId);
-      const addonIds = booking?.service_addon_ids ?? [];
+      const addonIds = selectedAddonIds;
       const conflicts = prev.filter((selId) => {
         const sel = pricePreviewData.pricing.available_benefits.find(
           (x: any) => x._id === selId,
@@ -260,13 +323,16 @@ export function PriceEditPanel({
     const svcBase = parseFloat(editServicePrice) || booking.service_snapshot.price || 0;
     const rawSvcDisc = parseFloat(editServiceDiscount) || 0;
     const svcDisc = editServiceDiscountType === "pct" ? Math.min(svcBase, (rawSvcDisc / 100) * svcBase) : Math.min(svcBase, rawSvcDisc);
-    const tFeeBase = (booking.pick_up || booking.delivery) ? (parseFloat(editTravelFee) || booking.travel_fee || 0) : 0;
-    const rawTFeeDisc = (booking.pick_up || booking.delivery) ? (parseFloat(editTravelFeeDiscount) || 0) : 0;
+    const tFeeBase = (editPickup || editDelivery || booking.type === "in home") ? (parseFloat(editTravelFee) || booking.travel_fee || 0) : 0;
+    const rawTFeeDisc = (editPickup || editDelivery || booking.type === "in home") ? (parseFloat(editTravelFeeDiscount) || 0) : 0;
     const tFeeDisc = editTravelFeeDiscountType === "pct" ? Math.min(tFeeBase, (rawTFeeDisc / 100) * tFeeBase) : Math.min(tFeeBase, rawTFeeDisc);
-    const addonTotal = (booking.service_snapshot.addons ?? []).reduce((sum, addon) => {
-      const base = parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0;
-      const rawDisc = parseFloat(editAddonDiscounts[addon._id!] ?? "0") || 0;
-      const discType = editAddonDiscountTypes[addon._id!] ?? "nominal";
+    const addonTotal = selectedAddonIds.reduce((sum, addonId) => {
+      const snapshotAddon = (booking.service_snapshot.addons ?? []).find((a) => a._id === addonId);
+      const liveAddon = allServiceAddons.find((a) => a._id === addonId);
+      const defaultPrice = snapshotAddon?.price ?? liveAddon?.price ?? 0;
+      const base = parseFloat(editAddonPrices[addonId] ?? String(defaultPrice)) || defaultPrice || 0;
+      const rawDisc = parseFloat(editAddonDiscounts[addonId] ?? "0") || 0;
+      const discType = editAddonDiscountTypes[addonId] ?? "nominal";
       const disc = discType === "pct" ? Math.min(base, (rawDisc / 100) * base) : Math.min(base, rawDisc);
       return sum + Math.max(0, base - disc);
     }, 0);
@@ -278,12 +344,12 @@ export function PriceEditPanel({
       pet_id: booking.pet_id,
       selected_benefit_ids: editBenefitIds,
       service_id: booking.service_snapshot._id,
-      add_on_ids: (booking.service_addon_ids ?? []).length > 0 ? booking.service_addon_ids : undefined,
+      add_on_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
       store_id: booking.store_id || undefined,
       original_total_price: editedSubtotal,
       booking_date: booking.date,
-      pick_up: booking.pick_up || undefined,
-      delivery: booking.delivery || undefined,
+      pick_up: editPickup || undefined,
+      delivery: editDelivery || undefined,
       exclude_booking_id: bookingId,
     })
       .then((res) => { if (!cancelled) setPriceApplyResult(res); })
@@ -304,27 +370,35 @@ export function PriceEditPanel({
     let cancelled = false;
     setLoadingPricePromo(true);
     const svcBase = parseFloat(editServicePrice) || booking.service_snapshot.price || 0;
-    const tFeeBase = (booking.pick_up || booking.delivery) ? (parseFloat(editTravelFee) || booking.travel_fee || 0) : 0;
-    const addonBaseTotal = (booking.service_snapshot.addons ?? []).reduce((sum, addon) => {
-      const base = parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0;
+    const tFeeBase = (editPickup || editDelivery || booking.type === "in home") ? (parseFloat(editTravelFee) || booking.travel_fee || 0) : 0;
+    const addonBaseTotal = selectedAddonIds.reduce((sum, addonId) => {
+      const snapshotAddon = (booking.service_snapshot.addons ?? []).find((a) => a._id === addonId);
+      const liveAddon = allServiceAddons.find((a) => a._id === addonId);
+      const defaultPrice = snapshotAddon?.price ?? liveAddon?.price ?? 0;
+      const base = parseFloat(editAddonPrices[addonId] ?? String(defaultPrice)) || defaultPrice || 0;
       return sum + base;
     }, 0);
     const originalGrandTotal = svcBase + tFeeBase + addonBaseTotal;
-    const editedAddonPricesArr = (booking.service_snapshot.addons ?? []).map((addon) => ({
-      _id: addon._id!,
-      name: addon.name ?? "",
-      price: parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0,
-    }));
+    const editedAddonPricesArr = selectedAddonIds.map((addonId) => {
+      const snapshotAddon = (booking.service_snapshot.addons ?? []).find((a) => a._id === addonId);
+      const liveAddon = allServiceAddons.find((a) => a._id === addonId);
+      const defaultPrice = snapshotAddon?.price ?? liveAddon?.price ?? 0;
+      return {
+        _id: addonId,
+        name: snapshotAddon?.name ?? liveAddon?.name ?? addonId,
+        price: parseFloat(editAddonPrices[addonId] ?? String(defaultPrice)) || defaultPrice || 0,
+      };
+    });
 
     applyPromotionPreview({
       selected_promotion_ids: editPromotionIds,
       service_id: booking.service_snapshot._id,
-      addon_ids: (booking.service_addon_ids ?? []).length > 0 ? booking.service_addon_ids : undefined,
+      addon_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
       original_service_price: svcBase,
       travel_fee: tFeeBase,
       grand_total: originalGrandTotal,
-      pick_up: booking.pick_up || undefined,
-      delivery: booking.delivery || undefined,
+      pick_up: editPickup || undefined,
+      delivery: editDelivery || undefined,
       has_active_membership: pricePreviewData.pricing.has_active_membership,
       addon_prices: editedAddonPricesArr,
     })
@@ -349,20 +423,26 @@ export function PriceEditPanel({
       const rawTFeeDisc = parseFloat(editTravelFeeDiscount) || 0;
       const tFeeDiscNominal = editTravelFeeDiscountType === "pct" ? Math.min(tFeeBase, (rawTFeeDisc / 100) * tFeeBase) : Math.min(tFeeBase, rawTFeeDisc);
 
-      const addonPricesPayload = (booking.service_snapshot.addons ?? []).map((addon) => {
-        const base = parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0;
-        const rawDisc = parseFloat(editAddonDiscounts[addon._id!] ?? "0") || 0;
-        const discType = editAddonDiscountTypes[addon._id!] ?? "nominal";
+      const addonPricesPayload = selectedAddonIds.map((addonId) => {
+        const snapshotAddon = (booking.service_snapshot.addons ?? []).find((a) => a._id === addonId);
+        const liveAddon = allServiceAddons.find((a) => a._id === addonId);
+        const defaultPrice = snapshotAddon?.price ?? liveAddon?.price ?? 0;
+        const base = parseFloat(editAddonPrices[addonId] ?? String(defaultPrice)) || defaultPrice || 0;
+        const rawDisc = parseFloat(editAddonDiscounts[addonId] ?? "0") || 0;
+        const discType = editAddonDiscountTypes[addonId] ?? "nominal";
         const discNominal = discType === "pct" ? Math.min(base, (rawDisc / 100) * base) : Math.min(base, rawDisc);
-        return { addon_id: addon._id!, price: base, discount: discNominal };
+        return { addon_id: addonId, price: base, discount: discNominal };
       });
       await updateBookingPricing(bookingId, {
+        service_addon_ids: selectedAddonIds,
+        pick_up: editPickup,
+        delivery: editDelivery,
         selected_benefit_ids: editBenefitIds,
         selected_promotion_ids: editPromotionIds.length > 0 ? editPromotionIds : undefined,
         service_price: !isNaN(svcPriceNum) ? svcPriceNum : undefined,
         service_discount: svcDiscNominal > 0 ? svcDiscNominal : undefined,
-        travel_fee: (booking.pick_up || booking.delivery) && !isNaN(tFeeNum) ? tFeeNum : undefined,
-        travel_fee_discount: (booking.pick_up || booking.delivery) && tFeeDiscNominal > 0 ? tFeeDiscNominal : undefined,
+        travel_fee: (editPickup || editDelivery || booking.type === "in home") && !isNaN(tFeeNum) ? tFeeNum : undefined,
+        travel_fee_discount: (editPickup || editDelivery || booking.type === "in home") && tFeeDiscNominal > 0 ? tFeeDiscNominal : undefined,
         addon_prices: addonPricesPayload.length > 0 ? addonPricesPayload : undefined,
       });
       await onSaved();
@@ -403,41 +483,109 @@ export function PriceEditPanel({
               />
             );
           })()}
-          {/* Addons */}
-          {(booking.service_snapshot.addons ?? []).map((addon) => {
-            const addonBase = parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0;
-            const rawDisc = parseFloat(editAddonDiscounts[addon._id!] ?? "0") || 0;
-            const discType = editAddonDiscountTypes[addon._id!] ?? "nominal";
+          {/* Addons - Toggle & Price Editors */}
+          {allServiceAddons.length > 0 && (
+            <div className="flex flex-col gap-2 rounded-lg border border-border/50 bg-card p-3">
+              <span className="text-sm font-medium text-foreground">
+                Addon / Layanan Tambahan
+                {loadingServiceAddons && <Loader2 className="ml-1.5 inline h-3.5 w-3.5 animate-spin" />}
+              </span>
+              <div className="flex flex-col gap-1.5">
+                {allServiceAddons.map((addon) => {
+                  const isSelected = selectedAddonIds.includes(addon._id);
+                  const snapshotAddon = (booking.service_snapshot.addons ?? []).find((a) => a._id === addon._id);
+                  const resolvedPrice = snapshotAddon?.price ?? addon.price ?? 0;
+                  return (
+                    <label key={addon._id} className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedAddonIds((prev) => [...prev, addon._id]);
+                            setEditAddonPrices((prev) => ({
+                              ...prev,
+                              [addon._id]: prev[addon._id] ?? String(resolvedPrice),
+                            }));
+                            setEditAddonDiscounts((prev) => ({
+                              ...prev,
+                              [addon._id]: prev[addon._id] ?? "0",
+                            }));
+                            setEditAddonDiscountTypes((prev) => ({
+                              ...prev,
+                              [addon._id]: prev[addon._id] ?? "nominal",
+                            }));
+                          } else {
+                            setSelectedAddonIds((prev) => prev.filter((id) => id !== addon._id));
+                          }
+                        }}
+                        className="shrink-0"
+                      />
+                      <span className="text-sm text-foreground">{addon.name}</span>
+                      {resolvedPrice > 0 && <span className="text-xs text-muted-foreground">({formatPrice(resolvedPrice)})</span>}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {/* Pickup / Delivery toggle */}
+          {booking.type === "in store" && (
+            <div className="flex flex-col gap-2 rounded-lg border border-border/50 bg-card p-3">
+              <span className="text-sm font-medium text-foreground flex items-center gap-1.5">
+                <Truck className="h-3.5 w-3.5 text-muted-foreground" />
+                Pickup & Delivery
+              </span>
+              <div className="flex flex-col gap-1.5">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox checked={editPickup} onCheckedChange={(c) => setEditPickup(!!c)} className="shrink-0" />
+                  <span className="text-sm text-foreground">Pickup (Jemput)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <Checkbox checked={editDelivery} onCheckedChange={(c) => setEditDelivery(!!c)} className="shrink-0" />
+                  <span className="text-sm text-foreground">Delivery (Antar)</span>
+                </label>
+              </div>
+            </div>
+          )}
+          {/* Addon Price Editors (only for selected addons) */}
+          {selectedAddonIds.map((addonId) => {
+            const snapshotAddon = (booking.service_snapshot.addons ?? []).find((a) => a._id === addonId);
+            const liveAddon = allServiceAddons.find((a) => a._id === addonId);
+            const addonName = snapshotAddon?.name ?? liveAddon?.name ?? addonId;
+            const defaultPrice = snapshotAddon?.price ?? liveAddon?.price ?? 0;
+            const addonBase = parseFloat(editAddonPrices[addonId] ?? String(defaultPrice)) || defaultPrice || 0;
+            const rawDisc = parseFloat(editAddonDiscounts[addonId] ?? "0") || 0;
+            const discType = editAddonDiscountTypes[addonId] ?? "nominal";
             const addonDiscNominal = discType === "pct" ? Math.min(addonBase, (rawDisc / 100) * addonBase) : Math.min(addonBase, rawDisc);
             const addonEff = Math.max(0, addonBase - addonDiscNominal);
             return (
               <ItemPriceEditor
-                key={addon._id}
-                label={`+ ${addon.name}`}
-                baseValue={editAddonPrices[addon._id!] ?? String(addon.price)}
-                onBaseChange={(v) => setEditAddonPrices((prev) => ({ ...prev, [addon._id!]: v }))}
-                discountValue={editAddonDiscounts[addon._id!] ?? ""}
-                onDiscountChange={(v) => setEditAddonDiscounts((prev) => ({ ...prev, [addon._id!]: v }))}
+                key={addonId}
+                label={`+ ${addonName}`}
+                baseValue={editAddonPrices[addonId] ?? String(defaultPrice)}
+                onBaseChange={(v) => setEditAddonPrices((prev) => ({ ...prev, [addonId]: v }))}
+                discountValue={editAddonDiscounts[addonId] ?? ""}
+                onDiscountChange={(v) => setEditAddonDiscounts((prev) => ({ ...prev, [addonId]: v }))}
                 discountType={discType}
                 onDiscountTypeChange={(t) => {
-                  setEditAddonDiscountTypes((prev) => ({ ...prev, [addon._id!]: t }));
-                  setEditAddonDiscounts((prev) => ({ ...prev, [addon._id!]: "" }));
+                  setEditAddonDiscountTypes((prev) => ({ ...prev, [addonId]: t }));
+                  setEditAddonDiscounts((prev) => ({ ...prev, [addonId]: "" }));
                 }}
                 effectivePrice={addonEff}
               />
             );
           })}
           {/* Travel fee */}
-          {(booking.pick_up || booking.delivery || booking.type === "in home") && (() => {
+          {(editPickup || editDelivery || booking.type === "in home") && (() => {
             const tFeeBase = parseFloat(editTravelFee) || booking.travel_fee || 0;
             const rawDisc = parseFloat(editTravelFeeDiscount) || 0;
             const tFeeDiscNominal = editTravelFeeDiscountType === "pct" ? Math.min(tFeeBase, (rawDisc / 100) * tFeeBase) : Math.min(tFeeBase, rawDisc);
             const tFeeEff = Math.max(0, tFeeBase - tFeeDiscNominal);
             const feeLabel = booking.type === "in home"
               ? "Biaya Home Service"
-              : booking.pick_up && booking.delivery
+              : editPickup && editDelivery
                 ? "Biaya Pickup & Delivery"
-                : booking.delivery
+                : editDelivery
                   ? "Biaya Delivery"
                   : "Biaya Pickup";
             return (
@@ -475,7 +623,7 @@ export function PriceEditPanel({
               const isSelected = editBenefitIds.includes(benefit._id);
               const isQuotaBenefit = benefit.type === "quota";
               const canApply = benefit.can_apply;
-              const addonIds = booking?.service_addon_ids ?? [];
+              const addonIds = selectedAddonIds;
               const available = pricePreviewData.pricing.available_benefits;
               const blockedByQuota = canApply && benefit.type === "discount" && !isSelected && (() => {
                 if (benefit.applies_to === "service") {
@@ -700,6 +848,10 @@ export function PriceEditPanel({
       {/* Live Preview */}
       <LivePreviewSection
         booking={booking}
+        selectedAddonIds={selectedAddonIds}
+        allServiceAddons={allServiceAddons}
+        editPickup={editPickup}
+        editDelivery={editDelivery}
         editServicePrice={editServicePrice}
         editServiceDiscount={editServiceDiscount}
         editServiceDiscountType={editServiceDiscountType}
@@ -816,6 +968,10 @@ function ItemPriceEditor({
 
 function LivePreviewSection({
   booking,
+  selectedAddonIds,
+  allServiceAddons,
+  editPickup,
+  editDelivery,
   editServicePrice,
   editServiceDiscount,
   editServiceDiscountType,
@@ -834,6 +990,10 @@ function LivePreviewSection({
   loadingPricePromo,
 }: {
   booking: AdminBooking;
+  selectedAddonIds: string[];
+  allServiceAddons: { _id: string; name: string; code?: string; price?: number }[];
+  editPickup: boolean;
+  editDelivery: boolean;
   editServicePrice: string;
   editServiceDiscount: string;
   editServiceDiscountType: "nominal" | "pct";
@@ -854,16 +1014,22 @@ function LivePreviewSection({
   const svcBase = parseFloat(editServicePrice) || booking.service_snapshot.price || 0;
   const rawSvcDisc = parseFloat(editServiceDiscount) || 0;
   const svcDisc = editServiceDiscountType === "pct" ? Math.min(svcBase, (rawSvcDisc / 100) * svcBase) : Math.min(svcBase, rawSvcDisc);
-  const tFeeBase = (booking.pick_up || booking.delivery || booking.type === "in home") ? (parseFloat(editTravelFee) || booking.travel_fee || 0) : 0;
-  const rawTFeeDisc = (booking.pick_up || booking.delivery || booking.type === "in home") ? (parseFloat(editTravelFeeDiscount) || 0) : 0;
+  const tFeeBase = (editPickup || editDelivery || booking.type === "in home") ? (parseFloat(editTravelFee) || booking.travel_fee || 0) : 0;
+  const rawTFeeDisc = (editPickup || editDelivery || booking.type === "in home") ? (parseFloat(editTravelFeeDiscount) || 0) : 0;
   const tFeeDisc = editTravelFeeDiscountType === "pct" ? Math.min(tFeeBase, (rawTFeeDisc / 100) * tFeeBase) : Math.min(tFeeBase, rawTFeeDisc);
-  const addonBase = (booking.service_snapshot.addons ?? []).reduce((sum, addon) => {
-    return sum + (parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0);
+  const addonBase = selectedAddonIds.reduce((sum, addonId) => {
+    const snapshotAddon = (booking.service_snapshot.addons ?? []).find((a) => a._id === addonId);
+    const liveAddon = allServiceAddons.find((a) => a._id === addonId);
+    const defaultPrice = snapshotAddon?.price ?? liveAddon?.price ?? 0;
+    return sum + (parseFloat(editAddonPrices[addonId] ?? String(defaultPrice)) || defaultPrice || 0);
   }, 0);
-  const addonItemDisc = (booking.service_snapshot.addons ?? []).reduce((sum, addon) => {
-    const base = parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0;
-    const rawDisc = parseFloat(editAddonDiscounts[addon._id!] ?? "0") || 0;
-    const discType = editAddonDiscountTypes[addon._id!] ?? "nominal";
+  const addonItemDisc = selectedAddonIds.reduce((sum, addonId) => {
+    const snapshotAddon = (booking.service_snapshot.addons ?? []).find((a) => a._id === addonId);
+    const liveAddon = allServiceAddons.find((a) => a._id === addonId);
+    const defaultPrice = snapshotAddon?.price ?? liveAddon?.price ?? 0;
+    const base = parseFloat(editAddonPrices[addonId] ?? String(defaultPrice)) || defaultPrice || 0;
+    const rawDisc = parseFloat(editAddonDiscounts[addonId] ?? "0") || 0;
+    const discType = editAddonDiscountTypes[addonId] ?? "nominal";
     return sum + (discType === "pct" ? Math.min(base, (rawDisc / 100) * base) : Math.min(base, rawDisc));
   }, 0);
   const originalTotal = svcBase + tFeeBase + addonBase;
@@ -902,15 +1068,19 @@ function LivePreviewSection({
                 <span className="shrink-0">- {formatPrice(svcDisc)}</span>
               </div>
             )}
-            {(booking.service_snapshot.addons ?? []).map((addon) => {
-              const base = parseFloat(editAddonPrices[addon._id!] ?? String(addon.price)) || addon.price || 0;
-              const rawDisc = parseFloat(editAddonDiscounts[addon._id!] ?? "0") || 0;
-              const discType = editAddonDiscountTypes[addon._id!] ?? "nominal";
+            {selectedAddonIds.map((addonId) => {
+              const snapshotAddon = (booking.service_snapshot.addons ?? []).find((a) => a._id === addonId);
+              const liveAddon = allServiceAddons.find((a) => a._id === addonId);
+              const addonName = snapshotAddon?.name ?? liveAddon?.name ?? addonId;
+              const defaultPrice = snapshotAddon?.price ?? liveAddon?.price ?? 0;
+              const base = parseFloat(editAddonPrices[addonId] ?? String(defaultPrice)) || defaultPrice || 0;
+              const rawDisc = parseFloat(editAddonDiscounts[addonId] ?? "0") || 0;
+              const discType = editAddonDiscountTypes[addonId] ?? "nominal";
               const disc = discType === "pct" ? Math.min(base, (rawDisc / 100) * base) : Math.min(base, rawDisc);
               if (disc <= 0) return null;
               return (
-                <div key={addon._id} className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="truncate pr-4">+ {addon.name}</span>
+                <div key={addonId} className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span className="truncate pr-4">+ {addonName}</span>
                   <span className="shrink-0">- {formatPrice(disc)}</span>
                 </div>
               );

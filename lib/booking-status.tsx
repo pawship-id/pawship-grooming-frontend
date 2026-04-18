@@ -3,6 +3,7 @@ import {
   Clock,
   Scissors,
   XCircle,
+  Undo2,
 } from "lucide-react";
 
 // ── Rich status config (label + className + icon) ────────────────────────────
@@ -50,6 +51,11 @@ export const bookingStatusConfig: Record<
     className: "bg-secondary/60 text-secondary-foreground border-border/40",
     icon: <CheckCircle2 className="h-3 w-3" />,
   },
+  returned: {
+    label: "Returned",
+    className: "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800/50 dark:text-slate-300 dark:border-slate-700",
+    icon: <Undo2 className="h-3 w-3" />,
+  },
   rescheduled: {
     label: "Rescheduled",
     className: "bg-purple-100 text-purple-700 border-purple-200",
@@ -72,6 +78,7 @@ export const statusColors: Record<string, string> = {
   arrived: "bg-primary/10 text-primary",
   "in progress": "bg-primary/10 text-primary",
   completed: "bg-secondary/60 text-secondary-foreground",
+  returned: "bg-slate-100 text-slate-700 dark:bg-slate-800/50 dark:text-slate-300",
   rescheduled: "bg-accent/20 text-accent-foreground",
   cancelled: "bg-destructive/10 text-destructive",
 };

@@ -60,6 +60,7 @@ interface GroomingSessionsCardProps {
   refreshBooking: () => Promise<void>;
   groomers: ApiUser[];
   sessionSkillOptions: ApiOption[];
+  readOnly?: boolean;
 }
 
 export function GroomingSessionsCard({
@@ -68,6 +69,7 @@ export function GroomingSessionsCard({
   refreshBooking,
   groomers,
   sessionSkillOptions,
+  readOnly = false,
 }: GroomingSessionsCardProps) {
   // Session add state
   const [newSessionType, setNewSessionType] = useState("");
@@ -337,7 +339,7 @@ export function GroomingSessionsCard({
                       {session.status}
                     </Badge>
                   </div>
-                  {session._id && (
+                  {session._id && !readOnly && (
                     <div className="flex shrink-0 gap-2">
                       {session.status === "not started" && (
                         <>
@@ -396,7 +398,7 @@ export function GroomingSessionsCard({
                         <Scissors className="h-3 w-3" />
                         {session.groomer_detail.username}
                       </span>
-                      {session.status === "not started" && (
+                      {session.status === "not started" && !readOnly && (
                         <Button
                           type="button"
                           size="sm"
@@ -421,7 +423,7 @@ export function GroomingSessionsCard({
                       <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-400">
                         Belum ada groomer
                       </span>
-                      {session.status === "not started" && (
+                      {session.status === "not started" && !readOnly && (
                         <Button
                           type="button"
                           size="sm"
@@ -465,6 +467,7 @@ export function GroomingSessionsCard({
                           size="sm"
                           variant="ghost"
                           className="h-7 w-7 p-0"
+                          disabled={readOnly}
                           onClick={() => {
                             setEditingSessionId(session._id || null);
                             const startDate = new Date(session.started_at!);
@@ -503,6 +506,7 @@ export function GroomingSessionsCard({
                           size="sm"
                           variant="ghost"
                           className="h-7 w-7 p-0"
+                          disabled={readOnly}
                           onClick={() => {
                             setEditingFinishSessionId(session._id || null);
                             const finishDate = new Date(session.finished_at!);
@@ -582,7 +586,7 @@ export function GroomingSessionsCard({
                         </p>
                       )}
                     </div>
-                    {session._id && (
+                    {session._id && !readOnly && (
                       <Button
                         type="button"
                         size="sm"
@@ -604,7 +608,8 @@ export function GroomingSessionsCard({
           })}
 
           {/* Add session form */}
-          {booking.booking_status !== "completed" &&
+          {!readOnly &&
+            booking.booking_status !== "completed" &&
             booking.booking_status !== "cancelled" && (
               <div className="flex flex-col gap-3 rounded-lg border border-dashed border-border/50 p-3 sm:flex-row sm:items-end">
                 <div className="flex flex-1 flex-col gap-1">

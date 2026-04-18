@@ -39,6 +39,7 @@ const IN_STORE_MAIN_FLOW = [
   "arrived",
   "in progress",
   "completed",
+  "returned",
 ];
 const IN_STORE_PICKUP_MAIN_FLOW = [
   "requested",
@@ -47,6 +48,7 @@ const IN_STORE_PICKUP_MAIN_FLOW = [
   "arrived",
   "in progress",
   "completed",
+  "returned",
 ];
 const IN_HOME_MAIN_FLOW = [
   "requested",
@@ -55,6 +57,7 @@ const IN_HOME_MAIN_FLOW = [
   "arrived",
   "in progress",
   "completed",
+  "returned",
 ];
 
 const IN_STORE_TRANSITIONS: Record<string, string[]> = {
@@ -64,7 +67,8 @@ const IN_STORE_TRANSITIONS: Record<string, string[]> = {
   confirmed: ["arrived", "rescheduled", "cancelled"],
   arrived: ["in progress", "rescheduled", "cancelled"],
   "in progress": ["completed", "cancelled"],
-  completed: [],
+  completed: ["returned"],
+  returned: [],
   cancelled: [],
 };
 
@@ -76,7 +80,8 @@ const IN_STORE_PICKUP_TRANSITIONS: Record<string, string[]> = {
   "driver on the way": ["arrived", "rescheduled", "cancelled"],
   arrived: ["in progress", "rescheduled", "cancelled"],
   "in progress": ["completed", "cancelled"],
-  completed: [],
+  completed: ["returned"],
+  returned: [],
   cancelled: [],
 };
 
@@ -88,7 +93,8 @@ const IN_HOME_TRANSITIONS: Record<string, string[]> = {
   "groomer on the way": ["arrived", "rescheduled", "cancelled"],
   arrived: ["in progress", "rescheduled", "cancelled"],
   "in progress": ["completed", "cancelled"],
-  completed: [],
+  completed: ["returned"],
+  returned: [],
   cancelled: [],
 };
 
@@ -327,13 +333,32 @@ export function StatusBookingCard({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Ubah Status?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {selectedStatus === "returned"
+                ? "Ubah ke Returned?"
+                : "Ubah Status?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Status booking akan diubah menjadi{" "}
-              <span className="font-semibold capitalize text-foreground">
-                {selectedStatus}
-              </span>
-              . Tindakan ini tidak dapat dibatalkan.
+              {selectedStatus === "returned" ? (
+                <>
+                  Setelah status diubah ke{" "}
+                  <span className="font-semibold text-foreground">Returned</span>
+                  , tidak ada lagi perubahan yang dapat dilakukan pada booking
+                  ini, termasuk update sesi, groomer, harga, dan upload media.
+                  <br />
+                  <span className="mt-2 inline-block font-semibold text-destructive">
+                    Apakah Anda yakin?
+                  </span>
+                </>
+              ) : (
+                <>
+                  Status booking akan diubah menjadi{" "}
+                  <span className="font-semibold capitalize text-foreground">
+                    {selectedStatus}
+                  </span>
+                  . Tindakan ini tidak dapat dibatalkan.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -343,8 +368,11 @@ export function StatusBookingCard({
                 setConfirmingStatus(false);
                 handleSaveStatus();
               }}
+              className={selectedStatus === "returned" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
             >
-              Ya, Ubah Status
+              {selectedStatus === "returned"
+                ? "Ya, Ubah ke Returned"
+                : "Ya, Ubah Status"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

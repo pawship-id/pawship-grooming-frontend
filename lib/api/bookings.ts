@@ -350,6 +350,9 @@ export interface UpdateBookingPricingPayload {
   addon_prices?: { addon_id: string; price?: number; discount?: number }[];
   selected_benefit_ids?: string[];
   selected_promotion_ids?: string[];
+  service_addon_ids?: string[];
+  pick_up?: boolean;
+  delivery?: boolean;
 }
 
 export interface UpdateSessionPayload {
