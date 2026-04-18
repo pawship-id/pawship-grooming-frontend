@@ -166,9 +166,31 @@ function MembershipCard({
             </p>
           </div>
         </div>
+        {/* note */}
+        {pm.purchase_note && (
+          <p className="text-xs text-muted-foreground italic truncate" title={pm.purchase_note}>
+            {pm.purchase_note}
+          </p>
+        )}
         {/* footer */}
         <div className="flex items-center justify-between mt-auto pt-1">
-          <span className="text-xs text-muted-foreground">{pm.membership.duration_months} Bulan</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">{pm.membership.duration_months} Bulan</span>
+            {pm.purchase_price != null && (
+              <>
+                <span className="text-xs text-muted-foreground">·</span>
+                {pm.purchase_price !== pm.membership.price ? (
+                  <span className="text-xs">
+                    <span className="text-muted-foreground line-through">Rp {pm.membership.price.toLocaleString("id-ID")}</span>
+                    {" "}
+                    <span className="font-medium text-foreground">Rp {pm.purchase_price.toLocaleString("id-ID")}</span>
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Rp {pm.purchase_price.toLocaleString("id-ID")}</span>
+                )}
+              </>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             {(pm.status === "active" || pm.status === "pending") && (
               <button
@@ -239,6 +261,8 @@ export default function PetMembershipsPage() {
   const [purchaseStartDate, setPurchaseStartDate] = useState<string>(
     () => new Date().toISOString().split("T")[0]
   )
+  const [purchasePrice, setPurchasePrice] = useState<string>("")
+  const [purchaseNote, setPurchaseNote] = useState<string>("")
   const [isPurchasing, setIsPurchasing] = useState(false)
 
   // Cancel dialog
@@ -347,15 +371,24 @@ export default function PetMembershipsPage() {
     }
     setIsPurchasing(true)
     try {
-      await purchasePetMembership({
+      const payload: Parameters<typeof purchasePetMembership>[0] = {
         pet_id: petId,
         membership_plan_id: selectedPlanId,
         start_date: new Date(purchaseStartDate).toISOString(),
-      })
+      }
+      if (purchasePrice !== "") {
+        payload.purchase_price = Number(purchasePrice.replace(/\./g, "").replace(/\D/g, ""))
+      }
+      if (purchaseNote.trim()) {
+        payload.purchase_note = purchaseNote.trim()
+      }
+      await purchasePetMembership(payload)
       toast.success("Membership berhasil dibeli")
       setPurchaseOpen(false)
       setSelectedPlanId("")
       setPurchaseStartDate(new Date().toISOString().split("T")[0])
+      setPurchasePrice("")
+      setPurchaseNote("")
       loadMemberships()
       loadTabCounts()
       loadNonCancelledMemberships()
@@ -650,22 +683,24 @@ export default function PetMembershipsPage() {
                   <TableHead>Event</TableHead>
                   <TableHead>Tanggal</TableHead>
                   <TableHead>Paket</TableHead>
+                  <TableHead>Harga</TableHead>
                   <TableHead>Mulai</TableHead>
                   <TableHead>Berakhir</TableHead>
+                  <TableHead>Catatan</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoadingHistory2 ? (
                   Array.from({ length: 3 }).map((_, i) => (
                     <TableRow key={i}>
-                      {Array.from({ length: 5 }).map((__, j) => (
+                      {Array.from({ length: 7 }).map((__, j) => (
                         <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                       ))}
                     </TableRow>
                   ))
                 ) : membershipHistory.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
                       Belum ada riwayat membership
                     </TableCell>
                   </TableRow>
@@ -687,8 +722,26 @@ export default function PetMembershipsPage() {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{formatDate(h.event_date)}</TableCell>
                       <TableCell className="text-sm font-medium">{h.membership.name}</TableCell>
+                      <TableCell className="text-sm">
+                        {h.purchase_price != null ? (
+                          h.purchase_price !== h.membership.price ? (
+                            <span>
+                              <span className="text-muted-foreground line-through">Rp {h.membership.price.toLocaleString("id-ID")}</span>
+                              {" "}
+                              <span className="font-medium">Rp {h.purchase_price.toLocaleString("id-ID")}</span>
+                            </span>
+                          ) : (
+                            <span>Rp {h.purchase_price.toLocaleString("id-ID")}</span>
+                          )
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-sm">{formatDate(h.start_date)}</TableCell>
                       <TableCell className="text-sm">{formatDate(h.end_date)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate" title={h.note ?? ""}>
+                        {h.note || "-"}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -764,7 +817,7 @@ export default function PetMembershipsPage() {
       </div>
 
       {/* Purchase Dialog */}
-      <Dialog open={purchaseOpen} onOpenChange={(open) => { if (!open) { setPurchaseOpen(false); setSelectedPlanId(""); setPurchaseStartDate(new Date().toISOString().split("T")[0]) } }}>
+      <Dialog open={purchaseOpen} onOpenChange={(open) => { if (!open) { setPurchaseOpen(false); setSelectedPlanId(""); setPurchaseStartDate(new Date().toISOString().split("T")[0]); setPurchasePrice(""); setPurchaseNote("") } }}>
         <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle className="font-display">Beli Membership</DialogTitle>
@@ -826,15 +879,45 @@ export default function PetMembershipsPage() {
                 )}
               </div>
 
-              {/* Start Date */}
+              {/* Start Date & Price Override */}
+              {selectedPlanId && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="purchase-start-date">Tanggal Mulai</Label>
+                    <Input
+                      id="purchase-start-date"
+                      type="date"
+                      value={purchaseStartDate}
+                      onChange={(e) => setPurchaseStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="purchase-price">Harga Override <span className="text-muted-foreground text-xs font-normal">(opsional)</span></Label>
+                    <Input
+                      id="purchase-price"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder={(() => { const plan = availablePlans.find((p) => p._id === selectedPlanId); return plan ? plan.price.toLocaleString("id-ID") : "0" })()}
+                      value={purchasePrice ? Number(purchasePrice).toLocaleString("id-ID") : ""}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\./g, "").replace(/\D/g, "")
+                        setPurchasePrice(raw)
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Note */}
               {selectedPlanId && (
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="purchase-start-date">Tanggal Mulai</Label>
-                  <Input
-                    id="purchase-start-date"
-                    type="date"
-                    value={purchaseStartDate}
-                    onChange={(e) => setPurchaseStartDate(e.target.value)}
+                  <Label htmlFor="purchase-note">Catatan <span className="text-muted-foreground text-xs font-normal">(opsional)</span></Label>
+                  <Textarea
+                    id="purchase-note"
+                    placeholder="Catatan pembelian, misal: promo ulang tahun, diskon khusus, dll..."
+                    rows={2}
+                    value={purchaseNote}
+                    onChange={(e) => setPurchaseNote(e.target.value)}
                   />
                 </div>
               )}
@@ -845,6 +928,9 @@ export default function PetMembershipsPage() {
                 if (!plan) return null
                 const startDate = purchaseStartDate ? new Date(purchaseStartDate) : new Date()
                 const endDate = addMonths(startDate, plan.duration_months)
+                const overridePrice = purchasePrice ? Number(purchasePrice) : null
+                const finalPrice = overridePrice ?? plan.price
+                const hasOverride = overridePrice !== null && overridePrice !== plan.price
                 return (
                   <>
                     {/* Benefits */}
@@ -878,7 +964,12 @@ export default function PetMembershipsPage() {
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Ringkasan Pembelian</p>
                       <div className="flex justify-between items-center">
                         <span className="text-sm">{plan.name}</span>
-                        <span className="text-sm font-semibold">Rp {plan.price.toLocaleString("id-ID")}</span>
+                        <div className="flex items-center gap-2">
+                          {hasOverride && (
+                            <span className="text-sm text-muted-foreground line-through">Rp {plan.price.toLocaleString("id-ID")}</span>
+                          )}
+                          <span className="text-sm font-semibold">Rp {finalPrice.toLocaleString("id-ID")}</span>
+                        </div>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-xs text-muted-foreground">Masa Aktif</span>
@@ -891,7 +982,7 @@ export default function PetMembershipsPage() {
                       <Separator className="opacity-50" />
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-semibold">Total</span>
-                        <span className="text-sm font-bold">Rp {plan.price.toLocaleString("id-ID")}</span>
+                        <span className="text-sm font-bold">Rp {finalPrice.toLocaleString("id-ID")}</span>
                       </div>
                     </div>
                   </>
@@ -900,7 +991,7 @@ export default function PetMembershipsPage() {
             </div>
 
             <div className="pt-4 border-t border-border mt-2 flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => { setPurchaseOpen(false); setSelectedPlanId(""); setPurchaseStartDate(new Date().toISOString().split("T")[0]) }}>Batal</Button>
+              <Button type="button" variant="outline" onClick={() => { setPurchaseOpen(false); setSelectedPlanId(""); setPurchaseStartDate(new Date().toISOString().split("T")[0]); setPurchasePrice(""); setPurchaseNote("") }}>Batal</Button>
               <Button type="submit" disabled={isPurchasing || !selectedPlanId}>
                 {isPurchasing ? "Memproses..." : "Beli Sekarang"}
               </Button>
