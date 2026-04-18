@@ -27,8 +27,9 @@ import type {
   ApplyBenefitPreviewResult,
   ApplyPromotionPreviewResult,
 } from "@/lib/api/bookings";
-import { getAdminServiceById } from "@/lib/api/services";
+import { getAdminServiceById, getAdminServices } from "@/lib/api/services";
 import type { AdminServiceAddon } from "@/lib/api/services";
+import { getServiceTypes } from "@/lib/api/service-types";
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -220,41 +221,65 @@ export function PriceEditPanel({
     return match?.price ?? addon.price ?? 0;
   };
 
-  // ── Fetch all available addons from live service ───────────────────────────
+  // ── Fetch all available addons from live service + store "addons" type ─────
   useEffect(() => {
     const serviceId = booking.service_snapshot._id;
     if (!serviceId) return;
     setLoadingServiceAddons(true);
-    getAdminServiceById(serviceId)
-      .then((res) => {
-        const liveAddons = (res.service.addons ?? []).map((a) => ({
-          _id: a._id,
-          name: a.name,
-          code: a.code,
-          price: resolveAddonPrice(a),
-          price_type: a.price_type,
-          prices: a.prices,
-          duration: a.duration,
-        }));
-        // Merge: live addons + any snapshotted addons not in live (deleted addons still in booking)
-        const liveIdSet = new Set(liveAddons.map((a) => a._id));
-        const snapshotOnly = (booking.service_snapshot.addons ?? [])
-          .filter((a) => !liveIdSet.has(a._id))
-          .map((a) => ({ _id: a._id, name: a.name, code: a.code, price: a.price }));
-        setAllServiceAddons([...liveAddons, ...snapshotOnly]);
-      })
-      .catch(() => {
-        // Fallback to snapshotted addons
-        setAllServiceAddons(
-          (booking.service_snapshot.addons ?? []).map((a) => ({
-            _id: a._id,
-            name: a.name,
-            code: a.code,
-            price: a.price,
-          })),
-        );
-      })
-      .finally(() => setLoadingServiceAddons(false));
+
+    const fetchServiceAddons = getAdminServiceById(serviceId).then((res) =>
+      (res.service.addons ?? []).map((a) => ({
+        _id: a._id,
+        name: a.name,
+        code: a.code,
+        price: resolveAddonPrice(a),
+        price_type: a.price_type,
+        prices: a.prices,
+        duration: a.duration,
+      })),
+    ).catch(() => [] as { _id: string; name: string; code?: string; price?: number; price_type?: string; prices?: any[]; duration?: number }[]);
+
+    // Also fetch services under the "addons" service type for this store
+    const storeId = booking.store_id ?? (booking as any).store?._id;
+    const fetchStoreAddons = storeId
+      ? getServiceTypes({ limit: 100 }).then(async (stRes) => {
+          const addonsType = stRes.serviceTypes.find(
+            (st) => st.title.toLowerCase() === "addons",
+          );
+          if (!addonsType) return [];
+          const svcRes = await getAdminServices({
+            service_type_id: addonsType._id,
+            store_id: storeId,
+            is_active: "true",
+            limit: 100,
+          });
+          return (svcRes.services ?? []).map((s) => ({
+            _id: s._id,
+            name: s.name,
+            code: s.code,
+            price: resolveAddonPrice(s),
+            price_type: s.price_type,
+            prices: s.prices,
+            duration: s.duration,
+          }));
+        }).catch(() => [] as { _id: string; name: string; code?: string; price?: number; price_type?: string; prices?: any[]; duration?: number }[])
+      : Promise.resolve([] as { _id: string; name: string; code?: string; price?: number; price_type?: string; prices?: any[]; duration?: number }[]);
+
+    Promise.all([fetchServiceAddons, fetchStoreAddons]).then(([serviceAddons, storeAddons]) => {
+      // Merge all sources, deduplicate by _id
+      const merged = new Map<string, typeof serviceAddons[number]>();
+      for (const a of serviceAddons) merged.set(a._id, a);
+      for (const a of storeAddons) {
+        if (!merged.has(a._id)) merged.set(a._id, a);
+      }
+      // Also keep any snapshotted addons not in live (deleted addons still in booking)
+      for (const a of (booking.service_snapshot.addons ?? [])) {
+        if (!merged.has(a._id)) {
+          merged.set(a._id, { _id: a._id, name: a.name, code: a.code, price: a.price });
+        }
+      }
+      setAllServiceAddons(Array.from(merged.values()));
+    }).finally(() => setLoadingServiceAddons(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -537,11 +562,21 @@ export function PriceEditPanel({
               </span>
               <div className="flex flex-col gap-1.5">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <Checkbox checked={editPickup} onCheckedChange={(c) => setEditPickup(!!c)} className="shrink-0" />
+                  <Checkbox checked={editPickup} onCheckedChange={(c) => {
+                    setEditPickup(!!c);
+                    if (c && !editDelivery && !editTravelFee) {
+                      setEditTravelFee(String(booking.travel_fee ?? ""));
+                    }
+                  }} className="shrink-0" />
                   <span className="text-sm text-foreground">Pickup (Jemput)</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <Checkbox checked={editDelivery} onCheckedChange={(c) => setEditDelivery(!!c)} className="shrink-0" />
+                  <Checkbox checked={editDelivery} onCheckedChange={(c) => {
+                    setEditDelivery(!!c);
+                    if (c && !editPickup && !editTravelFee) {
+                      setEditTravelFee(String(booking.travel_fee ?? ""));
+                    }
+                  }} className="shrink-0" />
                   <span className="text-sm text-foreground">Delivery (Antar)</span>
                 </label>
               </div>

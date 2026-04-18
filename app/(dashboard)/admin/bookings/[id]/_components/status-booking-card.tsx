@@ -50,6 +50,25 @@ const IN_STORE_PICKUP_MAIN_FLOW = [
   "completed",
   "returned",
 ];
+const IN_STORE_DELIVERY_MAIN_FLOW = [
+  "requested",
+  "confirmed",
+  "arrived",
+  "in progress",
+  "completed",
+  "driver on the way",
+  "returned",
+];
+const IN_STORE_PICKUP_DELIVERY_MAIN_FLOW = [
+  "requested",
+  "confirmed",
+  "driver on the way",
+  "arrived",
+  "in progress",
+  "completed",
+  "driver on the way (delivery)",
+  "returned",
+];
 const IN_HOME_MAIN_FLOW = [
   "requested",
   "confirmed",
@@ -81,6 +100,32 @@ const IN_STORE_PICKUP_TRANSITIONS: Record<string, string[]> = {
   arrived: ["in progress", "rescheduled", "cancelled"],
   "in progress": ["completed", "cancelled"],
   completed: ["returned"],
+  returned: [],
+  cancelled: [],
+};
+
+const IN_STORE_DELIVERY_TRANSITIONS: Record<string, string[]> = {
+  waitlist: ["confirmed", "cancelled"],
+  requested: ["confirmed", "rescheduled", "cancelled"],
+  rescheduled: ["confirmed", "rescheduled", "cancelled"],
+  confirmed: ["arrived", "rescheduled", "cancelled"],
+  arrived: ["in progress", "rescheduled", "cancelled"],
+  "in progress": ["completed", "cancelled"],
+  completed: ["driver on the way", "cancelled"],
+  "driver on the way": ["returned", "cancelled"],
+  returned: [],
+  cancelled: [],
+};
+
+const IN_STORE_PICKUP_DELIVERY_TRANSITIONS: Record<string, string[]> = {
+  waitlist: ["confirmed", "cancelled"],
+  requested: ["confirmed", "rescheduled", "cancelled"],
+  rescheduled: ["confirmed", "rescheduled", "cancelled"],
+  confirmed: ["driver on the way", "rescheduled", "cancelled"],
+  "driver on the way": ["arrived", "rescheduled", "cancelled"],
+  arrived: ["in progress", "rescheduled", "cancelled"],
+  "in progress": ["completed", "cancelled"],
+  completed: ["driver on the way", "cancelled"],
   returned: [],
   cancelled: [],
 };
@@ -120,21 +165,45 @@ export function StatusBookingCard({
   const [confirmingStatus, setConfirmingStatus] = useState(false);
 
   const isInHome = booking.type === "in home";
-  const isInStorePickup =
-    !isInHome && (booking.pick_up === true || booking.delivery === true);
+  const hasPickup = !isInHome && booking.pick_up === true;
+  const hasDelivery = !isInHome && booking.delivery === true;
 
   const MAIN_FLOW = isInHome
     ? IN_HOME_MAIN_FLOW
-    : isInStorePickup
-      ? IN_STORE_PICKUP_MAIN_FLOW
-      : IN_STORE_MAIN_FLOW;
+    : hasPickup && hasDelivery
+      ? IN_STORE_PICKUP_DELIVERY_MAIN_FLOW
+      : hasPickup
+        ? IN_STORE_PICKUP_MAIN_FLOW
+        : hasDelivery
+          ? IN_STORE_DELIVERY_MAIN_FLOW
+          : IN_STORE_MAIN_FLOW;
   const ALLOWED_TRANSITIONS = isInHome
     ? IN_HOME_TRANSITIONS
-    : isInStorePickup
-      ? IN_STORE_PICKUP_TRANSITIONS
-      : IN_STORE_TRANSITIONS;
-  const allowedNextStatuses =
-    ALLOWED_TRANSITIONS[booking.booking_status] ?? [];
+    : hasPickup && hasDelivery
+      ? IN_STORE_PICKUP_DELIVERY_TRANSITIONS
+      : hasPickup
+        ? IN_STORE_PICKUP_TRANSITIONS
+        : hasDelivery
+          ? IN_STORE_DELIVERY_TRANSITIONS
+          : IN_STORE_TRANSITIONS;
+
+  // For pickup+delivery: "driver on the way" appears twice (pickup phase & delivery phase).
+  // Determine which phase we're in by checking if completed was already reached.
+  let allowedNextStatuses: string[];
+  if (
+    hasPickup &&
+    hasDelivery &&
+    booking.booking_status === "driver on the way"
+  ) {
+    const passedCompleted = booking.status_logs?.some(
+      (l: any) => l.status === "completed",
+    );
+    allowedNextStatuses = passedCompleted
+      ? ["returned", "cancelled"]
+      : ["arrived", "rescheduled", "cancelled"];
+  } else {
+    allowedNextStatuses = ALLOWED_TRANSITIONS[booking.booking_status] ?? [];
+  }
 
   const statusChanged = selectedStatus !== "";
   const isRescheduled = selectedStatus === "rescheduled";
@@ -186,12 +255,27 @@ export function StatusBookingCard({
           {/* Status stepper */}
           <div className="flex items-center overflow-x-auto p-1">
             {MAIN_FLOW.map((status, idx) => {
-              const currentMainIdx = MAIN_FLOW.indexOf(
-                booking.booking_status,
-              );
+              // For pickup+delivery flow, "driver on the way (delivery)" is used as stepper label
+              // but the actual booking_status is "driver on the way". We need to find the correct idx.
+              let currentMainIdx: number;
+              if (
+                booking.booking_status === "driver on the way" &&
+                MAIN_FLOW.includes("driver on the way (delivery)")
+              ) {
+                // Check if we've passed completed by looking at status logs
+                const passedCompleted = booking.status_logs?.some(
+                  (l: any) => l.status === "completed",
+                );
+                currentMainIdx = passedCompleted
+                  ? MAIN_FLOW.indexOf("driver on the way (delivery)")
+                  : MAIN_FLOW.indexOf("driver on the way");
+              } else {
+                currentMainIdx = MAIN_FLOW.indexOf(booking.booking_status);
+              }
               const isReached = currentMainIdx >= idx;
+              const displayLabel = status.replace(" (delivery)", "");
               return (
-                <div key={status} className="flex items-center">
+                <div key={`${status}-${idx}`} className="flex items-center">
                   <div
                     className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium capitalize
                         ${isReached ? "bg-primary text-primary-foreground" : "bg-muted/60 text-muted-foreground"}
@@ -204,7 +288,7 @@ export function StatusBookingCard({
                       ) : (
                         <CheckCircle className="h-3 w-3" />
                       ))}
-                    {status}
+                    {displayLabel}
                   </div>
                   {idx < MAIN_FLOW.length - 1 && (
                     <div

@@ -384,6 +384,7 @@ export interface GetAdminBookingsParams {
   date_to?: string;
   created_by_role?: string;
   customer_id?: string;
+  store_id?: string;
 }
 
 export async function getAdminBookings(params?: GetAdminBookingsParams) {
@@ -396,6 +397,7 @@ export async function getAdminBookings(params?: GetAdminBookingsParams) {
   if (params?.created_by_role)
     qs.set("created_by_role", params.created_by_role);
   if (params?.customer_id) qs.set("customer_id", params.customer_id);
+  if (params?.store_id) qs.set("store_id", params.store_id);
   const query = qs.toString();
   return apiAuthRequest<BookingsResponse>(
     query ? `/bookings?${query}` : "/bookings",
