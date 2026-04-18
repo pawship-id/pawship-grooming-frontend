@@ -3,18 +3,12 @@
 import { useEffect, useState } from "react";
 import { use } from "react";
 import Link from "next/link";
-import {
-  Calendar,
-  Truck,
-  Pencil,
-} from "lucide-react";
+import { Calendar, Truck, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format";
-import {
-  getAdminBookingById,
-} from "@/lib/api/bookings";
+import { getAdminBookingById } from "@/lib/api/bookings";
 import type { AdminBooking } from "@/lib/api/bookings";
 import { getStoreById } from "@/lib/api/stores";
 import { getUsers } from "@/lib/api/users";
@@ -30,6 +24,7 @@ import { CustomerPetCard } from "./_components/customer-pet-card";
 import { StatusLogsCard } from "./_components/status-logs-card";
 import { GroomingSessionsCard } from "./_components/grooming-sessions-card";
 import { PhotoGalleryCard } from "./_components/photo-gallery-card";
+import { BookingNotesCard } from "./_components/booking-notes-card";
 
 export default function BookingDetailPage({
   params,
@@ -42,7 +37,9 @@ export default function BookingDetailPage({
   const [notFound, setNotFound] = useState(false);
   const [groomers, setGroomers] = useState<ApiUser[]>([]);
   const [storeSessions, setStoreSessions] = useState<string[]>([]);
-  const [sessionSkillOptions, setSessionSkillOptions] = useState<ApiOption[]>([]);
+  const [sessionSkillOptions, setSessionSkillOptions] = useState<ApiOption[]>(
+    [],
+  );
   const [editingPrice, setEditingPrice] = useState(false);
 
   useEffect(() => {
@@ -59,7 +56,7 @@ export default function BookingDetailPage({
         if (b.store_id) {
           getStoreById(b.store_id)
             .then((storeRes) => setStoreSessions(storeRes.store.sessions ?? []))
-            .catch(() => { });
+            .catch(() => {});
         }
       })
       .catch(() => setNotFound(true))
@@ -100,16 +97,17 @@ export default function BookingDetailPage({
       <div className="flex flex-col gap-6">
         <BookingHeader bookingId={booking._id} createdAt={booking.createdAt} />
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Status Booking */}
-          <StatusBookingCard
-            booking={booking}
-            bookingId={id}
-            storeSessions={storeSessions}
-            refreshBooking={refreshBooking}
-          />
+        {/* Status Booking - Full Width */}
+        <StatusBookingCard
+          booking={booking}
+          bookingId={id}
+          storeSessions={storeSessions}
+          refreshBooking={refreshBooking}
+        />
 
-          {/* Appointment Details */}
+        {/* Detail Appointment & Customer Info - Side by Side */}
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Left: Appointment Details */}
           <Card className="border-border/50">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="flex items-center gap-2 font-display text-lg">
@@ -147,7 +145,9 @@ export default function BookingDetailPage({
                 )}
                 {booking.type === "in store" && (
                   <div className="col-span-2">
-                    <span className="text-xs text-muted-foreground">Pickup & Delivery</span>
+                    <span className="text-xs text-muted-foreground">
+                      Pickup & Delivery
+                    </span>
                     <div className="mt-1 flex flex-wrap gap-2">
                       {booking.pick_up && (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-400">
@@ -162,7 +162,9 @@ export default function BookingDetailPage({
                         </span>
                       )}
                       {!booking.pick_up && !booking.delivery && (
-                        <span className="text-sm text-muted-foreground">Tidak ada</span>
+                        <span className="text-sm text-muted-foreground">
+                          Tidak ada
+                        </span>
                       )}
                     </div>
                   </div>
@@ -204,21 +206,25 @@ export default function BookingDetailPage({
                   </p>
                 </div>
               )}
-
-              {booking.note && (
-                <div>
-                  <span className="text-xs text-muted-foreground">Catatan</span>
-                  <p className="mt-1 rounded-md bg-muted/50 p-3 text-sm text-foreground">
-                    {booking.note}
-                  </p>
-                </div>
-              )}
             </CardContent>
           </Card>
 
-          {/* Customer & Pet */}
-          <CustomerPetCard booking={booking} />
+          {/* Right: Customer & Pet + Booking Notes (stacked) */}
+          <div className="flex flex-col gap-6">
+            {/* Customer & Pet */}
+            <CustomerPetCard booking={booking} />
 
+            {/* Booking Notes */}
+            <BookingNotesCard
+              booking={booking}
+              bookingId={id}
+              refreshBooking={refreshBooking}
+            />
+          </div>
+        </div>
+
+        {/* Riwayat Status & Sesi Grooming - Side by Side */}
+        <div className="grid gap-6 lg:grid-cols-2">
           {/* Status Logs */}
           <StatusLogsCard booking={booking} />
 
@@ -230,14 +236,14 @@ export default function BookingDetailPage({
             groomers={groomers}
             sessionSkillOptions={sessionSkillOptions}
           />
-
-          {/* Photo Gallery */}
-          <PhotoGalleryCard
-            booking={booking}
-            bookingId={id}
-            refreshBooking={refreshBooking}
-          />
         </div>
+
+        {/* Photo Gallery - Full Width */}
+        <PhotoGalleryCard
+          booking={booking}
+          bookingId={id}
+          refreshBooking={refreshBooking}
+        />
       </div>
     </>
   );
