@@ -547,6 +547,13 @@ export async function updateBookingPricing(
   });
 }
 
+export async function updateBookingNote(id: string, note?: string) {
+  return apiAuthRequest<{ message: string }>(`/bookings/${id}/note`, {
+    method: "PATCH",
+    body: JSON.stringify({ note }),
+  });
+}
+
 // Fetches membership benefits directly for a pet, bypassing service price lookups.
 // Used as a fallback when getBookingPreview fails (e.g. service is soft-deleted).
 export async function getPetBenefitsSummary(petId: string) {
