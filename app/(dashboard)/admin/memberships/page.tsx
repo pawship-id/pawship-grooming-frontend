@@ -1057,6 +1057,12 @@ function MembershipsTab() {
   const [viewTarget, setViewTarget] = useState<MembershipPlan | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
+  // Retroactive confirmation
+  const [retroConfirmOpen, setRetroConfirmOpen] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState<MembershipPayload | null>(null);
+  // Store original benefits when opening edit mode, to detect changes
+  const [originalBenefits, setOriginalBenefits] = useState<MembershipForm["benefits"]>([]);
+
   const loadMemberships = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -1103,26 +1109,33 @@ function MembershipsTab() {
   };
 
   const openEdit = async (m: MembershipPlan) => {
+    let formData: MembershipForm;
     try {
       const res = await getMembershipById(m._id);
-      setForm(membershipToForm(res.data));
+      formData = membershipToForm(res.data);
     } catch {
-      setForm(membershipToForm(m));
+      formData = membershipToForm(m);
     }
+    setForm(formData);
+    setOriginalBenefits(JSON.parse(JSON.stringify(formData.benefits)));
     setDialogMode("edit");
     setEditingId(m._id);
     setDialogOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (form.pet_type_ids.length === 0) {
-      toast.error("Pilih minimal satu jenis hewan");
-      return;
-    }
+  // Check if benefits have changed compared to original
+  const hasBenefitsChanged = (current: MembershipForm["benefits"]): boolean => {
+    if (current.length !== originalBenefits.length) return true;
+    const serialize = (b: MembershipForm["benefits"]) =>
+      JSON.stringify(
+        b.map(({ _localId, ...rest }) => rest).sort((a, b2) => JSON.stringify(a).localeCompare(JSON.stringify(b2)))
+      );
+    return serialize(current) !== serialize(originalBenefits);
+  };
+
+  const doSubmit = async (payload: MembershipPayload) => {
     setIsSaving(true);
     try {
-      const payload = formToPayload(form);
       if (dialogMode === "create") {
         await createMembership(payload);
         toast.success("Paket membership berhasil ditambahkan");
@@ -1137,6 +1150,31 @@ function MembershipsTab() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (form.pet_type_ids.length === 0) {
+      toast.error("Pilih minimal satu jenis hewan");
+      return;
+    }
+    const payload = formToPayload(form);
+
+    // For edit mode: if benefits changed, ask about retroactive
+    if (dialogMode === "edit" && editingId && hasBenefitsChanged(form.benefits)) {
+      setPendingPayload(payload);
+      setRetroConfirmOpen(true);
+      return;
+    }
+
+    await doSubmit(payload);
+  };
+
+  const handleRetroConfirm = async (retroactive: boolean) => {
+    setRetroConfirmOpen(false);
+    if (!pendingPayload) return;
+    await doSubmit({ ...pendingPayload, apply_retroactive: retroactive });
+    setPendingPayload(null);
   };
 
   const handleDelete = async () => {
@@ -1334,6 +1372,58 @@ function MembershipsTab() {
             >
               Hapus
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Retroactive Confirmation */}
+      <AlertDialog
+        open={retroConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRetroConfirmOpen(false);
+            setPendingPayload(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="sm:max-w-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Terapkan Perubahan Benefit</AlertDialogTitle>
+            <AlertDialogDescription className="text-sm leading-relaxed">
+              Benefit pada paket membership ini telah diubah. Pilih bagaimana perubahan ini diterapkan:
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-sm font-medium text-foreground">Hanya untuk pembelian baru</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Perubahan benefit hanya berlaku untuk membership yang dibeli setelah ini. Membership yang sudah berjalan tetap menggunakan benefit lama.
+              </p>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <p className="text-sm font-medium text-foreground">Terapkan ke semua membership yang AKTIF dan PENDING</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Selain berlaku untuk pembelian baru, perubahan benefit juga akan di-update ke semua membership yang masih aktif dan yang menunggu (pending). Riwayat penggunaan benefit yang sudah ada akan dipertahankan.
+              </p>
+            </div>
+          </div>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel onClick={() => { setRetroConfirmOpen(false); setPendingPayload(null); }}>
+              Batal
+            </AlertDialogCancel>
+            <Button
+              variant="outline"
+              onClick={() => handleRetroConfirm(false)}
+              disabled={isSaving}
+            >
+              Hanya Pembelian Baru
+            </Button>
+            <Button
+              onClick={() => handleRetroConfirm(true)}
+              disabled={isSaving}
+            >
+              {isSaving ? "Menyimpan..." : "Terapkan ke Aktif & Pending"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

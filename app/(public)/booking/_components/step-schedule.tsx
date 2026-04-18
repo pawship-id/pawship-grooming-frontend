@@ -43,6 +43,8 @@ interface StepScheduleProps {
   selectedTimeRange: string
   setSelectedTimeRange: (v: string) => void
   selectedStore: PublicStore
+  /** YYYY-MM-DD strings where total_capacity_minutes = 0 */
+  closedDates?: string[]
   // Pick-up & delivery
   showPickupDeliverySection: boolean
   canUsePickupDelivery: boolean
@@ -66,6 +68,7 @@ export function StepSchedule({
   selectedTimeRange,
   setSelectedTimeRange,
   selectedStore,
+  closedDates = [],
   showPickupDeliverySection,
   canUsePickupDelivery,
   pickupDeliveryServiceSupports,
@@ -88,9 +91,20 @@ export function StepSchedule({
     (selectedStore.operational?.operational_days ?? []).map((d) => DAY_NAME_TO_NUM[d] ?? -1)
   )
 
+  const closedDateSet = new Set<string>(closedDates)
+
   const isDateDisabled = (date: Date) => {
     if (date < today) return true
     if (operationalDayNums.size > 0 && !operationalDayNums.has(date.getDay())) return true
+    if (closedDateSet.has(toYYYYMMDD(date))) return true
+    return false
+  }
+
+  /** Closed / holiday matcher — red styling (excludes past dates) */
+  const isClosedDay = (date: Date) => {
+    if (date < today) return false
+    if (operationalDayNums.size > 0 && !operationalDayNums.has(date.getDay())) return true
+    if (closedDateSet.has(toYYYYMMDD(date))) return true
     return false
   }
 
@@ -130,6 +144,8 @@ export function StepSchedule({
                     setCalOpen(false)
                   }}
                   disabled={isDateDisabled}
+                  modifiers={{ closed: isClosedDay }}
+                  modifiersClassNames={{ closed: "!text-red-500 !opacity-60" }}
                   initialFocus
                 />
               </PopoverContent>

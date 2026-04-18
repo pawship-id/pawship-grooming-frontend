@@ -1,4 +1,4 @@
-import { apiAuthRequest } from "./client";
+import { apiAuthRequest, apiRequest } from "./client";
 
 export interface StoreDailyCapacity {
   _id: string;
@@ -96,4 +96,17 @@ export async function deleteStoreDailyCapacity(
   return apiAuthRequest<{ message: string }>(`/store-daily-capacities/${id}`, {
     method: "DELETE",
   });
+}
+
+/**
+ * Fetch dates (YYYY-MM-DD) from today onwards where total_capacity_minutes = 0
+ * (store is closed). Public – no auth required.
+ */
+export async function getPublicClosedDates(
+  storeId: string,
+): Promise<string[]> {
+  const res = await apiRequest<{ message: string; closed_dates: string[] }>(
+    `/store-daily-capacities/public?store_id=${encodeURIComponent(storeId)}`,
+  );
+  return res.closed_dates ?? [];
 }

@@ -25,12 +25,14 @@ interface PhotoGalleryCardProps {
   booking: AdminBooking;
   bookingId: string;
   refreshBooking: () => Promise<void>;
+  readOnly?: boolean;
 }
 
 export function PhotoGalleryCard({
   booking,
   bookingId,
   refreshBooking,
+  readOnly = false,
 }: PhotoGalleryCardProps) {
   const [uploadingMediaType, setUploadingMediaType] = useState<
     "before" | "after" | null
@@ -92,6 +94,7 @@ export function PhotoGalleryCard({
               <p className="text-sm font-medium text-foreground">
                 Foto Before
               </p>
+              {!readOnly && (
               <label
                 className={`cursor-pointer ${uploadingMediaType === "before" ? "pointer-events-none opacity-60" : ""}`}
               >
@@ -116,6 +119,7 @@ export function PhotoGalleryCard({
                   }}
                 />
               </label>
+              )}
             </div>
             <div className="flex flex-wrap gap-3">
               {(booking.media ?? [])
@@ -134,6 +138,7 @@ export function PhotoGalleryCard({
                         setPreviewMediaUrl(m.secure_url ?? m.url ?? "")
                       }
                     />
+                    {!readOnly && (
                     <button
                       onClick={() =>
                         setConfirmDeleteMediaId(m.public_id ?? "")
@@ -142,6 +147,7 @@ export function PhotoGalleryCard({
                     >
                       <X className="h-3 w-3" />
                     </button>
+                    )}
                   </div>
                 ))}
               {(booking.media ?? []).filter((m) => m.type === "before")
@@ -159,6 +165,7 @@ export function PhotoGalleryCard({
               <p className="text-sm font-medium text-foreground">
                 Foto After
               </p>
+              {!readOnly && (
               <label
                 className={`cursor-pointer ${uploadingMediaType === "after" ? "pointer-events-none opacity-60" : ""}`}
               >
@@ -183,6 +190,7 @@ export function PhotoGalleryCard({
                   }}
                 />
               </label>
+              )}
             </div>
             <div className="flex flex-wrap gap-3">
               {(booking.media ?? [])
@@ -201,6 +209,7 @@ export function PhotoGalleryCard({
                         setPreviewMediaUrl(m.secure_url ?? m.url ?? "")
                       }
                     />
+                    {!readOnly && (
                     <button
                       onClick={() =>
                         setConfirmDeleteMediaId(m.public_id ?? "")
@@ -209,6 +218,7 @@ export function PhotoGalleryCard({
                     >
                       <X className="h-3 w-3" />
                     </button>
+                    )}
                   </div>
                 ))}
               {(booking.media ?? []).filter((m) => m.type === "after")

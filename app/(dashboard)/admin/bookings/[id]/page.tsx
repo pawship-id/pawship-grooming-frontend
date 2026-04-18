@@ -41,6 +41,7 @@ export default function BookingDetailPage({
     [],
   );
   const [editingPrice, setEditingPrice] = useState(false);
+  const isReturned = booking?.booking_status === "returned";
 
   useEffect(() => {
     Promise.all([
@@ -172,7 +173,7 @@ export default function BookingDetailPage({
               </div>
 
               {/* Price edit panel */}
-              {editingPrice && (
+              {editingPrice && !isReturned && (
                 <PriceEditPanel
                   booking={booking}
                   bookingId={id}
@@ -184,7 +185,7 @@ export default function BookingDetailPage({
               {/* Price display */}
               <PriceDisplay booking={booking} />
 
-              {!editingPrice && (
+              {!editingPrice && !isReturned && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -192,7 +193,7 @@ export default function BookingDetailPage({
                   className="h-8 gap-1.5"
                 >
                   <Pencil className="h-3.5 w-3.5" />
-                  Edit Harga
+                  Edit Layanan dan Harga
                 </Button>
               )}
 
@@ -235,6 +236,7 @@ export default function BookingDetailPage({
             refreshBooking={refreshBooking}
             groomers={groomers}
             sessionSkillOptions={sessionSkillOptions}
+            readOnly={isReturned}
           />
         </div>
 

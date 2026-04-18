@@ -25,6 +25,10 @@ export interface AdminServiceAddon {
   code: string;
   name: string;
   image_url?: string;
+  price?: number;
+  price_type?: "single" | "multiple";
+  prices?: { pet_type_id?: string; size_id?: string; hair_id?: string; price: number }[];
+  duration?: number;
 }
 
 export interface AdminService {

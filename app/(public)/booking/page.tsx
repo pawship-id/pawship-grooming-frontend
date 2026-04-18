@@ -34,6 +34,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MessageCircle } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { getCurrentUser, updateMyProfile } from "@/lib/api/users"
+import { getPublicClosedDates } from "@/lib/api/store-daily-capacity"
 
 import { ServiceTypeCard } from "./_components/service-type-card"
 import { StoreCard } from "./_components/store-card"
@@ -161,6 +162,9 @@ function BookingContent() {
   // Booking submit state
   const [bookingCreated, setBookingCreated] = useState(false)
   const [submittingBooking, setSubmittingBooking] = useState(false)
+
+  // Closed dates from store daily capacities (total_capacity_minutes = 0)
+  const [closedDates, setClosedDates] = useState<string[]>([])
 
   // ── Derived Values ──────────────────────────────────────────────────────
 
@@ -570,6 +574,14 @@ function BookingContent() {
       .catch(() => setStoresError("Gagal memuat daftar store. Silakan coba lagi."))
       .finally(() => setStoresLoading(false))
   }, [])
+
+  // Fetch closed dates for selected store (total_capacity_minutes = 0)
+  useEffect(() => {
+    if (!selectedStoreId) { setClosedDates([]); return }
+    getPublicClosedDates(selectedStoreId)
+      .then(setClosedDates)
+      .catch(() => setClosedDates([]))
+  }, [selectedStoreId])
 
   // Fetch services when store + service type are selected
   useEffect(() => {
@@ -993,6 +1005,7 @@ function BookingContent() {
               selectedTimeRange={selectedTimeRange}
               setSelectedTimeRange={setSelectedTimeRange}
               selectedStore={selectedStore!}
+              closedDates={closedDates}
               showPickupDeliverySection={showPickupDeliverySection}
               canUsePickupDelivery={canUsePickupDelivery}
               pickupDeliveryServiceSupports={pickupDeliveryServiceSupports}
