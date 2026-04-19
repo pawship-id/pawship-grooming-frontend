@@ -1,104 +1,180 @@
-"use client"
+"use client";
 
-import React, { useState } from "react"
-import Image from "next/image"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { registerRequest, type RegisterPayload } from "@/lib/api/index"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Eye, EyeOff, Home, Check, X } from "lucide-react"
+import React, { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  checkPhoneRequest,
+  registerRequest,
+  sendPasswordSetupRequest,
+  type RegisterPayload,
+} from "@/lib/api/index";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { PasswordInput } from "@/components/ui/password-input";
+import { Home } from "lucide-react";
 
 interface ApiValidationError {
-  statusCode: number
-  message: string | string[]
-  error: string
+  statusCode: number;
+  message: string | string[];
+  error: string;
 }
 
-function getPasswordStrength(password: string): { label: string; color: string; bars: number; criteria: { label: string; met: boolean }[] } {
-  const criteria = [
-    { label: "Minimal 8 karakter", met: password.length >= 8 },
-    { label: "Huruf kapital (A-Z)", met: /[A-Z]/.test(password) },
-    { label: "Angka (0-9)", met: /[0-9]/.test(password) },
-    { label: "Karakter khusus (!@#$...)", met: /[^A-Za-z0-9]/.test(password) },
-  ]
-
-  if (password.length === 0) return { label: "", color: "", bars: 0, criteria }
-
-  const score = criteria.filter((c) => c.met).length
-
-  if (score <= 1) return { label: "Lemah", color: "bg-red-500", bars: 1, criteria }
-  if (score <= 2) return { label: "Sedang", color: "bg-yellow-500", bars: 2, criteria }
-  return { label: "Kuat", color: "bg-green-500", bars: 3, criteria }
-}
+type Step = "phone" | "new-user" | "email-setup";
 
 export default function RegisterPage() {
-  const router = useRouter()
+  const router = useRouter();
 
-  const [form, setForm] = useState<RegisterPayload>({
-    username: "",
-    email: "",
-    phone_number: "",
-    password: "",
-  })
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [errors, setErrors] = useState<string[]>([])
-  const [successMessage, setSuccessMessage] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const [step, setStep] = useState<Step>("phone");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [errors, setErrors] = useState<string[]>([]);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
-  }
+  const handleCheckPhone = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors([]);
+    setSuccessMessage("");
+    setIsLoading(true);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setErrors([])
-    setSuccessMessage("")
-    setIsLoading(true)
+    try {
+      const result = await checkPhoneRequest(phoneNumber);
 
-    if (form.password !== confirmPassword) {
-      setErrors(["Konfirmasi password tidak cocok."])
-      setIsLoading(false)
-      return
+      if (!result.exists) {
+        // Phone not registered - go to new user form
+        setStep("new-user");
+      } else if (result.hasEmail && result.hasPassword) {
+        // Phone exists with complete credentials - cannot register
+        setErrors(["Nomor sudah terdaftar, silakan login"]);
+      } else {
+        // Phone exists but incomplete - go to email setup
+        setUsername(result.username || "");
+        setEmail(result.email || "");
+        setStep("email-setup");
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        try {
+          const parsed = JSON.parse(err.message) as ApiValidationError;
+          const msgs = parsed.message;
+          if (Array.isArray(msgs)) {
+            setErrors(msgs);
+          } else {
+            setErrors([msgs]);
+          }
+        } catch {
+          setErrors([err.message]);
+        }
+      } else {
+        setErrors(["Terjadi kesalahan. Silakan coba lagi."]);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors([]);
+    setSuccessMessage("");
+    setIsLoading(true);
+
+    if (password !== confirmPassword) {
+      setErrors(["Konfirmasi password tidak cocok."]);
+      setIsLoading(false);
+      return;
+    }
+
+    if (password.length < 6) {
+      setErrors(["Password minimal 6 karakter."]);
+      setIsLoading(false);
+      return;
     }
 
     try {
-      await registerRequest(form)
+      const payload: RegisterPayload = {
+        username,
+        email,
+        phone_number: phoneNumber,
+        password,
+      };
+      await registerRequest(payload);
 
-      setSuccessMessage("Akun berhasil dibuat! Silakan masuk.")
-      setTimeout(() => router.push("/login"), 1500)
+      setSuccessMessage("Akun berhasil dibuat! Silakan masuk.");
+      setTimeout(() => router.push("/login"), 1500);
     } catch (err: unknown) {
       if (err instanceof Error) {
-        // Try to parse array messages from the error string
         try {
-          const parsed = JSON.parse(err.message) as ApiValidationError
-          const msgs = parsed.message
+          const parsed = JSON.parse(err.message) as ApiValidationError;
+          const msgs = parsed.message;
           if (Array.isArray(msgs)) {
-            setErrors(msgs)
+            setErrors(msgs);
           } else {
-            setErrors([msgs])
+            setErrors([msgs]);
           }
         } catch {
-          setErrors([err.message])
+          setErrors([err.message]);
         }
       } else {
-        setErrors(["Terjadi kesalahan. Silakan coba lagi."])
+        setErrors(["Terjadi kesalahan. Silakan coba lagi."]);
       }
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
+
+  const handleSendEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors([]);
+    setSuccessMessage("");
+    setIsLoading(true);
+
+    try {
+      await sendPasswordSetupRequest({
+        phone_number: phoneNumber,
+        email,
+      });
+
+      // Redirect to success page with email info
+      router.push(`/register/success?email=${encodeURIComponent(email)}`);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        try {
+          const parsed = JSON.parse(err.message) as ApiValidationError;
+          const msgs = parsed.message;
+          if (Array.isArray(msgs)) {
+            setErrors(msgs);
+          } else {
+            setErrors([msgs]);
+          }
+        } catch {
+          setErrors([err.message]);
+        }
+      } else {
+        setErrors(["Terjadi kesalahan. Silakan coba lagi."]);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-md">
         <div className="mb-4">
           <Link href="/">
-            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2 text-muted-foreground hover:text-foreground"
+            >
               <Home className="h-4 w-4" />
               Back to Home
             </Button>
@@ -117,168 +193,217 @@ export default function RegisterPage() {
               />
             </Link>
             <div className="text-center">
-              <h1 className="font-display text-2xl font-bold text-foreground">Buat Akun Baru</h1>
+              <h1 className="font-display text-2xl font-bold text-foreground">
+                {step === "phone" && "Buat Akun Baru"}
+                {step === "new-user" && "Lengkapi Data Anda"}
+                {step === "email-setup" && "Verifikasi Email"}
+              </h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Daftar untuk mulai menggunakan Pawship
+                {step === "phone" && "Masukkan nomor telepon untuk memulai"}
+                {step === "new-user" && "Isi data berikut untuk mendaftar"}
+                {step === "email-setup" && "Masukkan email untuk verifikasi"}
               </p>
             </div>
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              {errors.length > 0 && (
-                <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                  <ul className="list-disc pl-4 space-y-1">
-                    {errors.map((msg, i) => (
-                      <li key={i}>{msg}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {successMessage && (
-                <div className="rounded-lg bg-green-500/10 px-4 py-3 text-sm text-green-600 dark:text-green-400">
-                  {successMessage}
-                </div>
-              )}
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  name="username"
-                  type="text"
-                  placeholder="johndoe"
-                  value={form.username}
-                  onChange={handleChange}
-                  required
-                />
+            {errors.length > 0 && (
+              <div className="mb-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <ul className="list-disc pl-4 space-y-1">
+                  {errors.map((msg, i) => (
+                    <li key={i}>{msg}</li>
+                  ))}
+                </ul>
               </div>
+            )}
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="you@pawship.com"
-                  value={form.email}
-                  onChange={handleChange}
-                  required
-                />
+            {successMessage && (
+              <div className="mb-4 rounded-lg bg-green-500/10 px-4 py-3 text-sm text-green-600 dark:text-green-400">
+                {successMessage}
               </div>
+            )}
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="phone_number">Nomor Telepon</Label>
-                <Input
-                  id="phone_number"
-                  name="phone_number"
-                  type="tel"
-                  placeholder="08xxxxxxxxxx"
-                  value={form.phone_number}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
+            {step === "phone" && (
+              <form onSubmit={handleCheckPhone} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="phone_number">Nomor Telepon</Label>
                   <Input
+                    id="phone_number"
+                    name="phone_number"
+                    type="tel"
+                    placeholder="08xxxxxxxxxx"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  className="mt-2 w-full"
+                  disabled={isLoading}
+                >
+                  {isLoading ? "Memeriksa..." : "Cek"}
+                </Button>
+
+                <p className="text-center text-sm text-muted-foreground">
+                  Sudah punya akun?{" "}
+                  <Link
+                    href="/login"
+                    className="font-medium text-primary hover:underline"
+                  >
+                    Masuk sekarang
+                  </Link>
+                </p>
+              </form>
+            )}
+
+            {step === "new-user" && (
+              <form onSubmit={handleRegister} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="phone_display">Nomor Telepon</Label>
+                  <Input
+                    id="phone_display"
+                    value={phoneNumber}
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    name="username"
+                    type="text"
+                    placeholder="johndoe"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    placeholder="you@pawship.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="password">Password</Label>
+                  <PasswordInput
                     id="password"
                     name="password"
-                    type={showPassword ? "text" : "password"}
                     placeholder="Minimal 6 karakter"
-                    value={form.password}
-                    onChange={handleChange}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     required
                     minLength={6}
-                    className="pr-10"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+                  <p className="text-xs text-muted-foreground">
+                    Minimal 6 karakter
+                  </p>
                 </div>
-                {form.password && (() => {
-                  const strength = getPasswordStrength(form.password)
-                  return (
-                    <div className="mt-1 flex flex-col gap-1.5">
-                      <div className="flex gap-1">
-                        {[1, 2, 3].map((bar) => (
-                          <div
-                            key={bar}
-                            className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                              bar <= strength.bars ? strength.color : "bg-muted"
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      <p className={`text-xs font-medium ${
-                        strength.bars === 1 ? "text-red-500" :
-                        strength.bars === 2 ? "text-yellow-500" : "text-green-500"
-                      }`}>
-                        Kekuatan password: {strength.label}
-                      </p>
-                      <ul className="flex flex-col gap-0.5">
-                        {strength.criteria.map((c) => (
-                          <li key={c.label} className={`flex items-center gap-1.5 text-xs ${
-                            c.met ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
-                          }`}>
-                            {c.met
-                              ? <Check className="h-3 w-3 shrink-0" />
-                              : <X className="h-3 w-3 shrink-0 text-red-400" />}
-                            {c.label}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )
-                })()}
-              </div>
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="confirmPassword">Konfirmasi Password</Label>
-                <div className="relative">
-                  <Input
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="confirmPassword">Konfirmasi Password</Label>
+                  <PasswordInput
                     id="confirmPassword"
                     name="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
                     placeholder="Ulangi password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="pr-10"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    aria-label={showConfirmPassword ? "Hide password" : "Show password"}
-                  >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
                 </div>
-              </div>
 
-              <Button type="submit" className="mt-2 w-full" disabled={isLoading}>
-                {isLoading ? "Mendaftarkan..." : "Daftar"}
-              </Button>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      setStep("phone");
+                      setErrors([]);
+                    }}
+                  >
+                    Kembali
+                  </Button>
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? "Mendaftarkan..." : "Daftar"}
+                  </Button>
+                </div>
+              </form>
+            )}
 
-              <p className="text-center text-sm text-muted-foreground">
-                Sudah punya akun?{" "}
-                <Link href="/login" className="font-medium text-primary hover:underline">
-                  Masuk sekarang
-                </Link>
-              </p>
-            </form>
+            {step === "email-setup" && (
+              <form onSubmit={handleSendEmail} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="username_display">Username</Label>
+                  <Input
+                    id="username_display"
+                    value={username}
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="phone_display">Nomor Telepon</Label>
+                  <Input
+                    id="phone_display"
+                    value={phoneNumber}
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="email_setup">Email</Label>
+                  <Input
+                    id="email_setup"
+                    name="email"
+                    type="email"
+                    placeholder="you@pawship.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Kami akan mengirim link untuk mengatur password Anda
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      setStep("phone");
+                      setErrors([]);
+                      setUsername("");
+                      setEmail("");
+                    }}
+                  >
+                    Kembali
+                  </Button>
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? "Mengirim..." : "Kirim Email"}
+                  </Button>
+                </div>
+              </form>
+            )}
           </CardContent>
         </Card>
       </div>
     </div>
-  )
+  );
 }

@@ -1,11 +1,29 @@
-export { apiRequest, apiAuthRequest } from "./client"
-export { loginRequest, refreshTokenRequest, registerRequest } from "./auth"
-export type { RegisterPayload, RegisterResponse, AuthTokensResponse } from "./auth"
-export * from "./users"
-export * from "./options"
-export * from "./stores"
-export * from "./bookings"
-export * from "./memberships"
+export { apiRequest, apiAuthRequest } from "./client";
+export {
+  loginRequest,
+  refreshTokenRequest,
+  registerRequest,
+  checkPhoneRequest,
+  sendPasswordSetupRequest,
+  verifySetupTokenRequest,
+  setPasswordRequest,
+} from "./auth";
+export type {
+  RegisterPayload,
+  RegisterResponse,
+  AuthTokensResponse,
+  CheckPhoneResponse,
+  SendPasswordSetupPayload,
+  SendPasswordSetupResponse,
+  VerifySetupTokenResponse,
+  SetPasswordPayload,
+  SetPasswordResponse,
+} from "./auth";
+export * from "./users";
+export * from "./options";
+export * from "./stores";
+export * from "./bookings";
+export * from "./memberships";
 export {
   ACCESS_TOKEN_STORAGE_KEY,
   REFRESH_TOKEN_STORAGE_KEY,
@@ -15,16 +33,16 @@ export {
   setRefreshToken,
   setAuthTokens,
   clearAuthTokens,
-} from "./storage"
+} from "./storage";
 
 import {
   ACCESS_TOKEN_STORAGE_KEY,
   getAccessToken,
   setAccessToken,
   clearAuthTokens,
-} from "./storage"
+} from "./storage";
 
-export const AUTH_TOKEN_STORAGE_KEY = ACCESS_TOKEN_STORAGE_KEY
-export const getAuthToken = getAccessToken
-export const setAuthToken = setAccessToken
-export const clearAuthToken = clearAuthTokens
+export const AUTH_TOKEN_STORAGE_KEY = ACCESS_TOKEN_STORAGE_KEY;
+export const getAuthToken = getAccessToken;
+export const setAuthToken = setAccessToken;
+export const clearAuthToken = clearAuthTokens;

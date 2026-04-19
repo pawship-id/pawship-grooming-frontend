@@ -1,51 +1,129 @@
-import { apiRequest } from "./client"
+import { apiRequest } from "./client";
 
 export interface AuthTokensResponse {
-  message: string
-  access_token: string
-  refresh_token: string
+  message: string;
+  access_token: string;
+  refresh_token: string;
 }
 
 export interface RegisterPayload {
-  username: string
-  email: string
-  phone_number: string
-  password: string
+  username: string;
+  email: string;
+  phone_number: string;
+  password: string;
 }
 
 export interface RegisterResponse {
-  message: string
+  message: string;
 }
 
-export async function loginRequest(email: string, password: string): Promise<AuthTokensResponse> {
+export async function loginRequest(
+  email: string,
+  password: string,
+): Promise<AuthTokensResponse> {
   const payload = await apiRequest<AuthTokensResponse>("/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
-  })
+  });
 
   if (!payload?.access_token || !payload?.refresh_token) {
-    throw new Error("Token tidak ditemukan pada response login")
+    throw new Error("Token tidak ditemukan pada response login");
   }
 
-  return payload
+  return payload;
 }
 
-export async function refreshTokenRequest(refreshToken: string): Promise<AuthTokensResponse> {
+export async function refreshTokenRequest(
+  refreshToken: string,
+): Promise<AuthTokensResponse> {
   const payload = await apiRequest<AuthTokensResponse>("/auth/refresh", {
     method: "POST",
     body: JSON.stringify({ refresh_token: refreshToken }),
-  })
+  });
 
   if (!payload?.access_token || !payload?.refresh_token) {
-    throw new Error("Token tidak ditemukan pada response refresh")
+    throw new Error("Token tidak ditemukan pada response refresh");
   }
 
-  return payload
+  return payload;
 }
 
-export async function registerRequest(payload: RegisterPayload): Promise<RegisterResponse> {
+export async function registerRequest(
+  payload: RegisterPayload,
+): Promise<RegisterResponse> {
   return apiRequest<RegisterResponse>("/auth/register", {
     method: "POST",
     body: JSON.stringify(payload),
-  })
+  });
+}
+
+export interface CheckPhoneResponse {
+  exists: boolean;
+  hasEmail: boolean;
+  hasPassword: boolean;
+  username?: string;
+  email?: string;
+}
+
+export async function checkPhoneRequest(
+  phone_number: string,
+): Promise<CheckPhoneResponse> {
+  return apiRequest<CheckPhoneResponse>("/auth/check-phone", {
+    method: "POST",
+    body: JSON.stringify({ phone_number }),
+  });
+}
+
+export interface SendPasswordSetupPayload {
+  phone_number: string;
+  email: string;
+}
+
+export interface SendPasswordSetupResponse {
+  message: string;
+}
+
+export async function sendPasswordSetupRequest(
+  payload: SendPasswordSetupPayload,
+): Promise<SendPasswordSetupResponse> {
+  return apiRequest<SendPasswordSetupResponse>("/auth/send-password-setup", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface VerifySetupTokenResponse {
+  valid: boolean;
+  user: {
+    username: string;
+    phone_number: string;
+    email?: string;
+  };
+}
+
+export async function verifySetupTokenRequest(
+  token: string,
+): Promise<VerifySetupTokenResponse> {
+  return apiRequest<VerifySetupTokenResponse>("/auth/verify-setup-token", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+export interface SetPasswordPayload {
+  token: string;
+  password: string;
+}
+
+export interface SetPasswordResponse {
+  message: string;
+}
+
+export async function setPasswordRequest(
+  payload: SetPasswordPayload,
+): Promise<SetPasswordResponse> {
+  return apiRequest<SetPasswordResponse>("/auth/set-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
