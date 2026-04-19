@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Mail, Home } from "lucide-react";
 
-export default function RegisterSuccessPage() {
+function RegisterSuccessContent() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
 
@@ -90,5 +90,19 @@ export default function RegisterSuccessPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function RegisterSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      }
+    >
+      <RegisterSuccessContent />
+    </Suspense>
   );
 }
