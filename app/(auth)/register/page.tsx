@@ -23,7 +23,7 @@ interface ApiValidationError {
   error: string;
 }
 
-type Step = "phone" | "new-user" | "email-setup";
+type Step = "phone" | "new-user" | "email-setup" | "send-link";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -37,6 +37,9 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  const isValidEmail = (value: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
   const handleCheckPhone = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,10 +56,15 @@ export default function RegisterPage() {
       } else if (result.hasEmail && result.hasPassword) {
         // Phone exists with complete credentials - cannot register
         setErrors(["Nomor sudah terdaftar, silakan login"]);
-      } else {
-        // Phone exists but incomplete - go to email setup
+      } else if (result.hasEmail && !result.hasPassword) {
+        // Phone exists with email but no password - send link to existing email
         setUsername(result.username || "");
         setEmail(result.email || "");
+        setStep("send-link");
+      } else {
+        // Phone exists but no email - need to input email for setup
+        setUsername(result.username || "");
+        setEmail("");
         setStep("email-setup");
       }
     } catch (err: unknown) {
@@ -197,11 +205,14 @@ export default function RegisterPage() {
                 {step === "phone" && "Buat Akun Baru"}
                 {step === "new-user" && "Lengkapi Data Anda"}
                 {step === "email-setup" && "Verifikasi Email"}
+                {step === "send-link" && "Kirim Link Set Password"}
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 {step === "phone" && "Masukkan nomor telepon untuk memulai"}
                 {step === "new-user" && "Isi data berikut untuk mendaftar"}
                 {step === "email-setup" && "Masukkan email untuk verifikasi"}
+                {step === "send-link" &&
+                  "Akun Anda ditemukan, kami akan kirim link ke email Anda"}
               </p>
             </div>
           </CardHeader>
@@ -293,6 +304,7 @@ export default function RegisterPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    autoFocus
                   />
                 </div>
 
@@ -336,7 +348,11 @@ export default function RegisterPage() {
                   >
                     Kembali
                   </Button>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={isLoading || !isValidEmail(email)}
+                  >
                     {isLoading ? "Mendaftarkan..." : "Daftar"}
                   </Button>
                 </div>
@@ -345,6 +361,10 @@ export default function RegisterPage() {
 
             {step === "email-setup" && (
               <form onSubmit={handleSendEmail} className="flex flex-col gap-4">
+                <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-200">
+                  Data Anda ditemukan, silahkan input email untuk aktivasi akun.
+                </div>
+
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="username_display">Username</Label>
                   <Input
@@ -375,6 +395,7 @@ export default function RegisterPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    autoFocus
                   />
                   <p className="text-xs text-muted-foreground">
                     Kami akan mengirim link untuk mengatur password Anda
@@ -395,8 +416,77 @@ export default function RegisterPage() {
                   >
                     Kembali
                   </Button>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
+                  <Button
+                    type="submit"
+                    className="w-full"
+                    disabled={isLoading || !isValidEmail(email)}
+                  >
                     {isLoading ? "Mengirim..." : "Kirim Email"}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {step === "send-link" && (
+              <form onSubmit={handleSendEmail} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="sl_username">Username</Label>
+                  <Input
+                    id="sl_username"
+                    value={username}
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="sl_phone">Nomor Telepon</Label>
+                  <Input
+                    id="sl_phone"
+                    value={phoneNumber}
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="sl_email">Email</Label>
+                  <Input
+                    id="sl_email"
+                    value={email}
+                    disabled
+                    className="bg-muted"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Link untuk mengatur password akan dikirim ke email ini
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Jika ini bukan email Anda, silahkan hubungi admin{" "}
+                    <a
+                      href="mailto:admin@pawship.id"
+                      className="font-medium text-primary hover:underline"
+                    >
+                      pawship.id
+                    </a>
+                  </p>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => {
+                      setStep("phone");
+                      setErrors([]);
+                      setUsername("");
+                      setEmail("");
+                    }}
+                  >
+                    Kembali
+                  </Button>
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? "Mengirim..." : "Kirim Link"}
                   </Button>
                 </div>
               </form>
