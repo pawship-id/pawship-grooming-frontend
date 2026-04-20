@@ -33,6 +33,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { applyGroomingFrame } from "@/lib/frame-compositor";
@@ -44,6 +54,7 @@ import {
   updateBookingSession,
   claimSession,
   uploadSessionOtherMedia,
+  deleteBookingMediaAuth,
   type AdminBooking,
   type BookingSession,
 } from "@/lib/api/bookings";
@@ -79,6 +90,10 @@ export default function GroomerJobDetailPage({
   const [uploadingSessionMediaId, setUploadingSessionMediaId] = useState<
     string | null
   >(null);
+  const [confirmDeleteMediaPublicId, setConfirmDeleteMediaPublicId] = useState<
+    string | null
+  >(null);
+  const [deletingMediaId, setDeletingMediaId] = useState<string | null>(null);
   const [editSessionStartOpen, setEditSessionStartOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [newSessionStartDate, setNewSessionStartDate] = useState("");
@@ -283,6 +298,21 @@ export default function GroomerJobDetailPage({
       toast.error(err.message || "Gagal mengupload foto sesi");
     } finally {
       setUploadingSessionMediaId(null);
+    }
+  };
+
+  const handleDeleteMedia = async (publicId: string) => {
+    if (!booking) return;
+    setDeletingMediaId(publicId);
+    try {
+      await deleteBookingMediaAuth(booking._id, publicId);
+      toast.success("Foto berhasil dihapus");
+      setConfirmDeleteMediaPublicId(null);
+      await fetchBooking();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menghapus foto");
+    } finally {
+      setDeletingMediaId(null);
     }
   };
 
@@ -507,20 +537,47 @@ export default function GroomerJobDetailPage({
               {(booking.media ?? [])
                 .filter((m) => m.type === "before")
                 .map((m, idx) => (
-                  <button
-                    key={m._id || idx}
-                    type="button"
-                    className="relative w-28 aspect-[9/16] overflow-hidden rounded-lg border border-border/50 bg-muted cursor-pointer transition-opacity hover:opacity-80"
-                    onClick={() =>
-                      setPreviewImage(m.secure_url || m.url || null)
-                    }
-                  >
-                    <img
-                      src={m.secure_url || m.url || "/placeholder.svg"}
-                      alt="before photo"
-                      className="h-full w-full object-cover"
-                    />
-                  </button>
+                  <div key={m._id || idx} className="flex w-28 flex-col gap-1">
+                    <div className="relative aspect-[9/16] w-full overflow-hidden rounded-lg border border-border/50 bg-muted">
+                      <button
+                        type="button"
+                        className="h-full w-full cursor-pointer transition-opacity hover:opacity-80"
+                        onClick={() =>
+                          setPreviewImage(m.secure_url || m.url || null)
+                        }
+                      >
+                        <img
+                          src={m.secure_url || m.url || "/placeholder.svg"}
+                          alt="before photo"
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                      {m.created_by?.user_id === user?.id && m.public_id && (
+                        <button
+                          type="button"
+                          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-white shadow transition-opacity hover:opacity-90"
+                          onClick={() =>
+                            setConfirmDeleteMediaPublicId(m.public_id!)
+                          }
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                    {m.created_by?.name_snapshot && (
+                      <p className="truncate text-[10px] text-muted-foreground">
+                        {m.created_by.name_snapshot}
+                      </p>
+                    )}
+                    {m.uploaded_at && (
+                      <p className="text-[10px] text-muted-foreground">
+                        {new Date(m.uploaded_at).toLocaleString("id-ID", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
+                      </p>
+                    )}
+                  </div>
                 ))}
               {(booking.media ?? []).filter((m) => m.type === "before")
                 .length === 0 && (
@@ -538,20 +595,47 @@ export default function GroomerJobDetailPage({
               {(booking.media ?? [])
                 .filter((m) => m.type === "after")
                 .map((m, idx) => (
-                  <button
-                    key={m._id || idx}
-                    type="button"
-                    className="relative w-28 aspect-[9/16] overflow-hidden rounded-lg border border-border/50 bg-muted cursor-pointer transition-opacity hover:opacity-80"
-                    onClick={() =>
-                      setPreviewImage(m.secure_url || m.url || null)
-                    }
-                  >
-                    <img
-                      src={m.secure_url || m.url || "/placeholder.svg"}
-                      alt="after photo"
-                      className="h-full w-full object-cover"
-                    />
-                  </button>
+                  <div key={m._id || idx} className="flex w-28 flex-col gap-1">
+                    <div className="relative aspect-[9/16] w-full overflow-hidden rounded-lg border border-border/50 bg-muted">
+                      <button
+                        type="button"
+                        className="h-full w-full cursor-pointer transition-opacity hover:opacity-80"
+                        onClick={() =>
+                          setPreviewImage(m.secure_url || m.url || null)
+                        }
+                      >
+                        <img
+                          src={m.secure_url || m.url || "/placeholder.svg"}
+                          alt="after photo"
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                      {m.created_by?.user_id === user?.id && m.public_id && (
+                        <button
+                          type="button"
+                          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-white shadow transition-opacity hover:opacity-90"
+                          onClick={() =>
+                            setConfirmDeleteMediaPublicId(m.public_id!)
+                          }
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                    {m.created_by?.name_snapshot && (
+                      <p className="truncate text-[10px] text-muted-foreground">
+                        {m.created_by.name_snapshot}
+                      </p>
+                    )}
+                    {m.uploaded_at && (
+                      <p className="text-[10px] text-muted-foreground">
+                        {new Date(m.uploaded_at).toLocaleString("id-ID", {
+                          dateStyle: "short",
+                          timeStyle: "short",
+                        })}
+                      </p>
+                    )}
+                  </div>
                 ))}
               {(booking.media ?? []).filter((m) => m.type === "after")
                 .length === 0 && (
@@ -571,25 +655,55 @@ export default function GroomerJobDetailPage({
                 .map((m, idx) => {
                   const session = sessions.find((s) => s._id === m.session_id);
                   return (
-                    <button
+                    <div
                       key={m._id || idx}
-                      type="button"
-                      className="relative w-28 aspect-[9/16] overflow-hidden rounded-lg border border-border/50 bg-muted cursor-pointer transition-opacity hover:opacity-80"
-                      onClick={() =>
-                        setPreviewImage(m.secure_url || m.url || null)
-                      }
+                      className="flex w-28 flex-col gap-1"
                     >
-                      <img
-                        src={m.secure_url || m.url || "/placeholder.svg"}
-                        alt="other photo"
-                        className="h-full w-full object-cover"
-                      />
-                      {session && (
-                        <span className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5 text-center text-[10px] font-medium text-white capitalize truncate">
-                          {session.type}
-                        </span>
+                      <div className="relative aspect-[9/16] w-full overflow-hidden rounded-lg border border-border/50 bg-muted">
+                        <button
+                          type="button"
+                          className="h-full w-full cursor-pointer transition-opacity hover:opacity-80"
+                          onClick={() =>
+                            setPreviewImage(m.secure_url || m.url || null)
+                          }
+                        >
+                          <img
+                            src={m.secure_url || m.url || "/placeholder.svg"}
+                            alt="other photo"
+                            className="h-full w-full object-cover"
+                          />
+                        </button>
+                        {session && (
+                          <span className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5 text-center text-[10px] font-medium text-white capitalize truncate">
+                            {session.type}
+                          </span>
+                        )}
+                        {m.created_by?.user_id === user?.id && m.public_id && (
+                          <button
+                            type="button"
+                            className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-white shadow transition-opacity hover:opacity-90"
+                            onClick={() =>
+                              setConfirmDeleteMediaPublicId(m.public_id!)
+                            }
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+                      {m.created_by?.name_snapshot && (
+                        <p className="truncate text-[10px] text-muted-foreground">
+                          {m.created_by.name_snapshot}
+                        </p>
                       )}
-                    </button>
+                      {m.uploaded_at && (
+                        <p className="text-[10px] text-muted-foreground">
+                          {new Date(m.uploaded_at).toLocaleString("id-ID", {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })}
+                        </p>
+                      )}
+                    </div>
                   );
                 })}
               {(booking.media ?? []).filter((m) => m.type === "other")
@@ -602,6 +716,43 @@ export default function GroomerJobDetailPage({
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete Media Confirmation */}
+      <AlertDialog
+        open={!!confirmDeleteMediaPublicId}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDeleteMediaPublicId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Foto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Foto ini akan dihapus secara permanen dan tidak dapat
+              dikembalikan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!deletingMediaId}>
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={!!deletingMediaId}
+              onClick={() =>
+                confirmDeleteMediaPublicId &&
+                handleDeleteMedia(confirmDeleteMediaPublicId)
+              }
+            >
+              {deletingMediaId ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Hapus"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Sessions */}
       <div className="flex flex-col gap-3">

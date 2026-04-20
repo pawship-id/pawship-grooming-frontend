@@ -61,6 +61,11 @@ export interface SessionMedia {
   type: "before" | "after" | "other";
   note?: string;
   session_id?: string;
+  created_by?: {
+    user_id?: string;
+    name_snapshot?: string;
+  };
+  uploaded_at?: string;
 }
 
 export interface BookingSession {
