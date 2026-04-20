@@ -19,6 +19,7 @@ export interface PetSnapshot {
   size: BookingOptionRef;
   hair: BookingOptionRef;
   breed: BookingOptionRef;
+  tags?: string[];
 }
 
 // ── Service Snapshot ─────────────────────────────────────────────────────────
