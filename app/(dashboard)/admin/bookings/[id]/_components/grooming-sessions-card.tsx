@@ -9,6 +9,8 @@ import {
   CheckCircle,
   Scissors,
   Edit,
+  Camera,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +48,7 @@ import {
   finishBookingSession,
   deleteBookingSession,
   updateBookingSession,
+  uploadSessionOtherMedia,
 } from "@/lib/api/bookings";
 import type { AdminBooking } from "@/lib/api/bookings";
 import type { ApiUser } from "@/lib/api/users";
@@ -108,6 +111,11 @@ export function GroomingSessionsCard({
   const [newSessionFinishDate, setNewSessionFinishDate] = useState("");
   const [newSessionFinishTime, setNewSessionFinishTime] = useState("");
   const [updatingSessionTime, setUpdatingSessionTime] = useState(false);
+
+  // Per-session media upload
+  const [uploadingSessionMediaId, setUploadingSessionMediaId] = useState<
+    string | null
+  >(null);
 
   // Derived values
   const storeGroomers = booking.store_id
@@ -278,6 +286,21 @@ export function GroomingSessionsCard({
   };
 
   const bookingDate = booking.date?.split("T")[0] || "";
+
+  const handleUploadSessionMedia = async (sessionId: string, file: File) => {
+    setUploadingSessionMediaId(sessionId);
+    try {
+      await uploadSessionOtherMedia(bookingId, sessionId, file);
+      await refreshBooking();
+      toast.success("Foto sesi berhasil diupload");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Gagal mengupload foto sesi",
+      );
+    } finally {
+      setUploadingSessionMediaId(null);
+    }
+  };
 
   return (
     <>
@@ -602,6 +625,35 @@ export function GroomingSessionsCard({
                       </Button>
                     )}
                   </div>
+                )}
+
+                {/* Upload foto sesi — optional, hanya untuk admin */}
+                {!readOnly && session._id && (
+                  <label
+                    className={`cursor-pointer self-start ${uploadingSessionMediaId === session._id ? "pointer-events-none opacity-60" : ""}`}
+                  >
+                    <Button type="button" size="sm" variant="outline" asChild>
+                      <span>
+                        {uploadingSessionMediaId === session._id ? (
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Camera className="mr-1.5 h-3.5 w-3.5" />
+                        )}
+                        Upload Foto Sesi
+                      </span>
+                    </Button>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file && session._id)
+                          handleUploadSessionMedia(session._id, file);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
                 )}
               </div>
             );

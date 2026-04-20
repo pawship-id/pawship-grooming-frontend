@@ -58,8 +58,9 @@ export interface SessionMedia {
   url?: string;
   secure_url?: string;
   public_id?: string;
-  type: "before" | "after";
+  type: "before" | "after" | "other";
   note?: string;
+  session_id?: string;
 }
 
 export interface BookingSession {
@@ -690,7 +691,7 @@ export async function uploadSessionMedia(
 export async function uploadBookingMedia(
   bookingId: string,
   file: File,
-  type: "before" | "after",
+  type: "before" | "after" | "other",
   note?: string,
 ) {
   const formData = new FormData();
@@ -706,6 +707,37 @@ export async function uploadBookingMedia(
 export async function deleteBookingMedia(bookingId: string, publicId: string) {
   return apiAuthRequest<{ message: string }>(
     `/bookings/${bookingId}/media?public_id=${encodeURIComponent(publicId)}`,
+    { method: "DELETE" },
+  );
+}
+
+// Upload "other" media from a specific session — stored in booking.media[]
+// Only admin or the groomer assigned to the session can call this
+export async function uploadSessionOtherMedia(
+  bookingId: string,
+  sessionId: string,
+  file: File,
+  note?: string,
+) {
+  const formData = new FormData();
+  formData.append("image", file);
+  if (note) formData.append("note", note);
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${bookingId}/session/${sessionId}/media/other`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+}
+
+// Delete booking media with auth — admin can delete any, groomer only their own
+export async function deleteBookingMediaAuth(
+  bookingId: string,
+  publicId: string,
+) {
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${bookingId}/media/auth?public_id=${encodeURIComponent(publicId)}`,
     { method: "DELETE" },
   );
 }

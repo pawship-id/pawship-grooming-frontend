@@ -43,6 +43,7 @@ import {
   uploadBookingMedia,
   updateBookingSession,
   claimSession,
+  uploadSessionOtherMedia,
   type AdminBooking,
   type BookingSession,
 } from "@/lib/api/bookings";
@@ -75,6 +76,9 @@ export default function GroomerJobDetailPage({
     new Set(),
   );
   const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [uploadingSessionMediaId, setUploadingSessionMediaId] = useState<
+    string | null
+  >(null);
   const [editSessionStartOpen, setEditSessionStartOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [newSessionStartDate, setNewSessionStartDate] = useState("");
@@ -246,7 +250,7 @@ export default function GroomerJobDetailPage({
     e.preventDefault();
     if (!booking) return;
     const formData = new FormData(e.currentTarget);
-    const type = formData.get("mediaType") as "before" | "after";
+    const type = formData.get("mediaType") as "before" | "after" | "other";
     const rawFile = formData.get("photo") as File | null;
     if (!rawFile || rawFile.size === 0) {
       toast.error("Pilih foto terlebih dahulu");
@@ -254,8 +258,10 @@ export default function GroomerJobDetailPage({
     }
     setActionLoading("upload-booking");
     try {
-      const framedFile = await applyGroomingFrame(rawFile, type);
-      await uploadBookingMedia(booking._id, framedFile, type);
+      // Only apply frame for before/after; skip for other
+      const fileToUpload =
+        type === "other" ? rawFile : await applyGroomingFrame(rawFile, type);
+      await uploadBookingMedia(booking._id, fileToUpload, type);
       toast.success(`Foto ${type} berhasil diupload`);
       setUploadOpen(false);
       await fetchBooking();
@@ -263,6 +269,20 @@ export default function GroomerJobDetailPage({
       toast.error(err.message || "Gagal mengupload foto");
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleUploadSessionMedia = async (sessionId: string, file: File) => {
+    if (!booking) return;
+    setUploadingSessionMediaId(sessionId);
+    try {
+      await uploadSessionOtherMedia(booking._id, sessionId, file);
+      toast.success("Foto sesi berhasil diupload");
+      await fetchBooking();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal mengupload foto sesi");
+    } finally {
+      setUploadingSessionMediaId(null);
     }
   };
 
@@ -466,12 +486,10 @@ export default function GroomerJobDetailPage({
         </CardContent>
       </Card>
 
-      {/* Before / After Photos (Booking Level) */}
+      {/* Media */}
       <Card className="border-border/50">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="font-display text-lg">
-            Before &amp; After Photos
-          </CardTitle>
+          <CardTitle className="font-display text-lg">Media</CardTitle>
           <Button
             size="sm"
             variant="outline"
@@ -481,41 +499,107 @@ export default function GroomerJobDetailPage({
             Upload Photo
           </Button>
         </CardHeader>
-        <CardContent>
-          {booking.media && booking.media.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {booking.media.map((m, idx) => (
-                <div key={m._id || idx} className="flex flex-col gap-1">
-                  <Badge
-                    variant="outline"
-                    className="w-fit text-[10px] capitalize"
-                  >
-                    {m.type}
-                  </Badge>
+        <CardContent className="flex flex-col gap-6">
+          {/* Foto Sebelum */}
+          <div className="flex flex-col gap-3">
+            <p className="text-sm font-medium text-foreground">Foto Sebelum</p>
+            <div className="flex flex-wrap gap-3">
+              {(booking.media ?? [])
+                .filter((m) => m.type === "before")
+                .map((m, idx) => (
                   <button
+                    key={m._id || idx}
                     type="button"
-                    className="aspect-[9/16] overflow-hidden rounded-lg border border-border/50 bg-muted cursor-pointer transition-opacity hover:opacity-80"
+                    className="relative w-28 aspect-[9/16] overflow-hidden rounded-lg border border-border/50 bg-muted cursor-pointer transition-opacity hover:opacity-80"
                     onClick={() =>
                       setPreviewImage(m.secure_url || m.url || null)
                     }
                   >
                     <img
                       src={m.secure_url || m.url || "/placeholder.svg"}
-                      alt={`${m.type} photo`}
+                      alt="before photo"
                       className="h-full w-full object-cover"
                     />
                   </button>
-                  {m.note && (
-                    <span className="text-[10px] text-muted-foreground">
-                      {m.note}
-                    </span>
-                  )}
-                </div>
-              ))}
+                ))}
+              {(booking.media ?? []).filter((m) => m.type === "before")
+                .length === 0 && (
+                <p className="text-sm italic text-muted-foreground">
+                  Belum ada foto sebelum
+                </p>
+              )}
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Belum ada foto.</p>
-          )}
+          </div>
+
+          {/* Foto Sesudah */}
+          <div className="flex flex-col gap-3">
+            <p className="text-sm font-medium text-foreground">Foto Sesudah</p>
+            <div className="flex flex-wrap gap-3">
+              {(booking.media ?? [])
+                .filter((m) => m.type === "after")
+                .map((m, idx) => (
+                  <button
+                    key={m._id || idx}
+                    type="button"
+                    className="relative w-28 aspect-[9/16] overflow-hidden rounded-lg border border-border/50 bg-muted cursor-pointer transition-opacity hover:opacity-80"
+                    onClick={() =>
+                      setPreviewImage(m.secure_url || m.url || null)
+                    }
+                  >
+                    <img
+                      src={m.secure_url || m.url || "/placeholder.svg"}
+                      alt="after photo"
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                ))}
+              {(booking.media ?? []).filter((m) => m.type === "after")
+                .length === 0 && (
+                <p className="text-sm italic text-muted-foreground">
+                  Belum ada foto sesudah
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Foto Lainnya */}
+          <div className="flex flex-col gap-3">
+            <p className="text-sm font-medium text-foreground">Foto Lainnya</p>
+            <div className="flex flex-wrap gap-3">
+              {(booking.media ?? [])
+                .filter((m) => m.type === "other")
+                .map((m, idx) => {
+                  const session = sessions.find((s) => s._id === m.session_id);
+                  return (
+                    <button
+                      key={m._id || idx}
+                      type="button"
+                      className="relative w-28 aspect-[9/16] overflow-hidden rounded-lg border border-border/50 bg-muted cursor-pointer transition-opacity hover:opacity-80"
+                      onClick={() =>
+                        setPreviewImage(m.secure_url || m.url || null)
+                      }
+                    >
+                      <img
+                        src={m.secure_url || m.url || "/placeholder.svg"}
+                        alt="other photo"
+                        className="h-full w-full object-cover"
+                      />
+                      {session && (
+                        <span className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5 text-center text-[10px] font-medium text-white capitalize truncate">
+                          {session.type}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              {(booking.media ?? []).filter((m) => m.type === "other")
+                .length === 0 && (
+                <p className="text-sm italic text-muted-foreground">
+                  Belum ada foto lainnya
+                </p>
+              )}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -749,6 +833,39 @@ export default function GroomerJobDetailPage({
                               Add Note
                             </Button>
                           ) : null}
+                          {/* Upload foto sesi — hanya groomer yang mengerjakan sesi ini */}
+                          {session._id && (
+                            <label
+                              className={`cursor-pointer ${uploadingSessionMediaId === session._id ? "pointer-events-none opacity-60" : ""}`}
+                            >
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                asChild
+                              >
+                                <span>
+                                  {uploadingSessionMediaId === session._id ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Camera className="mr-2 h-4 w-4" />
+                                  )}
+                                  Upload Foto Sesi
+                                </span>
+                              </Button>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file && session._id)
+                                    handleUploadSessionMedia(session._id, file);
+                                  e.target.value = "";
+                                }}
+                              />
+                            </label>
+                          )}
                         </div>
                         {session.status === "not started" &&
                           !previousAllFinished && (
@@ -1059,6 +1176,15 @@ export default function GroomerJobDetailPage({
                     className="accent-[hsl(var(--primary))]"
                   />
                   <span className="text-sm text-foreground">After</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="mediaType"
+                    value="other"
+                    className="accent-[hsl(var(--primary))]"
+                  />
+                  <span className="text-sm text-foreground">Other</span>
                 </label>
               </div>
             </div>
