@@ -1,11 +1,11 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import Image from "next/image"
-import { useEffect, useState } from "react"
-import { LogOut, Menu, Moon, Sun, X } from "lucide-react"
-import { useTheme } from "next-themes"
-import { Button } from "@/components/ui/button"
+import Link from "next/link";
+import Image from "next/image";
+import { useEffect, useState } from "react";
+import { LogOut, Menu, Moon, Sun, X } from "lucide-react";
+import { useTheme } from "next-themes";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,9 +13,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useAuth } from "@/lib/auth-context"
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuth } from "@/lib/auth-context";
 
 const ROLE_MENU: Record<string, { label: string; href: string }[]> = {
   admin: [{ label: "Dashboard", href: "/admin/dashboard" }],
@@ -24,25 +24,27 @@ const ROLE_MENU: Record<string, { label: string; href: string }[]> = {
     { label: "My Profile", href: "/customer/profile" },
     { label: "My Order", href: "/customer/order" },
   ],
-}
+};
 
 const ROLE_LABEL: Record<string, string> = {
   admin: "Admin / Ops",
   groomer: "Groomer",
   customer: "Customer",
-}
+};
 
 export function PublicNavbar() {
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  const { theme, setTheme } = useTheme()
-  const { user, isAuthenticated, logout } = useAuth()
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const { theme, setTheme } = useTheme();
+  const { user, isAuthenticated, logout } = useAuth();
 
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Avoid hydration mismatch: render neutral placeholders until client is ready
-  const isDark = mounted && theme === "dark"
-  const showAuth = mounted
+  const isDark = mounted && theme === "dark";
+  const showAuth = mounted;
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/50 bg-card/80 backdrop-blur-md">
@@ -58,14 +60,26 @@ export function PublicNavbar() {
           />
         </Link>
 
-        <nav className="hidden items-center gap-8 md:flex" aria-label="Main navigation">
-          <Link href="/#services" className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary">
+        <nav
+          className="hidden items-center gap-8 md:flex"
+          aria-label="Main navigation"
+        >
+          <Link
+            href="/#services"
+            className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
+          >
             Services
           </Link>
-          <Link href="/#about" className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary">
+          <Link
+            href="/#about"
+            className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
+          >
             About
           </Link>
-          <Link href="/#contact" className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary">
+          <Link
+            href="/#contact"
+            className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
+          >
             Contact
           </Link>
           <button
@@ -73,15 +87,23 @@ export function PublicNavbar() {
             className="rounded-md p-2 text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
             aria-label="Toggle dark mode"
           >
-            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {isDark ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
           </button>
           {showAuth && isAuthenticated && user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-2 rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                   <div className="flex flex-col text-left">
-                    <span className="text-sm font-medium text-foreground">{user.name}</span>
-                    <span className="text-xs text-muted-foreground">{ROLE_LABEL[user.role] ?? user.role}</span>
+                    <span className="text-sm font-medium text-foreground">
+                      {user.name}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {ROLE_LABEL[user.role] ?? user.role}
+                    </span>
                   </div>
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={undefined} alt={user.name} />
@@ -124,12 +146,19 @@ export function PublicNavbar() {
           onClick={() => setMobileOpen(!mobileOpen)}
           aria-label="Toggle menu"
         >
-          {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+          {mobileOpen ? (
+            <X className="h-6 w-6" />
+          ) : (
+            <Menu className="h-6 w-6" />
+          )}
         </button>
       </div>
 
       {mobileOpen && (
-        <nav className="flex flex-col gap-4 border-t border-border/50 bg-card px-6 py-4 md:hidden" aria-label="Mobile navigation">
+        <nav
+          className="flex flex-col gap-4 border-t border-border/50 bg-card px-6 py-4 md:hidden"
+          aria-label="Mobile navigation"
+        >
           <Link
             href="/#services"
             className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
@@ -156,7 +185,11 @@ export function PublicNavbar() {
             className="flex items-center gap-2 text-sm font-medium text-foreground/70 transition-colors hover:text-foreground"
             aria-label="Toggle dark mode"
           >
-            {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {isDark ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
             {isDark ? "Light Mode" : "Dark Mode"}
           </button>
           {showAuth && isAuthenticated && user ? (
@@ -175,7 +208,9 @@ export function PublicNavbar() {
                 </Avatar>
                 <div className="flex flex-col">
                   <span className="text-sm font-medium">{user.name}</span>
-                  <span className="text-xs text-muted-foreground">{ROLE_LABEL[user.role] ?? user.role}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {ROLE_LABEL[user.role] ?? user.role}
+                  </span>
                 </div>
               </div>
               {(ROLE_MENU[user.role] ?? []).map((item) => (
@@ -189,7 +224,10 @@ export function PublicNavbar() {
                 </Link>
               ))}
               <button
-                onClick={() => { logout(); setMobileOpen(false) }}
+                onClick={() => {
+                  logout();
+                  setMobileOpen(false);
+                }}
                 className="flex items-center gap-2 text-sm font-medium text-destructive transition-colors hover:text-destructive/80 w-fit"
               >
                 <LogOut className="h-4 w-4" />
@@ -198,11 +236,11 @@ export function PublicNavbar() {
             </>
           ) : showAuth ? (
             <Button asChild size="sm" className="w-fit">
-              <Link href="/login">Staff Login</Link>
+              <Link href="/login">Login</Link>
             </Button>
           ) : null}
         </nav>
       )}
     </header>
-  )
+  );
 }
