@@ -1,48 +1,54 @@
-"use client"
+"use client";
 
-import React from "react"
+import React from "react";
 
-import { useEffect, useState } from "react"
-import { useRouter, usePathname } from "next/navigation"
-import Link from "next/link"
-import Image from "next/image"
-import { useAuth } from "@/lib/auth-context"
-import { LogOut, Scissors } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
+import { useAuth } from "@/lib/auth-context";
+import { LogOut, Scissors } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const NAV_ITEMS = [
   { label: "My Jobs", href: "/groomer/dashboard" },
   { label: "Open Jobs", href: "/groomer/open-jobs" },
   { label: "My Profile", href: "/groomer/profile" },
-]
+];
 
-export default function GroomerLayout({ children }: { children: React.ReactNode }) {
-  const { user, isAuthenticated, logout } = useAuth()
-  const router = useRouter()
-  const pathname = usePathname()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => { setMounted(true) }, [])
+export default function GroomerLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { user, isAuthenticated, logout } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!mounted) return
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     if (!isAuthenticated) {
-      router.push("/login")
+      router.push("/login");
     } else if (user?.role !== "groomer") {
-      if (user?.role === "admin") {
-        router.push("/admin/dashboard")
+      if (user?.role === "admin" || user?.role === "ops") {
+        router.push("/admin/dashboard");
       } else {
-        router.push("/customer/tracking")
+        router.push("/customer/tracking");
       }
     }
-  }, [mounted, isAuthenticated, user, router])
+  }, [mounted, isAuthenticated, user, router]);
 
   if (!mounted || !isAuthenticated || user?.role !== "groomer") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-muted-foreground">Loading...</div>
       </div>
-    )
+    );
   }
 
   return (
@@ -70,9 +76,13 @@ export default function GroomerLayout({ children }: { children: React.ReactNode 
             </Button>
           </div>
         </div>
-        <nav className="mx-auto flex max-w-4xl gap-1 px-4 pb-0" aria-label="Groomer navigation">
+        <nav
+          className="mx-auto flex max-w-4xl gap-1 px-4 pb-0"
+          aria-label="Groomer navigation"
+        >
           {NAV_ITEMS.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+            const isActive =
+              pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <Link
                 key={item.href}
@@ -85,7 +95,7 @@ export default function GroomerLayout({ children }: { children: React.ReactNode 
               >
                 {item.label}
               </Link>
-            )
+            );
           })}
         </nav>
       </header>
@@ -93,5 +103,5 @@ export default function GroomerLayout({ children }: { children: React.ReactNode 
         {children}
       </main>
     </div>
-  )
+  );
 }
