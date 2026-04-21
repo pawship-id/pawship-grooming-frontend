@@ -77,8 +77,11 @@ import {
 } from "@/lib/api/stores";
 import { toast } from "sonner";
 
-const StoreLocationMap = dynamic(
-  () => import("./store-location-map").then((mod) => mod.StoreLocationMap),
+const GoogleLocationMap = dynamic(
+  () =>
+    import("@/components/google-location-map").then(
+      (mod) => mod.GoogleLocationMap,
+    ),
   {
     ssr: false,
     loading: () => (
@@ -933,7 +936,9 @@ function StoreFormFields({
                 setForm((p) => ({ ...p, is_pickup_delivery_available: v }))
               }
             />
-            <Label htmlFor="f-pickup-delivery" className="text-xs">Aktif</Label>
+            <Label htmlFor="f-pickup-delivery" className="text-xs">
+              Aktif
+            </Label>
           </div>
         </div>
 
@@ -971,9 +976,7 @@ function StoreFormFields({
                 className="flex flex-col gap-2 rounded-lg border border-border/60 p-3 bg-muted/20"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">
-                    Zona {idx + 1}
-                  </span>
+                  <span className="text-sm font-medium">Zona {idx + 1}</span>
                   <Button
                     type="button"
                     size="icon"
@@ -1032,7 +1035,10 @@ function StoreFormFields({
                       value={zone.min_radius_km}
                       onChange={(e) => {
                         const next = [...form.pickup_delivery_zones];
-                        next[idx] = { ...next[idx], min_radius_km: e.target.value };
+                        next[idx] = {
+                          ...next[idx],
+                          min_radius_km: e.target.value,
+                        };
                         setForm((p) => ({ ...p, pickup_delivery_zones: next }));
                       }}
                     />
@@ -1047,7 +1053,10 @@ function StoreFormFields({
                       value={zone.max_radius_km}
                       onChange={(e) => {
                         const next = [...form.pickup_delivery_zones];
-                        next[idx] = { ...next[idx], max_radius_km: e.target.value };
+                        next[idx] = {
+                          ...next[idx],
+                          max_radius_km: e.target.value,
+                        };
                         setForm((p) => ({ ...p, pickup_delivery_zones: next }));
                       }}
                     />
@@ -1094,7 +1103,7 @@ function StoreFormFields({
             otomatis.
           </p>
           {mapOpen && (
-            <StoreLocationMap
+            <GoogleLocationMap
               selectedLat={form.location.latitude}
               selectedLng={form.location.longitude}
               onSelect={(lat, lng) => {
