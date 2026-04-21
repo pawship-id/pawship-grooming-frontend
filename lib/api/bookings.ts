@@ -350,6 +350,7 @@ export type UpdateBookingPayload = Partial<
 };
 
 export interface UpdateBookingPricingPayload {
+  service_id?: string;
   service_price?: number;
   service_discount?: number;
   travel_fee?: number;
