@@ -1,46 +1,70 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useRef, useState } from "react"
-import Link from "next/link"
-import { ArrowDown, ChevronLeft, ChevronRight } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { type PublicBanner, getPublicBanners } from "@/lib/api/banners"
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { ArrowDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { type PublicBanner, getPublicBanners } from "@/lib/api/banners";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 function getTextAlignClass(align?: string) {
-  if (align === "left") return "text-left items-start"
-  if (align === "right") return "text-right items-end"
-  return "text-center items-center"
+  if (align === "left") return "text-left items-start";
+  if (align === "right") return "text-right items-end";
+  return "text-center items-center";
 }
 
 function getCtaVerticalClass(pos?: string) {
-  if (pos === "top") return "justify-start"
-  if (pos === "center") return "justify-center"
-  return "justify-end"
+  if (pos === "top") return "justify-start";
+  if (pos === "center") return "justify-center";
+  return "justify-end";
 }
 
 function getCtaHorizontalClass(pos?: string) {
-  if (pos === "left") return "items-start"
-  if (pos === "right") return "items-end"
-  return "items-center"
+  if (pos === "left") return "items-start";
+  if (pos === "right") return "items-end";
+  return "items-center";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Banner slide
 // ─────────────────────────────────────────────────────────────────────────────
 function BannerSlide({ banner }: { banner: PublicBanner }) {
-  const textAlign = getTextAlignClass(banner.text_align)
-  const color = banner.text_color ?? "#ffffff"
+  const isMobile = useIsMobile();
+
+  // Resolve responsive values — mobile fields fall back to desktop when empty
+  const imageUrl =
+    isMobile && banner.banner_mobile?.image_url
+      ? banner.banner_mobile.image_url
+      : banner.banner_desktop.image_url;
+
+  const title =
+    isMobile && banner.title_mobile ? banner.title_mobile : banner.title;
+  const subtitle =
+    isMobile && banner.subtitle_mobile
+      ? banner.subtitle_mobile
+      : banner.subtitle;
+  const textAlignRaw =
+    isMobile && banner.text_align_mobile
+      ? banner.text_align_mobile
+      : banner.text_align;
+  const color =
+    (isMobile && banner.text_color_mobile
+      ? banner.text_color_mobile
+      : banner.text_color) ?? "#ffffff";
+  const cta = isMobile && banner.cta_mobile ? banner.cta_mobile : banner.cta;
+
+  const textAlign = getTextAlignClass(textAlignRaw);
 
   return (
     <div className="relative h-full w-full select-none">
       {/* Background image */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={banner.image_url}
-        alt={banner.title ?? "Banner"}
+        src={imageUrl}
+        alt={title ?? "Banner"}
         className="absolute inset-0 h-full w-full object-cover"
         draggable={false}
       />
@@ -52,91 +76,98 @@ function BannerSlide({ banner }: { banner: PublicBanner }) {
         className={`absolute inset-0 flex flex-col px-8 py-10 md:px-16 md:py-14 ${textAlign}`}
         style={{ color }}
       >
-        {(banner.title || banner.subtitle) && (
-          <div className={`flex flex-col gap-2 max-w-2xl ${banner.text_align === "center" ? "mx-auto" : banner.text_align === "right" ? "ml-auto" : ""}`}>
-            {banner.title && (
+        {(title || subtitle) && (
+          <div
+            className={`flex flex-col gap-2 max-w-2xl ${textAlignRaw === "center" ? "mx-auto" : textAlignRaw === "right" ? "ml-auto" : ""}`}
+          >
+            {title && (
               <h2 className="text-2xl font-extrabold leading-tight drop-shadow md:text-4xl">
-                {banner.title}
+                {title}
               </h2>
             )}
-            {banner.subtitle && (
+            {subtitle && (
               <p className="text-sm leading-relaxed drop-shadow md:text-base">
-                {banner.subtitle}
+                {subtitle}
               </p>
             )}
           </div>
         )}
 
         {/* CTA */}
-        {banner.cta && (
+        {cta && (
           <div
-            className={`absolute inset-x-8 inset-y-10 flex flex-col md:inset-x-16 md:inset-y-14 ${getCtaVerticalClass(banner.cta.vertical_position)} ${getCtaHorizontalClass(banner.cta.horizontal_position)}`}
+            className={`absolute inset-x-8 inset-y-10 flex flex-col md:inset-x-16 md:inset-y-14 ${getCtaVerticalClass(cta.vertical_position)} ${getCtaHorizontalClass(cta.horizontal_position)}`}
           >
             <Link
-              href={banner.cta.link}
+              href={cta.link}
               className="inline-block rounded-md px-5 py-2.5 text-sm font-bold shadow transition-opacity hover:opacity-90 active:opacity-80"
               style={{
-                backgroundColor: banner.cta.background_color ?? "#FF6B35",
-                color: banner.cta.text_color ?? "#ffffff",
+                backgroundColor: cta.background_color ?? "#FF6B35",
+                color: cta.text_color ?? "#ffffff",
               }}
             >
-              {banner.cta.label}
+              {cta.label}
             </Link>
           </div>
         )}
       </div>
     </div>
-  )
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Carousel
 // ─────────────────────────────────────────────────────────────────────────────
-const AUTOPLAY_INTERVAL = 5000
+const AUTOPLAY_INTERVAL = 5000;
 
 function BannerCarousel({ banners }: { banners: PublicBanner[] }) {
-  const [current, setCurrent] = useState(0)
-  const [isPaused, setIsPaused] = useState(false)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const touchStartX = useRef<number | null>(null)
+  const [current, setCurrent] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const touchStartX = useRef<number | null>(null);
 
   const goTo = useCallback(
     (index: number) => {
-      setCurrent((index + banners.length) % banners.length)
+      setCurrent((index + banners.length) % banners.length);
     },
-    [banners.length]
-  )
+    [banners.length],
+  );
 
-  const prev = useCallback(() => goTo(current - 1), [current, goTo])
-  const next = useCallback(() => goTo(current + 1), [current, goTo])
+  const prev = useCallback(() => goTo(current - 1), [current, goTo]);
+  const next = useCallback(() => goTo(current + 1), [current, goTo]);
 
   // Autoplay
   useEffect(() => {
-    if (banners.length <= 1 || isPaused) return
-    timerRef.current = setInterval(() => setCurrent((c) => (c + 1) % banners.length), AUTOPLAY_INTERVAL)
-    return () => { if (timerRef.current) clearInterval(timerRef.current) }
-  }, [banners.length, isPaused])
+    if (banners.length <= 1 || isPaused) return;
+    timerRef.current = setInterval(
+      () => setCurrent((c) => (c + 1) % banners.length),
+      AUTOPLAY_INTERVAL,
+    );
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [banners.length, isPaused]);
 
   // Keyboard navigation
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") prev()
-      if (e.key === "ArrowRight") next()
-    }
-    window.addEventListener("keydown", handleKey)
-    return () => window.removeEventListener("keydown", handleKey)
-  }, [prev, next])
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight") next();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [prev, next]);
 
   // Touch swipe
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX
-  }
+    touchStartX.current = e.touches[0].clientX;
+  };
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return
-    const delta = touchStartX.current - e.changedTouches[0].clientX
-    if (Math.abs(delta) > 40) delta > 0 ? next() : prev()
-    touchStartX.current = null
-  }
+    if (touchStartX.current === null) return;
+    const delta = touchStartX.current - e.changedTouches[0].clientX;
+    if (Math.abs(delta) > 40) delta > 0 ? next() : prev();
+    touchStartX.current = null;
+  };
 
   return (
     <div
@@ -153,7 +184,11 @@ function BannerCarousel({ banners }: { banners: PublicBanner[] }) {
         style={{ transform: `translateX(-${current * 100}%)` }}
       >
         {banners.map((banner) => (
-          <div key={banner._id} className="h-full w-full shrink-0" aria-roledescription="slide">
+          <div
+            key={banner._id}
+            className="h-full w-full shrink-0"
+            aria-roledescription="slide"
+          >
             <BannerSlide banner={banner} />
           </div>
         ))}
@@ -181,7 +216,10 @@ function BannerCarousel({ banners }: { banners: PublicBanner[] }) {
 
       {/* Dot indicators */}
       {banners.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2" role="tablist">
+        <div
+          className="absolute bottom-4 left-1/2 flex -translate-x-1/2 gap-2"
+          role="tablist"
+        >
           {banners.map((_, i) => (
             <button
               key={i}
@@ -190,14 +228,16 @@ function BannerCarousel({ banners }: { banners: PublicBanner[] }) {
               aria-label={`Slide ${i + 1}`}
               onClick={() => goTo(i)}
               className={`h-2 rounded-full transition-all duration-300 ${
-                i === current ? "w-6 bg-white" : "w-2 bg-white/50 hover:bg-white/75"
+                i === current
+                  ? "w-6 bg-white"
+                  : "w-2 bg-white/50 hover:bg-white/75"
               }`}
             />
           ))}
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -211,8 +251,9 @@ function StaticHero() {
           Your Pawfriends Deserve the Best
         </h1>
         <p className="text-pretty text-lg leading-relaxed text-muted-foreground lg:text-xl">
-          A happy place for pawfriends to be pampered with love. In-store or at home, always handled with care.
-          Fresh, fluffy, and beautifully groomed — with transparent pricing you can trust.
+          A happy place for pawfriends to be pampered with love. In-store or at
+          home, always handled with care. Fresh, fluffy, and beautifully groomed
+          — with transparent pricing you can trust.
         </p>
       </div>
 
@@ -220,29 +261,34 @@ function StaticHero() {
         <Button asChild size="lg" className="font-display font-bold">
           <Link href="/booking">Book Services</Link>
         </Button>
-        <Button asChild variant="outline" size="lg" className="font-display font-bold bg-transparent">
+        <Button
+          asChild
+          variant="outline"
+          size="lg"
+          className="font-display font-bold bg-transparent"
+        >
           <Link href="/#contact">Contact Us</Link>
         </Button>
       </div>
     </div>
-  )
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hero section
 // ─────────────────────────────────────────────────────────────────────────────
 export function HeroSection() {
-  const [banners, setBanners] = useState<PublicBanner[]>([])
-  const [loaded, setLoaded] = useState(false)
+  const [banners, setBanners] = useState<PublicBanner[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    getPublicBanners()
+    getPublicBanners("home")
       .then((res) => setBanners(res.banners ?? []))
       .catch(() => setBanners([]))
-      .finally(() => setLoaded(true))
-  }, [])
+      .finally(() => setLoaded(true));
+  }, []);
 
-  const hasBanners = loaded && banners.length > 0
+  const hasBanners = loaded && banners.length > 0;
 
   return (
     <section className="relative flex flex-col overflow-hidden bg-background h-[calc(100vh-61px)]">
@@ -254,8 +300,14 @@ export function HeroSection() {
       ) : (
         <>
           {/* Decorative elements shown only in static mode */}
-          <div className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-secondary/30" aria-hidden="true" />
-          <div className="absolute -bottom-16 -right-16 h-48 w-48 rounded-full bg-accent/20" aria-hidden="true" />
+          <div
+            className="absolute -left-20 -top-20 h-64 w-64 rounded-full bg-secondary/30"
+            aria-hidden="true"
+          />
+          <div
+            className="absolute -bottom-16 -right-16 h-48 w-48 rounded-full bg-accent/20"
+            aria-hidden="true"
+          />
           <div className="flex-1 flex items-center justify-center">
             <StaticHero />
           </div>
@@ -274,6 +326,5 @@ export function HeroSection() {
         </Link>
       </div> */}
     </section>
-  )
+  );
 }
-
