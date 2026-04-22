@@ -82,6 +82,12 @@ export function PublicNavbar() {
           >
             Contact
           </Link>
+          <Link
+            href="/membership"
+            className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
+          >
+            Membership
+          </Link>
           <button
             onClick={() => setTheme(isDark ? "light" : "dark")}
             className="rounded-md p-2 text-foreground/70 transition-colors hover:bg-muted hover:text-foreground"
@@ -179,6 +185,13 @@ export function PublicNavbar() {
             onClick={() => setMobileOpen(false)}
           >
             Contact
+          </Link>
+          <Link
+            href="/membership"
+            className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
+            onClick={() => setMobileOpen(false)}
+          >
+            Membership
           </Link>
           <button
             onClick={() => setTheme(isDark ? "light" : "dark")}
