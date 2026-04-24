@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { LogOut, Menu, Moon, Sun, X } from "lucide-react";
+import { ChevronDown, LogOut, Menu, Moon, Sun, X } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,12 +64,16 @@ export function PublicNavbar() {
           className="hidden items-center gap-8 md:flex"
           aria-label="Main navigation"
         >
-          <Link
-            href="/#services"
-            className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
-          >
-            Services
-          </Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium text-foreground/70 transition-colors hover:text-primary outline-none">
+              Services <ChevronDown className="h-3 w-3" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem asChild>
+                <Link href="/services/grooming">Grooming</Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Link
             href="/#about"
             className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
@@ -81,6 +85,12 @@ export function PublicNavbar() {
             className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
           >
             Contact
+          </Link>
+          <Link
+            href="/membership"
+            className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
+          >
+            Membership
           </Link>
           <button
             onClick={() => setTheme(isDark ? "light" : "dark")}
@@ -159,13 +169,18 @@ export function PublicNavbar() {
           className="flex flex-col gap-4 border-t border-border/50 bg-card px-6 py-4 md:hidden"
           aria-label="Mobile navigation"
         >
-          <Link
-            href="/#services"
-            className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
-            onClick={() => setMobileOpen(false)}
-          >
-            Services
-          </Link>
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-foreground/70">
+              Services
+            </span>
+            <Link
+              href="/services/grooming"
+              className="pl-3 text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
+              onClick={() => setMobileOpen(false)}
+            >
+              Grooming
+            </Link>
+          </div>
           <Link
             href="/#about"
             className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
@@ -179,6 +194,13 @@ export function PublicNavbar() {
             onClick={() => setMobileOpen(false)}
           >
             Contact
+          </Link>
+          <Link
+            href="/membership"
+            className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
+            onClick={() => setMobileOpen(false)}
+          >
+            Membership
           </Link>
           <button
             onClick={() => setTheme(isDark ? "light" : "dark")}

@@ -1,6 +1,6 @@
-import Image from "next/image"
-import Link from "next/link"
-import { Phone, Mail, MapPin } from "lucide-react"
+import Image from "next/image";
+import Link from "next/link";
+import { Phone, Mail, MapPin } from "lucide-react";
 
 export function PublicFooter() {
   return (
@@ -16,25 +16,46 @@ export function PublicFooter() {
               className="w-24 object-contain"
             />
             <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
-              Pawship is a gentle space for your beloved pawfriends to be cared for with comfort and love. Always designed to keep tails wagging and pawrents worry-free.
+              Pawship adalah tempat perawatan anabul yang berfokus pada
+              kebersihan, kenyamanan, dan kepercayaan. Kami percaya setiap
+              anabul layak dirawat dengan standar terbaik.
             </p>
           </div>
 
           <div className="flex flex-col gap-3">
-            <h3 className="font-display text-sm font-bold text-foreground">Quick Links</h3>
-            <Link href="/#services" className="text-sm text-muted-foreground transition-colors hover:text-primary">
+            <h3 className="font-display text-sm font-bold text-foreground">
+              Quick Links
+            </h3>
+            <Link
+              href="/#services"
+              className="text-sm text-muted-foreground transition-colors hover:text-primary"
+            >
               Services
             </Link>
-            <Link href="/#about" className="text-sm text-muted-foreground transition-colors hover:text-primary">
+            <Link
+              href="/#about"
+              className="text-sm text-muted-foreground transition-colors hover:text-primary"
+            >
               About Us
             </Link>
-            <Link href="/#contact" className="text-sm text-muted-foreground transition-colors hover:text-primary">
+            <Link
+              href="/#contact"
+              className="text-sm text-muted-foreground transition-colors hover:text-primary"
+            >
               Contact
+            </Link>
+            <Link
+              href="/membership"
+              className="text-sm text-muted-foreground transition-colors hover:text-primary"
+            >
+              Membership
             </Link>
           </div>
 
           <div className="flex flex-col gap-3">
-            <h3 className="font-display text-sm font-bold text-foreground">Contact Us</h3>
+            <h3 className="font-display text-sm font-bold text-foreground">
+              Contact Us
+            </h3>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Phone className="h-4 w-4 text-primary" />
               <span>+62 81231351150</span>
@@ -55,5 +76,5 @@ export function PublicFooter() {
         </div>
       </div>
     </footer>
-  )
+  );
 }
