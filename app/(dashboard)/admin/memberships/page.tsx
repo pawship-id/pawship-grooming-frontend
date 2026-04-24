@@ -14,6 +14,7 @@ import {
   CalendarDays,
   Check,
   Trash,
+  FileDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,7 +86,9 @@ import {
   createMembership,
   updateMembership,
   deleteMembership,
+  getPetMembershipsExport,
 } from "@/lib/api/memberships";
+import { exportMembershipPurchasesToExcel } from "@/lib/export-membership";
 import { getOptions, type ApiOption } from "@/lib/api/options";
 import { getAdminServices, type AdminService } from "@/lib/api/services";
 
@@ -1059,9 +1062,12 @@ function MembershipsTab() {
 
   // Retroactive confirmation
   const [retroConfirmOpen, setRetroConfirmOpen] = useState(false);
-  const [pendingPayload, setPendingPayload] = useState<MembershipPayload | null>(null);
+  const [pendingPayload, setPendingPayload] =
+    useState<MembershipPayload | null>(null);
   // Store original benefits when opening edit mode, to detect changes
-  const [originalBenefits, setOriginalBenefits] = useState<MembershipForm["benefits"]>([]);
+  const [originalBenefits, setOriginalBenefits] = useState<
+    MembershipForm["benefits"]
+  >([]);
 
   const loadMemberships = useCallback(async () => {
     setIsLoading(true);
@@ -1128,7 +1134,9 @@ function MembershipsTab() {
     if (current.length !== originalBenefits.length) return true;
     const serialize = (b: MembershipForm["benefits"]) =>
       JSON.stringify(
-        b.map(({ _localId, ...rest }) => rest).sort((a, b2) => JSON.stringify(a).localeCompare(JSON.stringify(b2)))
+        b
+          .map(({ _localId, ...rest }) => rest)
+          .sort((a, b2) => JSON.stringify(a).localeCompare(JSON.stringify(b2))),
       );
     return serialize(current) !== serialize(originalBenefits);
   };
@@ -1161,7 +1169,11 @@ function MembershipsTab() {
     const payload = formToPayload(form);
 
     // For edit mode: if benefits changed, ask about retroactive
-    if (dialogMode === "edit" && editingId && hasBenefitsChanged(form.benefits)) {
+    if (
+      dialogMode === "edit" &&
+      editingId &&
+      hasBenefitsChanged(form.benefits)
+    ) {
       setPendingPayload(payload);
       setRetroConfirmOpen(true);
       return;
@@ -1390,25 +1402,40 @@ function MembershipsTab() {
           <AlertDialogHeader>
             <AlertDialogTitle>Terapkan Perubahan Benefit</AlertDialogTitle>
             <AlertDialogDescription className="text-sm leading-relaxed">
-              Benefit pada paket membership ini telah diubah. Pilih bagaimana perubahan ini diterapkan:
+              Benefit pada paket membership ini telah diubah. Pilih bagaimana
+              perubahan ini diterapkan:
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="flex flex-col gap-3 py-2">
             <div className="rounded-lg border border-border p-3">
-              <p className="text-sm font-medium text-foreground">Hanya untuk pembelian baru</p>
+              <p className="text-sm font-medium text-foreground">
+                Hanya untuk pembelian baru
+              </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Perubahan benefit hanya berlaku untuk membership yang dibeli setelah ini. Membership yang sudah berjalan tetap menggunakan benefit lama.
+                Perubahan benefit hanya berlaku untuk membership yang dibeli
+                setelah ini. Membership yang sudah berjalan tetap menggunakan
+                benefit lama.
               </p>
             </div>
             <div className="rounded-lg border border-border p-3">
-              <p className="text-sm font-medium text-foreground">Terapkan ke semua membership yang AKTIF dan PENDING</p>
+              <p className="text-sm font-medium text-foreground">
+                Terapkan ke semua membership yang AKTIF dan PENDING
+              </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Selain berlaku untuk pembelian baru, perubahan benefit juga akan di-update ke semua membership yang masih aktif dan yang menunggu (pending). Riwayat penggunaan benefit yang sudah ada akan dipertahankan.
+                Selain berlaku untuk pembelian baru, perubahan benefit juga akan
+                di-update ke semua membership yang masih aktif dan yang menunggu
+                (pending). Riwayat penggunaan benefit yang sudah ada akan
+                dipertahankan.
               </p>
             </div>
           </div>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel onClick={() => { setRetroConfirmOpen(false); setPendingPayload(null); }}>
+            <AlertDialogCancel
+              onClick={() => {
+                setRetroConfirmOpen(false);
+                setPendingPayload(null);
+              }}
+            >
               Batal
             </AlertDialogCancel>
             <Button
@@ -1434,18 +1461,46 @@ function MembershipsTab() {
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default function MembershipsPage() {
+  const [isExporting, setIsExporting] = useState(false);
+
+  async function handleExport() {
+    setIsExporting(true);
+    try {
+      const res = await getPetMembershipsExport();
+      exportMembershipPurchasesToExcel(res.data);
+    } catch (err) {
+      const { toast } = await import("sonner");
+      toast.error(
+        err instanceof Error ? err.message : "Gagal mengekspor data membership",
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center gap-3">
-        <CreditCard className="h-6 w-6 text-primary" />
-        <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">
-            Memberships
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Kelola paket membership
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <CreditCard className="h-6 w-6 text-primary" />
+          <div>
+            <h1 className="font-display text-2xl font-bold text-foreground">
+              Memberships
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Kelola paket membership
+            </p>
+          </div>
         </div>
+        <Button
+          variant="outline"
+          onClick={handleExport}
+          disabled={isExporting}
+          className="flex items-center gap-2"
+        >
+          <FileDown className="h-4 w-4" />
+          {isExporting ? "Mengekspor..." : "Export Pembelian"}
+        </Button>
       </div>
       <MembershipsTab />
     </div>
