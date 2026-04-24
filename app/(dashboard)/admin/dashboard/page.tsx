@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   Users,
@@ -11,6 +12,11 @@ import {
   CalendarIcon,
   Store as StoreIcon,
   Settings,
+  TrendingUp,
+  Receipt,
+  ChevronLeft,
+  ChevronRight,
+  X,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +52,17 @@ import { Combobox } from "@/components/ui/combobox";
 import { Progress } from "@/components/ui/progress";
 import { bookings, customers, products, groomers } from "@/lib/mock-data";
 import { getDailyUsages, DailyUsage } from "@/lib/api/daily-usage";
+import { getAdminBookings } from "@/lib/api/bookings";
+import type { AdminBooking } from "@/lib/api/bookings";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getStores, ApiStore } from "@/lib/api/stores";
 import {
   createStoreDailyCapacity,
@@ -57,6 +74,71 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
+// ── Transaction booking helpers ──────────────────────────────────────────────
+
+function toYMD(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+type TxDatePreset = "today" | "week" | "month" | "custom" | "";
+
+function getTxPresetRange(
+  preset: TxDatePreset,
+): { from: string; to: string } | null {
+  const now = new Date();
+  if (preset === "today") {
+    const d = toYMD(now);
+    return { from: d, to: d };
+  }
+  if (preset === "week") {
+    const day = now.getDay();
+    const diffToMon = day === 0 ? -6 : 1 - day;
+    const mon = new Date(now);
+    mon.setDate(now.getDate() + diffToMon);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    return { from: toYMD(mon), to: toYMD(sun) };
+  }
+  if (preset === "month") {
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { from: toYMD(first), to: toYMD(last) };
+  }
+  return null;
+}
+
+function formatTxPrice(price: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    minimumFractionDigits: 0,
+  }).format(price);
+}
+
+function formatTxDate(iso: string) {
+  return new Date(iso).toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+const TX_LIMIT = 10;
+
+const txStatusColors: Record<string, string> = {
+  requested: "bg-accent/20 text-accent-foreground",
+  confirmed: "bg-secondary/60 text-secondary-foreground",
+  waitlist: "bg-yellow-100 text-yellow-800",
+  "driver on the way": "bg-blue-100 text-blue-800",
+  "groomer on the way": "bg-blue-100 text-blue-800",
+  arrived: "bg-primary/10 text-primary",
+  "in progress": "bg-primary/10 text-primary",
+  completed: "bg-secondary/60 text-secondary-foreground",
+  returned: "bg-slate-100 text-slate-700",
+  rescheduled: "bg-accent/20 text-accent-foreground",
+  cancelled: "bg-destructive/10 text-destructive",
+};
+
 const statusColors: Record<string, string> = {
   confirmed: "bg-secondary/60 text-secondary-foreground",
   "not-confirmed": "bg-accent/20 text-accent-foreground",
@@ -66,6 +148,8 @@ const statusColors: Record<string, string> = {
 };
 
 export default function AdminDashboard() {
+  const router = useRouter();
+
   const todayBookings = bookings.filter(
     (b) => b.date === "2026-02-07" || b.date === "2026-02-06",
   );
@@ -104,6 +188,59 @@ export default function AdminDashboard() {
   ];
 
   const { toast } = useToast();
+
+  // Transaction booking states
+  const [txBookings, setTxBookings] = useState<AdminBooking[]>([]);
+  const [txLoading, setTxLoading] = useState(true);
+  const [txDatePreset, setTxDatePreset] = useState<TxDatePreset>("today");
+  const [txDateFrom, setTxDateFrom] = useState("");
+  const [txDateTo, setTxDateTo] = useState("");
+  const [txPage, setTxPage] = useState(1);
+  const [txTotal, setTxTotal] = useState(0);
+  const [txCalFromOpen, setTxCalFromOpen] = useState(false);
+  const [txCalToOpen, setTxCalToOpen] = useState(false);
+
+  const txTotalPages = Math.max(1, Math.ceil(txTotal / TX_LIMIT));
+
+  const fetchTxBookings = useCallback(
+    (page: number) => {
+      setTxLoading(true);
+      const presetRange = getTxPresetRange(txDatePreset);
+      const from =
+        txDatePreset === "custom" ? txDateFrom : (presetRange?.from ?? "");
+      const to = txDatePreset === "custom" ? txDateTo : (presetRange?.to ?? "");
+      getAdminBookings({
+        page,
+        limit: TX_LIMIT,
+        date_from: from || undefined,
+        date_to: to || undefined,
+      })
+        .then((res) => {
+          setTxBookings(res.bookings);
+          setTxTotal(res.total ?? 0);
+        })
+        .catch(() => {})
+        .finally(() => setTxLoading(false));
+    },
+    [txDatePreset, txDateFrom, txDateTo],
+  );
+
+  useEffect(() => {
+    setTxPage(1);
+  }, [txDatePreset, txDateFrom, txDateTo]);
+
+  useEffect(() => {
+    fetchTxBookings(txPage);
+  }, [fetchTxBookings, txPage]);
+
+  const txRevenue = txBookings.reduce(
+    (sum, b) => sum + (b.final_total_price ?? 0),
+    0,
+  );
+
+  function handleTxPreset(preset: TxDatePreset) {
+    setTxDatePreset((prev) => (prev === preset ? "" : preset));
+  }
 
   // Daily usage states
   const [stores, setStores] = useState<ApiStore[]>([]);
@@ -583,7 +720,6 @@ export default function AdminDashboard() {
           Overview of your pet grooming business
         </p>
       </div>
-
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <Card key={stat.title} className="border-border/50">
@@ -601,7 +737,6 @@ export default function AdminDashboard() {
           </Card>
         ))}
       </div>
-
       {/* Daily Capacity Usage Section */}
       <Card className="border-border/50">
         <CardHeader>
@@ -780,6 +915,267 @@ export default function AdminDashboard() {
           )}
         </CardContent>
       </Card>
+      {/* Transaction Booking Section */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="font-display text-lg font-bold">
+            Transaksi Booking
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {/* Preset buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant={txDatePreset === "today" ? "default" : "outline"}
+              onClick={() => handleTxPreset("today")}
+            >
+              Hari Ini
+            </Button>
+            <Button
+              size="sm"
+              variant={txDatePreset === "week" ? "default" : "outline"}
+              onClick={() => handleTxPreset("week")}
+            >
+              Minggu Ini
+            </Button>
+            <Button
+              size="sm"
+              variant={txDatePreset === "month" ? "default" : "outline"}
+              onClick={() => handleTxPreset("month")}
+            >
+              Bulan Ini
+            </Button>
+            <Button
+              size="sm"
+              variant={txDatePreset === "custom" ? "default" : "outline"}
+              onClick={() => handleTxPreset("custom")}
+            >
+              Custom
+            </Button>
+          </div>
+
+          {/* Custom date range — shown below when Custom is active */}
+          {txDatePreset === "custom" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Popover open={txCalFromOpen} onOpenChange={setTxCalFromOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "h-8 w-[180px] justify-start text-xs gap-1.5",
+                      !txDateFrom && "text-muted-foreground",
+                    )}
+                  >
+                    <CalendarIcon className="h-3 w-3" />
+                    {txDateFrom
+                      ? format(new Date(txDateFrom), "dd MMM yyyy")
+                      : "Dari tanggal"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={txDateFrom ? new Date(txDateFrom) : undefined}
+                    onSelect={(d) => {
+                      if (d) setTxDateFrom(toYMD(d));
+                      setTxCalFromOpen(false);
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <span className="text-xs text-muted-foreground">s/d</span>
+
+              <Popover open={txCalToOpen} onOpenChange={setTxCalToOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "h-8 w-[180px] justify-start text-xs gap-1.5",
+                      !txDateTo && "text-muted-foreground",
+                    )}
+                  >
+                    <CalendarIcon className="h-3 w-3" />
+                    {txDateTo
+                      ? format(new Date(txDateTo), "dd MMM yyyy")
+                      : "Sampai tanggal"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={txDateTo ? new Date(txDateTo) : undefined}
+                    onSelect={(d) => {
+                      if (d) setTxDateTo(toYMD(d));
+                      setTxCalToOpen(false);
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+
+              {(txDateFrom || txDateTo) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setTxDateFrom("");
+                    setTxDateTo("");
+                  }}
+                  title="Reset tanggal"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Summary cards */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex items-center gap-3 rounded-lg border border-border/50 p-4">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                <CalendarDays className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total Booking</p>
+                {txLoading ? (
+                  <Skeleton className="h-6 w-12 mt-0.5" />
+                ) : (
+                  <p className="font-display text-xl font-bold text-foreground">
+                    {txTotal}
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg border border-border/50 p-4">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary/20">
+                <TrendingUp className="h-4 w-4 text-secondary-foreground" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  Total Pendapatan
+                </p>
+                {txLoading ? (
+                  <Skeleton className="h-6 w-28 mt-0.5" />
+                ) : (
+                  <p className="font-display text-xl font-bold text-foreground">
+                    {formatTxPrice(txRevenue)}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Bookings table */}
+          <div className="rounded-md border border-border/50 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs">Tanggal</TableHead>
+                  <TableHead className="text-xs">Customer</TableHead>
+                  <TableHead className="text-xs">Hewan</TableHead>
+                  <TableHead className="text-xs">Layanan</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-right text-xs">Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {txLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      {Array.from({ length: 6 }).map((_, j) => (
+                        <TableCell key={j}>
+                          <Skeleton className="h-4 w-full" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : txBookings.length === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="text-center text-sm text-muted-foreground py-8"
+                    >
+                      Tidak ada booking pada periode ini
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  txBookings.map((b) => (
+                    <TableRow
+                      key={b._id}
+                      className="cursor-pointer hover:bg-muted/60"
+                      onClick={() => router.push(`/admin/bookings/${b._id}`)}
+                    >
+                      <TableCell className="text-xs whitespace-nowrap">
+                        {formatTxDate(b.date)}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {b.customer?.username ?? "-"}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {b.pet_snapshot.name}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {b.service_snapshot.name}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <span
+                          className={cn(
+                            "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                            txStatusColors[b.booking_status] ??
+                              "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {b.booking_status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right text-xs font-medium whitespace-nowrap">
+                        {formatTxPrice(b.final_total_price)}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Pagination */}
+          {txTotalPages > 1 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-xs text-muted-foreground">
+                Halaman {txPage} dari {txTotalPages} ({txTotal} booking)
+              </span>
+              <div className="flex gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  disabled={txPage <= 1}
+                  onClick={() => setTxPage((p) => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  disabled={txPage >= txTotalPages}
+                  onClick={() =>
+                    setTxPage((p) => Math.min(txTotalPages, p + 1))
+                  }
+                >
+                  <ChevronRight className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Quick Stats and Recent Bookings */}
       <div className="grid gap-6 lg:grid-cols-2">
@@ -846,7 +1242,6 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
-
       {/* Capacity Override Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
@@ -1199,7 +1594,6 @@ export default function AdminDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Revert Confirmation Dialog */}
       <AlertDialog open={showRevertConfirm} onOpenChange={setShowRevertConfirm}>
         <AlertDialogContent>
