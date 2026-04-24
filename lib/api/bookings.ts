@@ -201,6 +201,8 @@ export interface AdminBooking {
   // Populated by backend (present in both list and detail responses)
   customer?: BookingCustomer;
   store?: BookingStore;
+  // Enriched by backend: memberships active on the booking date
+  active_memberships?: { name: string }[];
 }
 
 // ── Response shapes ──────────────────────────────────────────────────────────
