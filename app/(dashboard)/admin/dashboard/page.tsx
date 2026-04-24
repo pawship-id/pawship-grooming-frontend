@@ -54,6 +54,9 @@ import { bookings, customers, products, groomers } from "@/lib/mock-data";
 import { getDailyUsages, DailyUsage } from "@/lib/api/daily-usage";
 import { getAdminBookings } from "@/lib/api/bookings";
 import type { AdminBooking } from "@/lib/api/bookings";
+import { getUsers } from "@/lib/api/users";
+import { getPets } from "@/lib/api/pets";
+import { getAdminServices } from "@/lib/api/services";
 import {
   Table,
   TableBody,
@@ -150,6 +153,35 @@ const statusColors: Record<string, string> = {
 export default function AdminDashboard() {
   const router = useRouter();
 
+  // Summary stat counts
+  const [statCounts, setStatCounts] = useState({
+    customers: 0,
+    pets: 0,
+    services: 0,
+    groomers: 0,
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  useEffect(() => {
+    setStatsLoading(true);
+    Promise.all([
+      getUsers({ page: 1, limit: 1, role: "customer", is_active: "true" }),
+      getPets({ page: 1, limit: 1, is_active: "true" }),
+      getAdminServices({ page: 1, limit: 1, is_active: "true" }),
+      getUsers({ page: 1, limit: 1, role: "groomer", is_active: "true" }),
+    ])
+      .then(([customersRes, petsRes, servicesRes, groomersRes]) => {
+        setStatCounts({
+          customers: customersRes.pagination?.total ?? 0,
+          pets: petsRes.pagination?.total ?? 0,
+          services: servicesRes.pagination?.total ?? 0,
+          groomers: groomersRes.pagination?.total ?? 0,
+        });
+      })
+      .catch(() => {})
+      .finally(() => setStatsLoading(false));
+  }, []);
+
   const todayBookings = bookings.filter(
     (b) => b.date === "2026-02-07" || b.date === "2026-02-06",
   );
@@ -162,26 +194,26 @@ export default function AdminDashboard() {
 
   const stats = [
     {
-      title: "Total Bookings",
-      value: bookings.length,
-      icon: CalendarDays,
-      color: "text-primary",
-    },
-    {
-      title: "Customers",
-      value: customers.length,
+      title: "Total Customer",
+      value: statCounts.customers,
       icon: Users,
       color: "text-primary",
     },
     {
+      title: "Total Pet",
+      value: statCounts.pets,
+      icon: Package,
+      color: "text-primary",
+    },
+    {
       title: "Services",
-      value: products.filter((p) => p.isActive).length,
+      value: statCounts.services,
       icon: Package,
       color: "text-accent-foreground",
     },
     {
-      title: "Active Groomers",
-      value: groomers.filter((g) => g.isActive).length,
+      title: "Groomers",
+      value: statCounts.groomers,
       icon: Scissors,
       color: "text-secondary-foreground",
     },
@@ -729,9 +761,13 @@ export default function AdminDashboard() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">{stat.title}</p>
-                <p className="font-display text-2xl font-bold text-foreground">
-                  {stat.value}
-                </p>
+                {statsLoading ? (
+                  <Skeleton className="h-8 w-12 mt-1" />
+                ) : (
+                  <p className="font-display text-2xl font-bold text-foreground">
+                    {stat.value}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
