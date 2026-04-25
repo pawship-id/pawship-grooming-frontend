@@ -19,6 +19,7 @@ export interface PetSnapshot {
   size: BookingOptionRef;
   hair: BookingOptionRef;
   breed: BookingOptionRef;
+  tags?: string[];
 }
 
 // ── Service Snapshot ─────────────────────────────────────────────────────────
@@ -57,8 +58,14 @@ export interface SessionMedia {
   url?: string;
   secure_url?: string;
   public_id?: string;
-  type: "before" | "after";
+  type: "before" | "after" | "other";
   note?: string;
+  session_id?: string;
+  created_by?: {
+    user_id?: string;
+    name_snapshot?: string;
+  };
+  uploaded_at?: string;
 }
 
 export interface BookingSession {
@@ -194,6 +201,8 @@ export interface AdminBooking {
   // Populated by backend (present in both list and detail responses)
   customer?: BookingCustomer;
   store?: BookingStore;
+  // Enriched by backend: memberships active on the booking date
+  active_memberships?: { name: string }[];
 }
 
 // ── Response shapes ──────────────────────────────────────────────────────────
@@ -343,6 +352,7 @@ export type UpdateBookingPayload = Partial<
 };
 
 export interface UpdateBookingPricingPayload {
+  service_id?: string;
   service_price?: number;
   service_discount?: number;
   travel_fee?: number;
@@ -547,6 +557,13 @@ export async function updateBookingPricing(
   });
 }
 
+export async function updateBookingNote(id: string, note?: string) {
+  return apiAuthRequest<{ message: string }>(`/bookings/${id}/note`, {
+    method: "PATCH",
+    body: JSON.stringify({ note }),
+  });
+}
+
 // Fetches membership benefits directly for a pet, bypassing service price lookups.
 // Used as a fallback when getBookingPreview fails (e.g. service is soft-deleted).
 export async function getPetBenefitsSummary(petId: string) {
@@ -682,7 +699,7 @@ export async function uploadSessionMedia(
 export async function uploadBookingMedia(
   bookingId: string,
   file: File,
-  type: "before" | "after",
+  type: "before" | "after" | "other",
   note?: string,
 ) {
   const formData = new FormData();
@@ -698,6 +715,37 @@ export async function uploadBookingMedia(
 export async function deleteBookingMedia(bookingId: string, publicId: string) {
   return apiAuthRequest<{ message: string }>(
     `/bookings/${bookingId}/media?public_id=${encodeURIComponent(publicId)}`,
+    { method: "DELETE" },
+  );
+}
+
+// Upload "other" media from a specific session — stored in booking.media[]
+// Only admin or the groomer assigned to the session can call this
+export async function uploadSessionOtherMedia(
+  bookingId: string,
+  sessionId: string,
+  file: File,
+  note?: string,
+) {
+  const formData = new FormData();
+  formData.append("image", file);
+  if (note) formData.append("note", note);
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${bookingId}/session/${sessionId}/media/other`,
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+}
+
+// Delete booking media with auth — admin can delete any, groomer only their own
+export async function deleteBookingMediaAuth(
+  bookingId: string,
+  publicId: string,
+) {
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${bookingId}/media/auth?public_id=${encodeURIComponent(publicId)}`,
     { method: "DELETE" },
   );
 }

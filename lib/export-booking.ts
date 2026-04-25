@@ -108,7 +108,12 @@ export function exportBookingsToExcel(bookings: AdminBooking[]): void {
     row["Time Slot"] = booking.time_range || "-";
     row["Customer Name"] = booking.customer?.username || "-";
     row["Dog Name"] = booking.pet_snapshot?.name || "-";
-    row["Member Type"] = booking.pet_snapshot?.member_type?.name || "-";
+    // Use memberships that were active on the booking date
+    const memberTypeNames =
+      booking.active_memberships && booking.active_memberships.length > 0
+        ? booking.active_memberships.map((m) => m.name).join(", ")
+        : "Reguler";
+    row["Member Type"] = memberTypeNames;
 
     // Service details
     row["Tipe Layanan"] = booking.type || "-";

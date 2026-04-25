@@ -3,18 +3,12 @@
 import { useEffect, useState } from "react";
 import { use } from "react";
 import Link from "next/link";
-import {
-  Calendar,
-  Truck,
-  Pencil,
-} from "lucide-react";
+import { Calendar, Truck, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/format";
-import {
-  getAdminBookingById,
-} from "@/lib/api/bookings";
+import { getAdminBookingById } from "@/lib/api/bookings";
 import type { AdminBooking } from "@/lib/api/bookings";
 import { getStoreById } from "@/lib/api/stores";
 import { getUsers } from "@/lib/api/users";
@@ -27,6 +21,7 @@ import { StatusBookingCard } from "./_components/status-booking-card";
 import { PriceEditPanel } from "./_components/price-edit-panel";
 import { PriceDisplay } from "./_components/price-display";
 import { CustomerPetCard } from "./_components/customer-pet-card";
+import { BookingNotesCard } from "./_components/booking-notes-card";
 import { StatusLogsCard } from "./_components/status-logs-card";
 import { GroomingSessionsCard } from "./_components/grooming-sessions-card";
 import { PhotoGalleryCard } from "./_components/photo-gallery-card";
@@ -42,7 +37,9 @@ export default function BookingDetailPage({
   const [notFound, setNotFound] = useState(false);
   const [groomers, setGroomers] = useState<ApiUser[]>([]);
   const [storeSessions, setStoreSessions] = useState<string[]>([]);
-  const [sessionSkillOptions, setSessionSkillOptions] = useState<ApiOption[]>([]);
+  const [sessionSkillOptions, setSessionSkillOptions] = useState<ApiOption[]>(
+    [],
+  );
   const [editingPrice, setEditingPrice] = useState(false);
   const isReturned = booking?.booking_status === "returned";
 
@@ -60,7 +57,7 @@ export default function BookingDetailPage({
         if (b.store_id) {
           getStoreById(b.store_id)
             .then((storeRes) => setStoreSessions(storeRes.store.sessions ?? []))
-            .catch(() => { });
+            .catch(() => {});
         }
       })
       .catch(() => setNotFound(true))
@@ -148,7 +145,9 @@ export default function BookingDetailPage({
                 )}
                 {booking.type === "in store" && (
                   <div className="col-span-2">
-                    <span className="text-xs text-muted-foreground">Pickup & Delivery</span>
+                    <span className="text-xs text-muted-foreground">
+                      Pickup & Delivery
+                    </span>
                     <div className="mt-1 flex flex-wrap gap-2">
                       {booking.pick_up && (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-400">
@@ -163,7 +162,9 @@ export default function BookingDetailPage({
                         </span>
                       )}
                       {!booking.pick_up && !booking.delivery && (
-                        <span className="text-sm text-muted-foreground">Tidak ada</span>
+                        <span className="text-sm text-muted-foreground">
+                          Tidak ada
+                        </span>
                       )}
                     </div>
                   </div>
@@ -205,20 +206,22 @@ export default function BookingDetailPage({
                   </p>
                 </div>
               )}
-
-              {booking.note && (
-                <div>
-                  <span className="text-xs text-muted-foreground">Catatan</span>
-                  <p className="mt-1 rounded-md bg-muted/50 p-3 text-sm text-foreground">
-                    {booking.note}
-                  </p>
-                </div>
-              )}
             </CardContent>
           </Card>
 
-          {/* Customer & Pet */}
-          <CustomerPetCard booking={booking} />
+          {/* Customer & Pet + Booking Notes Container */}
+          <div className="flex flex-col gap-6">
+            {/* Customer & Pet */}
+            <CustomerPetCard booking={booking} />
+
+            {/* Booking Notes */}
+            <BookingNotesCard
+              bookingId={id}
+              note={booking.note}
+              onNoteSaved={refreshBooking}
+              readOnly={isReturned}
+            />
+          </div>
 
           {/* Status Logs */}
           <StatusLogsCard booking={booking} />
@@ -238,7 +241,6 @@ export default function BookingDetailPage({
             booking={booking}
             bookingId={id}
             refreshBooking={refreshBooking}
-            readOnly={isReturned}
           />
         </div>
       </div>

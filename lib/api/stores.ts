@@ -551,6 +551,20 @@ export async function getHomepageServices() {
   return apiRequest<HomepageServiceResponse>("/services/public/homepage");
 }
 
+export async function getAllPublicServices(params?: {
+  service_type_id?: string;
+  store_id?: string;
+}) {
+  const query = new URLSearchParams();
+  if (params?.service_type_id)
+    query.set("service_type_id", params.service_type_id);
+  if (params?.store_id) query.set("store_id", params.store_id);
+  const qs = query.toString();
+  return apiRequest<HomepageServiceResponse>(
+    `/services/public${qs ? `?${qs}` : ""}`,
+  );
+}
+
 // ── Public booking preview ───────────────────────────────────────────────────
 
 export interface PublicPreviewBenefit {

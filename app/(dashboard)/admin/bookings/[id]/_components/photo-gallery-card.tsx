@@ -35,7 +35,7 @@ export function PhotoGalleryCard({
   readOnly = false,
 }: PhotoGalleryCardProps) {
   const [uploadingMediaType, setUploadingMediaType] = useState<
-    "before" | "after" | null
+    "before" | "after" | "other" | null
   >(null);
   const [deletingBookingMediaId, setDeletingBookingMediaId] = useState<
     string | null
@@ -47,18 +47,18 @@ export function PhotoGalleryCard({
 
   const handleUploadBookingMedia = async (
     file: File,
-    type: "before" | "after",
+    type: "before" | "after" | "other",
   ) => {
     setUploadingMediaType(type);
     try {
-      const framedFile = await applyGroomingFrame(file, type);
-      await uploadBookingMedia(bookingId, framedFile, type);
+      // Only apply grooming frame for before/after; other is uploaded as-is
+      const fileToUpload =
+        type === "other" ? file : await applyGroomingFrame(file, type);
+      await uploadBookingMedia(bookingId, fileToUpload, type);
       await refreshBooking();
       toast.success(`Foto ${type} berhasil diupload`);
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Gagal mengupload foto",
-      );
+      toast.error(err instanceof Error ? err.message : "Gagal mengupload foto");
     } finally {
       setUploadingMediaType(null);
     }
@@ -78,6 +78,13 @@ export function PhotoGalleryCard({
     }
   };
 
+  // Get session type label from session_id for "other" photos
+  const getSessionLabel = (sessionId?: string) => {
+    if (!sessionId) return null;
+    const session = booking.sessions?.find((s) => s._id === sessionId);
+    return session ? session.type : null;
+  };
+
   return (
     <>
       <Card className="border-border/50 lg:col-span-2">
@@ -91,34 +98,32 @@ export function PhotoGalleryCard({
           {/* Before photos */}
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-foreground">
-                Foto Before
-              </p>
+              <p className="text-sm font-medium text-foreground">Foto Before</p>
               {!readOnly && (
-              <label
-                className={`cursor-pointer ${uploadingMediaType === "before" ? "pointer-events-none opacity-60" : ""}`}
-              >
-                <Button type="button" size="sm" variant="outline" asChild>
-                  <span>
-                    {uploadingMediaType === "before" ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
-                    )}
-                    Upload Before
-                  </span>
-                </Button>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleUploadBookingMedia(file, "before");
-                    e.target.value = "";
-                  }}
-                />
-              </label>
+                <label
+                  className={`cursor-pointer ${uploadingMediaType === "before" ? "pointer-events-none opacity-60" : ""}`}
+                >
+                  <Button type="button" size="sm" variant="outline" asChild>
+                    <span>
+                      {uploadingMediaType === "before" ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      Upload Before
+                    </span>
+                  </Button>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUploadBookingMedia(file, "before");
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
               )}
             </div>
             <div className="flex flex-wrap gap-3">
@@ -139,14 +144,14 @@ export function PhotoGalleryCard({
                       }
                     />
                     {!readOnly && (
-                    <button
-                      onClick={() =>
-                        setConfirmDeleteMediaId(m.public_id ?? "")
-                      }
-                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+                      <button
+                        onClick={() =>
+                          setConfirmDeleteMediaId(m.public_id ?? "")
+                        }
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     )}
                   </div>
                 ))}
@@ -162,34 +167,32 @@ export function PhotoGalleryCard({
           {/* After photos */}
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-foreground">
-                Foto After
-              </p>
+              <p className="text-sm font-medium text-foreground">Foto After</p>
               {!readOnly && (
-              <label
-                className={`cursor-pointer ${uploadingMediaType === "after" ? "pointer-events-none opacity-60" : ""}`}
-              >
-                <Button type="button" size="sm" variant="outline" asChild>
-                  <span>
-                    {uploadingMediaType === "after" ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
-                    )}
-                    Upload After
-                  </span>
-                </Button>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleUploadBookingMedia(file, "after");
-                    e.target.value = "";
-                  }}
-                />
-              </label>
+                <label
+                  className={`cursor-pointer ${uploadingMediaType === "after" ? "pointer-events-none opacity-60" : ""}`}
+                >
+                  <Button type="button" size="sm" variant="outline" asChild>
+                    <span>
+                      {uploadingMediaType === "after" ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      Upload After
+                    </span>
+                  </Button>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUploadBookingMedia(file, "after");
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
               )}
             </div>
             <div className="flex flex-wrap gap-3">
@@ -210,14 +213,14 @@ export function PhotoGalleryCard({
                       }
                     />
                     {!readOnly && (
-                    <button
-                      onClick={() =>
-                        setConfirmDeleteMediaId(m.public_id ?? "")
-                      }
-                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+                      <button
+                        onClick={() =>
+                          setConfirmDeleteMediaId(m.public_id ?? "")
+                        }
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     )}
                   </div>
                 ))}
@@ -225,6 +228,85 @@ export function PhotoGalleryCard({
                 .length === 0 && (
                 <p className="text-sm italic text-muted-foreground">
                   Belum ada foto after
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Other photos — uploaded via per-session upload */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-foreground">
+                Foto Lainnya
+              </p>
+              {!readOnly && (
+                <label
+                  className={`cursor-pointer ${uploadingMediaType === "other" ? "pointer-events-none opacity-60" : ""}`}
+                >
+                  <Button type="button" size="sm" variant="outline" asChild>
+                    <span>
+                      {uploadingMediaType === "other" ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      Upload Other
+                    </span>
+                  </Button>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUploadBookingMedia(file, "other");
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {(booking.media ?? [])
+                .filter((m) => m.type === "other")
+                .map((m, i) => {
+                  const sessionLabel = getSessionLabel(m.session_id);
+                  return (
+                    <div
+                      key={m.public_id ?? m._id ?? i}
+                      className="relative w-28 aspect-[9/16]"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={m.secure_url ?? m.url ?? ""}
+                        alt="other"
+                        className="h-full w-full cursor-pointer rounded-lg border border-border/50 object-cover"
+                        onClick={() =>
+                          setPreviewMediaUrl(m.secure_url ?? m.url ?? "")
+                        }
+                      />
+                      {sessionLabel && (
+                        <span className="absolute bottom-0 left-0 right-0 rounded-b-lg bg-black/60 px-1 py-0.5 text-center text-[10px] font-medium text-white capitalize truncate">
+                          {sessionLabel}
+                        </span>
+                      )}
+                      {!readOnly && (
+                        <button
+                          onClick={() =>
+                            setConfirmDeleteMediaId(m.public_id ?? "")
+                          }
+                          className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-sm"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              {(booking.media ?? []).filter((m) => m.type === "other")
+                .length === 0 && (
+                <p className="text-sm italic text-muted-foreground">
+                  Belum ada foto lainnya
                 </p>
               )}
             </div>

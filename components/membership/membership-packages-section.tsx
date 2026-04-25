@@ -1,0 +1,174 @@
+"use client";
+
+import {
+  CheckCircle2,
+  Crown,
+  Download,
+  MessageCircle,
+  Star,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import {
+  packages,
+  PackagePlan,
+  WHATSAPP_NUMBER,
+  WA_RECOMMEND,
+} from "./constants";
+
+export function MembershipPackagesSection() {
+  return (
+    <section id="paket" className="bg-background py-24">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="mb-14 text-center">
+          <span className="mb-2 inline-block rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">
+            Pilihan Paket
+          </span>
+          <h2 className="font-display text-3xl font-extrabold text-foreground lg:text-4xl">
+            Start Your Pet&apos;s Care Journey with Us!
+          </h2>
+          <p className="mt-3 text-muted-foreground">
+            Tersedia dalam <strong>6 &amp; 12 Bulan</strong> &mdash; Slot
+            Terbatas!
+          </p>
+        </div>
+
+        <div className="flex flex-col items-stretch gap-8 lg:flex-row lg:items-end">
+          {packages.map((pkg) => (
+            <PricingCard key={pkg.id} pkg={pkg} />
+          ))}
+        </div>
+
+        <p className="mt-6 text-center text-xs text-muted-foreground">
+          *SnK berlaku. Hubungi admin untuk detail lengkap.
+        </p>
+
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+          <Button
+            asChild
+            size="lg"
+            className="rounded-full px-8 shadow-lg shadow-primary/25"
+          >
+            <a href={WA_RECOMMEND} target="_blank" rel="noopener noreferrer">
+              <MessageCircle className="mr-2 h-4 w-4" />
+              Tanya Admin untuk Rekomendasi Paket
+            </a>
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            size="lg"
+            className="rounded-full px-8"
+          >
+            <a href="#" onClick={(e) => e.preventDefault()}>
+              <Download className="mr-2 h-4 w-4" />
+              Download Pricelist
+            </a>
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Pricing Card ─────────────────────────────────────────────────────────────
+
+function PricingCard({ pkg }: { pkg: PackagePlan }) {
+  const isFeatured = pkg.featured;
+  const isPremium = pkg.tag?.variant === "premium";
+
+  return (
+    <div
+      className={cn(
+        "relative flex flex-1 flex-col rounded-2xl border p-7 transition-all",
+        isFeatured
+          ? "scale-[1.03] border-primary bg-primary text-primary-foreground shadow-2xl shadow-primary/25 lg:scale-[1.06]"
+          : "border-border/60 bg-card shadow-sm hover:shadow-md",
+      )}
+    >
+      {/* Tag */}
+      {pkg.tag && (
+        <div
+          className={cn(
+            "absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-4 py-1 text-xs font-bold shadow-md",
+            isFeatured
+              ? "bg-yellow-400 text-yellow-900"
+              : "bg-secondary text-secondary-foreground",
+          )}
+        >
+          {isPremium ? (
+            <Crown className="mr-1 inline-block h-3 w-3" />
+          ) : (
+            <Star className="mr-1 inline-block h-3 w-3" />
+          )}
+          {pkg.tag.label}
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="mb-6 mt-3">
+        <h3
+          className={cn(
+            "font-display text-2xl font-extrabold",
+            isFeatured ? "text-primary-foreground" : "text-foreground",
+          )}
+        >
+          {pkg.name}
+        </h3>
+        <p
+          className={cn(
+            "mt-1 text-sm font-medium",
+            isFeatured ? "text-primary-foreground/80" : "text-muted-foreground",
+          )}
+        >
+          {pkg.subtitle}
+        </p>
+      </div>
+
+      {/* Benefits */}
+      <ul className="flex flex-1 flex-col gap-3">
+        {pkg.benefits.map((b) => (
+          <li key={b} className="flex items-start gap-2.5 text-sm">
+            <CheckCircle2
+              className={cn(
+                "mt-0.5 h-4 w-4 shrink-0",
+                isFeatured ? "text-white" : "text-primary",
+              )}
+            />
+            <span
+              className={cn(
+                isFeatured ? "text-primary-foreground" : "text-foreground",
+              )}
+            >
+              {b}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {/* CTA */}
+      <div className="mt-8">
+        <Button
+          asChild
+          size="sm"
+          className={cn(
+            "w-full rounded-full",
+            isFeatured
+              ? "bg-white text-primary hover:bg-white/90"
+              : "bg-primary text-primary-foreground",
+          )}
+        >
+          <a
+            href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+              `Halo Pawship! Saya tertarik dengan paket ${pkg.name} Membership 🐾`,
+            )}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Pilih {pkg.name}
+          </a>
+        </Button>
+      </div>
+    </div>
+  );
+}
