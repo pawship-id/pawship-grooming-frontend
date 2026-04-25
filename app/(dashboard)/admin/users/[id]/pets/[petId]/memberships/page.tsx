@@ -342,6 +342,10 @@ export default function PetMembershipsPage() {
 
   // Renew dialog
   const [renewTarget, setRenewTarget] = useState<PetMembership | null>(null);
+  const [renewStartDate, setRenewStartDate] = useState<string>(
+    () => new Date().toISOString().split("T")[0],
+  );
+  const [renewPrice, setRenewPrice] = useState<string>("");
   const [isRenewing, setIsRenewing] = useState(false);
 
   // Load user & pet name
@@ -446,10 +450,37 @@ export default function PetMembershipsPage() {
     loadMembershipHistory,
   ]);
 
+  // Overlap error: real-time validation for purchase start date
+  const overlapError = (() => {
+    if (!selectedPlanId || !purchaseStartDate) return null;
+    const plan = availablePlans.find((p) => p._id === selectedPlanId);
+    if (!plan) return null;
+    const newStart = new Date(purchaseStartDate);
+    const newEnd = addMonths(newStart, plan.duration_months);
+    const overlap = nonCancelledMemberships.find(
+      (m) =>
+        m.membership._id === selectedPlanId &&
+        newStart < new Date(m.end_date) &&
+        newEnd > new Date(m.start_date),
+    );
+    if (!overlap) return null;
+    const statusLabel =
+      overlap.status === "active"
+        ? "Aktif"
+        : overlap.status === "pending"
+          ? "Menunggu"
+          : "Berakhir";
+    return `Tanggal mulai bertabrakan dengan membership ${statusLabel} (${formatDate(overlap.start_date)} – ${formatDate(overlap.end_date)})`;
+  })();
+
   const handlePurchase = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlanId) {
       toast.error("Pilih paket membership terlebih dahulu");
+      return;
+    }
+    if (overlapError) {
+      toast.error(overlapError);
       return;
     }
     setIsPurchasing(true);
@@ -530,13 +561,24 @@ export default function PetMembershipsPage() {
     }
   };
 
-  const handleRenew = async () => {
+  const handleRenew = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!renewTarget) return;
     setIsRenewing(true);
     try {
-      await renewPetMembership(renewTarget._id);
+      const renewPayload: { start_date?: string; purchase_price?: number } = {
+        start_date: new Date(renewStartDate).toISOString(),
+      };
+      if (renewPrice !== "") {
+        renewPayload.purchase_price = Number(
+          renewPrice.replace(/\./g, "").replace(/\D/g, ""),
+        );
+      }
+      await renewPetMembership(renewTarget._id, renewPayload);
       toast.success("Membership berhasil diperpanjang");
       setRenewTarget(null);
+      setRenewStartDate(new Date().toISOString().split("T")[0]);
+      setRenewPrice("");
       loadMemberships();
       loadTabCounts();
       loadMembershipHistory();
@@ -684,7 +726,13 @@ export default function PetMembershipsPage() {
                           });
                         }}
                         onCancel={() => setCancelTarget(pm)}
-                        onRenew={() => setRenewTarget(pm)}
+                        onRenew={() => {
+                          setRenewStartDate(
+                            new Date().toISOString().split("T")[0],
+                          );
+                          setRenewPrice("");
+                          setRenewTarget(pm);
+                        }}
                       />
                     ))}
                   </div>
@@ -1075,15 +1123,12 @@ export default function PetMembershipsPage() {
                         <button
                           key={p._id}
                           type="button"
-                          disabled={isActivePlan}
                           onClick={() => setSelectedPlanId(p._id)}
                           className={cn(
                             "relative flex items-center justify-between rounded-xl border p-4 text-left transition-all",
-                            isActivePlan
-                              ? "cursor-not-allowed opacity-50 bg-muted border-border"
-                              : isSelected
-                                ? "border-foreground bg-foreground/5 shadow-sm"
-                                : "border-border hover:border-foreground/40 hover:bg-muted/40",
+                            isSelected
+                              ? "border-foreground bg-foreground/5 shadow-sm"
+                              : "border-border hover:border-foreground/40 hover:bg-muted/40",
                           )}
                         >
                           <div className="flex flex-col gap-0.5">
@@ -1108,7 +1153,7 @@ export default function PetMembershipsPage() {
                             <span className="font-bold text-sm">
                               Rp {p.price.toLocaleString("id-ID")}
                             </span>
-                            {isSelected && !isActivePlan && (
+                            {isSelected && (
                               <CheckCircle2 className="h-4 w-4 text-foreground shrink-0" />
                             )}
                           </div>
@@ -1121,46 +1166,51 @@ export default function PetMembershipsPage() {
 
               {/* Start Date & Price Override */}
               {selectedPlanId && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="purchase-start-date">Tanggal Mulai</Label>
-                    <Input
-                      id="purchase-start-date"
-                      type="date"
-                      value={purchaseStartDate}
-                      onChange={(e) => setPurchaseStartDate(e.target.value)}
-                    />
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="purchase-start-date">Tanggal Mulai</Label>
+                      <Input
+                        id="purchase-start-date"
+                        type="date"
+                        value={purchaseStartDate}
+                        onChange={(e) => setPurchaseStartDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="purchase-price">
+                        Harga Override{" "}
+                        <span className="text-muted-foreground text-xs font-normal">
+                          (opsional)
+                        </span>
+                      </Label>
+                      <Input
+                        id="purchase-price"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder={(() => {
+                          const plan = availablePlans.find(
+                            (p) => p._id === selectedPlanId,
+                          );
+                          return plan ? plan.price.toLocaleString("id-ID") : "0";
+                        })()}
+                        value={
+                          purchasePrice
+                            ? Number(purchasePrice).toLocaleString("id-ID")
+                            : ""
+                        }
+                        onChange={(e) => {
+                          const raw = e.target.value
+                            .replace(/\./g, "")
+                            .replace(/\D/g, "");
+                          setPurchasePrice(raw);
+                        }}
+                      />
+                    </div>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <Label htmlFor="purchase-price">
-                      Harga Override{" "}
-                      <span className="text-muted-foreground text-xs font-normal">
-                        (opsional)
-                      </span>
-                    </Label>
-                    <Input
-                      id="purchase-price"
-                      type="text"
-                      inputMode="numeric"
-                      placeholder={(() => {
-                        const plan = availablePlans.find(
-                          (p) => p._id === selectedPlanId,
-                        );
-                        return plan ? plan.price.toLocaleString("id-ID") : "0";
-                      })()}
-                      value={
-                        purchasePrice
-                          ? Number(purchasePrice).toLocaleString("id-ID")
-                          : ""
-                      }
-                      onChange={(e) => {
-                        const raw = e.target.value
-                          .replace(/\./g, "")
-                          .replace(/\D/g, "");
-                        setPurchasePrice(raw);
-                      }}
-                    />
-                  </div>
+                  {overlapError && (
+                    <p className="text-xs text-destructive">{overlapError}</p>
+                  )}
                 </div>
               )}
 
@@ -1335,7 +1385,7 @@ export default function PetMembershipsPage() {
               >
                 Batal
               </Button>
-              <Button type="submit" disabled={isPurchasing || !selectedPlanId}>
+              <Button type="submit" disabled={isPurchasing || !selectedPlanId || !!overlapError}>
                 {isPurchasing ? "Memproses..." : "Beli Sekarang"}
               </Button>
             </div>
@@ -1418,31 +1468,111 @@ export default function PetMembershipsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Renew Confirmation */}
-      <AlertDialog
+      {/* Renew Dialog */}
+      <Dialog
         open={!!renewTarget}
-        onOpenChange={(open) => !open && setRenewTarget(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenewTarget(null);
+            setRenewStartDate(new Date().toISOString().split("T")[0]);
+            setRenewPrice("");
+          }
+        }}
       >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Perpanjang Membership</AlertDialogTitle>
-            <AlertDialogDescription>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">Perpanjang Membership</DialogTitle>
+            <DialogDescription>
               Perpanjang membership{" "}
               <span className="font-medium text-foreground">
                 {renewTarget?.membership.name}
               </span>
-              ? Tanggal berakhir baru akan dihitung dari tanggal berakhir lama
-              ditambah durasi paket.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Batal</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRenew} disabled={isRenewing}>
-              {isRenewing ? "Memproses..." : "Perpanjang"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              . Benefit akan direset sesuai dengan periode baru.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleRenew} className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="renew-start-date">Tanggal Mulai</Label>
+                <Input
+                  id="renew-start-date"
+                  type="date"
+                  value={renewStartDate}
+                  onChange={(e) => setRenewStartDate(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="renew-price">
+                  Harga Override{" "}
+                  <span className="text-muted-foreground text-xs font-normal">
+                    (opsional)
+                  </span>
+                </Label>
+                <Input
+                  id="renew-price"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder={
+                    renewTarget?.membership.price
+                      ? renewTarget.membership.price.toLocaleString("id-ID")
+                      : "0"
+                  }
+                  value={
+                    renewPrice
+                      ? Number(renewPrice).toLocaleString("id-ID")
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const raw = e.target.value
+                      .replace(/\./g, "")
+                      .replace(/\D/g, "");
+                    setRenewPrice(raw);
+                  }}
+                />
+              </div>
+            </div>
+            {renewTarget && renewStartDate && (
+              <div className="rounded-xl border border-border/60 bg-muted/40 p-3 flex flex-col gap-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-muted-foreground">Masa Aktif Baru</span>
+                  <span className="text-xs font-medium text-foreground">
+                    {formatDate(new Date(renewStartDate).toISOString())} &rarr;{" "}
+                    {formatDate(
+                      addMonths(
+                        new Date(renewStartDate),
+                        renewTarget.membership.duration_months,
+                      ).toISOString(),
+                    )}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-muted-foreground">Durasi</span>
+                  <span className="text-xs text-foreground">
+                    {renewTarget.membership.duration_months} bulan
+                  </span>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setRenewTarget(null);
+                  setRenewStartDate(new Date().toISOString().split("T")[0]);
+                  setRenewPrice("");
+                }}
+              >
+                Batal
+              </Button>
+              <Button type="submit" disabled={isRenewing || !renewStartDate}>
+                {isRenewing ? "Memproses..." : "Perpanjang"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Cancel Confirmation */}
       <AlertDialog
