@@ -4,7 +4,7 @@ import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const WHATSAPP_NUMBER = "6281234567890"; // replace with actual number
+const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "";
 const WHATSAPP_MESSAGE = encodeURIComponent(
   "Halo Pawship! Saya ingin tahu lebih lanjut tentang program membership.",
 );
