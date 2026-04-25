@@ -1,29 +1,29 @@
-import { Heart, Home, Sparkles, Smile } from "lucide-react"
+import { Shield, Smile, Star, ShieldCheck } from "lucide-react"
 
 const features = [
   {
-    icon: Heart,
-    title: "Gentle & Loving Care",
+    icon: Shield,
+    title: "Pendekatan Tenang & Aman",
     description:
-      "Every furbaby has their own personality — some are shy, some are playful, some just want extra cuddles. Our team adjusts with patience and softness, giving each pawfriend the attention and comfort they need to feel safe.",
-  },
-  {
-    icon: Home,
-    title: "Instore & Home Grooming",
-    description:
-      "Whether you visit our store or choose home grooming, we make sure the experience stays calm and familiar. We come fully prepared, so your pawfriend can relax wherever they feel most comfortable.",
-  },
-  {
-    icon: Sparkles,
-    title: "Safe & Premium Products",
-    description:
-      "Only gentle, skin-friendly products touch your pawfriend's coat. We use premium shampoos that keep their fur soft, fluffy, and beautifully fresh — without harsh ingredients.",
+      "Tim kami menyesuaikan pendekatan sesuai dengan kebutuhan karakter dan kebutuhan setiap Pawfriends.",
   },
   {
     icon: Smile,
     title: "Stress-Free Grooming",
     description:
-      "No rushing. No harsh handling. No drama. Just slow, patient care to keep your pawfriend relaxed, happy, and going home extra clean, extra fluffy, and extra loved.",
+      "Kami tidak terburu-buru dan memastikan setiap anabul relax dan senang, menjadikan sesi grooming sebagai sesi yang menyenangkan untuk anabul. No stress, just fresh!",
+  },
+  {
+    icon: Star,
+    title: "Tim Profesional & Konsisten",
+    description:
+      "Di Pawship, kami memastikan Pawfriends ditangani dengan standar yang sama untuk setiap anabulnya.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Transparan & Terpercaya",
+    description:
+      "Kami membangun kepercayaan melalui sistem, teknologi, dan komunikasi yang jelas untuk ketenangan Pawrents.",
   },
 ]
 
@@ -32,15 +32,11 @@ export function AboutSection() {
     <section id="about" className="bg-background py-20">
       <div className="mx-auto max-w-7xl px-6">
         <div className="mb-12 text-center">
-          <span className="mb-2 inline-block rounded-full bg-secondary/60 px-3 py-1 text-xs font-semibold text-secondary-foreground">
-            Why Pawship
-          </span>
           <h2 className="font-display text-3xl font-extrabold text-foreground lg:text-4xl">
-            Because Every Pawfriend Deserves Gentle Care
+            Kenapa Pawship dipercaya Pawrents?
           </h2>
           <p className="mt-3 max-w-xl mx-auto text-muted-foreground">
-            At Pawship, we believe grooming should feel like a little self-care day — safe, cozy, and full of love. Never scary, never stressful.
-            Every pawfriend is treated with patience, gentle hands, and genuine care — just like they deserve.
+            Di Pawship, kami percaya setiap anabul layak mendapatkan perawatan terbaik — dimulai dari grooming yang aman dan nyaman.
           </p>
         </div>
 
