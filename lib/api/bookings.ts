@@ -520,6 +520,10 @@ export async function applyPromotionPreview(payload: {
   delivery?: boolean;
   has_active_membership?: boolean;
   addon_prices?: { _id: string; name: string; price: number }[];
+  customer_id?: string;
+  pet_id?: string;
+  booking_date?: string;
+  exclude_booking_id?: string;
 }) {
   return apiAuthRequest<{ message: string } & ApplyPromotionPreviewResult>(
     "/bookings/public/apply-promotion",

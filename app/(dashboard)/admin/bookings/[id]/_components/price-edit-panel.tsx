@@ -714,6 +714,12 @@ export function PriceEditPanel({
       delivery: editDelivery || undefined,
       has_active_membership: pricePreviewData.pricing.has_active_membership,
       addon_prices: editedAddonPricesArr,
+      customer_id: booking.customer_id || undefined,
+      pet_id: booking.pet_id || undefined,
+      booking_date: booking.date
+        ? new Date(booking.date).toISOString().split("T")[0]
+        : undefined,
+      exclude_booking_id: bookingId,
     })
       .then((res) => {
         if (!cancelled) setPricePromoResult(res);
@@ -1386,7 +1392,15 @@ export function PriceEditPanel({
                     },
                   );
                 })();
-                const isDisabled = blockedByStacking || blockedByBenefit;
+                // Promo is unusable if limit reached AND it's not already selected for this booking
+                const limitReached =
+                  !selected && promo.can_use === false;
+                const isDisabled =
+                  blockedByStacking || blockedByBenefit || limitReached;
+                const hasLimit =
+                  promo.limit_type &&
+                  promo.limit_type !== "none" &&
+                  promo.max_usage != null;
                 return (
                   <label
                     key={promo._id}
@@ -1458,6 +1472,32 @@ export function PriceEditPanel({
                                     ? "Pickup/Delivery"
                                     : promo.applies_to}
                         </span>
+                        {hasLimit && (
+                          <span
+                            className={
+                              promo.can_use === false && !selected
+                                ? "text-destructive"
+                                : ""
+                            }
+                          >
+                            Digunakan: {promo.usage_count ?? 0}/
+                            {promo.max_usage}
+                            {promo.usage_period &&
+                              promo.usage_period !== "lifetime" && (
+                                <span className="ml-1 text-[10px]">
+                                  (
+                                  {promo.usage_period === "daily"
+                                    ? "per hari"
+                                    : promo.usage_period === "weekly"
+                                      ? "per minggu"
+                                      : promo.usage_period === "monthly"
+                                        ? "per bulan"
+                                        : promo.usage_period}
+                                  )
+                                </span>
+                              )}
+                          </span>
+                        )}
                       </div>
                       {blockedByStacking && (
                         <span className="text-[11px] text-amber-600 dark:text-amber-400">
@@ -1469,6 +1509,11 @@ export function PriceEditPanel({
                         <span className="text-[11px] text-amber-600 dark:text-amber-400">
                           Tidak dapat digabung — benefit membership untuk target
                           yang sama sudah dipilih
+                        </span>
+                      )}
+                      {limitReached && promo.limit_message && (
+                        <span className="text-[11px] text-destructive">
+                          {promo.limit_message}
                         </span>
                       )}
                     </div>
