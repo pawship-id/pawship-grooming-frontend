@@ -7,7 +7,7 @@ export default function FloatingButtonWA() {
     const message = encodeURIComponent(
       "Hello, I’d like to know more about your services.",
     );
-    const phone = "+6281231351150"; // Replace with actual phone number
+    const phone = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "";
     window.open(`https://wa.me/${phone}?text=${message}`, "_blank");
   };
 

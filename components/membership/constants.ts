@@ -3,7 +3,7 @@ import { CalendarCheck, Clock, DollarSign, Heart } from "lucide-react";
 // ─────────────────────────────────────────────────────────────────────────────
 // WhatsApp
 // ─────────────────────────────────────────────────────────────────────────────
-export const WHATSAPP_NUMBER = "6281234567890";
+export const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? "";
 
 const waLink = (msg: string) =>
   `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
