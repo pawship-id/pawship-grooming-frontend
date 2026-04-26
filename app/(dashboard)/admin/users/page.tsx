@@ -21,7 +21,6 @@ import {
   PawPrint,
   User,
   MapPin,
-  LocateFixed,
   ChevronDown,
   X,
 } from "lucide-react";
@@ -233,38 +232,6 @@ export default function UsersPage() {
     null,
   );
   const [mapOpen, setMapOpen] = useState(false);
-  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
-
-  function handleDetectLocation() {
-    if (editingAddressIdx === null) return;
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      toast.error("Geolocation tidak didukung oleh browser ini");
-      return;
-    }
-    setIsDetectingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = Number(position.coords.latitude.toFixed(6));
-        const lng = Number(position.coords.longitude.toFixed(6));
-        setEditForm((f) => ({
-          ...f,
-          addresses: f.addresses.map((a, i) =>
-            i === editingAddressIdx
-              ? { ...a, latitude: lat, longitude: lng }
-              : a,
-          ),
-        }));
-        setIsDetectingLocation(false);
-      },
-      () => {
-        toast.error(
-          "Gagal mendeteksi lokasi. Pastikan akses lokasi diizinkan.",
-        );
-        setIsDetectingLocation(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
-  }
 
   const [createImageFile, setCreateImageFile] = useState<File | null>(null);
   const [createImagePreview, setCreateImagePreview] = useState<string | null>(
@@ -1973,18 +1940,6 @@ export default function UsersPage() {
                               >
                                 <MapPin className="h-3.5 w-3.5 mr-1" />
                                 Pilih dari Peta
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                disabled={isDetectingLocation}
-                                onClick={handleDetectLocation}
-                              >
-                                <LocateFixed className="h-3.5 w-3.5 mr-1" />
-                                {isDetectingLocation
-                                  ? "Mendeteksi..."
-                                  : "Lokasi Saat Ini"}
                               </Button>
                             </div>
                             {addr.latitude != null &&

@@ -1,9 +1,11 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { GoogleMap, useJsApiLoader, MarkerF } from "@react-google-maps/api"
-import { Search, Loader2, MapPin } from "lucide-react"
+import { Search, Loader2, MapPin, LocateFixed } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 
 // Defined outside component so the reference stays stable across renders
 const MAP_LIBRARIES: ("places" | "geometry" | "drawing" | "visualization")[] = ["places"]
@@ -27,6 +29,8 @@ export function GoogleLocationMap({ selectedLat, selectedLng, onSelect, onLoadEr
   const [results, setResults] = useState<SearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [isLocating, setIsLocating] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchContainerRef = useRef<HTMLDivElement>(null)
 
@@ -100,9 +104,39 @@ export function GoogleLocationMap({ selectedLat, selectedLng, onSelect, onLoadEr
     )
   }, [onSelect])
 
-  const center = selectedLat != null && selectedLng != null
-    ? { lat: selectedLat, lng: selectedLng }
-    : defaultCenter
+  const handleLocateMe = useCallback(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      toast.error("Browser tidak mendukung geolocation")
+      return
+    }
+    setIsLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6))
+        const lng = Number(pos.coords.longitude.toFixed(6))
+        setMyLocation({ lat, lng })
+        mapRef.current?.panTo({ lat, lng })
+        mapRef.current?.setZoom(17)
+        setIsLocating(false)
+      },
+      () => {
+        toast.error("Gagal mendapatkan lokasi. Pastikan izin lokasi sudah diaktifkan.")
+        setIsLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    )
+  }, [])
+
+  // Memoized so the reference only changes when coordinates actually change.
+  // Without this, a new object is created every render and @react-google-maps/api
+  // calls map.panTo(center) again, overriding the panTo from handleLocateMe.
+  const center = useMemo(
+    () =>
+      selectedLat != null && selectedLng != null
+        ? { lat: selectedLat, lng: selectedLng }
+        : defaultCenter,
+    [selectedLat, selectedLng],
+  )
 
   const onLoad = useCallback((map: google.maps.Map) => {
     mapRef.current = map
@@ -131,48 +165,91 @@ export function GoogleLocationMap({ selectedLat, selectedLng, onSelect, onLoadEr
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="relative" ref={searchContainerRef}>
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-          {isSearching && (
-            <Loader2 className="absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground animate-spin" />
+      <div className="flex gap-2">
+        <div className="relative flex-1" ref={searchContainerRef}>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            {isSearching && (
+              <Loader2 className="absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground animate-spin" />
+            )}
+            <Input
+              placeholder="Cari lokasi berdasarkan nama (min. 3 karakter)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => results.length > 0 && setDropdownOpen(true)}
+              className="pl-9 pr-9"
+            />
+          </div>
+          {dropdownOpen && results.length > 0 && (
+            <div className="absolute top-full left-0 right-0 z-50 mt-1 overflow-hidden rounded-md border border-border bg-background shadow-md">
+              {results.map((result, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="flex w-full items-start gap-2 px-3 py-2.5 text-sm hover:bg-muted/60 text-left"
+                  onMouseDown={(e) => { e.preventDefault(); handleSelectResult(result) }}
+                >
+                  <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+                  <span className="leading-snug">{result.label}</span>
+                </button>
+              ))}
+            </div>
           )}
-          <Input
-            placeholder="Cari lokasi berdasarkan nama (min. 3 karakter)..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => results.length > 0 && setDropdownOpen(true)}
-            className="pl-9 pr-9"
-          />
         </div>
-        {dropdownOpen && results.length > 0 && (
-          <div className="absolute top-full left-0 right-0 z-50 mt-1 overflow-hidden rounded-md border border-border bg-background shadow-md">
-            {results.map((result, i) => (
-              <button
-                key={i}
-                type="button"
-                className="flex w-full items-start gap-2 px-3 py-2.5 text-sm hover:bg-muted/60 text-left"
-                onMouseDown={(e) => { e.preventDefault(); handleSelectResult(result) }}
-              >
-                <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
-                <span className="leading-snug">{result.label}</span>
-              </button>
-            ))}
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={handleLocateMe}
+          disabled={isLocating}
+          title="Tampilkan lokasi saya"
+          aria-label="Tampilkan lokasi saya"
+        >
+          {isLocating ? <Loader2 className="h-4 w-4 animate-spin" /> : <LocateFixed className="h-4 w-4" />}
+        </Button>
+      </div>
+      <div className="relative">
+        <GoogleMap
+          mapContainerStyle={containerStyle}
+          mapContainerClassName="rounded-md border border-border"
+          center={center}
+          zoom={12}
+          onLoad={onLoad}
+          onClick={handleClick}
+        >
+          {selectedLat != null && selectedLng != null && (
+            <MarkerF position={{ lat: selectedLat, lng: selectedLng }} />
+          )}
+          {myLocation && (
+            <MarkerF
+              position={myLocation}
+              icon={{
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 8,
+                fillColor: "#3b82f6",
+                fillOpacity: 1,
+                strokeColor: "#ffffff",
+                strokeWeight: 2,
+              }}
+              title="Klik untuk pasang pin di sini"
+              onClick={() => onSelect(myLocation.lat, myLocation.lng)}
+            />
+          )}
+        </GoogleMap>
+        {myLocation && (
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+            <Button
+              type="button"
+              size="sm"
+              className="shadow-md pointer-events-auto"
+              onClick={() => onSelect(myLocation.lat, myLocation.lng)}
+            >
+              <MapPin className="h-3.5 w-3.5 mr-1.5" />
+              Pasang Pin di Lokasi Saya
+            </Button>
           </div>
         )}
       </div>
-      <GoogleMap
-        mapContainerStyle={containerStyle}
-        mapContainerClassName="rounded-md border border-border"
-        center={center}
-        zoom={12}
-        onLoad={onLoad}
-        onClick={handleClick}
-      >
-        {selectedLat != null && selectedLng != null && (
-          <MarkerF position={{ lat: selectedLat, lng: selectedLng }} />
-        )}
-      </GoogleMap>
     </div>
   )
 }

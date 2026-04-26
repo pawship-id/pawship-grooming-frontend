@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react"
 import dynamic from "next/dynamic"
-import { Mail, Phone, Shield, Calendar, User, Weight, Tag, Pencil, Plus, Trash2, MapPin, LocateFixed, Eye } from "lucide-react"
+import { Mail, Phone, Shield, Calendar, User, Weight, Tag, Pencil, Plus, Trash2, MapPin, Eye } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -87,7 +87,6 @@ function EditProfileDialog({
   const [saving, setSaving] = useState(false)
   const [editingAddressIdx, setEditingAddressIdx] = useState<number | null>(null)
   const [mapOpen, setMapOpen] = useState(false)
-  const [isDetectingLocation, setIsDetectingLocation] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const profileImageRef = useRef<HTMLInputElement>(null)
@@ -103,40 +102,13 @@ function EditProfileDialog({
       setImageFile(null)
       setImagePreview(null)
       setEditingAddressIdx(null)
-      setCoordInputMode("manual")
       setMapOpen(false)
     }
   }, [open, profile])
 
   useEffect(() => {
-    setCoordInputMode("manual")
     setMapOpen(false)
   }, [editingAddressIdx])
-
-  function handleDetectLocation() {
-    if (editingAddressIdx === null) return
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      toast.error("Geolocation tidak didukung oleh browser ini")
-      return
-    }
-    setIsDetectingLocation(true)
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = Number(position.coords.latitude.toFixed(6))
-        const lng = Number(position.coords.longitude.toFixed(6))
-        setForm(f => ({
-          ...f,
-          addresses: f.addresses.map((a, i) => i === editingAddressIdx ? { ...a, latitude: lat, longitude: lng } : a)
-        }))
-        setIsDetectingLocation(false)
-      },
-      () => {
-        toast.error("Gagal mendeteksi lokasi. Pastikan akses lokasi diizinkan.")
-        setIsDetectingLocation(false)
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    )
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -362,16 +334,6 @@ function EditProfileDialog({
                           >
                             <MapPin className="h-3.5 w-3.5 mr-1" />
                             Pilih dari Peta
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={isDetectingLocation}
-                            onClick={handleDetectLocation}
-                          >
-                            <LocateFixed className="h-3.5 w-3.5 mr-1" />
-                            {isDetectingLocation ? "Mendeteksi..." : "Lokasi Saat Ini"}
                           </Button>
                         </div>
                         {addr.latitude != null && addr.longitude != null && (
