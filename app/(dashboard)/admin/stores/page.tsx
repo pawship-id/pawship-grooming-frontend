@@ -237,9 +237,6 @@ function StoreFormFields({
   setForm: React.Dispatch<React.SetStateAction<StoreForm>>;
 }) {
   const [mapOpen, setMapOpen] = useState(false);
-  const [locationInputMode, setLocationInputMode] = useState<"manual" | "map">(
-    "manual",
-  );
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
 
   useEffect(() => {
@@ -388,94 +385,24 @@ function StoreFormFields({
               }
             />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>Mode Input Koordinat</Label>
-            <div className="flex rounded-md border border-border w-fit">
-              <Button
-                type="button"
-                size="sm"
-                variant={locationInputMode === "manual" ? "secondary" : "ghost"}
-                className="rounded-none rounded-l-md"
-                onClick={() => setLocationInputMode("manual")}
-              >
-                Manual
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={locationInputMode === "map" ? "secondary" : "ghost"}
-                className="rounded-none rounded-r-md border-l border-border"
-                onClick={() => setLocationInputMode("map")}
-              >
-                Dari Peta
-              </Button>
-            </div>
-          </div>
         </div>
 
-        {locationInputMode === "manual" ? (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="f-lat">Latitude</Label>
-              <Input
-                id="f-lat"
-                type="number"
-                step="any"
-                placeholder="-6.208"
-                value={form.location.latitude ?? ""}
-                onChange={(e) =>
-                  setForm((p) => ({
-                    ...p,
-                    location: {
-                      ...p.location,
-                      latitude: e.target.value
-                        ? parseFloat(e.target.value)
-                        : null,
-                    },
-                  }))
-                }
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="f-lng">Longitude</Label>
-              <Input
-                id="f-lng"
-                type="number"
-                step="any"
-                placeholder="106.845"
-                value={form.location.longitude ?? ""}
-                onChange={(e) =>
-                  setForm((p) => ({
-                    ...p,
-                    location: {
-                      ...p.location,
-                      longitude: e.target.value
-                        ? parseFloat(e.target.value)
-                        : null,
-                    },
-                  }))
-                }
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setMapOpen(true)}
-            >
-              Pilih dari Peta
-            </Button>
-            {form.location.latitude != null &&
-              form.location.longitude != null && (
-                <p className="text-xs text-muted-foreground">
-                  Koordinat terpilih: {form.location.latitude},{" "}
-                  {form.location.longitude}
-                </p>
-              )}
-          </div>
-        )}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setMapOpen(true)}
+          >
+            Pilih dari Peta
+          </Button>
+          {form.location.latitude != null &&
+            form.location.longitude != null && (
+              <p className="text-xs text-muted-foreground">
+                Koordinat terpilih: {form.location.latitude},{" "}
+                {form.location.longitude}
+              </p>
+            )}
+        </div>
 
         {isDetectingLocation && (
           <p className="text-xs text-muted-foreground">
