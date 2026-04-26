@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Clock, ArrowRight, CheckCircle2, Tag } from "lucide-react"
+import { Clock, ArrowRight, CheckCircle2, ExternalLink, ChevronDown, ChevronUp } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,6 +22,9 @@ import {
   type PublicStore,
 } from "@/lib/api/stores"
 
+const PRICELIST_URL =
+  "https://drive.google.com/drive/folders/1ukzguEMqiBe_0sngYUm1DateBez4Izso"
+
 function formatPrice(price: number) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -40,15 +43,22 @@ function getLowestPrice(service: HomepageService): number {
   return service.price ?? 0
 }
 
+function isGroomingType(title: string) {
+  return title.toLowerCase() === "grooming"
+}
+
 function ServiceTypeCard({ serviceType, bookingUrl }: { serviceType: HomepageServiceType; bookingUrl: string }) {
   const [detailOpen, setDetailOpen] = useState(false)
+  const [descOpen, setDescOpen] = useState(false)
+  const isGrooming = isGroomingType(serviceType.title)
 
-  return (
+  // ── Mobile: overlay style (< lg) ──────────────────────────────────────────
+  // ── Desktop: image top, title below, collapsible desc (≥ lg) ─────────────
+
+  const cardContent = (
     <>
-      <button
-        onClick={() => setDetailOpen(true)}
-        className="group relative flex h-32 w-full items-center justify-center overflow-hidden rounded-xl border border-border/50 bg-muted transition-all duration-200 hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-      >
+      {/* Mobile card (hidden on lg+) */}
+      <div className="lg:hidden relative flex h-32 w-full items-center justify-center overflow-hidden rounded-xl">
         {serviceType.image_url && (
           <img
             src={serviceType.image_url}
@@ -60,6 +70,67 @@ function ServiceTypeCard({ serviceType, bookingUrl }: { serviceType: HomepageSer
         <h3 className="relative z-10 font-display text-xl font-extrabold uppercase tracking-wider text-white drop-shadow-md sm:text-2xl">
           {serviceType.title}
         </h3>
+      </div>
+
+      {/* Desktop card (hidden below lg) */}
+      <div className="hidden lg:flex flex-col w-full overflow-hidden rounded-xl">
+        <div className="relative h-40 w-full overflow-hidden bg-muted">
+          {serviceType.image_url ? (
+            <img
+              src={serviceType.image_url}
+              alt={serviceType.title}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+          ) : (
+            <div className="h-full w-full bg-muted" />
+          )}
+        </div>
+        <div className="flex flex-col gap-1 px-3 pt-3 pb-3">
+          <h3 className="font-display text-base font-extrabold uppercase tracking-wider text-foreground group-hover:text-primary transition-colors">
+            {serviceType.title}
+          </h3>
+          {serviceType.description && (
+            <div>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDescOpen((v) => !v) }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setDescOpen((v) => !v) } }}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+              >
+                {descOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                {descOpen ? "Sembunyikan" : "Lihat deskripsi"}
+              </div>
+              {descOpen && (
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  {serviceType.description}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  )
+
+  if (isGrooming) {
+    return (
+      <Link
+        href="/services/grooming"
+        className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-border/50 bg-muted transition-all duration-200 hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        {cardContent}
+      </Link>
+    )
+  }
+
+  return (
+    <>
+      <button
+        onClick={() => setDetailOpen(true)}
+        className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-border/50 bg-muted transition-all duration-200 hover:border-primary/30 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        {cardContent}
       </button>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
@@ -84,9 +155,17 @@ function ServiceTypeCard({ serviceType, bookingUrl }: { serviceType: HomepageSer
                 {serviceType.description}
               </p>
             )}
-            <Button asChild className="w-full font-display font-bold">
-              <Link href={bookingUrl}>Booking Sekarang</Link>
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button asChild className="w-full font-display font-bold">
+                <Link href={bookingUrl}>Booking Sekarang</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full font-display font-bold">
+                <a href={PRICELIST_URL} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Lihat Pricelist
+                </a>
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -157,9 +236,17 @@ function HomepageServiceCard({ service, bookingUrl }: { service: HomepageService
                 </div>
               )}
             </div>
-            <Button asChild className="font-display font-bold">
-              <Link href={bookingUrl}>Booking Sekarang</Link>
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button asChild className="font-display font-bold">
+                <Link href={bookingUrl}>Booking Sekarang</Link>
+              </Button>
+              <Button asChild variant="outline" className="font-display font-bold">
+                <a href={PRICELIST_URL} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Lihat Pricelist
+                </a>
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -189,7 +276,7 @@ function HomepageServiceCard({ service, bookingUrl }: { service: HomepageService
 }
 
 function ServiceTypeSkeleton() {
-  return <Skeleton className="h-32 w-full rounded-xl" />
+  return <Skeleton className="h-32 w-full rounded-xl lg:h-auto lg:min-h-[220px]" />
 }
 
 function ServiceSkeleton() {
@@ -225,7 +312,11 @@ export function ServicesSection() {
           getHomepageServices(),
           getPublicStores(),
         ])
-        setServiceTypes(stRes.serviceTypes ?? [])
+        // Sort service types by admin-defined order (ascending)
+        const sortedTypes = [...(stRes.serviceTypes ?? [])].sort(
+          (a, b) => (a.order ?? 0) - (b.order ?? 0),
+        )
+        setServiceTypes(sortedTypes)
         setServices(svcRes.services ?? [])
         setPublicStores(storesRes.stores?.filter((s) => s.is_active) ?? [])
       } catch (err) {
@@ -255,6 +346,16 @@ export function ServicesSection() {
     return `/booking${qs ? `?${qs}` : ""}`
   }
 
+  // Sort services to match the order of their parent service type
+  const serviceTypeOrderMap = new Map(
+    serviceTypes.map((st, i) => [st._id, i]),
+  )
+  const sortedServices = [...services].sort((a, b) => {
+    const aOrder = a.service_type ? (serviceTypeOrderMap.get(a.service_type._id) ?? 999) : 999
+    const bOrder = b.service_type ? (serviceTypeOrderMap.get(b.service_type._id) ?? 999) : 999
+    return aOrder - bOrder
+  })
+
   if (!loading && serviceTypes.length === 0 && services.length === 0) {
     return null
   }
@@ -267,11 +368,11 @@ export function ServicesSection() {
             Layanan Kami
           </span>
           <h2 className="font-display text-3xl font-extrabold text-foreground lg:text-4xl">
-            Semua yang Hewan Peliharaanmu Butuhkan
+            Solusi Lengkap untuk Kebutuhan Anabulmu
           </h2>
-          <p className="mt-3 text-muted-foreground">
+          {/* <p className="mt-3 text-muted-foreground">
             Grooming, daycare, hotel, dan berbagai layanan profesional untuk hewan kesayanganmu
-          </p>
+          </p> */}
         </div>
 
         <div className="flex flex-wrap justify-center gap-3">
@@ -281,7 +382,7 @@ export function ServicesSection() {
           }
         </div>
 
-        {(loading || services.length > 0) && (
+        {(loading || sortedServices.length > 0) && (
           <div className="mt-16">
             <div className="mb-8 text-center">
               <span className="mb-2 inline-block rounded-full bg-accent/20 px-3 py-1 text-xs font-semibold text-accent-foreground">
@@ -297,7 +398,7 @@ export function ServicesSection() {
             <div className="flex flex-wrap justify-center gap-4">
               {loading
                 ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="w-full sm:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] xl:w-[calc(25%-12px)]"><ServiceSkeleton /></div>)
-                : services.map((svc) => <div key={svc._id} className="w-full sm:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] xl:w-[calc(25%-12px)]"><HomepageServiceCard service={svc} bookingUrl={svc.service_type ? buildBookingUrl(svc.service_type._id, svc._id) : "/booking"} /></div>)
+                : sortedServices.map((svc) => <div key={svc._id} className="w-full sm:w-[calc(50%-8px)] lg:w-[calc(33.333%-11px)] xl:w-[calc(25%-12px)]"><HomepageServiceCard service={svc} bookingUrl={svc.service_type ? buildBookingUrl(svc.service_type._id, svc._id) : "/booking"} /></div>)
               }
             </div>
           </div>

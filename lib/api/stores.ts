@@ -502,6 +502,7 @@ export interface HomepageServiceType {
   title: string;
   description?: string;
   image_url?: string;
+  order?: number;
 }
 
 export interface HomepageServiceTypeResponse {
