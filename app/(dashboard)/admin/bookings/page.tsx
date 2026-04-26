@@ -387,19 +387,55 @@ export default function BookingsPage() {
       <Card className="border-border/50">
         <CardHeader className="pb-4">
           <div className="rounded-lg border bg-muted/30 p-3 flex flex-col gap-3">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Cari nama customer atau hewan..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
+            {/* Row 1: Search + Tanggal */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              {/* Search */}
+              <div className="flex flex-col gap-1 sm:w-[280px] shrink-0">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Cari
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Nama customer atau hewan..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+
+              {/* Tanggal Booking */}
+              <div className="flex flex-col gap-1 flex-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Tanggal Booking
+                </label>
+                <div className="flex gap-1">
+                  {(["today", "week", "month", "custom"] as DatePreset[]).map(
+                    (preset) => (
+                      <Button
+                        key={preset}
+                        variant={datePreset === preset ? "default" : "outline"}
+                        size="sm"
+                        className="flex-1 text-xs"
+                        onClick={() => handlePreset(preset)}
+                      >
+                        {preset === "today"
+                          ? "Hari Ini"
+                          : preset === "week"
+                            ? "Minggu Ini"
+                            : preset === "month"
+                              ? "Bulan Ini"
+                              : "Custom"}
+                      </Button>
+                    ),
+                  )}
+                </div>
+              </div>
             </div>
 
-            {/* Filters row */}
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+            {/* Row 2: Dropdown Filters */}
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-muted-foreground">
                   Status
@@ -413,37 +449,14 @@ export default function BookingsPage() {
                     <SelectItem value="requested">Requested</SelectItem>
                     <SelectItem value="waitlist">Waitlist</SelectItem>
                     <SelectItem value="confirmed">Confirmed</SelectItem>
-                    <SelectItem value="driver on the way">
-                      Driver on the Way
-                    </SelectItem>
-                    <SelectItem value="groomer on the way">
-                      Groomer on the Way
-                    </SelectItem>
+                    <SelectItem value="driver on the way">Driver on the Way</SelectItem>
+                    <SelectItem value="groomer on the way">Groomer on the Way</SelectItem>
                     <SelectItem value="arrived">Arrived</SelectItem>
                     <SelectItem value="in progress">In Progress</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
                     <SelectItem value="returned">Returned</SelectItem>
                     <SelectItem value="rescheduled">Rescheduled</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Dibuat Oleh
-                </label>
-                <Select
-                  value={createdByFilter}
-                  onValueChange={setCreatedByFilter}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="customer">Customer</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -482,29 +495,21 @@ export default function BookingsPage() {
 
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-muted-foreground">
-                  Tanggal Booking
+                  Dibuat Oleh
                 </label>
-                <div className="flex flex-wrap gap-1">
-                  {(["today", "week", "month", "custom"] as DatePreset[]).map(
-                    (preset) => (
-                      <Button
-                        key={preset}
-                        variant={datePreset === preset ? "default" : "outline"}
-                        size="sm"
-                        className="flex-1 text-xs"
-                        onClick={() => handlePreset(preset)}
-                      >
-                        {preset === "today"
-                          ? "Hari Ini"
-                          : preset === "week"
-                            ? "Minggu Ini"
-                            : preset === "month"
-                              ? "Bulan Ini"
-                              : "Custom"}
-                      </Button>
-                    ),
-                  )}
-                </div>
+                <Select
+                  value={createdByFilter}
+                  onValueChange={setCreatedByFilter}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="customer">Customer</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
