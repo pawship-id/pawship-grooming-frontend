@@ -15,6 +15,7 @@ export interface ApiServiceType {
   public_id?: string
   is_active: boolean
   show_in_homepage: boolean
+  order: number
   stores?: ApiServiceTypeStore[]
   isDeleted: boolean
   deletedAt?: string | null
@@ -46,6 +47,7 @@ export interface ServiceTypePayload {
   is_active?: boolean
   show_in_homepage?: boolean
   store_ids?: string[]
+  order?: number
 }
 
 export type GetServiceTypesParams = {

@@ -1,30 +1,31 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { LayoutList, CalendarDays, MessageCircle, Scissors } from "lucide-react";
 
 const steps = [
   {
     number: "1",
-    emoji: "1️⃣",
+    icon: LayoutList,
     title: "Pilih Layanan",
     description: "Pilih layanan sesuai untuk anabulmu.",
   },
   {
     number: "2",
-    emoji: "2️⃣",
+    icon: CalendarDays,
     title: "Isi Data Anabul & Jadwal",
     description:
       "Isi data Pawfriends. Hanya isi sekali, akan kami ingat untuk booking selanjutnya!",
   },
   {
     number: "3",
-    emoji: "3️⃣",
+    icon: MessageCircle,
     title: "Kami Konfirmasi via WhatsApp / Web",
     description:
       "Tim kami akan konfirmasi jadwalmu via WhatsApp dan Pawrents bisa cek via website.",
   },
   {
     number: "4",
-    emoji: "4️⃣",
+    icon: Scissors,
     title: "Siap Grooming!",
     description: "Pawrents tinggal datang atau Pawship datang ke rumahmu.",
   },
@@ -61,7 +62,7 @@ export function HowItWorksSection() {
                 {step.number}
               </div>
               <div className="flex flex-1 flex-col items-center rounded-xl border border-border/50 bg-card p-5 w-full">
-                <p className="text-2xl mb-2">{step.emoji}</p>
+                <step.icon className="h-7 w-7 mb-2 text-primary" />
                 <h3 className="font-display text-sm font-bold text-foreground">
                   {step.title}
                 </h3>

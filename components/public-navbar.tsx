@@ -75,6 +75,12 @@ export function PublicNavbar() {
             </DropdownMenuContent>
           </DropdownMenu>
           <Link
+            href="/membership"
+            className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
+          >
+            Membership
+          </Link>
+          <Link
             href="/#about"
             className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
           >
@@ -85,12 +91,6 @@ export function PublicNavbar() {
             className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
           >
             Contact
-          </Link>
-          <Link
-            href="/membership"
-            className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
-          >
-            Membership
           </Link>
           <button
             onClick={() => setTheme(isDark ? "light" : "dark")}
@@ -182,6 +182,13 @@ export function PublicNavbar() {
             </Link>
           </div>
           <Link
+            href="/membership"
+            className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
+            onClick={() => setMobileOpen(false)}
+          >
+            Membership
+          </Link>
+          <Link
             href="/#about"
             className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
             onClick={() => setMobileOpen(false)}
@@ -194,13 +201,6 @@ export function PublicNavbar() {
             onClick={() => setMobileOpen(false)}
           >
             Contact
-          </Link>
-          <Link
-            href="/membership"
-            className="text-sm font-medium text-foreground/70 transition-colors hover:text-primary"
-            onClick={() => setMobileOpen(false)}
-          >
-            Membership
           </Link>
           <button
             onClick={() => setTheme(isDark ? "light" : "dark")}

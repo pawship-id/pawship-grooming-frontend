@@ -353,11 +353,20 @@ export async function updatePetMembership(
   });
 }
 
-export async function renewPetMembership(id: string) {
+export interface RenewPetMembershipPayload {
+  start_date?: string;
+  purchase_price?: number;
+}
+
+export async function renewPetMembership(
+  id: string,
+  payload?: RenewPetMembershipPayload,
+) {
   return apiAuthRequest<PetMembershipDetailResponse>(
     `/pet-memberships/${id}/renew`,
     {
       method: "POST",
+      ...(payload ? { body: JSON.stringify(payload) } : {}),
     },
   );
 }

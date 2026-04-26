@@ -11,7 +11,25 @@ import {
   X,
   ChevronRight,
   ChevronDown,
+  GripVertical,
 } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -588,6 +606,136 @@ function MultiSelect({
               </button>
             </Badge>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sortable Service Type Item
+// ─────────────────────────────────────────────────────────────────────────────
+function SortableServiceTypeItem({
+  st,
+  isActive: isSelected,
+  onSelect,
+  onEdit,
+  onDelete,
+}: {
+  st: ApiServiceType;
+  isActive: boolean;
+  onSelect: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: st._id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`group rounded-md border transition-colors ${
+        isSelected
+          ? "border-primary bg-primary/5"
+          : "border-border hover:bg-muted/50"
+      }`}
+    >
+      <div
+        className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer"
+        onClick={onSelect}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          {/* drag handle */}
+          <button
+            type="button"
+            className="shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground touch-none"
+            {...attributes}
+            {...listeners}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+          {/* thumbnail */}
+          {st.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={st.image_url}
+              alt={st.title}
+              className="h-8 w-8 rounded object-cover shrink-0"
+            />
+          ) : (
+            <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
+              <ImageIcon className="h-4 w-4 text-muted-foreground" />
+            </div>
+          )}
+          <div className="flex flex-col min-w-0">
+            <span className="text-sm font-medium truncate">{st.title}</span>
+            <Badge
+              variant="outline"
+              className={`text-[10px] w-fit px-1.5 py-0 ${st.is_active ? "text-emerald-700 border-emerald-300 bg-emerald-50" : "text-gray-500 border-gray-300 bg-gray-50"}`}
+            >
+              {st.is_active ? "Aktif" : "Nonaktif"}
+            </Badge>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
+              className="p-1 rounded hover:bg-muted"
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
+            >
+              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+            </button>
+            <button
+              type="button"
+              className="p-1 rounded hover:bg-destructive/10"
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            >
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            </button>
+          </div>
+          <ChevronRight
+            className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${isSelected ? "rotate-90 text-primary" : "text-muted-foreground/40"}`}
+          />
+        </div>
+      </div>
+
+      {/* Expanded detail */}
+      {isSelected && (
+        <div className="border-t border-primary/20 px-3 py-2.5 flex flex-col gap-2">
+          {st.description && (
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {st.description}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+            <span className={st.show_in_homepage ? "text-primary font-medium" : ""}>
+              {st.show_in_homepage ? "✓ Tampil di homepage" : "Tidak di homepage"}
+            </span>
+          </div>
+          {(st.stores?.length ?? 0) > 0 && (
+            <div className="flex flex-col gap-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Toko
+              </p>
+              <div className="flex flex-col gap-0.5">
+                {st.stores!.map((s) => (
+                  <span key={s._id} className="text-xs text-foreground/80 truncate">
+                    • {s.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1760,6 +1908,43 @@ export default function ServicesPage() {
       t.title.toLowerCase().includes(stypeSearch.toLowerCase()),
   );
 
+  // ── DnD sensors ─────────────────────────────────────────────────────────
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  // ── DnD reorder handler ──────────────────────────────────────────────────
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = serviceTypes.findIndex((t) => t._id === active.id);
+    const newIndex = serviceTypes.findIndex((t) => t._id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(serviceTypes, oldIndex, newIndex);
+    setServiceTypes(reordered);
+
+    // Persist new order values for all affected items
+    const updates = reordered
+      .map((t, i) => ({ id: t._id, order: i }))
+      .filter((u, i) => serviceTypes[i]?._id !== u.id); // only changed
+
+    try {
+      await Promise.all(
+        reordered.map((t, i) =>
+          updateServiceType(t._id, { order: i }),
+        ),
+      );
+    } catch {
+      toast.error("Gagal menyimpan urutan. Silakan coba lagi.");
+      fetchServiceTypes();
+    }
+  };
+
   // ─────────────────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────────────────
@@ -1811,120 +1996,27 @@ export default function ServicesPage() {
                   Tidak ada tipe layanan
                 </p>
               ) : (
-                filteredTypes.map((st) => {
-                  const isActive = selectedTypeId === st._id;
-                  return (
-                    <div
-                      key={st._id}
-                      className={`group rounded-md border transition-colors ${
-                        isActive
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:bg-muted/50"
-                      }`}
-                    >
-                      {/* ── Row ── */}
-                      <div
-                        className="flex items-center justify-between gap-2 px-3 py-2.5 cursor-pointer"
-                        onClick={() => setSelectedTypeId(st._id)}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          {/* thumbnail */}
-                          {st.image_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={st.image_url}
-                              alt={st.title}
-                              className="h-8 w-8 rounded object-cover shrink-0"
-                            />
-                          ) : (
-                            <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
-                              <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                          )}
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-sm font-medium truncate">
-                              {st.title}
-                            </span>
-                            <Badge
-                              variant="outline"
-                              className={`text-[10px] w-fit px-1.5 py-0 ${st.is_active ? "text-emerald-700 border-emerald-300 bg-emerald-50" : "text-gray-500 border-gray-300 bg-gray-50"}`}
-                            >
-                              {st.is_active ? "Aktif" : "Nonaktif"}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              type="button"
-                              className="p-1 rounded hover:bg-muted"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditStype(st);
-                              }}
-                            >
-                              <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                            </button>
-                            <button
-                              type="button"
-                              className="p-1 rounded hover:bg-destructive/10"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteStype(st);
-                              }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                            </button>
-                          </div>
-                          <ChevronRight
-                            className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${isActive ? "rotate-90 text-primary" : "text-muted-foreground/40"}`}
-                          />
-                        </div>
-                      </div>
-
-                      {/* ── Expanded detail ── */}
-                      {isActive && (
-                        <div className="border-t border-primary/20 px-3 py-2.5 flex flex-col gap-2">
-                          {st.description && (
-                            <p className="text-xs text-muted-foreground leading-relaxed">
-                              {st.description}
-                            </p>
-                          )}
-                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                            <span
-                              className={
-                                st.show_in_homepage
-                                  ? "text-primary font-medium"
-                                  : ""
-                              }
-                            >
-                              {st.show_in_homepage
-                                ? "✓ Tampil di homepage"
-                                : "Tidak di homepage"}
-                            </span>
-                          </div>
-                          {(st.stores?.length ?? 0) > 0 && (
-                            <div className="flex flex-col gap-1">
-                              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                Toko
-                              </p>
-                              <div className="flex flex-col gap-0.5">
-                                {st.stores!.map((s) => (
-                                  <span
-                                    key={s._id}
-                                    className="text-xs text-foreground/80 truncate"
-                                  >
-                                    • {s.name}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={filteredTypes.map((t) => t._id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {filteredTypes.map((st) => (
+                      <SortableServiceTypeItem
+                        key={st._id}
+                        st={st}
+                        isActive={selectedTypeId === st._id}
+                        onSelect={() => setSelectedTypeId(st._id)}
+                        onEdit={() => openEditStype(st)}
+                        onDelete={() => setDeleteStype(st)}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
               )}
             </div>
           </div>
