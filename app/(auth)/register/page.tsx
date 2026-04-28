@@ -106,6 +106,14 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!/^0\d+$/.test(phoneNumber.trim())) {
+      setErrors([
+        "Nomor telepon harus diawali 0 dan hanya boleh berisi angka (contoh: 08xxx)",
+      ]);
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const payload: RegisterPayload = {
         username,
@@ -143,6 +151,14 @@ export default function RegisterPage() {
     setErrors([]);
     setSuccessMessage("");
     setIsLoading(true);
+
+    if (!/^0\d+$/.test(phoneNumber.trim())) {
+      setErrors([
+        "Nomor telepon harus diawali 0 dan hanya boleh berisi angka (contoh: 08xxx)",
+      ]);
+      setIsLoading(false);
+      return;
+    }
 
     try {
       await sendPasswordSetupRequest({
@@ -243,10 +259,14 @@ export default function RegisterPage() {
                     name="phone_number"
                     type="tel"
                     placeholder="08xxxxxxxxxx"
+                    inputMode="numeric"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
                     required
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Harus diawali 0, hanya angka. Tanpa +62 atau tanda baca.
+                  </p>
                 </div>
 
                 <Button

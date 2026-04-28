@@ -158,6 +158,11 @@ function isValidEmail(email: string): boolean {
   return emailRegex.test(email);
 }
 
+// ── Phone validation helper ───────────────────────────────────────────────
+function isValidPhone(phone: string): boolean {
+  return /^0\d+$/.test(phone.trim());
+}
+
 // ── Highlight helper ──────────────────────────────────────────────────────
 function Highlight({ text, query }: { text: string; query: string }) {
   if (!query.trim()) return <>{text}</>;
@@ -340,6 +345,15 @@ export default function UsersPage() {
     e.preventDefault();
     setIsCreating(true);
     try {
+      // Validate phone number
+      if (!isValidPhone(createForm.phone_number)) {
+        toast.error(
+          "Nomor telepon harus diawali 0 dan hanya boleh berisi angka (contoh: 08xxx)",
+        );
+        setIsCreating(false);
+        return;
+      }
+
       // Validate: non-customer roles require email and password
       if (createForm.role !== "customer") {
         if (!createForm.email || createForm.email.trim() === "") {
@@ -404,6 +418,15 @@ export default function UsersPage() {
     if (!editUser) return;
     setIsEditing(true);
     try {
+      // Validate phone number
+      if (!isValidPhone(editForm.phone_number)) {
+        toast.error(
+          "Nomor telepon harus diawali 0 dan hanya boleh berisi angka (contoh: 08xxx)",
+        );
+        setIsEditing(false);
+        return;
+      }
+
       // Update user basic fields only
       const payload: UpdateUserPayload = {
         username: editForm.username,
@@ -1432,11 +1455,15 @@ export default function UsersPage() {
                 id="c-phone"
                 placeholder="08xxxxxxxxxx"
                 required
+                inputMode="numeric"
                 value={createForm.phone_number}
                 onChange={(e) =>
                   setCreateForm((p) => ({ ...p, phone_number: e.target.value }))
                 }
               />
+              <p className="text-xs text-muted-foreground">
+                Harus diawali 0, hanya angka. Tanpa +62 atau tanda baca.
+              </p>
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="c-email">
@@ -1627,6 +1654,7 @@ export default function UsersPage() {
                     id="e-phone"
                     placeholder="08xxxxxxxxxx"
                     required
+                    inputMode="numeric"
                     value={editForm.phone_number}
                     onChange={(e) =>
                       setEditForm((p) => ({
@@ -1635,6 +1663,9 @@ export default function UsersPage() {
                       }))
                     }
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Harus diawali 0, hanya angka. Tanpa +62 atau tanda baca.
+                  </p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
