@@ -83,6 +83,7 @@ import {
   type UpdateUserPayload,
   adminUpdateUserProfile,
   createUser,
+  clearUserEmail,
   deleteUser as deleteUserRequest,
   getUsers,
   getUser,
@@ -228,6 +229,7 @@ export default function UsersPage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [skillInput, setSkillInput] = useState("");
+  const [showClearEmailConfirm, setShowClearEmailConfirm] = useState(false);
 
   const [editingAddressIdx, setEditingAddressIdx] = useState<number | null>(
     null,
@@ -384,6 +386,22 @@ export default function UsersPage() {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editUser) return;
+
+    // For customer: if email is being cleared, show confirm dialog first
+    if (
+      editUser.role === "customer" &&
+      editUser.email &&
+      (!editForm.email || editForm.email.trim() === "")
+    ) {
+      setShowClearEmailConfirm(true);
+      return;
+    }
+
+    await _doHandleEdit();
+  };
+
+  const _doHandleEdit = async () => {
+    if (!editUser) return;
     setIsEditing(true);
     try {
       // Update user basic fields only
@@ -399,6 +417,15 @@ export default function UsersPage() {
       }
 
       await updateUser(editUser._id, payload);
+
+      // If customer email was cleared, also clear password via dedicated endpoint
+      if (
+        editUser.role === "customer" &&
+        editUser.email &&
+        (!editForm.email || editForm.email.trim() === "")
+      ) {
+        await clearUserEmail(editUser._id);
+      }
 
       // Update profile fields
       const profilePayload: any = {};
@@ -1622,6 +1649,15 @@ export default function UsersPage() {
                       setEditForm((p) => ({ ...p, email: e.target.value }))
                     }
                   />
+                  {editUser?.role === "customer" &&
+                    editUser?.email &&
+                    (!editForm.email || editForm.email.trim() === "") && (
+                      <p className="text-xs text-amber-600 leading-snug">
+                        ⚠️ Email dikosongkan — password juga akan dihapus.
+                        Customer harus aktivasi ulang dengan input email &
+                        password baru.
+                      </p>
+                    )}
                 </div>
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="e-role">Role</Label>
@@ -2327,6 +2363,60 @@ export default function UsersPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Clear Email Confirmation Dialog */}
+      <AlertDialog
+        open={showClearEmailConfirm}
+        onOpenChange={(o) => {
+          if (!o) {
+            setShowClearEmailConfirm(false);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Email &amp; Password</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="flex flex-col gap-2 text-sm">
+                <p>
+                  Kamu akan menghapus email dari customer{" "}
+                  <span className="font-semibold text-foreground">
+                    {editUser?.username}
+                  </span>
+                  .
+                </p>
+                <p>
+                  Setelah disimpan, <strong>password juga akan dihapus</strong>{" "}
+                  dan customer tidak bisa login menggunakan email & password.
+                </p>
+                <p className="text-amber-700 font-medium">
+                  Customer harus aktivasi ulang akun dengan mendaftarkan email
+                  dan password baru melalui halaman set-password atau
+                  registrasi.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setShowClearEmailConfirm(false);
+              }}
+            >
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                setShowClearEmailConfirm(false);
+                await _doHandleEdit();
+              }}
+              className="bg-amber-600 text-white hover:bg-amber-700"
+            >
+              Ya, Hapus Email &amp; Password
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog
