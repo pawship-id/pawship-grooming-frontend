@@ -254,7 +254,7 @@ export default function GroomerProfilePage() {
             <div className="flex items-start gap-3">
               <Calendar className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <div>
-                <p className="text-xs text-muted-foreground">Member Since</p>
+                <p className="text-xs text-muted-foreground">Joined Since</p>
                 <p className="text-sm font-medium">
                   {formatDate(profile.createdAt)}
                 </p>

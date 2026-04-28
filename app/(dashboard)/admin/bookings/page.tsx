@@ -41,6 +41,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Combobox } from "@/components/ui/combobox";
 import {
   getAdminBookings,
   getAllAdminBookingsForExport,
@@ -49,6 +50,8 @@ import type { AdminBooking } from "@/lib/api/bookings";
 import { exportBookingsToExcel } from "@/lib/export-booking";
 import { getStores } from "@/lib/api/stores";
 import type { ApiStore } from "@/lib/api/stores";
+import { getAdminServices } from "@/lib/api/services";
+import type { AdminService } from "@/lib/api/services";
 import { useToast } from "@/hooks/use-toast";
 
 const statusColors: Record<string, string> = {
@@ -83,6 +86,28 @@ function formatDate(iso: string) {
 
 function toYMD(d: Date) {
   return d.toISOString().slice(0, 10);
+}
+
+function Highlight({ text, query }: { text: string; query: string }) {
+  if (!query) return <>{text}</>;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const parts = text.split(new RegExp(`(${escaped})`, "gi"));
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === query.toLowerCase() ? (
+          <mark
+            key={i}
+            className="bg-yellow-200 dark:bg-yellow-700/60 rounded-sm px-0.5 not-italic font-[inherit]"
+          >
+            {part}
+          </mark>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
 }
 
 type DatePreset = "today" | "week" | "month" | "custom" | "";
@@ -121,10 +146,13 @@ export default function BookingsPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [createdByFilter, setCreatedByFilter] = useState<string>("all");
   const [storeFilter, setStoreFilter] = useState<string>("all");
+  const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [stores, setStores] = useState<ApiStore[]>([]);
+  const [services, setServices] = useState<AdminService[]>([]);
   const [datePreset, setDatePreset] = useState<DatePreset>("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -148,6 +176,12 @@ export default function BookingsPage() {
 
   const totalPages = Math.max(1, Math.ceil(totalCount / LIMIT));
 
+  // Debounce search input — only fire API after user stops typing for 400ms
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const fetchBookings = useCallback(
     (page: number) => {
       setLoading(true);
@@ -165,6 +199,8 @@ export default function BookingsPage() {
         created_by_role:
           createdByFilter === "all" ? undefined : createdByFilter,
         store_id: storeFilter === "all" ? undefined : storeFilter,
+        service_id: serviceFilter === "all" ? undefined : serviceFilter,
+        search: debouncedSearch || undefined,
       })
         .then((res) => {
           setBookings(res.bookings);
@@ -173,7 +209,7 @@ export default function BookingsPage() {
         .catch(() => {})
         .finally(() => setLoading(false));
     },
-    [statusFilter, createdByFilter, storeFilter, datePreset, dateFrom, dateTo],
+    [statusFilter, createdByFilter, storeFilter, serviceFilter, datePreset, dateFrom, dateTo, debouncedSearch],
   );
 
   // Fetch stores for filter
@@ -183,24 +219,21 @@ export default function BookingsPage() {
       .catch(() => {});
   }, []);
 
-  // Reset to page 1 when filters change
+  // Fetch services for filter
+  useEffect(() => {
+    getAdminServices({ limit: 200 })
+      .then((res) => setServices(res.services ?? []))
+      .catch(() => {});
+  }, []);
+
+  // Reset to page 1 when filters or search change
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, createdByFilter, storeFilter, datePreset, dateFrom, dateTo]);
+  }, [statusFilter, createdByFilter, storeFilter, serviceFilter, datePreset, dateFrom, dateTo, debouncedSearch]);
 
   useEffect(() => {
     fetchBookings(currentPage);
   }, [fetchBookings, currentPage]);
-
-  const filtered = bookings.filter((b) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      (b.customer?.username ?? "").toLowerCase().includes(q) ||
-      b.pet_snapshot.name.toLowerCase().includes(q) ||
-      b.service_snapshot.name.toLowerCase().includes(q)
-    );
-  });
 
   function handlePreset(preset: DatePreset) {
     setDatePreset((prev) => (prev === preset ? "" : preset));
@@ -354,91 +387,30 @@ export default function BookingsPage() {
       <Card className="border-border/50">
         <CardHeader className="pb-4">
           <div className="rounded-lg border bg-muted/30 p-3 flex flex-col gap-3">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Cari customer, hewan, atau layanan..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-
-            {/* Filters row */}
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-              <div className="flex flex-col gap-1">
+            {/* Row 1: Search + Tanggal */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              {/* Search */}
+              <div className="flex flex-col gap-1 sm:w-[280px] shrink-0">
                 <label className="text-xs font-medium text-muted-foreground">
-                  Status
+                  Cari
                 </label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Status</SelectItem>
-                    <SelectItem value="requested">Requested</SelectItem>
-                    <SelectItem value="waitlist">Waitlist</SelectItem>
-                    <SelectItem value="confirmed">Confirmed</SelectItem>
-                    <SelectItem value="driver on the way">
-                      Driver on the Way
-                    </SelectItem>
-                    <SelectItem value="groomer on the way">
-                      Groomer on the Way
-                    </SelectItem>
-                    <SelectItem value="arrived">Arrived</SelectItem>
-                    <SelectItem value="in progress">In Progress</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="returned">Returned</SelectItem>
-                    <SelectItem value="rescheduled">Rescheduled</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Nama customer atau hewan..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
               </div>
 
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Dibuat Oleh
-                </label>
-                <Select
-                  value={createdByFilter}
-                  onValueChange={setCreatedByFilter}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="customer">Customer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Store
-                </label>
-                <Select value={storeFilter} onValueChange={setStoreFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Store" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Store</SelectItem>
-                    {stores.map((store) => (
-                      <SelectItem key={store._id} value={store._id}>
-                        {store.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col gap-1">
+              {/* Tanggal Booking */}
+              <div className="flex flex-col gap-1 flex-1">
                 <label className="text-xs font-medium text-muted-foreground">
                   Tanggal Booking
                 </label>
-                <div className="flex flex-wrap gap-1">
+                <div className="flex gap-1">
                   {(["today", "week", "month", "custom"] as DatePreset[]).map(
                     (preset) => (
                       <Button
@@ -459,6 +431,85 @@ export default function BookingsPage() {
                     ),
                   )}
                 </div>
+              </div>
+            </div>
+
+            {/* Row 2: Dropdown Filters */}
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Status
+                </label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Status</SelectItem>
+                    <SelectItem value="requested">Requested</SelectItem>
+                    <SelectItem value="waitlist">Waitlist</SelectItem>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="driver on the way">Driver on the Way</SelectItem>
+                    <SelectItem value="groomer on the way">Groomer on the Way</SelectItem>
+                    <SelectItem value="arrived">Arrived</SelectItem>
+                    <SelectItem value="in progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="returned">Returned</SelectItem>
+                    <SelectItem value="rescheduled">Rescheduled</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Store
+                </label>
+                <Combobox
+                  options={[
+                    { value: "all", label: "Semua Store" },
+                    ...stores.map((s) => ({ value: s._id, label: s.name })),
+                  ]}
+                  value={storeFilter}
+                  onValueChange={(val) => setStoreFilter(val || "all")}
+                  placeholder="Semua Store"
+                  searchPlaceholder="Cari store..."
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Layanan
+                </label>
+                <Combobox
+                  options={[
+                    { value: "all", label: "Semua Layanan" },
+                    ...services.map((s) => ({ value: s._id, label: s.name })),
+                  ]}
+                  value={serviceFilter}
+                  onValueChange={(val) => setServiceFilter(val || "all")}
+                  placeholder="Semua Layanan"
+                  searchPlaceholder="Cari layanan..."
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Dibuat Oleh
+                </label>
+                <Select
+                  value={createdByFilter}
+                  onValueChange={setCreatedByFilter}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="customer">Customer</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -494,6 +545,7 @@ export default function BookingsPage() {
             {(statusFilter !== "all" ||
               createdByFilter !== "all" ||
               storeFilter !== "all" ||
+              serviceFilter !== "all" ||
               datePreset !== "") && (
               <div className="flex items-center justify-between border-t pt-2">
                 <div className="flex flex-wrap gap-1">
@@ -510,6 +562,11 @@ export default function BookingsPage() {
                   {storeFilter !== "all" && (
                     <Badge variant="secondary" className="text-xs">
                       {stores.find((s) => s._id === storeFilter)?.name ?? storeFilter}
+                    </Badge>
+                  )}
+                  {serviceFilter !== "all" && (
+                    <Badge variant="secondary" className="text-xs">
+                      {services.find((s) => s._id === serviceFilter)?.name ?? serviceFilter}
                     </Badge>
                   )}
                   {datePreset !== "" && datePreset !== "custom" && (
@@ -535,6 +592,7 @@ export default function BookingsPage() {
                     setStatusFilter("all");
                     setCreatedByFilter("all");
                     setStoreFilter("all");
+                    setServiceFilter("all");
                     setDatePreset("");
                     setDateFrom("");
                     setDateTo("");
@@ -572,7 +630,7 @@ export default function BookingsPage() {
                       ))}
                     </TableRow>
                   ))
-                ) : filtered.length === 0 ? (
+                ) : bookings.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={8}
@@ -582,7 +640,7 @@ export default function BookingsPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((booking) => (
+                  bookings.map((booking) => (
                     <TableRow
                       key={booking._id}
                       className="cursor-pointer hover:bg-muted/50"
@@ -597,10 +655,16 @@ export default function BookingsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="font-medium">
-                        {booking.customer?.username ?? "-"}
+                        <Highlight
+                          text={booking.customer?.username ?? "-"}
+                          query={debouncedSearch}
+                        />
                       </TableCell>
                       <TableCell>
-                        {booking.pet_snapshot.name}
+                        <Highlight
+                          text={booking.pet_snapshot.name}
+                          query={debouncedSearch}
+                        />
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col gap-0.5">
