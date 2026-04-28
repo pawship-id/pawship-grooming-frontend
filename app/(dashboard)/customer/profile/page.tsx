@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import dynamic from "next/dynamic"
-import { Mail, Phone, Shield, Calendar, User, Weight, Tag, Pencil, Plus, Trash2, MapPin, Eye } from "lucide-react"
+import { Mail, Phone, Shield, Calendar, User, Weight, Tag, Pencil, Plus, Trash2, MapPin, Map, Eye } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -51,15 +50,7 @@ function formatDate(dateStr: string) {
 
 import type { UserAddress } from "@/lib/api/users"
 
-const LocationMap = dynamic(
-  () => import("@/components/location-map").then((mod) => ({ default: mod.LocationMap })),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-[380px] w-full rounded-md border border-border bg-muted/40 animate-pulse" />
-    ),
-  }
-)
+import { MapPickerModal } from "@/components/map-picker-modal"
 
 type ProfileFormState = {
   full_name: string
@@ -323,19 +314,18 @@ function EditProfileDialog({
                           placeholder="Kode Pos"
                         />
                       </div>
-                      <div className="flex flex-col gap-2 sm:col-span-2">
+                      <div className="flex flex-col gap-1.5">
                         <Label>Koordinat</Label>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setMapOpen(true)}
-                          >
-                            <MapPin className="h-3.5 w-3.5 mr-1" />
-                            Pilih dari Peta
-                          </Button>
-                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-start gap-2"
+                          size="sm"
+                          onClick={() => setMapOpen(true)}
+                        >
+                          <Map className="h-4 w-4" />
+                          Pilih dari Peta
+                        </Button>
                         {addr.latitude != null && addr.longitude != null && (
                           <p className="text-xs text-muted-foreground">
                             Koordinat terpilih: {addr.latitude}, {addr.longitude}
@@ -440,31 +430,19 @@ function EditProfileDialog({
         </form>
       </DialogContent>
     </Dialog>
-    <Dialog open={mapOpen} onOpenChange={setMapOpen}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Pilih Lokasi di Peta</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          Klik titik pada peta untuk mengisi koordinat alamat secara otomatis.
-        </p>
-        {mapOpen && editingAddressIdx !== null && (
-          <LocationMap
-            selectedLat={form.addresses[editingAddressIdx]?.latitude ?? null}
-            selectedLng={form.addresses[editingAddressIdx]?.longitude ?? null}
-            onSelect={(lat, lng) => {
-              setForm(f => ({
-                ...f,
-                addresses: f.addresses.map((a, i) => i === editingAddressIdx ? { ...a, latitude: lat, longitude: lng } : a)
-              }))
-            }}
-          />
-        )}
-        <div className="flex justify-end">
-          <Button type="button" onClick={() => setMapOpen(false)}>Selesai</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <MapPickerModal
+      open={mapOpen}
+      onOpenChange={setMapOpen}
+      selectedLat={editingAddressIdx !== null ? form.addresses[editingAddressIdx]?.latitude ?? null : null}
+      selectedLng={editingAddressIdx !== null ? form.addresses[editingAddressIdx]?.longitude ?? null : null}
+      onSelect={(lat, lng) => {
+        if (editingAddressIdx === null) return
+        setForm(f => ({
+          ...f,
+          addresses: f.addresses.map((a, i) => i === editingAddressIdx ? { ...a, latitude: lat, longitude: lng } : a)
+        }))
+      }}
+    />
     </>
   )
 }

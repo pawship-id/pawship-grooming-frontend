@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { User, PawPrint, Loader2, CheckCircle2, LogIn, MapPin, Plus, Pencil, LocateFixed } from "lucide-react"
+import { User, PawPrint, Loader2, CheckCircle2, LogIn, MapPin, Map, Plus, Pencil, LocateFixed } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,10 +9,9 @@ import { Label } from "@/components/ui/label"
 import { Combobox } from "@/components/ui/combobox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import type { PublicUser, PublicUserPet, PublicOption, PublicAddressEntry } from "@/lib/api/stores"
 import { EMPTY_ADDRESS_ENTRY } from "@/lib/api/stores"
-import { GoogleLocationMap } from "@/components/google-location-map"
+import { MapPickerModal } from "@/components/map-picker-modal"
 
 interface StepUserInfoProps {
   // Auth state
@@ -454,30 +453,17 @@ export function StepUserInfo({
     </Card>
 
     {/* Map picker dialog */}
-    <Dialog open={mapOpen} onOpenChange={setMapOpen}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Pilih Lokasi di Peta</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          Klik titik pada peta untuk mengisi koordinat alamat secara otomatis.
-        </p>
-        {mapOpen && mapTargetIdx != null && (
-          <GoogleLocationMap
-            selectedLat={addresses[mapTargetIdx]?.latitude ?? null}
-            selectedLng={addresses[mapTargetIdx]?.longitude ?? null}
-            onSelect={(lat, lng) => {
-              if (mapTargetIdx != null) {
-                updateAddress(mapTargetIdx, { latitude: lat, longitude: lng })
-              }
-            }}
-          />
-        )}
-        <div className="flex justify-end">
-          <Button type="button" onClick={() => setMapOpen(false)}>Selesai</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <MapPickerModal
+      open={mapOpen}
+      onOpenChange={setMapOpen}
+      selectedLat={mapTargetIdx != null ? addresses[mapTargetIdx]?.latitude ?? null : null}
+      selectedLng={mapTargetIdx != null ? addresses[mapTargetIdx]?.longitude ?? null : null}
+      onSelect={(lat, lng) => {
+        if (mapTargetIdx != null) {
+          updateAddress(mapTargetIdx, { latitude: lat, longitude: lng })
+        }
+      }}
+    />
     </>
   )
 }
@@ -627,12 +613,12 @@ function AddressSection({
                   </Button>
                 </div>
               </div>
-              <AddressFields idx={idx} addr={addr} onUpdate={onUpdate} onOpenMap={onOpenMap} onDetectLocation={onDetectLocation} isDetectingLocation={isDetectingLocation} disabled={disabled} />
+              <AddressFields idx={idx} addr={addr} onUpdate={onUpdate} onOpenMap={onOpenMap} disabled={disabled} />
             </div>
           ) : isNewUser ? (
             // ── Inline form for new user (no collapse/radio) ──
             <div className="p-3">
-              <AddressFields idx={idx} addr={addr} onUpdate={onUpdate} onOpenMap={onOpenMap} onDetectLocation={onDetectLocation} isDetectingLocation={isDetectingLocation} disabled={disabled} />
+              <AddressFields idx={idx} addr={addr} onUpdate={onUpdate} onOpenMap={onOpenMap} disabled={disabled} />
             </div>
           ) : (
             // ── Collapsed row (idle user list) ──
@@ -682,16 +668,12 @@ function AddressFields({
   addr,
   onUpdate,
   onOpenMap,
-  onDetectLocation,
-  isDetectingLocation,
   disabled,
 }: {
   idx: number
   addr: PublicAddressEntry
   onUpdate: (idx: number, patch: Partial<PublicAddressEntry>) => void
   onOpenMap: (idx: number) => void
-  onDetectLocation: (idx: number) => void
-  isDetectingLocation: boolean
   disabled: boolean
 }) {
   return (
@@ -725,16 +707,11 @@ function AddressFields({
         <Input value={addr.postal_code} disabled={disabled} onChange={(e) => onUpdate(idx, { postal_code: e.target.value })} placeholder="Kode Pos" />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label>Lokasi (dari Peta) <span className="text-destructive">*</span></Label>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => onOpenMap(idx)}>
-            <MapPin className="h-3.5 w-3.5 mr-1" /> Pilih dari Peta
-          </Button>
-          <Button type="button" variant="outline" size="sm" disabled={disabled || isDetectingLocation} onClick={() => onDetectLocation(idx)}>
-            <LocateFixed className="h-3.5 w-3.5 mr-1" />
-            {isDetectingLocation ? "Mendeteksi..." : "Lokasi Saat Ini"}
-          </Button>
-        </div>
+        <Label>Koordinat <span className="text-destructive">*</span></Label>
+        <Button type="button" variant="outline" className="w-full justify-start gap-2" size="sm" disabled={disabled} onClick={() => onOpenMap(idx)}>
+          <Map className="h-4 w-4" />
+          Pilih dari Peta
+        </Button>
         {addr.latitude != null && addr.longitude != null ? (
           <p className="text-xs text-muted-foreground">Koordinat: {addr.latitude}, {addr.longitude}</p>
         ) : (

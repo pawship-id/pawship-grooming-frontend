@@ -10,6 +10,7 @@ import {
   Trash2,
   MoreVertical,
   MapPin,
+  Map,
   Phone,
   Clock,
 } from "lucide-react";
@@ -77,18 +78,7 @@ import {
 } from "@/lib/api/stores";
 import { toast } from "sonner";
 
-const GoogleLocationMap = dynamic(
-  () =>
-    import("@/components/google-location-map").then(
-      (mod) => mod.GoogleLocationMap,
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-[420px] w-full rounded-md border border-border bg-muted/40 animate-pulse" />
-    ),
-  },
-);
+import { MapPickerModal } from "@/components/map-picker-modal";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface HomeServiceZoneForm {
@@ -385,23 +375,25 @@ function StoreFormFields({
               }
             />
           </div>
-        </div>
-
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setMapOpen(true)}
-          >
-            Pilih dari Peta
-          </Button>
-          {form.location.latitude != null &&
-            form.location.longitude != null && (
-              <p className="text-xs text-muted-foreground">
-                Koordinat terpilih: {form.location.latitude},{" "}
-                {form.location.longitude}
-              </p>
-            )}
+          <div className="flex flex-col gap-1.5">
+            <Label>Koordinat</Label>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-start gap-2"
+              onClick={() => setMapOpen(true)}
+            >
+              <Map className="h-4 w-4" />
+              Pilih dari Peta
+            </Button>
+            {form.location.latitude != null &&
+              form.location.longitude != null && (
+                <p className="text-xs text-muted-foreground">
+                  Koordinat terpilih: {form.location.latitude},{" "}
+                  {form.location.longitude}
+                </p>
+              )}
+          </div>
         </div>
 
         {isDetectingLocation && (
@@ -1018,40 +1010,22 @@ function StoreFormFields({
         )}
       </div>
 
-      <Dialog open={mapOpen} onOpenChange={setMapOpen}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="font-display">
-              Pilih Lokasi di Peta
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Klik titik lokasi pada peta untuk mengisi latitude dan longitude
-            otomatis.
-          </p>
-          {mapOpen && (
-            <GoogleLocationMap
-              selectedLat={form.location.latitude}
-              selectedLng={form.location.longitude}
-              onSelect={(lat, lng) => {
-                setForm((p) => ({
-                  ...p,
-                  location: {
-                    ...p.location,
-                    latitude: lat,
-                    longitude: lng,
-                  },
-                }));
-              }}
-            />
-          )}
-          <div className="flex justify-end">
-            <Button type="button" onClick={() => setMapOpen(false)}>
-              Selesai
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <MapPickerModal
+        open={mapOpen}
+        onOpenChange={setMapOpen}
+        selectedLat={form.location.latitude}
+        selectedLng={form.location.longitude}
+        onSelect={(lat, lng) => {
+          setForm((p) => ({
+            ...p,
+            location: {
+              ...p.location,
+              latitude: lat,
+              longitude: lng,
+            },
+          }));
+        }}
+      />
     </div>
   );
 }
