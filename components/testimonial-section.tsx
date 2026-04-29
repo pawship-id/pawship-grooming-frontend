@@ -7,57 +7,71 @@ import { Star, Quote } from "lucide-react";
 const testimonials = [
   {
     id: 1,
-    name: "barkpup",
+    name: "Brigitta - Snowy",
     location: "Indonesia",
     rating: 5,
     content:
-      "Bahannya lembut banget dan ringan, anabul aku kelihatan nyaman seharian pakai Pawship",
-    picture: "https://placedog.net/250/141?id=1",
+      "Groomernya telaten banget, sabar dan detail. Padalah chloe ada gimbal, kalau di tempat lain pasti langsung di gundul tapi di pawship diusahakan untuk nggak perlu gundul.",
+    picture:
+      "https://res.cloudinary.com/deqpnzfwb/image/upload/v1777449845/Brigitta_-_Snowy_vrhlkx.png",
   },
   {
     id: 2,
-    name: "cloudypaws",
+    name: "Ivan - Max",
     location: "Indonesia",
     rating: 5,
-    content:
-      "Awalnya ragu, tapi ternyata fit-nya pas dan nggak bikin anabul susah gerak.",
-    picture: "https://placedog.net/250/141?id=2",
+    content: "Hasil groomingnya bagus dan rapi.",
+    picture:
+      "https://res.cloudinary.com/deqpnzfwb/image/upload/v1777450060/Ivan_-_Max_fvovcb.jpg",
   },
   {
     id: 3,
-    name: "baileysthepom",
+    name: "Alicia - Mojito",
     location: "Indonesia",
     rating: 5,
-    content:
-      "Anabul aku sensitif, tapi pakai Pawship aman dan nggak bikin iritasi.",
-    picture: "https://placedog.net/250/141?id=3",
+    content: "Hasilnya bersih dan sesuai request.",
+    picture:
+      "https://res.cloudinary.com/deqpnzfwb/image/upload/v1777450364/Alicia_-_Mojito_pfqynp.jpg",
   },
   {
     id: 4,
-    name: "aileemissmark",
+    name: "Ratu - Queen",
     location: "Indonesia",
     rating: 5,
     content:
-      "Bahannya adem, jadi anabul nggak gampang gerah walau dipakai lama.",
-    picture: "https://placedog.net/250/141?id=4",
+      "Groomingnya bagus dan hasilnya sama sesuai request yang disampaikan.",
+    picture:
+      "https://res.cloudinary.com/deqpnzfwb/image/upload/v1777450614/Ratu_-_Queen_tz7jhp.png",
   },
   {
     id: 5,
-    name: "mochi.thedog",
+    name: "Sani - Lyon",
     location: "Indonesia",
     rating: 5,
     content:
-      "Groomernya sabar banget, Mochi yang biasanya susah dipegang jadi tenang.",
-    picture: "https://placedog.net/250/141?id=5",
+      "Groomernya sabarr banget padahal kucingku takutan dan ga gitu ramah sama manusia.",
+    picture:
+      "https://res.cloudinary.com/deqpnzfwb/image/upload/v1777450710/Sani_-_Lyon_iqqydk.jpg",
   },
   {
     id: 6,
-    name: "tofu.thespitz",
+    name: "Cindy - Paupau",
     location: "Indonesia",
     rating: 5,
     content:
-      "Hasilnya rapi dan wangi tahan lama! Pasti bakal balik lagi ke Pawship.",
-    picture: "https://placedog.net/250/141?id=6",
+      "Semua staff sangat ramah dan helpful. Pau juga keliatan seneng banget di pawship, puass bangett.",
+    picture:
+      "https://res.cloudinary.com/deqpnzfwb/image/upload/v1777450762/Cindy_-_Paupau_nq1oyc.jpg",
+  },
+  {
+    id: 7,
+    name: "Windy - Soju",
+    location: "Indonesia",
+    rating: 5,
+    content:
+      "Semua staff sangat ramah dan helpful. Pau juga keliatan seneng banget di pawship, puass bangett.",
+    picture:
+      "https://res.cloudinary.com/deqpnzfwb/image/upload/v1777450817/Windy_-_Soju_qzzjpd.png",
   },
 ];
 
@@ -156,14 +170,15 @@ export function TestimonialSection() {
                       rel="noopener noreferrer"
                       className="block mb-4 cursor-pointer overflow-hidden rounded-lg hover:opacity-90 transition-opacity max-w-[250px] mx-auto"
                     >
-                      <Image
-                        src={testimonial.picture}
-                        alt={`${testimonial.name}'s testimonial`}
-                        width={250}
-                        height={141}
-                        className="w-full h-auto object-cover rounded-lg"
-                        sizes="150px"
-                      />
+                      <div className="relative w-full h-[180px]">
+                        <Image
+                          src={testimonial.picture}
+                          alt={`${testimonial.name}'s testimonial`}
+                          fill
+                          className="object-cover rounded-lg"
+                          sizes="250px"
+                        />
+                      </div>
                     </a>
                   </div>
                 )}
