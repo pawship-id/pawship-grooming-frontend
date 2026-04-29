@@ -45,11 +45,6 @@ export function ServiceInfo({ booking }: ServiceInfoProps) {
             Service
           </label>
           <p className="font-medium">{booking.service_snapshot.name}</p>
-          {booking.service_snapshot.description && (
-            <p className="mt-1 text-sm text-muted-foreground">
-              {booking.service_snapshot.description}
-            </p>
-          )}
         </div>
 
         {/* Add-ons */}
@@ -115,9 +110,7 @@ export function ServiceInfo({ booking }: ServiceInfoProps) {
                 </span>
               )}
               {!booking.pick_up && !booking.delivery && (
-                <span className="text-sm text-muted-foreground">
-                  Tidak ada
-                </span>
+                <span className="text-sm text-muted-foreground">Tidak ada</span>
               )}
             </div>
           </div>
