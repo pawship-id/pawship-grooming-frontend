@@ -12,8 +12,8 @@ export interface UserAddress {
   province?: string;
   postal_code?: string;
   note?: string;
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | null;
+  longitude?: number | null;
   is_main_address?: boolean;
   created_by?: "admin" | "customer";
 }
