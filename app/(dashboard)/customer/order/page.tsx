@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { getAdminBookings, type AdminBooking } from "@/lib/api/bookings";
+import { getPublicStores, getPublicServices } from "@/lib/api/stores";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -15,12 +17,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import { Toaster } from "@/components/ui/toaster";
 import {
   Calendar,
   CheckCircle2,
   Clock,
   Home,
   MapPin,
+  RefreshCw,
   Scissors,
   Store,
   XCircle,
@@ -119,6 +124,82 @@ const statusOptions = [
 // ── Booking Card ─────────────────────────────────────────────────────────────
 function BookingCard({ booking }: { booking: AdminBooking }) {
   const router = useRouter();
+  const { toast } = useToast();
+  const [reordering, setReordering] = useState(false);
+
+  async function handleReorder(e: React.MouseEvent) {
+    e.stopPropagation();
+    setReordering(true);
+    try {
+      const { stores: allStores } = await getPublicStores();
+      const activeStores = allStores.filter((s) => s.is_active);
+      const store = activeStores.find((s) => s._id === booking.store_id);
+
+      if (!store) {
+        toast({
+          variant: "destructive",
+          title: "Store tidak tersedia",
+          description:
+            "Store dari booking ini sudah tidak aktif atau sudah tidak beroperasi. Kamu bisa memilih store lain di halaman booking.",
+        });
+        setReordering(false);
+        return;
+      }
+
+      const serviceTypeId = booking.service_snapshot.service_type._id;
+      const hasServiceType = store.serviceTypes.some(
+        (t) => t._id === serviceTypeId,
+      );
+      if (!hasServiceType) {
+        toast({
+          variant: "destructive",
+          title: "Tipe layanan tidak tersedia",
+          description:
+            "Tipe layanan dari booking ini sudah tidak tersedia di store tersebut.",
+        });
+        setReordering(false);
+        return;
+      }
+
+      const { services } = await getPublicServices(
+        booking.store_id,
+        serviceTypeId,
+      );
+      const activeServiceIds = services
+        .filter((s) => s.is_active)
+        .map((s) => s._id);
+      const serviceId = booking.service_snapshot._id;
+
+      if (!activeServiceIds.includes(serviceId)) {
+        toast({
+          variant: "destructive",
+          title: "Layanan tidak tersedia",
+          description: `Layanan "${booking.service_snapshot.name}" sudah tidak aktif atau sudah dihentikan. Silakan pilih layanan lain di halaman booking.`,
+        });
+        setReordering(false);
+        return;
+      }
+
+      const params = new URLSearchParams({
+        storeId: booking.store_id,
+        serviceTypeId,
+        serviceId,
+        locationType: booking.type,
+      });
+      if (booking.service_addon_ids?.length) {
+        params.set("addonIds", booking.service_addon_ids.join(","));
+      }
+      router.push(`/booking?${params.toString()}`);
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Gagal memproses re-order",
+        description: "Terjadi kesalahan. Silakan coba lagi.",
+      });
+      setReordering(false);
+    }
+  }
+
   const cfg = statusConfig[booking.booking_status] ?? {
     label: booking.booking_status,
     className: "bg-muted text-muted-foreground border-border",
@@ -265,12 +346,28 @@ function BookingCard({ booking }: { booking: AdminBooking }) {
 
         <Separator className="my-0" />
 
-        {/* Total */}
+        {/* Total + Re-Order */}
         <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">Total pembayaran</p>
-          <p className="font-display text-base font-bold text-primary">
-            {formatPrice(booking.final_total_price)}
-          </p>
+          <div>
+            <p className="text-xs text-muted-foreground">Total pembayaran</p>
+            <p className="font-display text-base font-bold text-primary">
+              {formatPrice(booking.final_total_price)}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 border-primary/40 text-primary hover:bg-primary/5"
+            onClick={handleReorder}
+            disabled={reordering}
+          >
+            {reordering ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            Re-Order
+          </Button>
         </div>
       </CardContent>
     </Card>
@@ -415,6 +512,7 @@ export default function CustomerOrderPage() {
           ))}
         </div>
       )}
+      <Toaster />
     </div>
   );
 }
