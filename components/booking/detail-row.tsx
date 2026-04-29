@@ -1,6 +1,7 @@
 "use client";
 
 export function HighlightText({ text, query }: { text: string; query: string }) {
+  if (!text) return <>{text}</>;
   if (!query.trim()) return <>{text}</>;
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const parts = text.split(new RegExp(`(${escaped})`, "gi"));
