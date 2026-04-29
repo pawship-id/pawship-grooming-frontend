@@ -3,7 +3,6 @@
 import { Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatDateTime } from "@/lib/format";
 import { bookingStatusConfig } from "@/lib/booking-status";
 import type { AdminBooking } from "@/lib/api/bookings";
 
@@ -43,14 +42,31 @@ export function StatusHistory({ statusLogs }: StatusHistoryProps) {
                     {logCfg.icon}
                     {logCfg.label}
                   </Badge>
-                  {log.note && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {log.note}
-                    </p>
-                  )}
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {log.note.replace(/\s+by\s+.+$/i, "")}
+                  </p>
                 </div>
                 <span className="text-xs text-muted-foreground">
-                  {formatDateTime(log.timestamp)}
+                  {(() => {
+                    const d = new Date(log.timestamp);
+                    const months = [
+                      "Januari",
+                      "Februari",
+                      "Maret",
+                      "April",
+                      "Mei",
+                      "Juni",
+                      "Juli",
+                      "Agustus",
+                      "September",
+                      "Oktober",
+                      "November",
+                      "Desember",
+                    ];
+                    const hh = String(d.getHours()).padStart(2, "0");
+                    const min = String(d.getMinutes()).padStart(2, "0");
+                    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()} pukul ${hh}.${min}`;
+                  })()}
                 </span>
               </div>
             );

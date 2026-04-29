@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getAdminBookingById, type AdminBooking } from "@/lib/api/bookings";
 import { getStatusConfig } from "@/lib/booking-status";
-import { BookingLoadingState, BookingErrorState } from "@/components/booking/loading-error";
+import {
+  BookingLoadingState,
+  BookingErrorState,
+} from "@/components/booking/loading-error";
 import { OrderHeader } from "./_components/order-header";
 import { ServiceInfo } from "./_components/service-info";
 import { PaymentSummary } from "./_components/payment-summary";
@@ -51,9 +54,10 @@ export default function CustomerOrderDetailPage() {
   const groomerName =
     booking.sessions?.[0]?.groomer_detail?.username || "Groomer";
 
-  // Dummy pre-conditions
-  const preConditions = [
-    { id: "1", description: "Minor skin irritation observed on left ear" },
+  // Aggregate all media: top-level + from sessions
+  const allMedia = [
+    ...(booking.media ?? []),
+    ...(booking.sessions?.flatMap((s) => s.media ?? []) ?? []),
   ];
 
   return (
@@ -71,8 +75,8 @@ export default function CustomerOrderDetailPage() {
         <div className="space-y-6 lg:col-span-2">
           <ServiceInfo booking={booking} />
           <PaymentSummary booking={booking} />
+          <BeforeAfterPhotos media={allMedia} />
           <StatusHistory statusLogs={booking.status_logs} />
-          {booking.media && <BeforeAfterPhotos media={booking.media} />}
         </div>
 
         {/* Right Column - Details */}
@@ -80,8 +84,9 @@ export default function CustomerOrderDetailPage() {
           <BookingDetails booking={booking} groomerName={groomerName} />
           {booking.customer && <CustomerInfo customer={booking.customer} />}
           <OrderNotes
-            preConditions={preConditions}
+            preConditions={[]}
             bookingNote={booking.note}
+            sessions={booking.sessions}
           />
         </div>
       </div>

@@ -2,6 +2,7 @@
 
 import { AlertCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { BookingSession } from "@/lib/api/bookings";
 
 interface PreCondition {
   id: string;
@@ -11,10 +12,15 @@ interface PreCondition {
 interface OrderNotesProps {
   preConditions: PreCondition[];
   bookingNote?: string;
+  sessions?: BookingSession[];
 }
 
-export function OrderNotes({ preConditions, bookingNote }: OrderNotesProps) {
-  if (preConditions.length === 0 && !bookingNote) return null;
+export function OrderNotes({
+  preConditions,
+  bookingNote,
+  sessions,
+}: OrderNotesProps) {
+  const sessionNotes = sessions?.filter((s) => s.notes && s.notes.trim()) ?? [];
 
   return (
     <Card>
@@ -41,16 +47,53 @@ export function OrderNotes({ preConditions, bookingNote }: OrderNotesProps) {
           </div>
         )}
 
-        {bookingNote && (
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">
-              Booking Note
-            </label>
+        <div>
+          <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            Catatan Sesi Groomer
+          </label>
+          {sessionNotes.length > 0 ? (
+            <ul className="flex flex-col gap-2">
+              {sessionNotes.map((s, i) => (
+                <li
+                  key={s._id ?? i}
+                  className="rounded-lg bg-muted/40 px-3.5 py-2.5 text-sm text-muted-foreground"
+                >
+                  {sessionNotes.length > 1 && (
+                    <span className="mb-0.5 block text-xs font-medium text-foreground">
+                      Sesi {i + 1}
+                      {s.type ? ` — ${s.type}` : ""}
+                    </span>
+                  )}
+                  {sessionNotes.length === 1 && s.type && (
+                    <span className="mb-0.5 block text-xs font-medium text-foreground">
+                      {s.type}
+                    </span>
+                  )}
+                  {s.notes}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-muted-foreground/60">
+              Belum ada catatan
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">
+            Booking Note
+          </label>
+          {bookingNote ? (
             <p className="mt-1 rounded-lg bg-muted/40 px-3.5 py-2.5 text-sm text-muted-foreground">
               {bookingNote}
             </p>
-          </div>
-        )}
+          ) : (
+            <p className="mt-1 text-xs text-muted-foreground/60">
+              Belum ada catatan
+            </p>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
