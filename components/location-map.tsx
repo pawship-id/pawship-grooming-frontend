@@ -2,11 +2,12 @@
 
 import { useState, useCallback } from "react"
 import dynamic from "next/dynamic"
+import type { GeocodedAddress } from "@/lib/google-geocode"
 
 type LocationMapProps = {
   selectedLat: number | null
   selectedLng: number | null
-  onSelect: (lat: number, lng: number) => void
+  onSelect: (lat: number, lng: number, components?: GeocodedAddress) => void
 }
 
 const LeafletMap = dynamic(

@@ -2,6 +2,8 @@ import { apiRequest, apiAuthRequest } from "./client";
 
 export interface StoreLocation {
   address?: string;
+  subdistrict?: string;
+  district?: string;
   city?: string;
   province?: string;
   postal_code?: string;
@@ -148,6 +150,8 @@ export type StorePayload = {
   description?: string;
   location: {
     address?: string;
+    subdistrict?: string;
+    district?: string;
     city?: string;
     province?: string;
     postal_code?: string;
@@ -237,6 +241,8 @@ export interface PublicServiceType {
 
 export interface PublicStoreLocation {
   address?: string;
+  subdistrict?: string;
+  district?: string;
   city?: string;
   province?: string;
   postal_code?: string;

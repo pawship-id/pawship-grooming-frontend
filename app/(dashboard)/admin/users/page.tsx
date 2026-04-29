@@ -21,7 +21,7 @@ import {
   PawPrint,
   User,
   MapPin,
-  LocateFixed,
+  Map,
   ChevronDown,
   X,
 } from "lucide-react";
@@ -96,18 +96,9 @@ import { getStores, type ApiStore } from "@/lib/api/stores";
 import { getOptions, type ApiOption, createOption } from "@/lib/api/options";
 import { toast } from "sonner";
 
-const LocationMap = dynamic(
-  () =>
-    import("@/components/location-map").then((mod) => ({
-      default: mod.LocationMap,
-    })),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-[380px] w-full rounded-md border border-border bg-muted/40 animate-pulse" />
-    ),
-  },
-);
+import { MapPickerModal } from "@/components/map-picker-modal";
+import { AddressFormFields } from "@/components/address-form-fields";
+import type { GeocodedAddress } from "@/lib/google-geocode";
 
 // ── Form types ─────────────────────────────────────────────────────────────
 type CreateUserForm = CreateUserPayload;
@@ -239,42 +230,10 @@ export default function UsersPage() {
   const [editingAddressIdx, setEditingAddressIdx] = useState<number | null>(
     null,
   );
-  const [coordInputMode, setCoordInputMode] = useState<"manual" | "map">(
-    "manual",
-  );
   const [mapOpen, setMapOpen] = useState(false);
-  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
-
-  function handleDetectLocation() {
-    if (editingAddressIdx === null) return;
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      toast.error("Geolocation tidak didukung oleh browser ini");
-      return;
-    }
-    setIsDetectingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = Number(position.coords.latitude.toFixed(6));
-        const lng = Number(position.coords.longitude.toFixed(6));
-        setEditForm((f) => ({
-          ...f,
-          addresses: f.addresses.map((a, i) =>
-            i === editingAddressIdx
-              ? { ...a, latitude: lat, longitude: lng }
-              : a,
-          ),
-        }));
-        setIsDetectingLocation(false);
-      },
-      () => {
-        toast.error(
-          "Gagal mendeteksi lokasi. Pastikan akses lokasi diizinkan.",
-        );
-        setIsDetectingLocation(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
-  }
+  const [pendingGeocode, setPendingGeocode] = useState<
+    Record<number, GeocodedAddress | null>
+  >({});
 
   const [createImageFile, setCreateImageFile] = useState<File | null>(null);
   const [createImagePreview, setCreateImagePreview] = useState<string | null>(
@@ -326,7 +285,6 @@ export default function UsersPage() {
     setEditImagePreview(user.profile?.image_url ?? null);
     setSkillInput("");
     setEditingAddressIdx(null);
-    setCoordInputMode("manual");
     setMapOpen(false);
 
     // Fetch full user detail to get addresses with _id
@@ -1892,289 +1850,28 @@ export default function UsersPage() {
                             Selesai
                           </Button>
                         </div>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor={`admin-addr-label-${idx}`}>
-                              Label
-                            </Label>
-                            <Input
-                              id={`admin-addr-label-${idx}`}
-                              value={addr.label || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, label: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Label (Rumah, Kantor, dll)"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor={`admin-addr-street-${idx}`}>
-                              Jalan / Alamat
-                            </Label>
-                            <Input
-                              id={`admin-addr-street-${idx}`}
-                              value={addr.street || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, street: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Jalan / Alamat"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor={`admin-addr-subdistrict-${idx}`}>
-                              Kelurahan / Desa
-                            </Label>
-                            <Input
-                              id={`admin-addr-subdistrict-${idx}`}
-                              value={addr.subdistrict || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, subdistrict: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Kelurahan / Desa"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor={`admin-addr-district-${idx}`}>
-                              Kecamatan
-                            </Label>
-                            <Input
-                              id={`admin-addr-district-${idx}`}
-                              value={addr.district || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, district: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Kecamatan"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor={`admin-addr-city-${idx}`}>
-                              Kota / Kabupaten
-                            </Label>
-                            <Input
-                              id={`admin-addr-city-${idx}`}
-                              value={addr.city || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, city: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Kota / Kabupaten"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor={`admin-addr-province-${idx}`}>
-                              Provinsi
-                            </Label>
-                            <Input
-                              id={`admin-addr-province-${idx}`}
-                              value={addr.province || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, province: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Provinsi"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor={`admin-addr-postal-${idx}`}>
-                              Kode Pos
-                            </Label>
-                            <Input
-                              id={`admin-addr-postal-${idx}`}
-                              value={addr.postal_code || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, postal_code: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Kode Pos"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label>Koordinat</Label>
-                            <div className="flex rounded-md border border-border w-fit">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant={
-                                  coordInputMode === "manual"
-                                    ? "secondary"
-                                    : "ghost"
-                                }
-                                className="rounded-none rounded-l-md"
-                                onClick={() => setCoordInputMode("manual")}
-                              >
-                                Manual
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant={
-                                  coordInputMode === "map"
-                                    ? "secondary"
-                                    : "ghost"
-                                }
-                                className="rounded-none rounded-r-md border-l border-border"
-                                onClick={() => setCoordInputMode("map")}
-                              >
-                                Dari Peta
-                              </Button>
-                            </div>
-                          </div>
-                          {coordInputMode === "manual" ? (
-                            <>
-                              <div className="flex flex-col gap-1.5">
-                                <Label htmlFor={`admin-addr-lat-${idx}`}>
-                                  Latitude
-                                </Label>
-                                <Input
-                                  id={`admin-addr-lat-${idx}`}
-                                  type="number"
-                                  step="any"
-                                  value={addr.latitude ?? ""}
-                                  onChange={(e) =>
-                                    setEditForm((f) => ({
-                                      ...f,
-                                      addresses: f.addresses.map((a, i) =>
-                                        i === idx
-                                          ? {
-                                              ...a,
-                                              latitude: e.target.value
-                                                ? parseFloat(e.target.value)
-                                                : undefined,
-                                            }
-                                          : a,
-                                      ),
-                                    }))
-                                  }
-                                  placeholder="-6.208"
-                                />
-                              </div>
-                              <div className="flex flex-col gap-1.5">
-                                <Label htmlFor={`admin-addr-lng-${idx}`}>
-                                  Longitude
-                                </Label>
-                                <Input
-                                  id={`admin-addr-lng-${idx}`}
-                                  type="number"
-                                  step="any"
-                                  value={addr.longitude ?? ""}
-                                  onChange={(e) =>
-                                    setEditForm((f) => ({
-                                      ...f,
-                                      addresses: f.addresses.map((a, i) =>
-                                        i === idx
-                                          ? {
-                                              ...a,
-                                              longitude: e.target.value
-                                                ? parseFloat(e.target.value)
-                                                : undefined,
-                                            }
-                                          : a,
-                                      ),
-                                    }))
-                                  }
-                                  placeholder="106.845"
-                                />
-                              </div>
-                            </>
-                          ) : (
-                            <div className="flex flex-col gap-2 sm:col-span-2">
-                              <div className="flex flex-wrap gap-2">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setMapOpen(true)}
-                                >
-                                  <MapPin className="h-3.5 w-3.5 mr-1" />
-                                  Pilih dari Peta
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={isDetectingLocation}
-                                  onClick={handleDetectLocation}
-                                >
-                                  <LocateFixed className="h-3.5 w-3.5 mr-1" />
-                                  {isDetectingLocation
-                                    ? "Mendeteksi..."
-                                    : "Lokasi Saat Ini"}
-                                </Button>
-                              </div>
-                              {addr.latitude != null &&
-                                addr.longitude != null && (
-                                  <p className="text-xs text-muted-foreground">
-                                    Koordinat terpilih: {addr.latitude},{" "}
-                                    {addr.longitude}
-                                  </p>
-                                )}
-                            </div>
-                          )}
-                          <div className="flex flex-col gap-1.5 sm:col-span-2">
-                            <Label htmlFor={`admin-addr-note-${idx}`}>
-                              Catatan (opsional)
-                            </Label>
-                            <Input
-                              id={`admin-addr-note-${idx}`}
-                              value={addr.note || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, note: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Catatan (opsional)"
-                            />
-                          </div>
+                        <div className="grid gap-2 ">
+                          <AddressFormFields
+                            variant="user"
+                            idPrefix={`admin-addr-${idx}`}
+                            value={addr}
+                            pendingGeocode={pendingGeocode[idx] ?? null}
+                            onGeocodeConsumed={() =>
+                              setPendingGeocode((prev) => ({
+                                ...prev,
+                                [idx]: null,
+                              }))
+                            }
+                            onChange={(patch) =>
+                              setEditForm((f) => ({
+                                ...f,
+                                addresses: f.addresses.map((a, i) =>
+                                  i === idx ? { ...a, ...patch } : a,
+                                ),
+                              }))
+                            }
+                            onOpenMap={() => setMapOpen(true)}
+                          />
                         </div>
                       </div>
                     ) : (
@@ -2301,41 +1998,35 @@ export default function UsersPage() {
       </Dialog>
 
       {/* Map Dialog for Address Editing */}
-      <Dialog open={mapOpen} onOpenChange={setMapOpen}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Pilih Lokasi di Peta</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Klik titik pada peta untuk mengisi koordinat alamat secara otomatis.
-          </p>
-          {mapOpen && editingAddressIdx !== null && (
-            <LocationMap
-              selectedLat={
-                editForm.addresses[editingAddressIdx]?.latitude ?? null
-              }
-              selectedLng={
-                editForm.addresses[editingAddressIdx]?.longitude ?? null
-              }
-              onSelect={(lat, lng) => {
-                setEditForm((f) => ({
-                  ...f,
-                  addresses: f.addresses.map((a, i) =>
-                    i === editingAddressIdx
-                      ? { ...a, latitude: lat, longitude: lng }
-                      : a,
-                  ),
-                }));
-              }}
-            />
-          )}
-          <div className="flex justify-end">
-            <Button type="button" onClick={() => setMapOpen(false)}>
-              Selesai
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <MapPickerModal
+        open={mapOpen}
+        onOpenChange={setMapOpen}
+        selectedLat={
+          editingAddressIdx !== null
+            ? editForm.addresses[editingAddressIdx]?.latitude ?? null
+            : null
+        }
+        selectedLng={
+          editingAddressIdx !== null
+            ? editForm.addresses[editingAddressIdx]?.longitude ?? null
+            : null
+        }
+        onSelect={(lat, lng, components) => {
+          if (editingAddressIdx === null) return;
+          const targetIdx = editingAddressIdx;
+          setEditForm((f) => ({
+            ...f,
+            addresses: f.addresses.map((a, i) =>
+              i === targetIdx
+                ? { ...a, latitude: lat, longitude: lng }
+                : a,
+            ),
+          }));
+          if (components) {
+            setPendingGeocode((prev) => ({ ...prev, [targetIdx]: components }));
+          }
+        }}
+      />
 
       {/* Update Password Dialog */}
       <Dialog
