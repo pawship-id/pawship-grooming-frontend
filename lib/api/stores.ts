@@ -230,6 +230,13 @@ export async function updateStoreStatus(storeId: string, isActive: boolean) {
   });
 }
 
+export async function setStoreAsDefault(storeId: string) {
+  return apiAuthRequest<{ message: string }>(`/stores/${storeId}`, {
+    method: "PUT",
+    body: JSON.stringify({ is_default_store: true }),
+  });
+}
+
 // ── Public (no-auth) store endpoints ────────────────────────────────────────
 
 export interface PublicServiceType {
