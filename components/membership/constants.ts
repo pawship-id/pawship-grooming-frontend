@@ -117,40 +117,42 @@ export type TestimonialItem = {
 export const testimonials: TestimonialItem[] = [
   {
     type: "image",
-    src: "https://placedog.net/400/500?id=1",
-    name: "@pawrent_cici",
-    caption: "Grooming-nya rapi banget, anabulku happy!",
+    src: "https://res.cloudinary.com/deqpnzfwb/image/upload/v1777448608/Angel_-_Pocco_yc1g46.jpg",
+    name: "Angel - Pocco",
+    caption: "Pelayanannya oke banget, ga rugi ikut membership!",
   },
   {
     type: "image",
-    src: "https://placedog.net/400/560?id=2",
-    name: "@bundanya_mochi",
-    caption: "Pickup tepat waktu, pelayanan ramah 🐶",
-  },
-  {
-    type: "video",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    poster: "https://placedog.net/400/500?id=3",
-    name: "@mr.paws.daily",
-    caption: "Sudah 6 bulan member, worth it banget!",
+    src: "https://res.cloudinary.com/deqpnzfwb/image/upload/v1777448982/Winson_-_Nala_oxlnp1.jpg",
+    name: "Winson - Nala",
+    caption: "Groomernya ramah, hasilnya sesuai request juga",
   },
   {
     type: "image",
-    src: "https://placedog.net/400/480?id=4",
-    name: "@aningtyas_pet",
-    caption: "Slot prioritas sangat membantu, thx Pawship!",
+    src: "https://res.cloudinary.com/deqpnzfwb/image/upload/v1777448832/Fina_-_Millie_gatyaa.png",
+    name: "Fina - Millie",
+    caption:
+      "Anjingku aktif banget tapi groomernya bisa handle dengan sabar dan hasilnya bener-bener sesuai request",
   },
   {
     type: "image",
-    src: "https://placedog.net/400/520?id=5",
-    name: "@doglover.id",
-    caption: "Home grooming-nya profesional banget 🐾",
+    src: "https://res.cloudinary.com/deqpnzfwb/image/upload/v1777448743/Alfred_-_Marshmellow_wrymph.png",
+    name: "Alfred - Marshmellow",
+    caption:
+      "Pickup nya selalu tepat waktu, dan sopnya juga ketat jadi tenang waktu pakai jasa packup anabul pawship",
   },
   {
-    type: "video",
-    src: "https://www.w3schools.com/html/mov_bbb.mp4",
-    poster: "https://placedog.net/400/500?id=6",
-    name: "@pawship_fan",
-    caption: "Anabul gak stress lagi ganti-ganti groomer!",
+    type: "image",
+    src: "https://res.cloudinary.com/deqpnzfwb/image/upload/v1777448930/Yulia_-_Milka_h4dw4d.jpg",
+    name: "Yulia - Milka",
+    caption:
+      "Cuan banget ikut membership soalnya bisa grooming tiap minggu tp pusing bayar lagi!",
+  },
+  {
+    type: "image",
+    src: "https://res.cloudinary.com/deqpnzfwb/image/upload/v1777449036/Nova_-_Binkie_dgie5r.png",
+    name: "Nova - Binkie",
+    caption:
+      "Pelayanannya ramah, adminnya fast resp dan groomernya juga telaten",
   },
 ];
