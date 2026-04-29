@@ -198,6 +198,12 @@ export async function updateUser(userId: string, payload: UpdateUserPayload) {
   });
 }
 
+export async function clearUserEmail(userId: string) {
+  return apiAuthRequest<{ message: string }>(`/users/clear-email/${userId}`, {
+    method: "PATCH",
+  });
+}
+
 export async function deleteUser(userId: string) {
   return apiAuthRequest<{ message: string }>(`/users/${userId}`, {
     method: "DELETE",
