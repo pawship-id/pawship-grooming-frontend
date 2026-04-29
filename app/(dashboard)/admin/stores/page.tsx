@@ -10,6 +10,7 @@ import {
   Trash2,
   MoreVertical,
   MapPin,
+  Map,
   Phone,
   Clock,
 } from "lucide-react";
@@ -77,18 +78,9 @@ import {
 } from "@/lib/api/stores";
 import { toast } from "sonner";
 
-const GoogleLocationMap = dynamic(
-  () =>
-    import("@/components/google-location-map").then(
-      (mod) => mod.GoogleLocationMap,
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="h-[420px] w-full rounded-md border border-border bg-muted/40 animate-pulse" />
-    ),
-  },
-);
+import { MapPickerModal } from "@/components/map-picker-modal";
+import { AddressFormFields } from "@/components/address-form-fields";
+import type { GeocodedAddress } from "@/lib/google-geocode";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface HomeServiceZoneForm {
@@ -178,6 +170,8 @@ const DEFAULT_FORM: StoreForm = {
   description: "",
   location: {
     address: "",
+    subdistrict: "",
+    district: "",
     city: "",
     province: "",
     postal_code: "",
@@ -237,9 +231,7 @@ function StoreFormFields({
   setForm: React.Dispatch<React.SetStateAction<StoreForm>>;
 }) {
   const [mapOpen, setMapOpen] = useState(false);
-  const [locationInputMode, setLocationInputMode] = useState<"manual" | "map">(
-    "manual",
-  );
+  const [pendingGeocode, setPendingGeocode] = useState<GeocodedAddress | null>(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
 
   useEffect(() => {
@@ -329,153 +321,20 @@ function StoreFormFields({
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Lokasi
         </p>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="f-address">Alamat</Label>
-          <Input
-            id="f-address"
-            placeholder="Jl. Sudirman No. 123"
-            value={form.location.address ?? ""}
-            onChange={(e) =>
-              setForm((p) => ({
-                ...p,
-                location: { ...p.location, address: e.target.value },
-              }))
-            }
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="f-city">Kota</Label>
-            <Input
-              id="f-city"
-              placeholder="Jakarta"
-              value={form.location.city ?? ""}
-              onChange={(e) =>
-                setForm((p) => ({
-                  ...p,
-                  location: { ...p.location, city: e.target.value },
-                }))
-              }
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="f-province">Provinsi</Label>
-            <Input
-              id="f-province"
-              placeholder="DKI Jakarta"
-              value={form.location.province ?? ""}
-              onChange={(e) =>
-                setForm((p) => ({
-                  ...p,
-                  location: { ...p.location, province: e.target.value },
-                }))
-              }
-            />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="f-postal">Kode Pos</Label>
-            <Input
-              id="f-postal"
-              placeholder="12345"
-              value={form.location.postal_code ?? ""}
-              onChange={(e) =>
-                setForm((p) => ({
-                  ...p,
-                  location: { ...p.location, postal_code: e.target.value },
-                }))
-              }
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>Mode Input Koordinat</Label>
-            <div className="flex rounded-md border border-border w-fit">
-              <Button
-                type="button"
-                size="sm"
-                variant={locationInputMode === "manual" ? "secondary" : "ghost"}
-                className="rounded-none rounded-l-md"
-                onClick={() => setLocationInputMode("manual")}
-              >
-                Manual
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={locationInputMode === "map" ? "secondary" : "ghost"}
-                className="rounded-none rounded-r-md border-l border-border"
-                onClick={() => setLocationInputMode("map")}
-              >
-                Dari Peta
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {locationInputMode === "manual" ? (
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="f-lat">Latitude</Label>
-              <Input
-                id="f-lat"
-                type="number"
-                step="any"
-                placeholder="-6.208"
-                value={form.location.latitude ?? ""}
-                onChange={(e) =>
-                  setForm((p) => ({
-                    ...p,
-                    location: {
-                      ...p.location,
-                      latitude: e.target.value
-                        ? parseFloat(e.target.value)
-                        : null,
-                    },
-                  }))
-                }
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="f-lng">Longitude</Label>
-              <Input
-                id="f-lng"
-                type="number"
-                step="any"
-                placeholder="106.845"
-                value={form.location.longitude ?? ""}
-                onChange={(e) =>
-                  setForm((p) => ({
-                    ...p,
-                    location: {
-                      ...p.location,
-                      longitude: e.target.value
-                        ? parseFloat(e.target.value)
-                        : null,
-                    },
-                  }))
-                }
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setMapOpen(true)}
-            >
-              Pilih dari Peta
-            </Button>
-            {form.location.latitude != null &&
-              form.location.longitude != null && (
-                <p className="text-xs text-muted-foreground">
-                  Koordinat terpilih: {form.location.latitude},{" "}
-                  {form.location.longitude}
-                </p>
-              )}
-          </div>
-        )}
+        <AddressFormFields
+          variant="store"
+          idPrefix="f"
+          value={form.location}
+          pendingGeocode={pendingGeocode}
+          onGeocodeConsumed={() => setPendingGeocode(null)}
+          onChange={(patch) =>
+            setForm((p) => ({
+              ...p,
+              location: { ...p.location, ...patch } as typeof p.location,
+            }))
+          }
+          onOpenMap={() => setMapOpen(true)}
+        />
 
         {isDetectingLocation && (
           <p className="text-xs text-muted-foreground">
@@ -1091,40 +950,23 @@ function StoreFormFields({
         )}
       </div>
 
-      <Dialog open={mapOpen} onOpenChange={setMapOpen}>
-        <DialogContent className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="font-display">
-              Pilih Lokasi di Peta
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Klik titik lokasi pada peta untuk mengisi latitude dan longitude
-            otomatis.
-          </p>
-          {mapOpen && (
-            <GoogleLocationMap
-              selectedLat={form.location.latitude}
-              selectedLng={form.location.longitude}
-              onSelect={(lat, lng) => {
-                setForm((p) => ({
-                  ...p,
-                  location: {
-                    ...p.location,
-                    latitude: lat,
-                    longitude: lng,
-                  },
-                }));
-              }}
-            />
-          )}
-          <div className="flex justify-end">
-            <Button type="button" onClick={() => setMapOpen(false)}>
-              Selesai
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <MapPickerModal
+        open={mapOpen}
+        onOpenChange={setMapOpen}
+        selectedLat={form.location.latitude}
+        selectedLng={form.location.longitude}
+        onSelect={(lat, lng, components) => {
+          setForm((p) => ({
+            ...p,
+            location: {
+              ...p.location,
+              latitude: lat,
+              longitude: lng,
+            },
+          }));
+          if (components) setPendingGeocode(components);
+        }}
+      />
     </div>
   );
 }
@@ -1137,6 +979,8 @@ function formToPayload(form: StoreForm) {
     description: form.description || undefined,
     location: {
       address: form.location.address || undefined,
+      subdistrict: form.location.subdistrict || undefined,
+      district: form.location.district || undefined,
       city: form.location.city || undefined,
       province: form.location.province || undefined,
       postal_code: form.location.postal_code || undefined,
@@ -1204,6 +1048,8 @@ function storeToForm(store: ApiStore): StoreForm {
     description: store.description ?? "",
     location: {
       address: store.location?.address ?? "",
+      subdistrict: store.location?.subdistrict ?? "",
+      district: store.location?.district ?? "",
       city: store.location?.city ?? "",
       province: store.location?.province ?? "",
       postal_code: store.location?.postal_code ?? "",

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { User, PawPrint, Loader2, CheckCircle2, LogIn, MapPin, Plus, Pencil, LocateFixed } from "lucide-react"
+import { User, PawPrint, Loader2, CheckCircle2, LogIn, MapPin, Map, Plus, Pencil, LocateFixed } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label"
 import { Combobox } from "@/components/ui/combobox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import type { PublicUser, PublicUserPet, PublicOption, PublicAddressEntry } from "@/lib/api/stores"
 import { EMPTY_ADDRESS_ENTRY } from "@/lib/api/stores"
-import { GoogleLocationMap } from "@/components/google-location-map"
+import { MapPickerModal } from "@/components/map-picker-modal"
+import { AddressFormFields } from "@/components/address-form-fields"
+import type { GeocodedAddress } from "@/lib/google-geocode"
 
 interface StepUserInfoProps {
   // Auth state
@@ -125,6 +126,9 @@ export function StepUserInfo({
   const [editingAddressIdx, setEditingAddressIdx] = useState<number | null>(null)
   const [mapOpen, setMapOpen] = useState(false)
   const [mapTargetIdx, setMapTargetIdx] = useState<number | null>(null)
+  // Pending reverse-geocode result keyed by address index. Each AddressFormFields
+  // consumes its entry via useEffect and clears it via onGeocodeConsumed.
+  const [pendingGeocode, setPendingGeocode] = useState<Record<number, GeocodedAddress | null>>({})
   const [isDetectingLocation, setIsDetectingLocation] = useState(false)
 
   // ── Address helpers ──────────────────────────────────────────────────────
@@ -333,6 +337,8 @@ export function StepUserInfo({
                   onDetectLocation={detectLocation}
                   isDetectingLocation={isDetectingLocation}
                   disabled={userInfoConfirmed}
+                  pendingGeocode={pendingGeocode}
+                  onGeocodeConsumed={(idx) => setPendingGeocode((prev) => ({ ...prev, [idx]: null }))}
                 />
               </>
             )}
@@ -353,6 +359,8 @@ export function StepUserInfo({
                   onDetectLocation={detectLocation}
                   isDetectingLocation={isDetectingLocation}
                   disabled={userInfoConfirmed}
+                  pendingGeocode={pendingGeocode}
+                  onGeocodeConsumed={(idx) => setPendingGeocode((prev) => ({ ...prev, [idx]: null }))}
                 />
               </>
             )}
@@ -412,6 +420,8 @@ export function StepUserInfo({
                   onDetectLocation={detectLocation}
                   isDetectingLocation={isDetectingLocation}
                   disabled={userInfoConfirmed}
+                  pendingGeocode={pendingGeocode}
+                  onGeocodeConsumed={(idx) => setPendingGeocode((prev) => ({ ...prev, [idx]: null }))}
                   isNewUser
                 />
               </>
@@ -454,30 +464,20 @@ export function StepUserInfo({
     </Card>
 
     {/* Map picker dialog */}
-    <Dialog open={mapOpen} onOpenChange={setMapOpen}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Pilih Lokasi di Peta</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          Klik titik pada peta untuk mengisi koordinat alamat secara otomatis.
-        </p>
-        {mapOpen && mapTargetIdx != null && (
-          <GoogleLocationMap
-            selectedLat={addresses[mapTargetIdx]?.latitude ?? null}
-            selectedLng={addresses[mapTargetIdx]?.longitude ?? null}
-            onSelect={(lat, lng) => {
-              if (mapTargetIdx != null) {
-                updateAddress(mapTargetIdx, { latitude: lat, longitude: lng })
-              }
-            }}
-          />
-        )}
-        <div className="flex justify-end">
-          <Button type="button" onClick={() => setMapOpen(false)}>Selesai</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <MapPickerModal
+      open={mapOpen}
+      onOpenChange={setMapOpen}
+      selectedLat={mapTargetIdx != null ? addresses[mapTargetIdx]?.latitude ?? null : null}
+      selectedLng={mapTargetIdx != null ? addresses[mapTargetIdx]?.longitude ?? null : null}
+      onSelect={(lat, lng, components) => {
+        if (mapTargetIdx != null) {
+          updateAddress(mapTargetIdx, { latitude: lat, longitude: lng })
+          if (components) {
+            setPendingGeocode((prev) => ({ ...prev, [mapTargetIdx]: components }))
+          }
+        }
+      }}
+    />
     </>
   )
 }
@@ -573,6 +573,8 @@ function AddressSection({
   isDetectingLocation,
   disabled,
   isNewUser,
+  pendingGeocode,
+  onGeocodeConsumed,
 }: {
   addresses: PublicAddressEntry[]
   editingIdx: number | null
@@ -586,6 +588,8 @@ function AddressSection({
   isDetectingLocation: boolean
   disabled: boolean
   isNewUser?: boolean
+  pendingGeocode?: Record<number, GeocodedAddress | null>
+  onGeocodeConsumed?: (idx: number) => void
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -627,12 +631,28 @@ function AddressSection({
                   </Button>
                 </div>
               </div>
-              <AddressFields idx={idx} addr={addr} onUpdate={onUpdate} onOpenMap={onOpenMap} onDetectLocation={onDetectLocation} isDetectingLocation={isDetectingLocation} disabled={disabled} />
+              <AddressFields
+                idx={idx}
+                addr={addr}
+                onUpdate={onUpdate}
+                onOpenMap={onOpenMap}
+                disabled={disabled}
+                pendingGeocode={pendingGeocode?.[idx]}
+                onGeocodeConsumed={() => onGeocodeConsumed?.(idx)}
+              />
             </div>
           ) : isNewUser ? (
             // ── Inline form for new user (no collapse/radio) ──
             <div className="p-3">
-              <AddressFields idx={idx} addr={addr} onUpdate={onUpdate} onOpenMap={onOpenMap} onDetectLocation={onDetectLocation} isDetectingLocation={isDetectingLocation} disabled={disabled} />
+              <AddressFields
+                idx={idx}
+                addr={addr}
+                onUpdate={onUpdate}
+                onOpenMap={onOpenMap}
+                disabled={disabled}
+                pendingGeocode={pendingGeocode?.[idx]}
+                onGeocodeConsumed={() => onGeocodeConsumed?.(idx)}
+              />
             </div>
           ) : (
             // ── Collapsed row (idle user list) ──
@@ -682,69 +702,28 @@ function AddressFields({
   addr,
   onUpdate,
   onOpenMap,
-  onDetectLocation,
-  isDetectingLocation,
   disabled,
+  pendingGeocode,
+  onGeocodeConsumed,
 }: {
   idx: number
   addr: PublicAddressEntry
   onUpdate: (idx: number, patch: Partial<PublicAddressEntry>) => void
   onOpenMap: (idx: number) => void
-  onDetectLocation: (idx: number) => void
-  isDetectingLocation: boolean
   disabled: boolean
+  pendingGeocode?: GeocodedAddress | null
+  onGeocodeConsumed?: () => void
 }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      <div className="flex flex-col gap-1.5">
-        <Label>Label</Label>
-        <Input value={addr.label} disabled={disabled} onChange={(e) => onUpdate(idx, { label: e.target.value })} placeholder="Rumah, Kantor, dll" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label>Jalan / Alamat</Label>
-        <Input value={addr.street} disabled={disabled} onChange={(e) => onUpdate(idx, { street: e.target.value })} placeholder="Nama jalan / alamat" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label>Kelurahan / Desa</Label>
-        <Input value={addr.subdistrict} disabled={disabled} onChange={(e) => onUpdate(idx, { subdistrict: e.target.value })} placeholder="Kelurahan / Desa" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label>Kecamatan</Label>
-        <Input value={addr.district} disabled={disabled} onChange={(e) => onUpdate(idx, { district: e.target.value })} placeholder="Kecamatan" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label>Kota / Kabupaten</Label>
-        <Input value={addr.city} disabled={disabled} onChange={(e) => onUpdate(idx, { city: e.target.value })} placeholder="Kota / Kabupaten" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label>Provinsi</Label>
-        <Input value={addr.province} disabled={disabled} onChange={(e) => onUpdate(idx, { province: e.target.value })} placeholder="Provinsi" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label>Kode Pos</Label>
-        <Input value={addr.postal_code} disabled={disabled} onChange={(e) => onUpdate(idx, { postal_code: e.target.value })} placeholder="Kode Pos" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label>Lokasi (dari Peta) <span className="text-destructive">*</span></Label>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => onOpenMap(idx)}>
-            <MapPin className="h-3.5 w-3.5 mr-1" /> Pilih dari Peta
-          </Button>
-          <Button type="button" variant="outline" size="sm" disabled={disabled || isDetectingLocation} onClick={() => onDetectLocation(idx)}>
-            <LocateFixed className="h-3.5 w-3.5 mr-1" />
-            {isDetectingLocation ? "Mendeteksi..." : "Lokasi Saat Ini"}
-          </Button>
-        </div>
-        {addr.latitude != null && addr.longitude != null ? (
-          <p className="text-xs text-muted-foreground">Koordinat: {addr.latitude}, {addr.longitude}</p>
-        ) : (
-          <p className="text-xs text-amber-600">Lokasi wajib dipilih dari peta</p>
-        )}
-      </div>
-      <div className="flex flex-col gap-1.5 sm:col-span-2">
-        <Label>Catatan (opsional)</Label>
-        <Input value={addr.note} disabled={disabled} onChange={(e) => onUpdate(idx, { note: e.target.value })} placeholder="Catatan pengiriman, patokan, dll" />
-      </div>
-    </div>
+    <AddressFormFields
+      variant="user"
+      idPrefix={`addr-${idx}`}
+      value={addr}
+      disabled={disabled}
+      onChange={(patch) => onUpdate(idx, patch as Partial<PublicAddressEntry>)}
+      onOpenMap={() => onOpenMap(idx)}
+      pendingGeocode={pendingGeocode}
+      onGeocodeConsumed={onGeocodeConsumed}
+    />
   )
 }
