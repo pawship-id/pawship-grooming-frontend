@@ -51,6 +51,8 @@ function formatDate(dateStr: string) {
 import type { UserAddress } from "@/lib/api/users"
 
 import { MapPickerModal } from "@/components/map-picker-modal"
+import { AddressFormFields } from "@/components/address-form-fields"
+import type { GeocodedAddress } from "@/lib/google-geocode"
 
 type ProfileFormState = {
   full_name: string
@@ -78,6 +80,7 @@ function EditProfileDialog({
   const [saving, setSaving] = useState(false)
   const [editingAddressIdx, setEditingAddressIdx] = useState<number | null>(null)
   const [mapOpen, setMapOpen] = useState(false)
+  const [pendingGeocode, setPendingGeocode] = useState<Record<number, GeocodedAddress | null>>({})
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const profileImageRef = useRef<HTMLInputElement>(null)
@@ -133,7 +136,7 @@ function EditProfileDialog({
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Edit Profil</DialogTitle>
         </DialogHeader>
@@ -229,121 +232,19 @@ function EditProfileDialog({
                         Selesai
                       </Button>
                     </div>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor={`address-label-${idx}`}>Label</Label>
-                        <Input
-                          id={`address-label-${idx}`}
-                          value={addr.label || ""}
-                          onChange={e => setForm(f => ({
-                            ...f,
-                            addresses: f.addresses.map((a, i) => i === idx ? { ...a, label: e.target.value } : a)
-                          }))}
-                          placeholder="Label (Rumah, Kantor, dll)"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor={`address-street-${idx}`}>Jalan / Alamat</Label>
-                        <Input
-                          id={`address-street-${idx}`}
-                          value={addr.street || ""}
-                          onChange={e => setForm(f => ({
-                            ...f,
-                            addresses: f.addresses.map((a, i) => i === idx ? { ...a, street: e.target.value } : a)
-                          }))}
-                          placeholder="Jalan / Alamat"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor={`address-subdistrict-${idx}`}>Kelurahan / Desa</Label>
-                        <Input
-                          id={`address-subdistrict-${idx}`}
-                          value={addr.subdistrict || ""}
-                          onChange={e => setForm(f => ({
-                            ...f,
-                            addresses: f.addresses.map((a, i) => i === idx ? { ...a, subdistrict: e.target.value } : a)
-                          }))}
-                          placeholder="Kelurahan / Desa"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor={`address-district-${idx}`}>Kecamatan</Label>
-                        <Input
-                          id={`address-district-${idx}`}
-                          value={addr.district || ""}
-                          onChange={e => setForm(f => ({
-                            ...f,
-                            addresses: f.addresses.map((a, i) => i === idx ? { ...a, district: e.target.value } : a)
-                          }))}
-                          placeholder="Kecamatan"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor={`address-city-${idx}`}>Kota / Kabupaten</Label>
-                        <Input
-                          id={`address-city-${idx}`}
-                          value={addr.city || ""}
-                          onChange={e => setForm(f => ({
-                            ...f,
-                            addresses: f.addresses.map((a, i) => i === idx ? { ...a, city: e.target.value } : a)
-                          }))}
-                          placeholder="Kota / Kabupaten"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor={`address-province-${idx}`}>Provinsi</Label>
-                        <Input
-                          id={`address-province-${idx}`}
-                          value={addr.province || ""}
-                          onChange={e => setForm(f => ({
-                            ...f,
-                            addresses: f.addresses.map((a, i) => i === idx ? { ...a, province: e.target.value } : a)
-                          }))}
-                          placeholder="Provinsi"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor={`address-postal-code-${idx}`}>Kode Pos</Label>
-                        <Input
-                          id={`address-postal-code-${idx}`}
-                          value={addr.postal_code || ""}
-                          onChange={e => setForm(f => ({
-                            ...f,
-                            addresses: f.addresses.map((a, i) => i === idx ? { ...a, postal_code: e.target.value } : a)
-                          }))}
-                          placeholder="Kode Pos"
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <Label>Koordinat</Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="w-full justify-start gap-2"
-                          size="sm"
-                          onClick={() => setMapOpen(true)}
-                        >
-                          <Map className="h-4 w-4" />
-                          Pilih dari Peta
-                        </Button>
-                        {addr.latitude != null && addr.longitude != null && (
-                          <p className="text-xs text-muted-foreground">
-                            Koordinat terpilih: {addr.latitude}, {addr.longitude}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex flex-col gap-1.5 sm:col-span-2">
-                        <Label htmlFor={`address-note-${idx}`}>Catatan (opsional)</Label>
-                        <Input
-                          id={`address-note-${idx}`}
-                          value={addr.note || ""}
-                          onChange={e => setForm(f => ({
-                            ...f,
-                            addresses: f.addresses.map((a, i) => i === idx ? { ...a, note: e.target.value } : a)
-                          }))}
-                          placeholder="Catatan (opsional)"
-                        />
-                      </div>
+                    <div className="grid gap-2 ">
+                      <AddressFormFields
+                        variant="user"
+                        idPrefix={`address-${idx}`}
+                        value={addr}
+                        pendingGeocode={pendingGeocode[idx] ?? null}
+                        onGeocodeConsumed={() => setPendingGeocode((prev) => ({ ...prev, [idx]: null }))}
+                        onChange={(patch) => setForm((f) => ({
+                          ...f,
+                          addresses: f.addresses.map((a, i) => i === idx ? { ...a, ...patch } : a),
+                        }))}
+                        onOpenMap={() => setMapOpen(true)}
+                      />
                     </div>
                   </div>
                 ) : (
@@ -435,12 +336,16 @@ function EditProfileDialog({
       onOpenChange={setMapOpen}
       selectedLat={editingAddressIdx !== null ? form.addresses[editingAddressIdx]?.latitude ?? null : null}
       selectedLng={editingAddressIdx !== null ? form.addresses[editingAddressIdx]?.longitude ?? null : null}
-      onSelect={(lat, lng) => {
+      onSelect={(lat, lng, components) => {
         if (editingAddressIdx === null) return
+        const targetIdx = editingAddressIdx
         setForm(f => ({
           ...f,
-          addresses: f.addresses.map((a, i) => i === editingAddressIdx ? { ...a, latitude: lat, longitude: lng } : a)
+          addresses: f.addresses.map((a, i) => i === targetIdx ? { ...a, latitude: lat, longitude: lng } : a)
         }))
+        if (components) {
+          setPendingGeocode((prev) => ({ ...prev, [targetIdx]: components }))
+        }
       }}
     />
     </>

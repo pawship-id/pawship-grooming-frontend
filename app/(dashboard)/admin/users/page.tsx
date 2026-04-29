@@ -96,6 +96,8 @@ import { getOptions, type ApiOption, createOption } from "@/lib/api/options";
 import { toast } from "sonner";
 
 import { MapPickerModal } from "@/components/map-picker-modal";
+import { AddressFormFields } from "@/components/address-form-fields";
+import type { GeocodedAddress } from "@/lib/google-geocode";
 
 // ── Form types ─────────────────────────────────────────────────────────────
 type CreateUserForm = CreateUserPayload;
@@ -222,6 +224,9 @@ export default function UsersPage() {
     null,
   );
   const [mapOpen, setMapOpen] = useState(false);
+  const [pendingGeocode, setPendingGeocode] = useState<
+    Record<number, GeocodedAddress | null>
+  >({});
 
   const [createImageFile, setCreateImageFile] = useState<File | null>(null);
   const [createImagePreview, setCreateImagePreview] = useState<string | null>(
@@ -1778,187 +1783,28 @@ export default function UsersPage() {
                             Selesai
                           </Button>
                         </div>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor={`admin-addr-label-${idx}`}>
-                              Label
-                            </Label>
-                            <Input
-                              id={`admin-addr-label-${idx}`}
-                              value={addr.label || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, label: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Label (Rumah, Kantor, dll)"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor={`admin-addr-street-${idx}`}>
-                              Jalan / Alamat
-                            </Label>
-                            <Input
-                              id={`admin-addr-street-${idx}`}
-                              value={addr.street || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, street: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Jalan / Alamat"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor={`admin-addr-subdistrict-${idx}`}>
-                              Kelurahan / Desa
-                            </Label>
-                            <Input
-                              id={`admin-addr-subdistrict-${idx}`}
-                              value={addr.subdistrict || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, subdistrict: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Kelurahan / Desa"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor={`admin-addr-district-${idx}`}>
-                              Kecamatan
-                            </Label>
-                            <Input
-                              id={`admin-addr-district-${idx}`}
-                              value={addr.district || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, district: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Kecamatan"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor={`admin-addr-city-${idx}`}>
-                              Kota / Kabupaten
-                            </Label>
-                            <Input
-                              id={`admin-addr-city-${idx}`}
-                              value={addr.city || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, city: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Kota / Kabupaten"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor={`admin-addr-province-${idx}`}>
-                              Provinsi
-                            </Label>
-                            <Input
-                              id={`admin-addr-province-${idx}`}
-                              value={addr.province || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, province: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Provinsi"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label htmlFor={`admin-addr-postal-${idx}`}>
-                              Kode Pos
-                            </Label>
-                            <Input
-                              id={`admin-addr-postal-${idx}`}
-                              value={addr.postal_code || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, postal_code: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Kode Pos"
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            <Label>Koordinat</Label>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="w-full justify-start gap-2"
-                              size="sm"
-                              onClick={() => setMapOpen(true)}
-                            >
-                              <Map className="h-4 w-4" />
-                              Pilih dari Peta
-                            </Button>
-                            {addr.latitude != null &&
-                              addr.longitude != null && (
-                                <p className="text-xs text-muted-foreground">
-                                  Koordinat terpilih: {addr.latitude},{" "}
-                                  {addr.longitude}
-                                </p>
-                              )}
-                          </div>
-                          <div className="flex flex-col gap-1.5 sm:col-span-2">
-                            <Label htmlFor={`admin-addr-note-${idx}`}>
-                              Catatan (opsional)
-                            </Label>
-                            <Input
-                              id={`admin-addr-note-${idx}`}
-                              value={addr.note || ""}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  addresses: f.addresses.map((a, i) =>
-                                    i === idx
-                                      ? { ...a, note: e.target.value }
-                                      : a,
-                                  ),
-                                }))
-                              }
-                              placeholder="Catatan (opsional)"
-                            />
-                          </div>
+                        <div className="grid gap-2 ">
+                          <AddressFormFields
+                            variant="user"
+                            idPrefix={`admin-addr-${idx}`}
+                            value={addr}
+                            pendingGeocode={pendingGeocode[idx] ?? null}
+                            onGeocodeConsumed={() =>
+                              setPendingGeocode((prev) => ({
+                                ...prev,
+                                [idx]: null,
+                              }))
+                            }
+                            onChange={(patch) =>
+                              setEditForm((f) => ({
+                                ...f,
+                                addresses: f.addresses.map((a, i) =>
+                                  i === idx ? { ...a, ...patch } : a,
+                                ),
+                              }))
+                            }
+                            onOpenMap={() => setMapOpen(true)}
+                          />
                         </div>
                       </div>
                     ) : (
@@ -2098,16 +1944,20 @@ export default function UsersPage() {
             ? editForm.addresses[editingAddressIdx]?.longitude ?? null
             : null
         }
-        onSelect={(lat, lng) => {
+        onSelect={(lat, lng, components) => {
           if (editingAddressIdx === null) return;
+          const targetIdx = editingAddressIdx;
           setEditForm((f) => ({
             ...f,
             addresses: f.addresses.map((a, i) =>
-              i === editingAddressIdx
+              i === targetIdx
                 ? { ...a, latitude: lat, longitude: lng }
                 : a,
             ),
           }));
+          if (components) {
+            setPendingGeocode((prev) => ({ ...prev, [targetIdx]: components }));
+          }
         }}
       />
 

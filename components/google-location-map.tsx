@@ -6,6 +6,7 @@ import { Search, Loader2, MapPin, LocateFixed } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
+import { reverseGeocode, type GeocodedAddress } from "@/lib/google-geocode"
 
 // Defined outside component so the reference stays stable across renders
 const MAP_LIBRARIES: ("places" | "geometry" | "drawing" | "visualization")[] = ["places"]
@@ -15,7 +16,7 @@ type SearchResult = { label: string; placeId: string }
 type GoogleLocationMapProps = {
   selectedLat: number | null
   selectedLng: number | null
-  onSelect: (lat: number, lng: number) => void
+  onSelect: (lat: number, lng: number, components?: GeocodedAddress) => void
   onLoadError?: () => void
 }
 
@@ -83,6 +84,20 @@ export function GoogleLocationMap({ selectedLat, selectedLng, onSelect, onLoadEr
     }
   }, [searchQuery, isLoaded])
 
+  // Wrap onSelect so every selection (click, dropdown pick, locate me, marker click)
+  // also performs a reverse-geocode and forwards the parsed address components.
+  const emitSelect = useCallback(
+    async (lat: number, lng: number) => {
+      try {
+        const components = await reverseGeocode(lat, lng)
+        onSelect(lat, lng, components ?? undefined)
+      } catch {
+        onSelect(lat, lng)
+      }
+    },
+    [onSelect],
+  )
+
   // When user picks a result: fetch exact coordinates via PlacesService, move pin + map
   const handleSelectResult = useCallback((result: SearchResult) => {
     setSearchQuery(result.label)
@@ -98,11 +113,11 @@ export function GoogleLocationMap({ selectedLat, selectedLng, onSelect, onLoadEr
           const lng = Number(place.geometry.location.lng().toFixed(6))
           mapRef.current?.panTo(place.geometry.location)
           mapRef.current?.setZoom(17)
-          onSelect(lat, lng)
+          emitSelect(lat, lng)
         }
       },
     )
-  }, [onSelect])
+  }, [emitSelect])
 
   const handleLocateMe = useCallback(() => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -145,13 +160,13 @@ export function GoogleLocationMap({ selectedLat, selectedLng, onSelect, onLoadEr
   const handleClick = useCallback(
     (e: google.maps.MapMouseEvent) => {
       if (e.latLng) {
-        onSelect(
+        emitSelect(
           Number(e.latLng.lat().toFixed(6)),
           Number(e.latLng.lng().toFixed(6)),
         )
       }
     },
-    [onSelect],
+    [emitSelect],
   )
 
   if (loadError) {
@@ -232,7 +247,7 @@ export function GoogleLocationMap({ selectedLat, selectedLng, onSelect, onLoadEr
                 strokeWeight: 2,
               }}
               title="Klik untuk pasang pin di sini"
-              onClick={() => onSelect(myLocation.lat, myLocation.lng)}
+              onClick={() => emitSelect(myLocation.lat, myLocation.lng)}
             />
           )}
         </GoogleMap>
@@ -242,7 +257,7 @@ export function GoogleLocationMap({ selectedLat, selectedLng, onSelect, onLoadEr
               type="button"
               size="sm"
               className="shadow-md pointer-events-auto"
-              onClick={() => onSelect(myLocation.lat, myLocation.lng)}
+              onClick={() => emitSelect(myLocation.lat, myLocation.lng)}
             >
               <MapPin className="h-3.5 w-3.5 mr-1.5" />
               Pasang Pin di Lokasi Saya

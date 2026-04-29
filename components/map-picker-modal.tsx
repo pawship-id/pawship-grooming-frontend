@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import type { GeocodedAddress } from "@/lib/google-geocode"
 
 const LocationMap = dynamic(
   () => import("@/components/location-map").then((mod) => ({ default: mod.LocationMap })),
@@ -19,7 +20,7 @@ type MapPickerModalProps = {
   onOpenChange: (open: boolean) => void
   selectedLat: number | null
   selectedLng: number | null
-  onSelect: (lat: number, lng: number) => void
+  onSelect: (lat: number, lng: number, components?: GeocodedAddress) => void
 }
 
 export function MapPickerModal({
