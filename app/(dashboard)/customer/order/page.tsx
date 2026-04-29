@@ -129,10 +129,9 @@ function BookingCard({ booking }: { booking: AdminBooking }) {
   const groomerName =
     booking.sessions?.[0]?.groomer_detail?.username || "Groomer";
 
-  // Dummy pre-conditions for now
-  const preConditions = [
-    { id: "1", description: "Minor skin irritation observed on left ear" },
-  ];
+  // Session notes from groomer
+  const sessionNotes =
+    booking.sessions?.filter((s) => s.notes && s.notes.trim()) ?? [];
 
   return (
     <Card
@@ -229,25 +228,33 @@ function BookingCard({ booking }: { booking: AdminBooking }) {
           )}
         </div>
 
-        {/* Pre-condition warning */}
-        {preConditions.length > 0 && (
-          <>
-            <Separator className="my-0" />
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-              <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-amber-700">
-                <AlertCircle className="h-3.5 w-3.5" />
-                Catatan dari groomer
-              </div>
+        {/* Groomer session notes */}
+        <>
+          <Separator className="my-0" />
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-amber-700">
+              <AlertCircle className="h-3.5 w-3.5" />
+              Catatan dari groomer
+            </div>
+            {sessionNotes.length > 0 ? (
               <ul className="flex flex-col gap-1">
-                {preConditions.map((pc) => (
-                  <li key={pc.id} className="text-xs text-amber-800">
-                    • {pc.description}
+                {sessionNotes.map((s, i) => (
+                  <li key={s._id ?? i} className="text-xs text-amber-800">
+                    •{" "}
+                    {sessionNotes.length > 1
+                      ? `Sesi ${i + 1}${s.type ? ` (${s.type})` : ""}: `
+                      : ""}
+                    {s.notes}
                   </li>
                 ))}
               </ul>
-            </div>
-          </>
-        )}
+            ) : (
+              <p className="text-xs text-amber-700/70">
+                Tidak ada catatan dari groomer
+              </p>
+            )}
+          </div>
+        </>
 
         {/* Pet internal note */}
         {booking.pet_snapshot.internal_note && (
