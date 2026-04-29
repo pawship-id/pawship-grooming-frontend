@@ -837,14 +837,14 @@ function BookingContent() {
     getCurrentUser()
       .then((res) => {
         const u = res.user;
-        setUserName(u.username);
-        setEmail(u.email);
+        setUserName(u.username ?? "");
+        setEmail(u.email ?? "");
         setPhone(u.phone_number ?? "");
         setPhoneChecked(true);
         setExistingUser({
           _id: u._id,
-          username: u.username,
-          email: u.email,
+          username: u.username ?? "",
+          email: u.email ?? "",
           phone_number: u.phone_number ?? "",
           role: u.role ?? "customer",
           is_idle: false,
@@ -852,8 +852,8 @@ function BookingContent() {
             _id: a._id,
             label: a.label,
             street: a.street,
-            latitude: a.latitude,
-            longitude: a.longitude,
+            latitude: a.latitude ?? undefined,
+            longitude: a.longitude ?? undefined,
             note: a.note,
             is_main_address: a.is_main_address,
           })),
