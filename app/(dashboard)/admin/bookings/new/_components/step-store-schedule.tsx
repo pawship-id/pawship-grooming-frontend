@@ -187,8 +187,10 @@ export function StepStoreSchedule({
                   placeholder={
                     loadingStore
                       ? "Memuat..."
+                      : selectedStore === undefined 
+                      ? "Pilih store dulu"
                       : sessions.length === 0
-                        ? "Pilih store dulu"
+                        ? "Sesi tidak tersedia"
                         : "Pilih sesi"
                   }
                 />

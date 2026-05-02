@@ -1,5 +1,41 @@
 import { apiAuthRequest } from "./client";
 
+// ── Public (no-auth) helpers ───────────────────────────────────────────────
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.BACKEND_API_BASE_URL ?? "";
+
+export interface PublicMembershipPlan {
+  _id: string;
+  name: string;
+  description?: string;
+  duration_months: number;
+  price: number;
+  note?: string;
+  is_active: boolean;
+  display_order: number;
+  badge_label?: string | null;
+  badge_variant?: "best" | "premium" | null;
+  featured: boolean;
+  original_price?: number | null;
+  display_benefits: string[];
+}
+
+export interface PublicMembershipsResponse {
+  message: string;
+  data: PublicMembershipPlan[];
+}
+
+export async function getPublicMemberships(): Promise<PublicMembershipsResponse> {
+  const res = await fetch(`${API_BASE}/memberships/public`, {
+    next: { revalidate: 60 },
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch public memberships: ${res.status}`);
+  }
+  return res.json();
+}
+
 // ── Benefit ────────────────────────────────────────────────────────────────
 
 export type BenefitType = "discount" | "quota";
@@ -47,6 +83,14 @@ export interface MembershipPlan {
   pet_types?: Array<{ _id: string; name: string }>;
   is_active: boolean;
   benefits: Benefit[];
+  // public display fields
+  show_on_website: boolean;
+  display_order: number;
+  badge_label?: string | null;
+  badge_variant?: "best" | "premium" | null;
+  featured: boolean;
+  original_price?: number | null;
+  display_benefits: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -81,6 +125,14 @@ export interface MembershipPayload {
   is_active?: boolean;
   benefits?: BenefitPayload[];
   apply_retroactive?: boolean;
+  // public display fields
+  show_on_website?: boolean;
+  display_order?: number;
+  badge_label?: string;
+  badge_variant?: "best" | "premium" | null;
+  featured?: boolean;
+  original_price?: number | null;
+  display_benefits?: string[];
 }
 
 export interface GetMembershipsParams {

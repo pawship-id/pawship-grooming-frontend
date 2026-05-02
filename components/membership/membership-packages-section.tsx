@@ -9,14 +9,15 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import {
-  packages,
-  PackagePlan,
-  WHATSAPP_NUMBER,
-  WA_RECOMMEND,
-} from "./constants";
+import { WHATSAPP_NUMBER, WA_RECOMMEND } from "./constants";
+import { formatPrice } from "@/lib/format";
+import type { PublicMembershipPlan } from "@/lib/api/memberships";
 
-export function MembershipPackagesSection() {
+interface Props {
+  plans: PublicMembershipPlan[];
+}
+
+export function MembershipPackagesSection({ plans }: Props) {
   return (
     <section id="paket" className="bg-background py-24">
       <div className="mx-auto max-w-7xl px-6">
@@ -33,11 +34,17 @@ export function MembershipPackagesSection() {
           </p>
         </div>
 
-        <div className="flex flex-col items-stretch gap-8 lg:flex-row lg:items-end">
-          {packages.map((pkg) => (
-            <PricingCard key={pkg.id} pkg={pkg} />
-          ))}
-        </div>
+        {plans.length === 0 ? (
+          <p className="text-center text-muted-foreground">
+            Paket membership akan segera tersedia.
+          </p>
+        ) : (
+          <div className="flex flex-col items-stretch gap-8 lg:flex-row lg:items-end">
+            {plans.map((plan) => (
+              <PricingCard key={plan._id} plan={plan} />
+            ))}
+          </div>
+        )}
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
           *SnK berlaku. Hubungi admin untuk detail lengkap.
@@ -73,9 +80,11 @@ export function MembershipPackagesSection() {
 
 // ─── Pricing Card ─────────────────────────────────────────────────────────────
 
-function PricingCard({ pkg }: { pkg: PackagePlan }) {
-  const isFeatured = pkg.featured;
-  const isPremium = pkg.tag?.variant === "premium";
+function PricingCard({ plan }: { plan: PublicMembershipPlan }) {
+  const isFeatured = plan.featured;
+  const isPremium = plan.badge_variant === "premium";
+  const hasStrikethrough =
+    plan.original_price != null && plan.original_price > plan.price;
 
   return (
     <div
@@ -86,8 +95,8 @@ function PricingCard({ pkg }: { pkg: PackagePlan }) {
           : "border-border/60 bg-card shadow-sm hover:shadow-md",
       )}
     >
-      {/* Tag */}
-      {pkg.tag && (
+      {/* Badge */}
+      {plan.badge_label && (
         <div
           className={cn(
             "absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-4 py-1 text-xs font-bold shadow-md",
@@ -101,50 +110,90 @@ function PricingCard({ pkg }: { pkg: PackagePlan }) {
           ) : (
             <Star className="mr-1 inline-block h-3 w-3" />
           )}
-          {pkg.tag.label}
+          {plan.badge_label}
         </div>
       )}
 
       {/* Header */}
-      <div className="mb-6 mt-3">
+      <div className="mb-4 mt-3">
         <h3
           className={cn(
             "font-display text-2xl font-extrabold",
             isFeatured ? "text-primary-foreground" : "text-foreground",
           )}
         >
-          {pkg.name}
+          {plan.name}
         </h3>
+        {plan.description && (
+          <p
+            className={cn(
+              "mt-1 text-sm font-medium",
+              isFeatured
+                ? "text-primary-foreground/80"
+                : "text-muted-foreground",
+            )}
+          >
+            {plan.description}
+          </p>
+        )}
+      </div>
+
+      {/* Price */}
+      <div className="mb-6">
+        {hasStrikethrough && (
+          <p
+            className={cn(
+              "text-sm line-through",
+              isFeatured
+                ? "text-primary-foreground/60"
+                : "text-muted-foreground",
+            )}
+          >
+            {formatPrice(plan.original_price!)}
+          </p>
+        )}
         <p
           className={cn(
-            "mt-1 text-sm font-medium",
-            isFeatured ? "text-primary-foreground/80" : "text-muted-foreground",
+            "text-3xl font-extrabold",
+            isFeatured ? "text-primary-foreground" : "text-foreground",
           )}
         >
-          {pkg.subtitle}
+          {formatPrice(plan.price)}
+          <span
+            className={cn(
+              "ml-1 text-sm font-medium",
+              isFeatured
+                ? "text-primary-foreground/70"
+                : "text-muted-foreground",
+            )}
+          >
+            / {plan.duration_months} bln
+          </span>
         </p>
       </div>
 
       {/* Benefits */}
-      <ul className="flex flex-1 flex-col gap-3">
-        {pkg.benefits.map((b) => (
-          <li key={b} className="flex items-start gap-2.5 text-sm">
-            <CheckCircle2
-              className={cn(
-                "mt-0.5 h-4 w-4 shrink-0",
-                isFeatured ? "text-white" : "text-primary",
-              )}
-            />
-            <span
-              className={cn(
-                isFeatured ? "text-primary-foreground" : "text-foreground",
-              )}
-            >
-              {b}
-            </span>
-          </li>
-        ))}
-      </ul>
+      {plan.display_benefits.length > 0 && (
+        <ul className="flex flex-1 flex-col gap-3">
+          {plan.display_benefits.map((b, i) => (
+            <li key={i} className="flex items-start gap-2.5 text-sm">
+              <CheckCircle2
+                className={cn(
+                  "mt-0.5 h-4 w-4 shrink-0",
+                  isFeatured ? "text-white" : "text-primary",
+                )}
+              />
+              <span
+                className={cn(
+                  isFeatured ? "text-primary-foreground" : "text-foreground",
+                )}
+              >
+                {b}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/* CTA */}
       <div className="mt-8">
@@ -160,15 +209,16 @@ function PricingCard({ pkg }: { pkg: PackagePlan }) {
         >
           <a
             href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-              `Halo Pawship! Saya tertarik dengan paket ${pkg.name} Membership 🐾`,
+              `Halo Pawship! Saya tertarik dengan paket ${plan.name} Membership 🐾`,
             )}`}
             target="_blank"
             rel="noopener noreferrer"
           >
-            Pilih {pkg.name}
+            Pilih {plan.name}
           </a>
         </Button>
       </div>
     </div>
   );
 }
+

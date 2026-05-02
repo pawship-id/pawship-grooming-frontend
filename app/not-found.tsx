@@ -10,7 +10,6 @@ export default function NotFound() {
         alt="Paswhip"
         width={100}
         height={100}
-        style={{ width: "auto", height: "auto" }}
         className="h-20 opacity-50"
       />
       <div>

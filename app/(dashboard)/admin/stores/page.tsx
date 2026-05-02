@@ -67,6 +67,7 @@ import {
   createStore,
   deleteStore as deleteStoreRequest,
   getStores,
+  setStoreAsDefault,
   type ApiStore,
   type StoreCapacity,
   type StoreContact,
@@ -231,7 +232,9 @@ function StoreFormFields({
   setForm: React.Dispatch<React.SetStateAction<StoreForm>>;
 }) {
   const [mapOpen, setMapOpen] = useState(false);
-  const [pendingGeocode, setPendingGeocode] = useState<GeocodedAddress | null>(null);
+  const [pendingGeocode, setPendingGeocode] = useState<GeocodedAddress | null>(
+    null,
+  );
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
 
   useEffect(() => {
@@ -1135,6 +1138,11 @@ export default function StoresPage() {
   const [deleteStore, setDeleteStore] = useState<ApiStore | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Set Default Store
+  const [pendingDefaultStore, setPendingDefaultStore] =
+    useState<ApiStore | null>(null);
+  const [isSettingDefault, setIsSettingDefault] = useState(false);
+
   // Debounce search
   useEffect(() => {
     const t = setTimeout(() => {
@@ -1195,6 +1203,25 @@ export default function StoresPage() {
   const openEdit = (store: ApiStore) => {
     setEditStore(store);
     setEditForm(storeToForm(store));
+  };
+
+  const existingDefaultStore = stores.find((s) => s.is_default_store);
+
+  const handleSetDefault = async () => {
+    if (!pendingDefaultStore) return;
+    setIsSettingDefault(true);
+    try {
+      await setStoreAsDefault(pendingDefaultStore._id);
+      toast.success(`"${pendingDefaultStore.name}" dijadikan primary store`);
+      setPendingDefaultStore(null);
+      fetchStores();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Gagal mengubah primary store.",
+      );
+    } finally {
+      setIsSettingDefault(false);
+    }
   };
 
   const handleEdit = async (e: React.FormEvent) => {
@@ -1376,12 +1403,19 @@ export default function StoresPage() {
                         >
                           <TableCell>
                             <div className="flex flex-col gap-0.5">
-                              <span className="font-medium hover:underline">
-                                <Highlight
-                                  text={store.name}
-                                  query={debouncedSearch}
-                                />
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-medium hover:underline">
+                                  <Highlight
+                                    text={store.name}
+                                    query={debouncedSearch}
+                                  />
+                                </span>
+                                {store.is_default_store && (
+                                  <Badge className="text-[10px] px-1.5 py-0 bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-100">
+                                    Primary
+                                  </Badge>
+                                )}
+                              </div>
                               {store.description && (
                                 <span className="text-xs text-muted-foreground line-clamp-1">
                                   <Highlight
@@ -1491,6 +1525,18 @@ export default function StoresPage() {
                                   />
                                   {store.is_active ? "Nonaktifkan" : "Aktifkan"}
                                 </DropdownMenuItem>
+                                {!store.is_default_store && (
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      setPendingDefaultStore(store)
+                                    }
+                                  >
+                                    <span className="mr-2 text-amber-500">
+                                      ★
+                                    </span>
+                                    Jadikan Primary
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem
                                   onClick={() => openEdit(store)}
                                 >
@@ -1621,6 +1667,54 @@ export default function StoresPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm Set Primary Store */}
+      <AlertDialog
+        open={!!pendingDefaultStore}
+        onOpenChange={(o) => {
+          if (!o) setPendingDefaultStore(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Jadikan Primary Store</AlertDialogTitle>
+            <AlertDialogDescription>
+              {existingDefaultStore ? (
+                <>
+                  Saat ini{" "}
+                  <span className="font-semibold text-foreground">
+                    "{existingDefaultStore.name}"
+                  </span>{" "}
+                  adalah primary store. Store tersebut akan digantikan oleh{" "}
+                  <span className="font-semibold text-foreground">
+                    "{pendingDefaultStore?.name}"
+                  </span>
+                  . Lanjutkan?
+                </>
+              ) : (
+                <>
+                  Jadikan{" "}
+                  <span className="font-semibold text-foreground">
+                    "{pendingDefaultStore?.name}"
+                  </span>{" "}
+                  sebagai primary store?
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isSettingDefault}>
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleSetDefault}
+              disabled={isSettingDefault}
+            >
+              {isSettingDefault ? "Menyimpan..." : "Ya, Jadikan Primary"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation */}
       <AlertDialog

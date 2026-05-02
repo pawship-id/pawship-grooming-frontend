@@ -147,6 +147,14 @@ interface MembershipForm {
   pet_type_ids: string[];
   is_active: boolean;
   benefits: BenefitForm[];
+  // public display fields
+  show_on_website: boolean;
+  display_order: string;
+  badge_label: string;
+  badge_variant: "best" | "premium" | "";
+  featured: boolean;
+  original_price: string;
+  display_benefits: string[];
 }
 
 const DEFAULT_MEMBERSHIP_FORM: MembershipForm = {
@@ -158,6 +166,13 @@ const DEFAULT_MEMBERSHIP_FORM: MembershipForm = {
   pet_type_ids: [],
   is_active: true,
   benefits: [],
+  show_on_website: false,
+  display_order: "0",
+  badge_label: "",
+  badge_variant: "",
+  featured: false,
+  original_price: "",
+  display_benefits: [],
 };
 
 function membershipToForm(m: MembershipPlan): MembershipForm {
@@ -181,6 +196,13 @@ function membershipToForm(m: MembershipPlan): MembershipForm {
       service_id: b.service?._id ?? "",
       limit: b.limit ?? undefined,
     })),
+    show_on_website: m.show_on_website ?? false,
+    display_order: String(m.display_order ?? 0),
+    badge_label: m.badge_label ?? "",
+    badge_variant: (m.badge_variant as "best" | "premium") ?? "",
+    featured: m.featured ?? false,
+    original_price: m.original_price != null ? String(m.original_price) : "",
+    display_benefits: m.display_benefits ?? [],
   };
 }
 
@@ -203,11 +225,91 @@ function formToPayload(form: MembershipForm): MembershipPayload {
       service_id: b.service_id || undefined,
       limit: b.limit !== undefined ? Number(b.limit) : null,
     })),
+    show_on_website: form.show_on_website,
+    display_order: Number(form.display_order) || 0,
+    badge_label: form.badge_label || undefined,
+    badge_variant: (form.badge_variant as "best" | "premium") || null,
+    featured: form.featured,
+    original_price: form.original_price ? Number(form.original_price) : null,
+    display_benefits: form.display_benefits,
   };
 }
 
 function newLocalId() {
   return `_new_${Date.now()}_${Math.random()}`;
+}
+
+// ── Display Benefits Editor ────────────────────────────────────────────────
+
+function DisplayBenefitsEditor({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+
+  const add = () => {
+    const trimmed = draft.trim();
+    if (!trimmed) return;
+    onChange([...value, trimmed]);
+    setDraft("");
+  };
+
+  const remove = (i: number) => {
+    onChange(value.filter((_, idx) => idx !== i));
+  };
+
+  const update = (i: number, text: string) => {
+    onChange(value.map((v, idx) => (idx === i ? text : v)));
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {value.map((v, i) => (
+        <div key={i} className="flex items-center gap-1.5">
+          <Input
+            className="h-8 text-xs flex-1"
+            value={v}
+            onChange={(e) => update(i, e.target.value)}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 text-destructive hover:text-destructive"
+            onClick={() => remove(i)}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ))}
+      <div className="flex items-center gap-1.5">
+        <Input
+          className="h-8 text-xs flex-1"
+          placeholder="Tambah benefit teks marketing..."
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          onClick={add}
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 // ── Benefit Form Fields (top-level to preserve focus) ─────────────────────
@@ -748,6 +850,12 @@ function MembershipDetailSheet({
               <span className="font-medium">
                 {formatRupiah(membership.price)}
               </span>
+              {membership.original_price != null &&
+                membership.original_price > membership.price && (
+                  <span className="text-xs text-muted-foreground line-through">
+                    {formatRupiah(membership.original_price)}
+                  </span>
+                )}
             </div>
             <div className="flex flex-col gap-0.5">
               <span className="text-xs text-muted-foreground">Durasi</span>
@@ -777,6 +885,60 @@ function MembershipDetailSheet({
               <p className="text-sm text-foreground">{membership.note}</p>
             </div>
           )}
+
+          {/* Public display info */}
+          <div className="flex flex-col gap-2 rounded-lg border border-border/50 bg-muted/20 p-3">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Tampilan Publik
+            </span>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <span className="text-muted-foreground">Website</span>
+                <p className="font-medium">
+                  {membership.show_on_website ? "Tampil" : "Disembunyikan"}
+                </p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Urutan</span>
+                <p className="font-medium">{membership.display_order ?? 0}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Featured</span>
+                <p className="font-medium">
+                  {membership.featured ? "Ya" : "Tidak"}
+                </p>
+              </div>
+              {membership.badge_label && (
+                <div>
+                  <span className="text-muted-foreground">Badge</span>
+                  <p className="font-medium">
+                    {membership.badge_label}
+                    {membership.badge_variant &&
+                      ` (${membership.badge_variant})`}
+                  </p>
+                </div>
+              )}
+            </div>
+            {membership.display_benefits &&
+              membership.display_benefits.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    List Benefit Marketing
+                  </span>
+                  <ul className="flex flex-col gap-0.5">
+                    {membership.display_benefits.map((b, i) => (
+                      <li
+                        key={i}
+                        className="text-xs text-foreground flex items-start gap-1.5"
+                      >
+                        <span className="text-primary mt-0.5">•</span>
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+          </div>
 
           <Separator />
 
@@ -1011,9 +1173,134 @@ function MembershipFormDialog({
 
           <Separator />
 
+          {/* Public Display */}
+          <div className="flex flex-col gap-3">
+            <Label className="font-medium">Tampilan Publik</Label>
+
+            <div className="flex items-center gap-3">
+              <Switch
+                id="mem-show-web"
+                checked={form.show_on_website}
+                onCheckedChange={(v) =>
+                  setForm((p) => ({ ...p, show_on_website: v }))
+                }
+              />
+              <Label htmlFor="mem-show-web" className="text-sm">
+                Tampil di halaman /membership
+              </Label>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Switch
+                id="mem-featured"
+                checked={form.featured}
+                onCheckedChange={(v) =>
+                  setForm((p) => ({ ...p, featured: v }))
+                }
+              />
+              <Label htmlFor="mem-featured" className="text-sm">
+                Featured (kartu disorot)
+              </Label>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="mem-order" className="text-xs">
+                  Urutan Tampil
+                </Label>
+                <Input
+                  id="mem-order"
+                  type="number"
+                  min={0}
+                  placeholder="0"
+                  value={form.display_order}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, display_order: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="mem-orig-price" className="text-xs">
+                  Harga Coret (Rp)
+                </Label>
+                <Input
+                  id="mem-orig-price"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="1.500.000"
+                  value={
+                    form.original_price
+                      ? Number(form.original_price).toLocaleString("id-ID")
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const raw = e.target.value
+                      .replace(/\./g, "")
+                      .replace(/\D/g, "");
+                    setForm((p) => ({ ...p, original_price: raw }));
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="mem-badge-label" className="text-xs">
+                  Label Badge
+                </Label>
+                <Input
+                  id="mem-badge-label"
+                  placeholder="Best Value"
+                  maxLength={50}
+                  value={form.badge_label}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, badge_label: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label className="text-xs">Varian Badge</Label>
+                <Select
+                  value={form.badge_variant || "_none"}
+                  onValueChange={(v) =>
+                    setForm((p) => ({
+                      ...p,
+                      badge_variant:
+                        v === "_none"
+                          ? ""
+                          : (v as "best" | "premium"),
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih varian..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">— Tidak ada —</SelectItem>
+                    <SelectItem value="best">Best (⭐)</SelectItem>
+                    <SelectItem value="premium">Premium (👑)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Display Benefits */}
+            <div className="flex flex-col gap-2">
+              <Label className="text-xs">List Benefit (teks marketing)</Label>
+              <DisplayBenefitsEditor
+                value={form.display_benefits}
+                onChange={(v) =>
+                  setForm((p) => ({ ...p, display_benefits: v }))
+                }
+              />
+            </div>
+          </div>
+
+          <Separator />
+
           {/* Benefits */}
           <div className="flex flex-col gap-2">
-            <Label className="font-medium">Benefits</Label>
+            <Label className="font-medium">Benefits (Teknis)</Label>
             <BenefitEditor
               benefits={form.benefits}
               onChange={(benefits) => setForm((p) => ({ ...p, benefits }))}
@@ -1243,6 +1530,7 @@ function MembershipsTab() {
               <TableHead>Harga</TableHead>
               <TableHead>Benefits</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Website</TableHead>
               <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
@@ -1250,7 +1538,7 @@ function MembershipsTab() {
             {isLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 6 }).map((__, j) => (
+                  {Array.from({ length: 7 }).map((__, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-full" />
                     </TableCell>
@@ -1260,7 +1548,7 @@ function MembershipsTab() {
             ) : filtered.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={6}
+                  colSpan={7}
                   className="text-center text-muted-foreground py-8"
                 >
                   {search || filterActive !== "all"
@@ -1305,6 +1593,15 @@ function MembershipsTab() {
                     >
                       {m.is_active ? "Aktif" : "Nonaktif"}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {m.show_on_website ? (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
+                        Tampil
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>

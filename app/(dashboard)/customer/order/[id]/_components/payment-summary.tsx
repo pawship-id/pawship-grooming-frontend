@@ -48,25 +48,14 @@ export function PaymentSummary({ booking }: PaymentSummaryProps) {
           </div>
         </div>
 
-        {booking.payment_method && (
-          <div>
-            <span className="text-xs text-muted-foreground">
-              Metode Pembayaran
-            </span>
-            <p className="font-medium capitalize text-foreground">
-              {booking.payment_method}
-            </p>
-          </div>
-        )}
-
-        {booking.note && (
-          <div>
-            <span className="text-xs text-muted-foreground">Catatan</span>
-            <p className="mt-1 rounded-md bg-muted/50 p-3 text-sm text-foreground">
-              {booking.note}
-            </p>
-          </div>
-        )}
+        <div>
+          <span className="text-xs text-muted-foreground">
+            Metode Pembayaran
+          </span>
+          <p className="font-medium capitalize text-foreground">
+            {booking.payment_method ? booking.payment_method : "-"}
+          </p>
+        </div>
       </CardContent>
     </Card>
   );
@@ -160,9 +149,7 @@ function PriceDisplay({
 }
 
 function ServiceRow({ booking }: { booking: AdminBooking }) {
-  const b = booking.applied_benefits?.find(
-    (ab) => ab.applies_to === "service",
-  );
+  const b = booking.applied_benefits?.find((ab) => ab.applies_to === "service");
   const svcBase =
     booking.edited_service_price ?? booking.service_snapshot.price;
   const svcItemDisc = booking.edited_service_discount ?? 0;
@@ -287,7 +274,12 @@ function PickupDeliveryFeeRow({ booking }: { booking: AdminBooking }) {
 }
 
 function HomeServiceFeeRow({ booking }: { booking: AdminBooking }) {
-  if (booking.type !== "in home" || !booking.travel_fee || booking.travel_fee <= 0) return null;
+  if (
+    booking.type !== "in home" ||
+    !booking.travel_fee ||
+    booking.travel_fee <= 0
+  )
+    return null;
 
   const b = booking.applied_benefits?.find(
     (ab) =>
@@ -406,9 +398,7 @@ function DiscountSections({ booking }: { booking: AdminBooking }) {
                     ? "Home Service"
                     : "Pickup/Delivery"}
                 </span>
-                <span className="shrink-0">
-                  - {formatPrice(tFeeItemDisc)}
-                </span>
+                <span className="shrink-0">- {formatPrice(tFeeItemDisc)}</span>
               </div>
             )}
           </div>

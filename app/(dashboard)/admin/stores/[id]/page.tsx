@@ -300,7 +300,7 @@ export default function StoreDetailPage() {
                         </td>
                         <td className="py-1.5 text-right">
                           <span className="font-medium text-[10px]">
-                            Rp {zone.price.toLocaleString("id-ID")}
+                            Rp {(zone.price ?? 0).toLocaleString("id-ID")}
                           </span>
                         </td>
                       </tr>
@@ -361,7 +361,7 @@ export default function StoreDetailPage() {
                           {zone.travel_time_minutes} mnt
                         </td>
                         <td className="py-1.5 text-right font-medium">
-                          Rp {zone.price.toLocaleString("id-ID")}
+                          Rp {(zone.price ?? 0).toLocaleString("id-ID")}
                         </td>
                       </tr>
                     ))}
@@ -469,7 +469,7 @@ export default function StoreDetailPage() {
                                 {p.hair_name ?? "-"}
                               </td>
                               <td className="py-1 text-right font-medium">
-                                Rp {p.price.toLocaleString("id-ID")}
+                                Rp {(p.price ?? 0).toLocaleString("id-ID")}
                               </td>
                             </tr>
                           ))}
@@ -487,11 +487,17 @@ export default function StoreDetailPage() {
       <div className="text-xs text-muted-foreground flex items-center gap-4">
         <span className="flex items-center gap-1">
           <CalendarDays className="h-3.5 w-3.5" />
-          Dibuat: {new Date(store.createdAt).toLocaleString("id-ID")}
+          Dibuat:{" "}
+          {store.createdAt
+            ? new Date(store.createdAt).toLocaleString("id-ID")
+            : "-"}
         </span>
         <span className="flex items-center gap-1">
           <CalendarDays className="h-3.5 w-3.5" />
-          Diperbarui: {new Date(store.updatedAt).toLocaleString("id-ID")}
+          Diperbarui:{" "}
+          {store.updatedAt
+            ? new Date(store.updatedAt).toLocaleString("id-ID")
+            : "-"}
         </span>
       </div>
     </div>
