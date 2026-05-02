@@ -10,6 +10,7 @@ import {
   sendPasswordSetupRequest,
   type RegisterPayload,
 } from "@/lib/api/index";
+import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +28,7 @@ type Step = "phone" | "new-user" | "email-setup" | "send-link";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const { loginWithTokens } = useAuth();
 
   const [step, setStep] = useState<Step>("phone");
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -121,10 +123,10 @@ export default function RegisterPage() {
         phone_number: phoneNumber,
         password,
       };
-      await registerRequest(payload);
+      const response = await registerRequest(payload);
 
-      setSuccessMessage("Akun berhasil dibuat! Silakan masuk.");
-      setTimeout(() => router.push("/login"), 1500);
+      loginWithTokens(email, response.access_token, response.refresh_token);
+      router.push("/customer");
     } catch (err: unknown) {
       if (err instanceof Error) {
         try {

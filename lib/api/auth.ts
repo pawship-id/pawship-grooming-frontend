@@ -15,6 +15,8 @@ export interface RegisterPayload {
 
 export interface RegisterResponse {
   message: string;
+  access_token: string;
+  refresh_token: string;
 }
 
 export async function loginRequest(

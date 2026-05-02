@@ -32,6 +32,7 @@ interface AuthContextType {
   user: AuthUser | null;
   login: (email: string, password: string) => Promise<LoginResult>;
   loginSilent: (email: string, password: string) => Promise<LoginResult>;
+  loginWithTokens: (email: string, accessToken: string, refreshToken: string) => void;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -138,6 +139,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [router],
   );
 
+  /** Set auth state from existing tokens — used after registration */
+  const loginWithTokens = useCallback(
+    (email: string, accessToken: string, refreshToken: string) => {
+      const authenticatedUser = mapUserFromToken(email, accessToken);
+      setUser(authenticatedUser);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(authenticatedUser));
+      setAuthTokens(accessToken, refreshToken);
+    },
+    [],
+  );
+
   /** Authenticate and set tokens without redirecting — used by inline login modals */
   const loginSilent = useCallback(async (email: string, password: string) => {
     try {
@@ -183,6 +195,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         login,
         loginSilent,
+        loginWithTokens,
         logout,
         isAuthenticated: !!user,
       }}
