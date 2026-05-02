@@ -55,55 +55,6 @@ export const solutions = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Packages
-// ─────────────────────────────────────────────────────────────────────────────
-export interface PackagePlan {
-  id: string;
-  name: string;
-  subtitle: string;
-  tag?: { label: string; variant: "best" | "premium" };
-  featured?: boolean;
-  benefits: string[];
-}
-
-export const packages: PackagePlan[] = [
-  {
-    id: "explorer",
-    name: "Explorer",
-    subtitle: "Perawatan Essensial",
-    benefits: [
-      "Unlimited Grooming*",
-      "Harga khusus member",
-      "Cocok untuk first-time member",
-    ],
-  },
-  {
-    id: "traveller",
-    name: "Traveller",
-    subtitle: "Perawatan Rutin",
-    tag: { label: "Best Value", variant: "best" },
-    featured: true,
-    benefits: [
-      "Unlimited Grooming + Styling*",
-      "Harga khusus member",
-      "Free pickup / home grooming*",
-    ],
-  },
-  {
-    id: "voyager",
-    name: "Voyager",
-    subtitle: "Perawatan Premium",
-    tag: { label: "Premium", variant: "premium" },
-    benefits: [
-      "Semua benefit Traveller",
-      "Unlimited pickup",
-      "Slot prioritas Daycare + Hotel + Grooming",
-      "Premium Members only!",
-    ],
-  },
-];
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Testimonials
 // ─────────────────────────────────────────────────────────────────────────────
 export type TestimonialItem = {

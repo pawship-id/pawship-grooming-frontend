@@ -6,15 +6,28 @@ import { MembershipPackagesSection } from "@/components/membership/membership-pa
 import { MembershipBannerSection } from "@/components/membership/membership-banner-section";
 import { MembershipTestimonialsSection } from "@/components/membership/membership-testimonials-section";
 import { MembershipFinalCtaSection } from "@/components/membership/membership-final-cta-section";
+import {
+  getPublicMemberships,
+  type PublicMembershipPlan,
+} from "@/lib/api/memberships";
 
-export default function MembershipPage() {
+export default async function MembershipPage() {
+  let plans: PublicMembershipPlan[] = [];
+
+  try {
+    const res = await getPublicMemberships();
+    plans = res.data ?? [];
+  } catch {
+    // Silently fall back to empty list — section will render a placeholder
+  }
+
   return (
     <main className="flex-1 overflow-x-hidden">
       <MembershipHeroSection />
       <MembershipVideoSection />
       <MembershipProblemSection />
       <MembershipSolutionSection />
-      <MembershipPackagesSection />
+      <MembershipPackagesSection plans={plans} />
       <MembershipBannerSection />
       <MembershipTestimonialsSection />
       <MembershipFinalCtaSection />
