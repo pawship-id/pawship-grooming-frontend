@@ -422,6 +422,7 @@ function ErrorState({ message }: { message: string }) {
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function CustomerOrderPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -466,30 +467,43 @@ export default function CustomerOrderPage() {
       </div>
 
       {/* Status Filter */}
-      <div className="flex items-center gap-3">
-        <label
-          htmlFor="status-filter"
-          className="text-sm font-medium text-muted-foreground"
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label
+            htmlFor="status-filter"
+            className="text-sm font-medium text-muted-foreground"
+          >
+            Filter Status:
+          </label>
+          <div className="flex items-center gap-3">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger
+                id="status-filter"
+                className="w-full sm:w-[240px] md:w-[240px]"
+              >
+                <SelectValue placeholder="Pilih status" />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {statusFilter !== "all" && (
+              <span className="text-xs text-muted-foreground">
+                {bookings.length} booking ditemukan
+              </span>
+            )}
+          </div>
+        </div>
+        <Button
+          onClick={() => router.push("/booking")}
+          className="w-full sm:w-auto"
         >
-          Filter Status:
-        </label>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger id="status-filter" className="w-[240px]">
-            <SelectValue placeholder="Pilih status" />
-          </SelectTrigger>
-          <SelectContent>
-            {statusOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {statusFilter !== "all" && (
-          <span className="text-xs text-muted-foreground">
-            {bookings.length} booking ditemukan
-          </span>
-        )}
+          Book Now
+        </Button>
       </div>
 
       {/* Content */}
