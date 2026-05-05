@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Mail, Phone, Shield, Calendar, User, Weight, Tag, Pencil, Plus, Trash2, MapPin, Map, Eye } from "lucide-react";
+import { Mail, Phone, Shield, Calendar, User, Weight, Tag, Pencil, Plus, Trash2, MapPin, Map, Eye, Info } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -23,6 +23,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import {
   getCurrentUser,
@@ -499,6 +501,10 @@ function PetFormDialog({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isWeightValid =
+    !!form.weight && !isNaN(Number(form.weight)) && Number(form.weight) > 0;
+  const shouldShowSizeInfo =
+    !form.size_category_id && (!form.pet_type_id || !isWeightValid);
 
   useEffect(() => {
     if (!open) {
@@ -530,6 +536,30 @@ function PetFormDialog({
     setForm((f) => ({ ...f, [field]: value }));
   }
 
+  function calculateSize() {
+    if (!form.pet_type_id || !form.weight || isNaN(Number(form.weight)) || Number(form.weight) <= 0) {
+      set("size_category_id", "");
+      return;
+    }
+    const weight = Number(form.weight);
+    const selectedPetTypeId = form.pet_type_id;
+    const matchedSize = sizes.find((size) =>
+      size.pet_weight_rules?.some(
+        (rule) =>
+          (typeof rule.petTypeId === "string"
+            ? rule.petTypeId
+            : rule.petTypeId._id) === selectedPetTypeId &&
+          weight > rule.minWeight &&
+          weight <= rule.maxWeight
+      )
+    );
+    set("size_category_id", matchedSize?._id || "");
+  }
+
+  useEffect(() => {
+    calculateSize();
+  }, [form.pet_type_id, form.weight, sizes]);
+
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -542,7 +572,7 @@ function PetFormDialog({
     e.preventDefault();
     if (!form.name.trim()) return toast.error("Nama pet wajib diisi");
     if (!form.pet_type_id) return toast.error("Tipe pet wajib dipilih");
-    if (!form.size_category_id) return toast.error("Ukuran wajib dipilih");
+    if (!form.weight || isNaN(Number(form.weight)) || Number(form.weight) <= 0) return toast.error("Berat wajib diisi dan harus lebih dari 0");
     if (!form.breed_category_id) return toast.error("Ras wajib dipilih");
 
     setSaving(true);
@@ -596,11 +626,12 @@ function PetFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{editingPet ? "Edit Pet" : "Tambah Pet"}</DialogTitle>
-        </DialogHeader>
+    <TooltipProvider delayDuration={100}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingPet ? "Edit Pet" : "Tambah Pet"}</DialogTitle>
+          </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           {/* Image Upload */}
           <div className="flex flex-col gap-1.5">
@@ -686,16 +717,47 @@ function PetFormDialog({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label>
-                Ukuran <span className="text-destructive">*</span>
-              </Label>
+              <div className="flex items-center gap-1">
+                <Label>Ukuran</Label>
+                {shouldShowSizeInfo && (
+                  <>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex md:hidden items-center text-muted-foreground hover:text-foreground"
+                          aria-label="Info ukuran otomatis"
+                        >
+                          <Info className="h-3 w-3" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-2 text-xs" align="start">
+                        Otomatis terisi setelah tipe hewan dan berat diinput.
+                      </PopoverContent>
+                    </Popover>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="hidden md:inline-flex items-center text-muted-foreground hover:text-foreground"
+                          aria-label="Info ukuran otomatis"
+                        >
+                          <Info className="h-3 w-3 cursor-help" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Otomatis terisi setelah tipe hewan dan berat diinput.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </>
+                )}
+              </div>
               <Select
                 value={form.size_category_id}
-                onValueChange={(v) => set("size_category_id", v)}
-                disabled={loadingOptions}
+                disabled
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Pilih ukuran" />
+                  <SelectValue placeholder="Otomatis terisi" />
                 </SelectTrigger>
                 <SelectContent>
                   {sizes.map((o) => (
@@ -751,15 +813,18 @@ function PetFormDialog({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="pet-weight">Berat (kg)</Label>
+              <Label htmlFor="pet-weight">
+                Berat (kg) <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="pet-weight"
                 type="number"
-                min="0"
+                min="0.1"
                 step="0.1"
                 value={form.weight}
                 onChange={(e) => set("weight", e.target.value)}
                 placeholder="Contoh: 4.5"
+                required
               />
             </div>
 
@@ -814,6 +879,7 @@ function PetFormDialog({
         </form>
       </DialogContent>
     </Dialog>
+    </TooltipProvider>
   );
 }
 

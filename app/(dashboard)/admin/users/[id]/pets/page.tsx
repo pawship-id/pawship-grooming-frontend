@@ -13,6 +13,7 @@ import {
   Tag,
   X,
   CreditCard,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +37,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Combobox } from "@/components/ui/combobox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -120,6 +123,31 @@ function formToPayload(form: PetForm, customerId: string): CreatePetPayload {
     is_active: form.is_active,
     customer_id: customerId,
   };
+}
+
+function findMatchedSizeId(
+  sizeOptions: ApiOption[],
+  petTypeId: string,
+  weightValue: string,
+) {
+  const weight = Number(weightValue);
+  if (!petTypeId || !weightValue || Number.isNaN(weight) || weight <= 0) {
+    return "";
+  }
+
+  const matchedSize = sizeOptions.find((sizeOption) =>
+    sizeOption.pet_weight_rules?.some((rule) => {
+      const rulePetTypeId =
+        typeof rule.petTypeId === "string" ? rule.petTypeId : rule.petTypeId._id;
+      return (
+        rulePetTypeId === petTypeId &&
+        weight > rule.minWeight &&
+        weight <= rule.maxWeight
+      );
+    }),
+  );
+
+  return matchedSize?._id ?? "";
 }
 
 // ── Options store ─────────────────────────────────────────────────────────
@@ -290,6 +318,22 @@ function PetFormDialog({
 }) {
   const [tagInput, setTagInput] = useState("");
   const petImageRef = useRef<HTMLInputElement>(null);
+  const isWeightValid =
+    !!form.weight && !Number.isNaN(Number(form.weight)) && Number(form.weight) > 0;
+  const shouldShowSizeInfo = !form.size_category_id && (!form.pet_type_id || !isWeightValid);
+
+  useEffect(() => {
+    const nextSizeId = findMatchedSizeId(
+      options.sizeCategories,
+      form.pet_type_id,
+      form.weight,
+    );
+    setForm((prev) =>
+      prev.size_category_id === nextSizeId
+        ? prev
+        : { ...prev, size_category_id: nextSizeId },
+    );
+  }, [form.pet_type_id, form.weight, options.sizeCategories, setForm]);
 
   const addTag = () => {
     const tag = tagInput.trim().toLowerCase();
@@ -304,8 +348,9 @@ function PetFormDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+    <TooltipProvider delayDuration={100}>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display">
             {mode === "create" ? "Tambah Pet Baru" : "Edit Pet"}
@@ -411,21 +456,51 @@ function PetFormDialog({
           {/* Size & Hair */}
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="pet-size">
-                Ukuran <span className="text-destructive">*</span>
-              </Label>
+              <div className="flex items-center gap-1">
+                <Label htmlFor="pet-size">Ukuran</Label>
+                {shouldShowSizeInfo && (
+                  <>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex md:hidden items-center text-muted-foreground hover:text-foreground"
+                          aria-label="Info ukuran otomatis"
+                        >
+                          <Info className="h-3 w-3" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-2 text-xs" align="start">
+                        Otomatis terisi setelah tipe hewan dan berat diinput.
+                      </PopoverContent>
+                    </Popover>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="hidden md:inline-flex items-center text-muted-foreground hover:text-foreground"
+                          aria-label="Info ukuran otomatis"
+                        >
+                          <Info className="h-3 w-3 cursor-help" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Otomatis terisi setelah tipe hewan dan berat diinput.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </>
+                )}
+              </div>
               <Combobox
                 options={options.sizeCategories.map((o) => ({
                   value: o._id,
                   label: o.name,
                 }))}
                 value={form.size_category_id}
-                onValueChange={(v) =>
-                  setForm((p) => ({ ...p, size_category_id: v }))
-                }
-                placeholder="Pilih ukuran"
+                placeholder="Otomatis terisi"
                 searchPlaceholder="Cari ukuran..."
                 emptyText="Ukuran tidak ditemukan."
+                disabled
               />
             </div>
             <div className="flex flex-col gap-2">
@@ -462,17 +537,20 @@ function PetFormDialog({
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="pet-weight">Berat (kg)</Label>
+              <Label htmlFor="pet-weight">
+                Berat (kg) <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="pet-weight"
                 type="number"
-                min="0"
+                min="0.1"
                 step="0.1"
                 placeholder="15"
                 value={form.weight}
                 onChange={(e) =>
                   setForm((p) => ({ ...p, weight: e.target.value }))
                 }
+                required
               />
             </div>
           </div>
@@ -567,6 +645,7 @@ function PetFormDialog({
         </form>
       </DialogContent>
     </Dialog>
+    </TooltipProvider>
   );
 }
 
@@ -638,7 +717,7 @@ export default function CustomerPetsPage() {
         setOptions({
           petTypes: petTypes.options,
           hairCategories: hair.options,
-          sizeCategories: size.options,
+          sizeCategories: size.options.filter((option) => option.is_active),
           breedCategories: breed.options,
         });
       })
@@ -656,6 +735,10 @@ export default function CustomerPetsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!createForm.weight || Number.isNaN(Number(createForm.weight)) || Number(createForm.weight) <= 0) {
+      toast.error("Berat wajib diisi dan harus lebih dari 0");
+      return;
+    }
     setIsCreating(true);
     try {
       const payload = formToPayload(createForm, userId);
@@ -685,6 +768,10 @@ export default function CustomerPetsPage() {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editPet) return;
+    if (!editForm.weight || Number.isNaN(Number(editForm.weight)) || Number(editForm.weight) <= 0) {
+      toast.error("Berat wajib diisi dan harus lebih dari 0");
+      return;
+    }
     setIsEditing(true);
     const payload: UpdatePetPayload = {
       name: editForm.name,
