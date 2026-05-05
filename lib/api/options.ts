@@ -8,11 +8,25 @@ export type CategoryOption =
   | "pet type"
   | "session - skill";
 
+export interface PetWeightRule {
+  minWeight: number;
+  maxWeight: number;
+  petTypeId: string;
+}
+
+// API response may have populated petTypeId
+export interface ApiPetWeightRule {
+  minWeight: number;
+  maxWeight: number;
+  petTypeId: string | { _id: string; name: string };
+}
+
 export interface ApiOption {
   _id: string;
   name: string;
   category_options: CategoryOption;
   is_active: boolean;
+  pet_weight_rules?: ApiPetWeightRule[];
   createdAt: string;
 }
 
@@ -25,6 +39,7 @@ export type OptionPayload = {
   name: string;
   category_options: CategoryOption;
   is_active: boolean;
+  pet_weight_rules?: PetWeightRule[];
 };
 
 export async function getOptions(category?: CategoryOption) {

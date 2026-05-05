@@ -43,6 +43,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  PetWeightRulesForm,
+  type PetWeightRule,
+} from "@/components/admin/pet-weight-rules-form";
+import {
   createOption,
   deleteOption as deleteOptionRequest,
   getOptions,
@@ -79,6 +83,7 @@ const DEFAULT_FORM: OptionForm = {
   name: "",
   category_options: "size category",
   is_active: true,
+  pet_weight_rules: [],
 };
 
 // ── Highlight helper ──────────────────────────────────────────────────────
@@ -168,7 +173,15 @@ export default function OptionsPage() {
     e.preventDefault();
     setIsCreating(true);
     try {
-      await createOption(createForm);
+      // Only send pet_weight_rules for size category
+      const submitData: OptionPayload = {
+        ...createForm,
+        pet_weight_rules:
+          createForm.category_options === "size category"
+            ? createForm.pet_weight_rules
+            : undefined,
+      };
+      await createOption(submitData);
       toast.success("Option berhasil dibuat");
       setAddOpen(false);
       setCreateForm(DEFAULT_FORM);
@@ -182,10 +195,22 @@ export default function OptionsPage() {
 
   const openEdit = (opt: ApiOption) => {
     setEditOption(opt);
+
+    // Normalize pet_weight_rules: extract petTypeId if it's an object
+    const normalizedRules = (opt.pet_weight_rules || []).map((rule) => ({
+      minWeight: rule.minWeight,
+      maxWeight: rule.maxWeight,
+      petTypeId:
+        typeof rule.petTypeId === "string"
+          ? rule.petTypeId
+          : rule.petTypeId._id,
+    }));
+
     setEditForm({
       name: opt.name,
       category_options: activeCategory,
       is_active: opt.is_active,
+      pet_weight_rules: normalizedRules,
     });
   };
 
@@ -194,7 +219,15 @@ export default function OptionsPage() {
     if (!editOption) return;
     setIsEditing(true);
     try {
-      await updateOption(editOption._id, editForm);
+      // Only send pet_weight_rules for size category
+      const submitData: OptionPayload = {
+        ...editForm,
+        pet_weight_rules:
+          editForm.category_options === "size category"
+            ? editForm.pet_weight_rules
+            : undefined,
+      };
+      await updateOption(editOption._id, submitData);
       toast.success("Option berhasil diperbarui");
       setEditOption(null);
       fetchOptions();
@@ -450,13 +483,16 @@ export default function OptionsPage() {
           if (!o) setCreateForm(DEFAULT_FORM);
         }}
       >
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-display">
               Tambah Option Baru
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreate} className="flex flex-col gap-4">
+          <form
+            onSubmit={handleCreate}
+            className="flex flex-col gap-4 max-h-[80vh] overflow-y-auto"
+          >
             <div className="flex flex-col gap-2">
               <Label htmlFor="c-name">Nama</Label>
               <Input
@@ -479,6 +515,19 @@ export default function OptionsPage() {
               />
               <Label htmlFor="c-active">Aktif</Label>
             </div>
+
+            {/* Pet Weight Rules - Only show for size category */}
+            {createForm.category_options === "size category" && (
+              <div className="border-t pt-4">
+                <PetWeightRulesForm
+                  rules={createForm.pet_weight_rules || []}
+                  onChange={(rules) =>
+                    setCreateForm((p) => ({ ...p, pet_weight_rules: rules }))
+                  }
+                />
+              </div>
+            )}
+
             <Button type="submit" className="mt-2 w-full" disabled={isCreating}>
               {isCreating ? "Menyimpan..." : "Tambah Option"}
             </Button>
@@ -493,11 +542,14 @@ export default function OptionsPage() {
           if (!o) setEditOption(null);
         }}
       >
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="font-display">Edit Option</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleEdit} className="flex flex-col gap-4">
+          <form
+            onSubmit={handleEdit}
+            className="flex flex-col gap-4 max-h-[80vh] overflow-y-auto"
+          >
             <div className="flex flex-col gap-2">
               <Label htmlFor="e-name">Nama</Label>
               <Input
@@ -520,6 +572,19 @@ export default function OptionsPage() {
               />
               <Label htmlFor="e-active">Aktif</Label>
             </div>
+
+            {/* Pet Weight Rules - Only show for size category */}
+            {editForm.category_options === "size category" && (
+              <div className="border-t pt-4">
+                <PetWeightRulesForm
+                  rules={editForm.pet_weight_rules || []}
+                  onChange={(rules) =>
+                    setEditForm((p) => ({ ...p, pet_weight_rules: rules }))
+                  }
+                />
+              </div>
+            )}
+
             <Button type="submit" className="mt-2 w-full" disabled={isEditing}>
               {isEditing ? "Menyimpan..." : "Simpan Perubahan"}
             </Button>
