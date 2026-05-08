@@ -4,11 +4,23 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { getAdminBookings, type AdminBooking } from "@/lib/api/bookings";
-import { getPublicStores, getPublicServices } from "@/lib/api/stores";
+import {
+  getPublicStores,
+  getPublicServices,
+  getPublicBookingPreview,
+} from "@/lib/api/stores";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -16,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
@@ -123,9 +136,17 @@ const statusOptions = [
 
 // ── Booking Card ─────────────────────────────────────────────────────────────
 function BookingCard({ booking }: { booking: AdminBooking }) {
+  const normalizedLocationType =
+    booking.type === "home_service" ? "in home" : "in store";
+
   const router = useRouter();
   const { toast } = useToast();
   const [reordering, setReordering] = useState(false);
+  const [reorderModalOpen, setReorderModalOpen] = useState(false);
+  const [reorderDate, setReorderDate] = useState("");
+  const [reorderSession, setReorderSession] = useState("");
+  const [availableSessions, setAvailableSessions] = useState<string[]>([]);
+  const [pendingParams, setPendingParams] = useState<URLSearchParams | null>(null);
 
   async function handleReorder(e: React.MouseEvent) {
     e.stopPropagation();
@@ -184,18 +205,88 @@ function BookingCard({ booking }: { booking: AdminBooking }) {
         storeId: booking.store_id,
         serviceTypeId,
         serviceId,
-        locationType: booking.type,
+        locationType: normalizedLocationType,
+        petId: booking.pet_id,
+        reOrder: "1",
       });
       if (booking.service_addon_ids?.length) {
         params.set("addonIds", booking.service_addon_ids.join(","));
       }
-      router.push(`/booking?${params.toString()}`);
+      if (booking.pick_up) {
+        params.set("pickUp", "1");
+      }
+      if (booking.delivery) {
+        params.set("delivery", "1");
+      }
+
+      setPendingParams(params);
+      setAvailableSessions(store.sessions ?? []);
+      setReorderDate("");
+      setReorderSession("");
+      setReorderModalOpen(true);
+      setReordering(false);
     } catch {
       toast({
         variant: "destructive",
         title: "Gagal memproses re-order",
         description: "Terjadi kesalahan. Silakan coba lagi.",
       });
+      setReordering(false);
+    }
+  }
+
+  async function handleContinueReorder() {
+    if (!reorderDate || !reorderSession) {
+      toast({
+        variant: "destructive",
+        title: "Data belum lengkap",
+        description: "Silakan pilih tanggal dan sesi terlebih dahulu.",
+      });
+      return;
+    }
+    if (!pendingParams) return;
+    if (!availableSessions.includes(reorderSession)) {
+      toast({
+        variant: "destructive",
+        title: "Sesi tidak tersedia",
+        description: "Sesi yang dipilih tidak tersedia di store ini.",
+      });
+      return;
+    }
+
+    setReordering(true);
+    try {
+      // Validate latest slot availability before navigating.
+      await getPublicBookingPreview({
+        pet_id: booking.pet_id,
+        service_id: booking.service_snapshot._id,
+        addon_ids:
+          booking.service_addon_ids && booking.service_addon_ids.length > 0
+            ? booking.service_addon_ids
+            : undefined,
+        date: reorderDate,
+        time_range: reorderSession,
+        service_location_type: normalizedLocationType,
+        pick_up: booking.pick_up || undefined,
+        delivery: booking.delivery || undefined,
+        store_id: booking.store_id,
+        customer_id: booking.customer_id,
+      });
+      const params = new URLSearchParams(pendingParams);
+      params.set("date", reorderDate);
+      params.set("timeRange", reorderSession);
+      router.push(`/booking?${params.toString()}`);
+      setReorderModalOpen(false);
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Sesi tidak tersedia",
+        description:
+          err instanceof Error
+            ? err.message
+            : "Sesi yang dipilih penuh atau tidak tersedia. Silakan pilih sesi lain.",
+      });
+    } finally {
       setReordering(false);
     }
   }
@@ -215,29 +306,30 @@ function BookingCard({ booking }: { booking: AdminBooking }) {
     booking.sessions?.filter((s) => s.notes && s.notes.trim()) ?? [];
 
   return (
-    <Card
-      className="cursor-pointer overflow-hidden border-border/50 transition-shadow hover:shadow-md"
-      onClick={() => router.push(`/customer/order/${booking._id}`)}
-    >
-      {/* Header bar */}
-      <div
-        className={`flex items-center justify-between gap-3 border-b px-5 py-3 ${
-          booking.booking_status === "in progress"
-            ? "border-primary/10 bg-primary/5"
-            : "border-border/40 bg-muted/30"
-        }`}
+    <>
+      <Card
+        className="cursor-pointer overflow-hidden border-border/50 transition-shadow hover:shadow-md"
+        onClick={() => router.push(`/customer/order/${booking._id}`)}
       >
-        <span className="font-mono text-xs text-muted-foreground">
-          #{booking._id.slice(-8).toUpperCase()}
-        </span>
-        <Badge
-          variant="outline"
-          className={`gap-1 text-[11px] font-medium ${cfg.className}`}
+        {/* Header bar */}
+        <div
+          className={`flex items-center justify-between gap-3 border-b px-5 py-3 ${
+            booking.booking_status === "in progress"
+              ? "border-primary/10 bg-primary/5"
+              : "border-border/40 bg-muted/30"
+          }`}
         >
-          {cfg.icon}
-          {cfg.label}
-        </Badge>
-      </div>
+          <span className="font-mono text-xs text-muted-foreground">
+            #{booking._id.slice(-8).toUpperCase()}
+          </span>
+          <Badge
+            variant="outline"
+            className={`gap-1 text-[11px] font-medium ${cfg.className}`}
+          >
+            {cfg.icon}
+            {cfg.label}
+          </Badge>
+        </div>
 
       <CardContent className="flex flex-col gap-4 p-5">
         {/* Pet + Service + Type */}
@@ -370,7 +462,69 @@ function BookingCard({ booking }: { booking: AdminBooking }) {
           </Button>
         </div>
       </CardContent>
-    </Card>
+      </Card>
+
+      <Dialog open={reorderModalOpen} onOpenChange={setReorderModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pilih Jadwal Re-Order</DialogTitle>
+            <DialogDescription>
+              Pilih tanggal dan sesi baru. Data booking lain akan otomatis mengikuti booking sebelumnya.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-1">
+            <div className="grid gap-1.5">
+              <label className="text-sm font-medium">Tanggal</label>
+              <Input
+                type="date"
+                value={reorderDate}
+                min={new Date().toISOString().split("T")[0]}
+                onChange={(e) => setReorderDate(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <label className="text-sm font-medium">Sesi</label>
+              <Select value={reorderSession} onValueChange={setReorderSession}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih sesi" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableSessions.map((session) => (
+                    <SelectItem key={session} value={session}>
+                      {session}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setReorderModalOpen(false)}
+              disabled={reordering}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              onClick={handleContinueReorder}
+              disabled={reordering}
+            >
+              {reordering ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Memproses...
+                </>
+              ) : (
+                "Lanjutkan"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -422,6 +576,7 @@ function ErrorState({ message }: { message: string }) {
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function CustomerOrderPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -466,30 +621,43 @@ export default function CustomerOrderPage() {
       </div>
 
       {/* Status Filter */}
-      <div className="flex items-center gap-3">
-        <label
-          htmlFor="status-filter"
-          className="text-sm font-medium text-muted-foreground"
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label
+            htmlFor="status-filter"
+            className="text-sm font-medium text-muted-foreground"
+          >
+            Filter Status:
+          </label>
+          <div className="flex items-center gap-3">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger
+                id="status-filter"
+                className="w-full sm:w-[240px] md:w-[240px]"
+              >
+                <SelectValue placeholder="Pilih status" />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {statusFilter !== "all" && (
+              <span className="text-xs text-muted-foreground">
+                {bookings.length} booking ditemukan
+              </span>
+            )}
+          </div>
+        </div>
+        <Button
+          onClick={() => router.push("/booking")}
+          className="w-full sm:w-auto"
         >
-          Filter Status:
-        </label>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger id="status-filter" className="w-[240px]">
-            <SelectValue placeholder="Pilih status" />
-          </SelectTrigger>
-          <SelectContent>
-            {statusOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {statusFilter !== "all" && (
-          <span className="text-xs text-muted-foreground">
-            {bookings.length} booking ditemukan
-          </span>
-        )}
+          Book Now
+        </Button>
       </div>
 
       {/* Content */}

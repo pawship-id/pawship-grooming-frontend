@@ -57,6 +57,7 @@ export interface ApiPetType {
 
 export interface ApiPetMembership {
   membership_id: string;
+  name?: string;
   start_date: string;
   end_date: string;
   status: "active" | "inactive" | "expired";

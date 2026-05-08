@@ -91,6 +91,12 @@ function BookingContent() {
     | "in home"
     | "in store"
     | null;
+  const petIdFromQuery = searchParams.get("petId");
+  const dateFromQuery = searchParams.get("date");
+  const timeRangeFromQuery = searchParams.get("timeRange");
+  const pickUpFromQuery = searchParams.get("pickUp");
+  const deliveryFromQuery = searchParams.get("delivery");
+  const isReOrderFlow = searchParams.get("reOrder") === "1";
   const { user: authUser, isAuthenticated } = useAuth();
 
   // ── State Declarations ──────────────────────────────────────────────────
@@ -124,8 +130,10 @@ function BookingContent() {
   const [showAddons, setShowAddons] = useState(false);
 
   // Date & session slot state
-  const [selectedDate, setSelectedDate] = useState("");
-  const [selectedTimeRange, setSelectedTimeRange] = useState("");
+  const [selectedDate, setSelectedDate] = useState(dateFromQuery ?? "");
+  const [selectedTimeRange, setSelectedTimeRange] = useState(
+    timeRangeFromQuery ?? "",
+  );
 
   // Options from API (pet types, breeds, sizes, hair)
   const [petTypes, setPetTypes] = useState<PublicOption[]>([]);
@@ -809,6 +817,15 @@ function BookingContent() {
       .finally(() => setAddOnsLoading(false));
   }, [selectedStoreId, selectedServiceTypeId, stores]);
 
+  useEffect(() => {
+    if (pickUpFromQuery === "1") {
+      setIsPickup(true);
+    }
+    if (deliveryFromQuery === "1") {
+      setIsDelivery(true);
+    }
+  }, [pickUpFromQuery, deliveryFromQuery]);
+
   // Fetch pet options
   useEffect(() => {
     setOptionsLoading(true);
@@ -885,11 +902,24 @@ function BookingContent() {
           }));
         setExistingPets(pets);
         setPetMode(pets.length > 0 ? "select" : "create");
-        setSelectedPetId(pets[0]?._id ?? "");
+        if (petIdFromQuery && pets.some((p) => p._id === petIdFromQuery)) {
+          setSelectedPetId(petIdFromQuery);
+        } else {
+          setSelectedPetId(pets[0]?._id ?? "");
+        }
       })
       .catch(() => {})
       .finally(() => setAuthDataLoaded(true));
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isReOrderFlow) return;
+    if (!isAuthenticated) return;
+    if (!existingUser) return;
+    if (petMode !== "select") {
+      setPetMode("select");
+    }
+  }, [isReOrderFlow, isAuthenticated, existingUser, petMode]);
 
   // Preview: auto-fetch pricing when user info is confirmed
   useEffect(() => {
