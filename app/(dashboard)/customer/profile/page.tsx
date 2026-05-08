@@ -1,18 +1,29 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Mail, Phone, Shield, Calendar, User, Weight, Tag, Pencil, Plus, Trash2, MapPin, Map, Eye, Info } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useRouter } from "next/navigation";
+import { Pencil, Plus, Trash2, MapPin, Eye, Info } from "lucide-react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,8 +34,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { toast } from "sonner";
 import {
   getCurrentUser,
@@ -77,12 +97,18 @@ function EditProfileDialog({
   const [form, setForm] = useState<ProfileFormState>({
     full_name: profile.profile?.full_name ?? "",
     gender: profile.profile?.gender ?? "",
-    addresses: profile.profile?.addresses?.length ? profile.profile.addresses : [],
+    addresses: profile.profile?.addresses?.length
+      ? profile.profile.addresses
+      : [],
   });
   const [saving, setSaving] = useState(false);
-  const [editingAddressIdx, setEditingAddressIdx] = useState<number | null>(null);
+  const [editingAddressIdx, setEditingAddressIdx] = useState<number | null>(
+    null,
+  );
   const [mapOpen, setMapOpen] = useState(false);
-  const [pendingGeocode, setPendingGeocode] = useState<Record<number, GeocodedAddress | null>>({});
+  const [pendingGeocode, setPendingGeocode] = useState<
+    Record<number, GeocodedAddress | null>
+  >({});
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const profileImageRef = useRef<HTMLInputElement>(null);
@@ -281,11 +307,20 @@ function EditProfileDialog({
                           idPrefix={`address-${idx}`}
                           value={addr}
                           pendingGeocode={pendingGeocode[idx] ?? null}
-                          onGeocodeConsumed={() => setPendingGeocode((prev) => ({ ...prev, [idx]: null }))}
-                          onChange={(patch) => setForm((f) => ({
-                            ...f,
-                            addresses: f.addresses.map((a, i) => i === idx ? { ...a, ...patch } : a),
-                          }))}
+                          onGeocodeConsumed={() =>
+                            setPendingGeocode((prev) => ({
+                              ...prev,
+                              [idx]: null,
+                            }))
+                          }
+                          onChange={(patch) =>
+                            setForm((f) => ({
+                              ...f,
+                              addresses: f.addresses.map((a, i) =>
+                                i === idx ? { ...a, ...patch } : a,
+                              ),
+                            }))
+                          }
                           onOpenMap={() => setMapOpen(true)}
                         />
                       </div>
@@ -419,23 +454,33 @@ function EditProfileDialog({
           </form>
         </DialogContent>
       </Dialog>
-    <MapPickerModal
-      open={mapOpen}
-      onOpenChange={setMapOpen}
-      selectedLat={editingAddressIdx !== null ? form.addresses[editingAddressIdx]?.latitude ?? null : null}
-      selectedLng={editingAddressIdx !== null ? form.addresses[editingAddressIdx]?.longitude ?? null : null}
-      onSelect={(lat, lng, components) => {
-        if (editingAddressIdx === null) return;
-        const targetIdx = editingAddressIdx;
-        setForm((f) => ({
-          ...f,
-          addresses: f.addresses.map((a, i) => i === targetIdx ? { ...a, latitude: lat, longitude: lng } : a),
-        }));
-        if (components) {
-          setPendingGeocode((prev) => ({ ...prev, [targetIdx]: components }));
+      <MapPickerModal
+        open={mapOpen}
+        onOpenChange={setMapOpen}
+        selectedLat={
+          editingAddressIdx !== null
+            ? (form.addresses[editingAddressIdx]?.latitude ?? null)
+            : null
         }
-      }}
-    />
+        selectedLng={
+          editingAddressIdx !== null
+            ? (form.addresses[editingAddressIdx]?.longitude ?? null)
+            : null
+        }
+        onSelect={(lat, lng, components) => {
+          if (editingAddressIdx === null) return;
+          const targetIdx = editingAddressIdx;
+          setForm((f) => ({
+            ...f,
+            addresses: f.addresses.map((a, i) =>
+              i === targetIdx ? { ...a, latitude: lat, longitude: lng } : a,
+            ),
+          }));
+          if (components) {
+            setPendingGeocode((prev) => ({ ...prev, [targetIdx]: components }));
+          }
+        }}
+      />
     </>
   );
 }
@@ -537,7 +582,12 @@ function PetFormDialog({
   }
 
   function calculateSize() {
-    if (!form.pet_type_id || !form.weight || isNaN(Number(form.weight)) || Number(form.weight) <= 0) {
+    if (
+      !form.pet_type_id ||
+      !form.weight ||
+      isNaN(Number(form.weight)) ||
+      Number(form.weight) <= 0
+    ) {
       set("size_category_id", "");
       return;
     }
@@ -550,8 +600,8 @@ function PetFormDialog({
             ? rule.petTypeId
             : rule.petTypeId._id) === selectedPetTypeId &&
           weight > rule.minWeight &&
-          weight <= rule.maxWeight
-      )
+          weight <= rule.maxWeight,
+      ),
     );
     set("size_category_id", matchedSize?._id || "");
   }
@@ -572,7 +622,8 @@ function PetFormDialog({
     e.preventDefault();
     if (!form.name.trim()) return toast.error("Nama pet wajib diisi");
     if (!form.pet_type_id) return toast.error("Tipe pet wajib dipilih");
-    if (!form.weight || isNaN(Number(form.weight)) || Number(form.weight) <= 0) return toast.error("Berat wajib diisi dan harus lebih dari 0");
+    if (!form.weight || isNaN(Number(form.weight)) || Number(form.weight) <= 0)
+      return toast.error("Berat wajib diisi dan harus lebih dari 0");
     if (!form.breed_category_id) return toast.error("Ras wajib dipilih");
 
     setSaving(true);
@@ -632,253 +683,256 @@ function PetFormDialog({
           <DialogHeader>
             <DialogTitle>{editingPet ? "Edit Pet" : "Tambah Pet"}</DialogTitle>
           </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {/* Image Upload */}
-          <div className="flex flex-col gap-1.5">
-            <Label>Foto Pet</Label>
-            <div className="flex items-center gap-4">
-              <div
-                className="w-20 h-20 rounded-lg border-2 border-dashed border-border bg-muted flex items-center justify-center overflow-hidden cursor-pointer shrink-0"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {imagePreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={imagePreview}
-                    alt="preview"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-3xl select-none">🐾</span>
-                )}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {/* Image Upload */}
+            <div className="flex flex-col gap-1.5">
+              <Label>Foto Pet</Label>
+              <div className="flex items-center gap-4">
+                <div
+                  className="w-20 h-20 rounded-lg border-2 border-dashed border-border bg-muted flex items-center justify-center overflow-hidden cursor-pointer shrink-0"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  {imagePreview ? "Ganti Foto" : "Upload Foto"}
-                </Button>
-                {imageFile && (
+                  {imagePreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={imagePreview}
+                      alt="preview"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="text-3xl select-none">🐾</span>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {imagePreview ? "Ganti Foto" : "Upload Foto"}
+                  </Button>
+                  {imageFile && (
+                    <p className="text-xs text-muted-foreground">
+                      {imageFile.name}
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground">
-                    {imageFile.name}
+                    Maks. 2 MB (JPG/PNG)
                   </p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Maks. 2 MB (JPG/PNG)
-                </p>
+                </div>
               </div>
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              className="hidden"
-              onChange={handleImageChange}
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="pet-name">
-              Nama <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="pet-name"
-              value={form.name}
-              onChange={(e) => set("name", e.target.value)}
-              placeholder="Nama pet"
-              required
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label>
-                Tipe Pet <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={form.pet_type_id}
-                onValueChange={(v) => set("pet_type_id", v)}
-                disabled={loadingOptions}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih tipe" />
-                </SelectTrigger>
-                <SelectContent>
-                  {petTypes.map((o) => (
-                    <SelectItem key={o._id} value={o._id}>
-                      {o.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleImageChange}
+              />
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-1">
-                <Label>Ukuran</Label>
-                {shouldShowSizeInfo && (
-                  <>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className="inline-flex md:hidden items-center text-muted-foreground hover:text-foreground"
-                          aria-label="Info ukuran otomatis"
-                        >
-                          <Info className="h-3 w-3" />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-64 p-2 text-xs" align="start">
-                        Otomatis terisi setelah tipe hewan dan berat diinput.
-                      </PopoverContent>
-                    </Popover>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          className="hidden md:inline-flex items-center text-muted-foreground hover:text-foreground"
-                          aria-label="Info ukuran otomatis"
-                        >
-                          <Info className="h-3 w-3 cursor-help" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Otomatis terisi setelah tipe hewan dan berat diinput.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </>
-                )}
-              </div>
-              <Select
-                value={form.size_category_id}
-                disabled
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Otomatis terisi" />
-                </SelectTrigger>
-                <SelectContent>
-                  {sizes.map((o) => (
-                    <SelectItem key={o._id} value={o._id}>
-                      {o.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label>
-                Ras <span className="text-destructive">*</span>
-              </Label>
-              <Select
-                value={form.breed_category_id}
-                onValueChange={(v) => set("breed_category_id", v)}
-                disabled={loadingOptions}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih ras" />
-                </SelectTrigger>
-                <SelectContent>
-                  {breeds.map((o) => (
-                    <SelectItem key={o._id} value={o._id}>
-                      {o.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label>Jenis Rambut</Label>
-              <Select
-                value={form.hair_category_id}
-                onValueChange={(v) => set("hair_category_id", v)}
-                disabled={loadingOptions}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Pilih jenis rambut" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— Tidak dipilih —</SelectItem>
-                  {hairs.map((o) => (
-                    <SelectItem key={o._id} value={o._id}>
-                      {o.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="pet-weight">
-                Berat (kg) <span className="text-destructive">*</span>
+              <Label htmlFor="pet-name">
+                Nama <span className="text-destructive">*</span>
               </Label>
               <Input
-                id="pet-weight"
-                type="number"
-                min="0.1"
-                step="0.1"
-                value={form.weight}
-                onChange={(e) => set("weight", e.target.value)}
-                placeholder="Contoh: 4.5"
+                id="pet-name"
+                value={form.name}
+                onChange={(e) => set("name", e.target.value)}
+                placeholder="Nama pet"
                 required
               />
             </div>
 
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="flex flex-col gap-1.5">
+                <Label>
+                  Tipe Pet <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={form.pet_type_id}
+                  onValueChange={(v) => set("pet_type_id", v)}
+                  disabled={loadingOptions}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih tipe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {petTypes.map((o) => (
+                      <SelectItem key={o._id} value={o._id}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-1">
+                  <Label>Ukuran</Label>
+                  {shouldShowSizeInfo && (
+                    <>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex md:hidden items-center text-muted-foreground hover:text-foreground"
+                            aria-label="Info ukuran otomatis"
+                          >
+                            <Info className="h-3 w-3" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-64 p-2 text-xs"
+                          align="start"
+                        >
+                          Otomatis terisi setelah tipe hewan dan berat diinput.
+                        </PopoverContent>
+                      </Popover>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="hidden md:inline-flex items-center text-muted-foreground hover:text-foreground"
+                            aria-label="Info ukuran otomatis"
+                          >
+                            <Info className="h-3 w-3 cursor-help" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>
+                            Otomatis terisi setelah tipe hewan dan berat
+                            diinput.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </>
+                  )}
+                </div>
+                <Select value={form.size_category_id} disabled>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Otomatis terisi" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sizes.map((o) => (
+                      <SelectItem key={o._id} value={o._id}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label>
+                  Ras <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={form.breed_category_id}
+                  onValueChange={(v) => set("breed_category_id", v)}
+                  disabled={loadingOptions}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih ras" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {breeds.map((o) => (
+                      <SelectItem key={o._id} value={o._id}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label>Jenis Rambut</Label>
+                <Select
+                  value={form.hair_category_id}
+                  onValueChange={(v) => set("hair_category_id", v)}
+                  disabled={loadingOptions}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pilih jenis rambut" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Tidak dipilih —</SelectItem>
+                    {hairs.map((o) => (
+                      <SelectItem key={o._id} value={o._id}>
+                        {o.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="pet-weight">
+                  Berat (kg) <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="pet-weight"
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  value={form.weight}
+                  onChange={(e) => set("weight", e.target.value)}
+                  placeholder="Contoh: 4.5"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="pet-birthday">Tanggal Lahir</Label>
+                <Input
+                  id="pet-birthday"
+                  type="date"
+                  value={form.birthday}
+                  onChange={(e) => set("birthday", e.target.value)}
+                />
+              </div>
+            </div>
+
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="pet-birthday">Tanggal Lahir</Label>
-              <Input
-                id="pet-birthday"
-                type="date"
-                value={form.birthday}
-                onChange={(e) => set("birthday", e.target.value)}
+              <Label htmlFor="pet-desc">Deskripsi</Label>
+              <Textarea
+                id="pet-desc"
+                value={form.description}
+                onChange={(e) => set("description", e.target.value)}
+                placeholder="Catatan atau deskripsi singkat (opsional)"
+                rows={3}
               />
             </div>
-          </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="pet-desc">Deskripsi</Label>
-            <Textarea
-              id="pet-desc"
-              value={form.description}
-              onChange={(e) => set("description", e.target.value)}
-              placeholder="Catatan atau deskripsi singkat (opsional)"
-              rows={3}
-            />
-          </div>
+            <div className="flex items-center gap-2">
+              <input
+                id="pet-active"
+                type="checkbox"
+                checked={form.is_active}
+                onChange={(e) => set("is_active", e.target.checked)}
+                className="h-4 w-4 rounded border-border"
+              />
+              <Label htmlFor="pet-active" className="cursor-pointer">
+                Aktif
+              </Label>
+            </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              id="pet-active"
-              type="checkbox"
-              checked={form.is_active}
-              onChange={(e) => set("is_active", e.target.checked)}
-              className="h-4 w-4 rounded border-border"
-            />
-            <Label htmlFor="pet-active" className="cursor-pointer">
-              Aktif
-            </Label>
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={saving}
-            >
-              Batal
-            </Button>
-            <Button type="submit" disabled={saving || loadingOptions}>
-              {saving ? "Menyimpan..." : editingPet ? "Perbarui" : "Tambah"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={saving}
+              >
+                Batal
+              </Button>
+              <Button type="submit" disabled={saving || loadingOptions}>
+                {saving ? "Menyimpan..." : editingPet ? "Perbarui" : "Tambah"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }
@@ -894,7 +948,11 @@ function PetDetailDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const activeMembership = pet.memberships?.find((m) => m.status === "active");
+  const activeMembership = pet.memberships?.filter(
+    (m) => m.status === "active",
+  );
+  console.log(pet, "pet");
+  console.log(activeMembership, "memberships");
 
   function InfoChip({
     label,
@@ -917,6 +975,9 @@ function PetDetailDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md p-0 overflow-hidden">
+        <DialogTitle className="sr-only">
+          Detail Hewan Peliharaan {pet.name}
+        </DialogTitle>
         {/* Header — warm gradient matching card accent palette */}
         <div className="relative bg-gradient-to-br from-[#c97b3a] via-[#d9683a] to-[#e05a3a]">
           {/* Decorative dot pattern */}
@@ -1015,32 +1076,49 @@ function PetDetailDialog({
           )} */}
 
           {/* Membership */}
-          {activeMembership && (
-            <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex flex-col gap-1">
-              <p className="text-[9px] font-extrabold tracking-widest text-primary uppercase">
-                Membership Aktif
-              </p>
-              <p className="text-sm font-semibold">
-                {formatDate(activeMembership.start_date)} –{" "}
-                {formatDate(activeMembership.end_date)}
-              </p>
-              <div className="flex items-center gap-2 mt-0.5">
-                <div className="flex-1 h-1.5 rounded-full bg-primary/20 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-primary"
-                    style={{
-                      width:
-                        activeMembership.max_usage > 0
-                          ? `${Math.min(100, (activeMembership.usage_count / activeMembership.max_usage) * 100)}%`
-                          : "0%",
-                    }}
-                  />
+          {activeMembership && activeMembership.length > 0 && (
+            <div className="flex flex-col gap-3">
+              {activeMembership?.map((membership, index) => (
+                <div
+                  key={index}
+                  className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 flex flex-col gap-1"
+                >
+                  <p className="text-[9px] font-extrabold tracking-widest text-primary uppercase">
+                    Membership Aktif
+                  </p>
+                  <p className="text-sm font-semibold text-foreground">
+                    {membership.name}
+                  </p>
+
+                  <p className="text-xs">
+                    {formatDate(membership.start_date)} –{" "}
+                    {formatDate(membership.end_date)}
+                  </p>
+
+                  {/* <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex-1 h-1.5 rounded-full bg-primary/20 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-primary"
+                        style={{
+                          width:
+                            membership.max_usage > 0
+                              ? `${Math.min(
+                                  100,
+                                  (membership.usage_count /
+                                    membership.max_usage) *
+                                    100,
+                                )}%`
+                              : "0%",
+                        }}
+                      />
+                    </div>
+
+                    <span className="text-[10px] text-muted-foreground shrink-0">
+                      {membership.usage_count}/{membership.max_usage} sesi
+                    </span>
+                  </div> */}
                 </div>
-                <span className="text-[10px] text-muted-foreground shrink-0">
-                  {activeMembership.usage_count}/{activeMembership.max_usage}{" "}
-                  sesi
-                </span>
-              </div>
+              ))}
             </div>
           )}
         </div>
@@ -1074,6 +1152,7 @@ function PetCard({
   onEdit: (pet: ApiPet) => void;
   onDelete: (pet: ApiPet) => void;
 }) {
+  const router = useRouter();
   const activeMembership = pet.memberships?.find((m) => m.status === "active");
   const [detailOpen, setDetailOpen] = useState(false);
 
@@ -1139,7 +1218,7 @@ function PetCard({
             <div className="grid grid-cols-3 gap-1 pb-1.5 border-b border-[#e8c9a0] dark:border-[#5a3a1a]">
               <div>
                 <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">
-                  Type
+                  Pet Type
                 </p>
                 <p className="text-[9px] font-bold text-[#c97b3a] uppercase leading-tight">
                   {pet.pet_type?.name ?? "—"}
@@ -1201,7 +1280,7 @@ function PetCard({
                 </p>
               </div>
 
-              {activeMembership && (
+              {/* {activeMembership && (
                 <div className="grid grid-cols-2 gap-1 pt-0.5">
                   <div>
                     <p className="text-[8px] font-extrabold tracking-widest text-[#1a2b4a] dark:text-[#c8b89a] uppercase">
@@ -1220,13 +1299,31 @@ function PetCard({
                     </p>
                   </div>
                 </div>
-              )}
+              )} */}
             </div>
           </div>
         </div>
 
+        {!activeMembership && (
+          <div className="px-3 pt-3 border-t border-[#e8c9a0] dark:border-[#5a3a1a]">
+            <Button
+              type="button"
+              size="sm"
+              className="w-full"
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/membership?petId=${pet._id}`);
+              }}
+            >
+              Join Membership
+            </Button>
+          </div>
+        )}
+
         {/* Footer text */}
-        <div className="px-3 py-1.5 border-t border-[#e8c9a0] dark:border-[#5a3a1a]">
+        <div
+          className={`px-3 py-1.5 ${activeMembership ? "border-t border-[#e8c9a0] dark:border-[#5a3a1a]" : ""}`}
+        >
           <p className="text-[7px] text-center tracking-[0.18em] text-[#1a2b4a]/50 dark:text-[#c8b89a]/50 uppercase leading-relaxed">
             &lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt; YOUR
             &lt;&lt;&lt;&lt;&lt; PAWFRIENDS &lt;&lt;&lt;&lt;&lt; DESERVE
