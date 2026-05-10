@@ -96,7 +96,7 @@ export default function BookingDetailPage({
   return (
     <>
       <div className="flex flex-col gap-6">
-        <BookingHeader bookingId={booking._id} createdAt={booking.createdAt} />
+        <BookingHeader bookingId={booking._id} createdAt={booking.createdAt} bookingCode={booking.code} />
 
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Status Booking */}

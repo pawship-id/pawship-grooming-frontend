@@ -16,6 +16,7 @@ import { BeforeAfterPhotos } from "./_components/before-after-photos";
 import { BookingDetails } from "./_components/booking-details";
 import { CustomerInfo } from "./_components/customer-info";
 import { OrderNotes } from "./_components/order-notes";
+import { SessionReviews } from "./_components/session-reviews";
 
 export default function CustomerOrderDetailPage() {
   const params = useParams();
@@ -26,24 +27,25 @@ export default function CustomerOrderDetailPage() {
 
   const bookingId = params.id as string;
 
-  useEffect(() => {
-    async function fetchBookingDetail() {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await getAdminBookingById(bookingId);
-        setBooking(response.booking);
-      } catch (err) {
-        console.error("Failed to fetch booking detail:", err);
-        setError("Gagal memuat detail booking. Silakan coba lagi.");
-      } finally {
-        setLoading(false);
-      }
+  async function fetchBookingDetail() {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await getAdminBookingById(bookingId);
+      setBooking(response.booking);
+    } catch (err) {
+      console.error("Failed to fetch booking detail:", err);
+      setError("Gagal memuat detail booking. Silakan coba lagi.");
+    } finally {
+      setLoading(false);
     }
+  }
 
+  useEffect(() => {
     if (bookingId) {
       fetchBookingDetail();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
 
   if (loading) return <BookingLoadingState />;
@@ -76,6 +78,13 @@ export default function CustomerOrderDetailPage() {
           <ServiceInfo booking={booking} />
           <PaymentSummary booking={booking} />
           <BeforeAfterPhotos media={allMedia} />
+          {booking.booking_status === "completed" && (
+            <SessionReviews
+              bookingId={booking._id}
+              sessions={booking.sessions}
+              onReviewSubmitted={fetchBookingDetail}
+            />
+          )}
           <StatusHistory statusLogs={booking.status_logs} />
         </div>
 

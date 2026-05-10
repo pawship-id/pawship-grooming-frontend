@@ -74,6 +74,7 @@ export interface BenefitPayload {
 
 export interface MembershipPlan {
   _id: string;
+  code?: string;
   name: string;
   description?: string;
   duration_months: number;
@@ -125,6 +126,7 @@ export interface MembershipPayload {
   is_active?: boolean;
   benefits?: BenefitPayload[];
   apply_retroactive?: boolean;
+  code?: string;
   // public display fields
   show_on_website?: boolean;
   display_order?: number;

@@ -274,6 +274,7 @@ export default function UsersPage() {
       email: user.email || "",
       phone_number: user.phone_number,
       role: user.role,
+      code: user.code,
       full_name: user.profile?.full_name ?? "",
       gender: user.profile?.gender,
       placement: user.profile?.placement,
@@ -308,6 +309,13 @@ export default function UsersPage() {
         toast.error(
           "Nomor telepon harus diawali 0 dan hanya boleh berisi angka (contoh: 08xxx)",
         );
+        setIsCreating(false);
+        return;
+      }
+
+      // Validate code for customer role
+      if (createForm.role === "customer" && !createForm.code?.trim()) {
+        toast.error("Kode Customer wajib diisi");
         setIsCreating(false);
         return;
       }
@@ -349,7 +357,12 @@ export default function UsersPage() {
       setCreateImagePreview(null);
       fetchUsers();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal membuat user.");
+      const msg = err instanceof Error ? err.message : "Gagal membuat user.";
+      if (msg.toLowerCase().includes("code already exists")) {
+        toast.error("Kode sudah digunakan, silakan gunakan kode lain.");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setIsCreating(false);
     }
@@ -385,6 +398,13 @@ export default function UsersPage() {
         return;
       }
 
+      // Validate code for customer role
+      if (editUser.role === "customer" && !editForm.code?.trim()) {
+        toast.error("Kode Customer wajib diisi");
+        setIsEditing(false);
+        return;
+      }
+
       // Update user basic fields only
       const payload: UpdateUserPayload = {
         username: editForm.username,
@@ -395,6 +415,11 @@ export default function UsersPage() {
       // Only include email if not empty
       if (editForm.email && editForm.email.trim() !== "") {
         payload.email = editForm.email;
+      }
+
+      // Include code for customer role
+      if (editUser.role === "customer" && editForm.code?.trim()) {
+        payload.code = editForm.code.trim();
       }
 
       await updateUser(editUser._id, payload);
@@ -448,9 +473,13 @@ export default function UsersPage() {
       setEditingAddressIdx(null);
       fetchUsers();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Gagal memperbarui user.",
-      );
+      const msg =
+        err instanceof Error ? err.message : "Gagal memperbarui user.";
+      if (msg.toLowerCase().includes("code already exists")) {
+        toast.error("Kode sudah digunakan, silakan gunakan kode lain.");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setIsEditing(false);
     }
@@ -1051,6 +1080,11 @@ export default function UsersPage() {
                           year: "numeric",
                         })}
                       </p>
+                      {user.code && (
+                        <p className="text-xs font-mono text-muted-foreground">
+                          {user.code}
+                        </p>
+                      )}
                       {user.role === "customer" && (
                         <Button
                           variant="outline"
@@ -1104,6 +1138,9 @@ export default function UsersPage() {
                       ? Array.from({ length: 8 }).map((_, i) => (
                           <TableRow key={i}>
                             <TableCell>
+                              <Skeleton className="h-4 w-20" />
+                            </TableCell>
+                            <TableCell>
                               <Skeleton className="h-4 w-28" />
                             </TableCell>
                             <TableCell>
@@ -1139,16 +1176,26 @@ export default function UsersPage() {
                                       className="object-cover"
                                     />
                                   )}
+
                                   <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
                                     {user.username.slice(0, 2).toUpperCase()}
                                   </AvatarFallback>
                                 </Avatar>
-                                <span className="font-medium">
-                                  <Highlight
-                                    text={user.username}
-                                    query={debouncedSearch}
-                                  />
-                                </span>
+
+                                <div className="flex flex-col leading-tight">
+                                  <span className="font-medium">
+                                    <Highlight
+                                      text={user.username}
+                                      query={debouncedSearch}
+                                    />
+                                  </span>
+
+                                  {user.role === "customer" && (
+                                    <small className="text-muted-foreground text-[11px]">
+                                      {user.code}
+                                    </small>
+                                  )}
+                                </div>
                               </div>
                             </TableCell>
                             <TableCell className="text-muted-foreground">
@@ -1284,7 +1331,7 @@ export default function UsersPage() {
                     {!isLoading && users.length === 0 && !error && (
                       <TableRow>
                         <TableCell
-                          colSpan={8}
+                          colSpan={9}
                           className="py-12 text-center text-muted-foreground"
                         >
                           Tidak ada pengguna ditemukan
@@ -1507,6 +1554,25 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
+            {createForm.role === "customer" && (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="c-code">
+                  Kode Customer <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  required
+                  id="c-code"
+                  placeholder="Cth: CUST-001"
+                  value={createForm.code ?? ""}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({
+                      ...p,
+                      code: e.target.value || undefined,
+                    }))
+                  }
+                />
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <Switch
                 id="c-active"
@@ -1581,6 +1647,25 @@ export default function UsersPage() {
                 }}
               />
             </div>
+
+            {editUser?.role === "customer" && (
+              <div className="flex flex-col gap-1.5">
+                <Label>
+                  Kode Customer <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  required
+                  placeholder="Cth: CUST-001"
+                  value={editForm.code ?? ""}
+                  onChange={(e) =>
+                    setEditForm((p) => ({
+                      ...p,
+                      code: e.target.value || undefined,
+                    }))
+                  }
+                />
+              </div>
+            )}
 
             <Separator />
 
@@ -2003,12 +2088,12 @@ export default function UsersPage() {
         onOpenChange={setMapOpen}
         selectedLat={
           editingAddressIdx !== null
-            ? editForm.addresses[editingAddressIdx]?.latitude ?? null
+            ? (editForm.addresses[editingAddressIdx]?.latitude ?? null)
             : null
         }
         selectedLng={
           editingAddressIdx !== null
-            ? editForm.addresses[editingAddressIdx]?.longitude ?? null
+            ? (editForm.addresses[editingAddressIdx]?.longitude ?? null)
             : null
         }
         onSelect={(lat, lng, components) => {
@@ -2017,9 +2102,7 @@ export default function UsersPage() {
           setEditForm((f) => ({
             ...f,
             addresses: f.addresses.map((a, i) =>
-              i === targetIdx
-                ? { ...a, latitude: lat, longitude: lng }
-                : a,
+              i === targetIdx ? { ...a, latitude: lat, longitude: lng } : a,
             ),
           }));
           if (components) {

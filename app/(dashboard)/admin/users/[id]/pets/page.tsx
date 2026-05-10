@@ -37,8 +37,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Combobox } from "@/components/ui/combobox";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,6 +85,7 @@ type PetForm = {
   weight: string;
   tags: string[];
   is_active: boolean;
+  code?: string;
 };
 
 const DEFAULT_FORM: PetForm = {
@@ -105,6 +115,7 @@ function petToForm(pet: ApiPet): PetForm {
     weight: pet.weight != null ? String(pet.weight) : "",
     tags: pet.tags ?? [],
     is_active: pet.is_active,
+    code: pet.code,
   };
 }
 
@@ -122,6 +133,7 @@ function formToPayload(form: PetForm, customerId: string): CreatePetPayload {
     tags: form.tags.length > 0 ? form.tags : undefined,
     is_active: form.is_active,
     customer_id: customerId,
+    code: form.code || undefined,
   };
 }
 
@@ -138,7 +150,9 @@ function findMatchedSizeId(
   const matchedSize = sizeOptions.find((sizeOption) =>
     sizeOption.pet_weight_rules?.some((rule) => {
       const rulePetTypeId =
-        typeof rule.petTypeId === "string" ? rule.petTypeId : rule.petTypeId._id;
+        typeof rule.petTypeId === "string"
+          ? rule.petTypeId
+          : rule.petTypeId._id;
       return (
         rulePetTypeId === petTypeId &&
         weight > rule.minWeight &&
@@ -193,6 +207,11 @@ function PetCard({
               <h3 className="font-display font-bold text-foreground leading-tight">
                 {pet.name}
               </h3>
+              {pet.code && (
+                <p className="text-xs font-mono text-muted-foreground mt-0.5">
+                  {pet.code}
+                </p>
+              )}
               <div className="flex flex-wrap gap-1 mt-1">
                 {pet.pet_type && (
                   <Badge
@@ -319,8 +338,11 @@ function PetFormDialog({
   const [tagInput, setTagInput] = useState("");
   const petImageRef = useRef<HTMLInputElement>(null);
   const isWeightValid =
-    !!form.weight && !Number.isNaN(Number(form.weight)) && Number(form.weight) > 0;
-  const shouldShowSizeInfo = !form.size_category_id && (!form.pet_type_id || !isWeightValid);
+    !!form.weight &&
+    !Number.isNaN(Number(form.weight)) &&
+    Number(form.weight) > 0;
+  const shouldShowSizeInfo =
+    !form.size_category_id && (!form.pet_type_id || !isWeightValid);
 
   useEffect(() => {
     const nextSizeId = findMatchedSizeId(
@@ -351,300 +373,325 @@ function PetFormDialog({
     <TooltipProvider delayDuration={100}>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-display">
-            {mode === "create" ? "Tambah Pet Baru" : "Edit Pet"}
-          </DialogTitle>
-        </DialogHeader>
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          {/* Pet Photo */}
-          <div className="flex flex-col items-center gap-2">
-            <button
-              type="button"
-              onClick={() => petImageRef.current?.click()}
-              className="relative group w-20 h-20 rounded-lg overflow-hidden border-2 border-border focus:outline-none"
-            >
-              {imagePreview ? (
-                <img
-                  src={imagePreview}
-                  alt="Foto pet"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-primary/10 flex items-center justify-center">
-                  <PawPrint className="h-7 w-7 text-primary/50" />
-                </div>
-              )}
-              <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-white text-xs font-medium">
-                  {imagePreview ? "Ganti" : "Upload"}
-                </span>
-              </div>
-            </button>
-            <span className="text-xs text-muted-foreground">
-              Foto Pet (opsional)
-            </span>
-            <input
-              ref={petImageRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (ev) =>
-                  onImageChange(file, ev.target?.result as string);
-                reader.readAsDataURL(file);
-              }}
-            />
-          </div>
-          {/* Name */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="pet-name">
-              Nama Pet <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="pet-name"
-              placeholder="Buddy"
-              required
-              value={form.name}
-              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-            />
-          </div>
-
-          {/* Pet Type & Breed */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="pet-type">
-                Jenis Hewan <span className="text-destructive">*</span>
-              </Label>
-              <Combobox
-                options={options.petTypes.map((o) => ({
-                  value: o._id,
-                  label: o.name,
-                }))}
-                value={form.pet_type_id}
-                onValueChange={(v) =>
-                  setForm((p) => ({ ...p, pet_type_id: v }))
-                }
-                placeholder="Pilih jenis hewan"
-                searchPlaceholder="Cari jenis hewan..."
-                emptyText="Jenis hewan tidak ditemukan."
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="pet-breed">
-                Ras <span className="text-destructive">*</span>
-              </Label>
-              <Combobox
-                options={options.breedCategories.map((o) => ({
-                  value: o._id,
-                  label: o.name,
-                }))}
-                value={form.breed_category_id}
-                onValueChange={(v) =>
-                  setForm((p) => ({ ...p, breed_category_id: v }))
-                }
-                placeholder="Pilih ras"
-                searchPlaceholder="Cari ras..."
-                emptyText="Ras tidak ditemukan."
-              />
-            </div>
-          </div>
-
-          {/* Size & Hair */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-1">
-                <Label htmlFor="pet-size">Ukuran</Label>
-                {shouldShowSizeInfo && (
-                  <>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          type="button"
-                          className="inline-flex md:hidden items-center text-muted-foreground hover:text-foreground"
-                          aria-label="Info ukuran otomatis"
-                        >
-                          <Info className="h-3 w-3" />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-64 p-2 text-xs" align="start">
-                        Otomatis terisi setelah tipe hewan dan berat diinput.
-                      </PopoverContent>
-                    </Popover>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          className="hidden md:inline-flex items-center text-muted-foreground hover:text-foreground"
-                          aria-label="Info ukuran otomatis"
-                        >
-                          <Info className="h-3 w-3 cursor-help" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Otomatis terisi setelah tipe hewan dan berat diinput.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </>
+          <DialogHeader>
+            <DialogTitle className="font-display">
+              {mode === "create" ? "Tambah Pet Baru" : "Edit Pet"}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={onSubmit} className="flex flex-col gap-4">
+            {/* Pet Photo */}
+            <div className="flex flex-col items-center gap-2">
+              <button
+                type="button"
+                onClick={() => petImageRef.current?.click()}
+                className="relative group w-20 h-20 rounded-lg overflow-hidden border-2 border-border focus:outline-none"
+              >
+                {imagePreview ? (
+                  <img
+                    src={imagePreview}
+                    alt="Foto pet"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                    <PawPrint className="h-7 w-7 text-primary/50" />
+                  </div>
                 )}
-              </div>
-              <Combobox
-                options={options.sizeCategories.map((o) => ({
-                  value: o._id,
-                  label: o.name,
-                }))}
-                value={form.size_category_id}
-                placeholder="Otomatis terisi"
-                searchPlaceholder="Cari ukuran..."
-                emptyText="Ukuran tidak ditemukan."
-                disabled
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="pet-hair">
-                Jenis Bulu <span className="text-destructive">*</span>
-              </Label>
-              <Combobox
-                options={options.hairCategories.map((o) => ({
-                  value: o._id,
-                  label: o.name,
-                }))}
-                value={form.hair_category_id}
-                onValueChange={(v) =>
-                  setForm((p) => ({ ...p, hair_category_id: v }))
-                }
-                placeholder="Pilih jenis bulu"
-                searchPlaceholder="Cari jenis bulu..."
-                emptyText="Jenis bulu tidak ditemukan."
-              />
-            </div>
-          </div>
-
-          {/* Birthday & Weight */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="pet-birthday">Tanggal Lahir</Label>
-              <Input
-                id="pet-birthday"
-                type="date"
-                value={form.birthday}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, birthday: e.target.value }))
-                }
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="pet-weight">
-                Berat (kg) <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="pet-weight"
-                type="number"
-                min="0.1"
-                step="0.1"
-                placeholder="15"
-                value={form.weight}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, weight: e.target.value }))
-                }
-                required
-              />
-            </div>
-          </div>
-
-          {/* Description */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="pet-desc">Deskripsi</Label>
-            <Textarea
-              id="pet-desc"
-              placeholder="Deskripsi singkat tentang pet..."
-              rows={2}
-              value={form.description}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, description: e.target.value }))
-              }
-            />
-          </div>
-
-          {/* Internal Note */}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="pet-note">Catatan Internal</Label>
-            <Textarea
-              id="pet-note"
-              placeholder="Catatan untuk groomer..."
-              rows={2}
-              value={form.internal_note}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, internal_note: e.target.value }))
-              }
-            />
-          </div>
-
-          {/* Tags */}
-          <div className="flex flex-col gap-2">
-            <Label>Tags</Label>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Tambah tag..."
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addTag();
-                  }
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-white text-xs font-medium">
+                    {imagePreview ? "Ganti" : "Upload"}
+                  </span>
+                </div>
+              </button>
+              <span className="text-xs text-muted-foreground">
+                Foto Pet (opsional)
+              </span>
+              <input
+                ref={petImageRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = (ev) =>
+                    onImageChange(file, ev.target?.result as string);
+                  reader.readAsDataURL(file);
                 }}
               />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addTag}
-              >
-                Tambah
-              </Button>
             </div>
-            {form.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
-                {form.tags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="gap-1">
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeTag(tag)}
-                      className="ml-0.5 hover:text-destructive"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
+            {/* Pet Code */}
+            <div className="flex flex-col gap-1.5">
+              <Label>
+                Kode Pet <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                required
+                placeholder="Cth: PET-001"
+                value={form.code ?? ""}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, code: e.target.value || undefined }))
+                }
+              />
+            </div>
+
+            {/* Name */}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="pet-name">
+                Nama Pet <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="pet-name"
+                placeholder="Buddy"
+                required
+                value={form.name}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, name: e.target.value }))
+                }
+              />
+            </div>
+
+            {/* Pet Type & Breed */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="pet-type">
+                  Jenis Hewan <span className="text-destructive">*</span>
+                </Label>
+                <Combobox
+                  options={options.petTypes.map((o) => ({
+                    value: o._id,
+                    label: o.name,
+                  }))}
+                  value={form.pet_type_id}
+                  onValueChange={(v) =>
+                    setForm((p) => ({ ...p, pet_type_id: v }))
+                  }
+                  placeholder="Pilih jenis hewan"
+                  searchPlaceholder="Cari jenis hewan..."
+                  emptyText="Jenis hewan tidak ditemukan."
+                />
               </div>
-            )}
-          </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="pet-breed">
+                  Ras <span className="text-destructive">*</span>
+                </Label>
+                <Combobox
+                  options={options.breedCategories.map((o) => ({
+                    value: o._id,
+                    label: o.name,
+                  }))}
+                  value={form.breed_category_id}
+                  onValueChange={(v) =>
+                    setForm((p) => ({ ...p, breed_category_id: v }))
+                  }
+                  placeholder="Pilih ras"
+                  searchPlaceholder="Cari ras..."
+                  emptyText="Ras tidak ditemukan."
+                />
+              </div>
+            </div>
 
-          {/* Is Active */}
-          <div className="flex items-center gap-3">
-            <Switch
-              id="pet-active"
-              checked={form.is_active}
-              onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))}
-            />
-            <Label htmlFor="pet-active">Aktif</Label>
-          </div>
+            {/* Size & Hair */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-1">
+                  <Label htmlFor="pet-size">Ukuran</Label>
+                  {shouldShowSizeInfo && (
+                    <>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex md:hidden items-center text-muted-foreground hover:text-foreground"
+                            aria-label="Info ukuran otomatis"
+                          >
+                            <Info className="h-3 w-3" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-64 p-2 text-xs"
+                          align="start"
+                        >
+                          Otomatis terisi setelah tipe hewan dan berat diinput.
+                        </PopoverContent>
+                      </Popover>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className="hidden md:inline-flex items-center text-muted-foreground hover:text-foreground"
+                            aria-label="Info ukuran otomatis"
+                          >
+                            <Info className="h-3 w-3 cursor-help" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>
+                            Otomatis terisi setelah tipe hewan dan berat
+                            diinput.
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </>
+                  )}
+                </div>
+                <Combobox
+                  options={options.sizeCategories.map((o) => ({
+                    value: o._id,
+                    label: o.name,
+                  }))}
+                  value={form.size_category_id}
+                  placeholder="Otomatis terisi"
+                  searchPlaceholder="Cari ukuran..."
+                  emptyText="Ukuran tidak ditemukan."
+                  disabled
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="pet-hair">
+                  Jenis Bulu <span className="text-destructive">*</span>
+                </Label>
+                <Combobox
+                  options={options.hairCategories.map((o) => ({
+                    value: o._id,
+                    label: o.name,
+                  }))}
+                  value={form.hair_category_id}
+                  onValueChange={(v) =>
+                    setForm((p) => ({ ...p, hair_category_id: v }))
+                  }
+                  placeholder="Pilih jenis bulu"
+                  searchPlaceholder="Cari jenis bulu..."
+                  emptyText="Jenis bulu tidak ditemukan."
+                />
+              </div>
+            </div>
 
-          <Button type="submit" className="mt-2 w-full" disabled={isLoading}>
-            {isLoading
-              ? "Menyimpan..."
-              : mode === "create"
-                ? "Tambah Pet"
-                : "Simpan Perubahan"}
-          </Button>
-        </form>
-      </DialogContent>
-    </Dialog>
+            {/* Birthday & Weight */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="pet-birthday">Tanggal Lahir</Label>
+                <Input
+                  id="pet-birthday"
+                  type="date"
+                  value={form.birthday}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, birthday: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="pet-weight">
+                  Berat (kg) <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="pet-weight"
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  placeholder="15"
+                  value={form.weight}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, weight: e.target.value }))
+                  }
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Description */}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="pet-desc">Deskripsi</Label>
+              <Textarea
+                id="pet-desc"
+                placeholder="Deskripsi singkat tentang pet..."
+                rows={2}
+                value={form.description}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, description: e.target.value }))
+                }
+              />
+            </div>
+
+            {/* Internal Note */}
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="pet-note">Catatan Internal</Label>
+              <Textarea
+                id="pet-note"
+                placeholder="Catatan untuk groomer..."
+                rows={2}
+                value={form.internal_note}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, internal_note: e.target.value }))
+                }
+              />
+            </div>
+
+            {/* Tags */}
+            <div className="flex flex-col gap-2">
+              <Label>Tags</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Tambah tag..."
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addTag();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addTag}
+                >
+                  Tambah
+                </Button>
+              </div>
+              {form.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {form.tags.map((tag) => (
+                    <Badge key={tag} variant="secondary" className="gap-1">
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => removeTag(tag)}
+                        className="ml-0.5 hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Is Active */}
+            <div className="flex items-center gap-3">
+              <Switch
+                id="pet-active"
+                checked={form.is_active}
+                onCheckedChange={(v) =>
+                  setForm((p) => ({ ...p, is_active: v }))
+                }
+              />
+              <Label htmlFor="pet-active">Aktif</Label>
+            </div>
+
+            <Button type="submit" className="mt-2 w-full" disabled={isLoading}>
+              {isLoading
+                ? "Menyimpan..."
+                : mode === "create"
+                  ? "Tambah Pet"
+                  : "Simpan Perubahan"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }
@@ -735,7 +782,15 @@ export default function CustomerPetsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!createForm.weight || Number.isNaN(Number(createForm.weight)) || Number(createForm.weight) <= 0) {
+    if (!createForm.code?.trim()) {
+      toast.error("Kode Pet wajib diisi");
+      return;
+    }
+    if (
+      !createForm.weight ||
+      Number.isNaN(Number(createForm.weight)) ||
+      Number(createForm.weight) <= 0
+    ) {
       toast.error("Berat wajib diisi dan harus lebih dari 0");
       return;
     }
@@ -757,9 +812,12 @@ export default function CustomerPetsPage() {
       setCreateImagePreview(null);
       fetchUserWithPets();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Gagal menambahkan pet.",
-      );
+      const msg = err instanceof Error ? err.message : "Gagal menambahkan pet.";
+      if (msg.toLowerCase().includes("code already exists")) {
+        toast.error("Kode sudah digunakan, silakan gunakan kode lain.");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setIsCreating(false);
     }
@@ -768,7 +826,15 @@ export default function CustomerPetsPage() {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editPet) return;
-    if (!editForm.weight || Number.isNaN(Number(editForm.weight)) || Number(editForm.weight) <= 0) {
+    if (!editForm.code?.trim()) {
+      toast.error("Kode Pet wajib diisi");
+      return;
+    }
+    if (
+      !editForm.weight ||
+      Number.isNaN(Number(editForm.weight)) ||
+      Number(editForm.weight) <= 0
+    ) {
       toast.error("Berat wajib diisi dan harus lebih dari 0");
       return;
     }
@@ -785,6 +851,7 @@ export default function CustomerPetsPage() {
       weight: editForm.weight ? Number(editForm.weight) : undefined,
       tags: editForm.tags.length > 0 ? editForm.tags : undefined,
       is_active: editForm.is_active,
+      code: editForm.code || undefined,
     };
     try {
       if (editImageFile) {
@@ -801,9 +868,12 @@ export default function CustomerPetsPage() {
       setEditImagePreview(null);
       fetchUserWithPets();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Gagal memperbarui pet.",
-      );
+      const msg = err instanceof Error ? err.message : "Gagal memperbarui pet.";
+      if (msg.toLowerCase().includes("code already exists")) {
+        toast.error("Kode sudah digunakan, silakan gunakan kode lain.");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setIsEditing(false);
     }

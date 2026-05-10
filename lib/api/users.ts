@@ -38,6 +38,7 @@ export interface UserProfile {
 
 export interface ApiUser {
   _id: string;
+  code?: string;
   username: string;
   email?: string;
   phone_number: string;
@@ -67,6 +68,7 @@ export interface ApiPetMembership {
 
 export interface ApiPet {
   _id: string;
+  code?: string;
   name: string;
   description?: string;
   internal_note?: string;
@@ -155,6 +157,7 @@ export type CreateUserPayload = {
   password?: string;
   role: ApiRole;
   is_active: boolean;
+  code?: string;
 };
 
 export type UpdateUserPayload = {
@@ -162,6 +165,7 @@ export type UpdateUserPayload = {
   email?: string;
   phone_number: string;
   role: ApiRole;
+  code?: string;
 };
 
 export async function getUsers(params: GetUsersParams) {

@@ -53,6 +53,12 @@ export interface StatusLog {
 
 // ── Sessions ─────────────────────────────────────────────────────────────────
 
+export interface CustomerReview {
+  rating: number;
+  comment?: string | null;
+  createdAt: string;
+}
+
 export interface SessionMedia {
   _id?: string;
   url?: string;
@@ -80,6 +86,8 @@ export interface BookingSession {
   internal_note: string | null;
   order: number;
   media: SessionMedia[];
+  ideal_duration?: number | null;
+  review_customer?: CustomerReview | null;
 }
 
 export interface SessionInput {
@@ -151,6 +159,7 @@ export interface AdminAppliedPromotion {
 
 export interface AdminBooking {
   _id: string;
+  code?: string;
   customer_id: string;
   pet_id: string;
   store_id: string;
@@ -343,6 +352,7 @@ export interface CreateBookingPayload {
   referal_code?: string;
   note?: string;
   payment_method?: string;
+  code?: string;
 }
 
 export type UpdateBookingPayload = Partial<
@@ -802,5 +812,19 @@ export async function claimSession(bookingId: string, sessionId: string) {
   return apiAuthRequest<{ message: string }>(
     `/bookings/${bookingId}/session/${sessionId}/claim`,
     { method: "PATCH" },
+  );
+}
+
+export async function reviewSession(
+  bookingId: string,
+  sessionId: string,
+  payload: { rating: number; comment?: string },
+) {
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${bookingId}/session/${sessionId}/review`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
   );
 }
