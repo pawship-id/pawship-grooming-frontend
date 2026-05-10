@@ -147,6 +147,7 @@ interface MembershipForm {
   pet_type_ids: string[];
   is_active: boolean;
   benefits: BenefitForm[];
+  code: string;
   // public display fields
   show_on_website: boolean;
   display_order: string;
@@ -166,6 +167,7 @@ const DEFAULT_MEMBERSHIP_FORM: MembershipForm = {
   pet_type_ids: [],
   is_active: true,
   benefits: [],
+  code: "",
   show_on_website: false,
   display_order: "0",
   badge_label: "",
@@ -196,6 +198,7 @@ function membershipToForm(m: MembershipPlan): MembershipForm {
       service_id: b.service?._id ?? "",
       limit: b.limit ?? undefined,
     })),
+    code: m.code ?? "",
     show_on_website: m.show_on_website ?? false,
     display_order: String(m.display_order ?? 0),
     badge_label: m.badge_label ?? "",
@@ -225,6 +228,7 @@ function formToPayload(form: MembershipForm): MembershipPayload {
       service_id: b.service_id || undefined,
       limit: b.limit !== undefined ? Number(b.limit) : null,
     })),
+    code: form.code || undefined,
     show_on_website: form.show_on_website,
     display_order: Number(form.display_order) || 0,
     badge_label: form.badge_label || undefined,
@@ -819,6 +823,18 @@ function MembershipDetailSheet({
           </SheetTitle>
         </SheetHeader>
         <div className="flex flex-col gap-5 mt-4">
+          {/* Membership Code */}
+          {membership.code && (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground font-medium tracking-wide">
+                Kode Membership
+              </span>
+              <span className="font-mono text-sm font-semibold">
+                {membership.code}
+              </span>
+            </div>
+          )}
+
           {/* Status + basic info */}
           <div className="flex flex-wrap gap-2">
             <Badge
@@ -1051,6 +1067,19 @@ function MembershipFormDialog({
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          {/* Membership Code */}
+          <div className="flex flex-col gap-2">
+            <Label>
+              Kode Membership <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              required
+              placeholder="Cth: MEMBERSHIP-001"
+              value={form.code}
+              onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
+            />
+          </div>
+
           {/* Name */}
           <div className="flex flex-col gap-2">
             <Label htmlFor="mem-name">
@@ -1194,9 +1223,7 @@ function MembershipFormDialog({
               <Switch
                 id="mem-featured"
                 checked={form.featured}
-                onCheckedChange={(v) =>
-                  setForm((p) => ({ ...p, featured: v }))
-                }
+                onCheckedChange={(v) => setForm((p) => ({ ...p, featured: v }))}
               />
               <Label htmlFor="mem-featured" className="text-sm">
                 Featured (kartu disorot)
@@ -1266,9 +1293,7 @@ function MembershipFormDialog({
                     setForm((p) => ({
                       ...p,
                       badge_variant:
-                        v === "_none"
-                          ? ""
-                          : (v as "best" | "premium"),
+                        v === "_none" ? "" : (v as "best" | "premium"),
                     }))
                   }
                 >
@@ -1441,7 +1466,12 @@ function MembershipsTab() {
       setDialogOpen(false);
       loadMemberships();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Terjadi kesalahan");
+      const msg = err instanceof Error ? err.message : "Terjadi kesalahan";
+      if (msg.toLowerCase().includes("code already exists")) {
+        toast.error("Kode sudah digunakan, silakan gunakan kode lain.");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -1449,6 +1479,10 @@ function MembershipsTab() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.code.trim()) {
+      toast.error("Kode Membership wajib diisi");
+      return;
+    }
     if (form.pet_type_ids.length === 0) {
       toast.error("Pilih minimal satu jenis hewan");
       return;
@@ -1525,6 +1559,7 @@ function MembershipsTab() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Kode</TableHead>
               <TableHead>Nama</TableHead>
               <TableHead>Durasi</TableHead>
               <TableHead>Harga</TableHead>
@@ -1538,7 +1573,7 @@ function MembershipsTab() {
             {isLoading ? (
               Array.from({ length: 4 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 7 }).map((__, j) => (
+                  {Array.from({ length: 8 }).map((__, j) => (
                     <TableCell key={j}>
                       <Skeleton className="h-4 w-full" />
                     </TableCell>
@@ -1548,7 +1583,7 @@ function MembershipsTab() {
             ) : filtered.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={8}
                   className="text-center text-muted-foreground py-8"
                 >
                   {search || filterActive !== "all"
@@ -1563,6 +1598,15 @@ function MembershipsTab() {
                   className="cursor-pointer"
                   onClick={() => openDetail(m)}
                 >
+                  <TableCell>
+                    {m.code ? (
+                      <span className="font-mono text-xs font-medium">
+                        {m.code}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <div className="font-medium text-foreground">{m.name}</div>
                     {m.description && (
@@ -1596,7 +1640,10 @@ function MembershipsTab() {
                   </TableCell>
                   <TableCell>
                     {m.show_on_website ? (
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
+                      <Badge
+                        variant="outline"
+                        className="bg-blue-50 text-blue-700 border-blue-200 text-xs"
+                      >
                         Tampil
                       </Badge>
                     ) : (

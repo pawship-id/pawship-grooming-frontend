@@ -151,6 +151,7 @@ export interface AdminAppliedPromotion {
 
 export interface AdminBooking {
   _id: string;
+  code?: string;
   customer_id: string;
   pet_id: string;
   store_id: string;
@@ -343,6 +344,7 @@ export interface CreateBookingPayload {
   referal_code?: string;
   note?: string;
   payment_method?: string;
+  code?: string;
 }
 
 export type UpdateBookingPayload = Partial<

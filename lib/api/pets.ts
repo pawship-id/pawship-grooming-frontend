@@ -26,6 +26,7 @@ export interface CreatePetPayload {
   customer_id: string;
   memberships?: PetMembershipPayload[];
   is_active?: boolean;
+  code?: string;
 }
 
 export type UpdatePetPayload = Partial<Omit<CreatePetPayload, "customer_id">>;

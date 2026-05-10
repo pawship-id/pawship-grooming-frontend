@@ -609,6 +609,7 @@ export default function BookingsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Kode</TableHead>
                   <TableHead>Tanggal</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Hewan</TableHead>
@@ -623,7 +624,7 @@ export default function BookingsPage() {
                 {loading ? (
                   Array.from({ length: 8 }).map((_, i) => (
                     <TableRow key={i}>
-                      {Array.from({ length: 8 }).map((__, j) => (
+                      {Array.from({ length: 9 }).map((__, j) => (
                         <TableCell key={j}>
                           <Skeleton className="h-4 w-full" />
                         </TableCell>
@@ -633,7 +634,7 @@ export default function BookingsPage() {
                 ) : bookings.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={9}
                       className="py-8 text-center text-muted-foreground"
                     >
                       Tidak ada booking ditemukan
@@ -648,6 +649,15 @@ export default function BookingsPage() {
                         router.push(`/admin/bookings/${booking._id}`)
                       }
                     >
+                      <TableCell className="whitespace-nowrap">
+                        {booking.code ? (
+                          <span className="font-mono text-xs font-medium">
+                            {booking.code}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell className="whitespace-nowrap">
                         <div className="flex flex-col">
                           <span>{formatDate(booking.date)}</span>

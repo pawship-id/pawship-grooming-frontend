@@ -15,7 +15,12 @@ import {
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface StepNotesPaymentProps {
-  form: { note: string; payment_method: string; referal_code: string };
+  form: {
+    note: string;
+    payment_method: string;
+    referal_code: string;
+    code: string;
+  };
   setForm: React.Dispatch<React.SetStateAction<any>>;
   customPaymentMethod: string;
   setCustomPaymentMethod: (v: string) => void;
@@ -80,6 +85,20 @@ export function StepNotesPayment({
               value={form.referal_code}
               onChange={(e) =>
                 setForm((p: any) => ({ ...p, referal_code: e.target.value }))
+              }
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="booking-code">
+              Kode Booking <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              required
+              id="booking-code"
+              placeholder="Cth: ODR-001"
+              value={form.code}
+              onChange={(e) =>
+                setForm((p: any) => ({ ...p, code: e.target.value }))
               }
             />
           </div>
