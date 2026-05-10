@@ -27,6 +27,7 @@ export interface ApiOption {
   category_options: CategoryOption;
   is_active: boolean;
   pet_weight_rules?: ApiPetWeightRule[];
+  ideal_duration?: number;
   createdAt: string;
 }
 
@@ -40,6 +41,7 @@ export type OptionPayload = {
   category_options: CategoryOption;
   is_active: boolean;
   pet_weight_rules?: PetWeightRule[];
+  ideal_duration?: number;
 };
 
 export async function getOptions(category?: CategoryOption) {

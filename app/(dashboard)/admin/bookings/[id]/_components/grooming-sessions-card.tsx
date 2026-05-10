@@ -350,6 +350,11 @@ export function GroomingSessionsCard({
                     <span className="text-sm font-medium capitalize text-foreground">
                       {session.type}
                     </span>
+                    {session.ideal_duration && (
+                      <span className="text-xs text-muted-foreground">
+                        {session.ideal_duration} mnt
+                      </span>
+                    )}
                     <Badge
                       className={`text-xs capitalize ${
                         session.status === "finished"

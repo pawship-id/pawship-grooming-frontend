@@ -80,6 +80,7 @@ export interface BookingSession {
   internal_note: string | null;
   order: number;
   media: SessionMedia[];
+  ideal_duration?: number | null;
 }
 
 export interface SessionInput {

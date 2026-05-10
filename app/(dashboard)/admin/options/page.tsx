@@ -84,6 +84,7 @@ const DEFAULT_FORM: OptionForm = {
   category_options: "size category",
   is_active: true,
   pet_weight_rules: [],
+  ideal_duration: 0,
 };
 
 // ── Highlight helper ──────────────────────────────────────────────────────
@@ -211,6 +212,7 @@ export default function OptionsPage() {
       category_options: activeCategory,
       is_active: opt.is_active,
       pet_weight_rules: normalizedRules,
+      ideal_duration: opt.ideal_duration ?? 0,
     });
   };
 
@@ -516,6 +518,28 @@ export default function OptionsPage() {
               <Label htmlFor="c-active">Aktif</Label>
             </div>
 
+            {/* Ideal Duration - Only show for session - skill */}
+            {createForm.category_options === "session - skill" && (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="c-ideal-duration">Durasi Ideal (menit)</Label>
+                <Input
+                  id="c-ideal-duration"
+                  type="number"
+                  placeholder="Cth: 30"
+                  min={1}
+                  value={createForm.ideal_duration ?? ""}
+                  onChange={(e) =>
+                    setCreateForm((p) => ({
+                      ...p,
+                      ideal_duration: e.target.value
+                        ? Number(e.target.value)
+                        : 0,
+                    }))
+                  }
+                />
+              </div>
+            )}
+
             {/* Pet Weight Rules - Only show for size category */}
             {createForm.category_options === "size category" && (
               <div className="border-t pt-4">
@@ -572,6 +596,28 @@ export default function OptionsPage() {
               />
               <Label htmlFor="e-active">Aktif</Label>
             </div>
+
+            {/* Ideal Duration - Only show for session - skill */}
+            {editForm.category_options === "session - skill" && (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="e-ideal-duration">Durasi Ideal (menit)</Label>
+                <Input
+                  id="e-ideal-duration"
+                  type="number"
+                  placeholder="Cth: 30"
+                  min={1}
+                  value={editForm.ideal_duration ?? ""}
+                  onChange={(e) =>
+                    setEditForm((p) => ({
+                      ...p,
+                      ideal_duration: e.target.value
+                        ? Number(e.target.value)
+                        : 0,
+                    }))
+                  }
+                />
+              </div>
+            )}
 
             {/* Pet Weight Rules - Only show for size category */}
             {editForm.category_options === "size category" && (
