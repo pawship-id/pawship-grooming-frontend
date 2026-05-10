@@ -53,6 +53,12 @@ export interface StatusLog {
 
 // ── Sessions ─────────────────────────────────────────────────────────────────
 
+export interface CustomerReview {
+  rating: number;
+  comment?: string | null;
+  createdAt: string;
+}
+
 export interface SessionMedia {
   _id?: string;
   url?: string;
@@ -81,6 +87,7 @@ export interface BookingSession {
   order: number;
   media: SessionMedia[];
   ideal_duration?: number | null;
+  review_customer?: CustomerReview | null;
 }
 
 export interface SessionInput {
@@ -805,5 +812,19 @@ export async function claimSession(bookingId: string, sessionId: string) {
   return apiAuthRequest<{ message: string }>(
     `/bookings/${bookingId}/session/${sessionId}/claim`,
     { method: "PATCH" },
+  );
+}
+
+export async function reviewSession(
+  bookingId: string,
+  sessionId: string,
+  payload: { rating: number; comment?: string },
+) {
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${bookingId}/session/${sessionId}/review`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
   );
 }
