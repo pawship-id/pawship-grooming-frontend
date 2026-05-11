@@ -50,7 +50,6 @@ const DEFAULT_FORM = {
   referal_code: "",
   payment_method: "",
   note: "",
-  code: "",
 };
 
 // ── Page Component ─────────────────────────────────────────────────────────────
@@ -537,11 +536,6 @@ export default function NewBookingPage() {
       toast.error("Lengkapi semua langkah wajib terlebih dahulu");
       return;
     }
-    if (!form.code.trim()) {
-      toast.error("Kode Booking wajib diisi");
-      return;
-    }
-
     setSubmitting(true);
     try {
       const isInHomeService = form.type === "in home";
@@ -569,7 +563,6 @@ export default function NewBookingPage() {
             ? customPaymentMethod.trim() || undefined
             : form.payment_method || undefined,
         note: form.note || undefined,
-        code: form.code || undefined,
       });
       toast.success("Booking berhasil dibuat");
       router.push(
@@ -577,11 +570,7 @@ export default function NewBookingPage() {
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Gagal membuat booking";
-      if (msg.toLowerCase().includes("code already exists")) {
-        toast.error("Kode booking sudah digunakan, silakan gunakan kode lain.");
-      } else {
-        toast.error(msg);
-      }
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }

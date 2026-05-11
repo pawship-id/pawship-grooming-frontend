@@ -421,20 +421,17 @@ function PetFormDialog({
                 }}
               />
             </div>
-            {/* Pet Code */}
-            <div className="flex flex-col gap-1.5">
-              <Label>
-                Kode Pet <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                required
-                placeholder="Cth: PET-001"
-                value={form.code ?? ""}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, code: e.target.value || undefined }))
-                }
-              />
-            </div>
+            {/* Pet Code — readonly in edit mode, hidden in create mode */}
+            {mode === "edit" && form.code && (
+              <div className="flex flex-col gap-1.5">
+                <Label>Kode Pet</Label>
+                <Input
+                  readOnly
+                  value={form.code}
+                  className="bg-muted text-muted-foreground cursor-not-allowed"
+                />
+              </div>
+            )}
 
             {/* Name */}
             <div className="flex flex-col gap-2">
@@ -782,10 +779,6 @@ export default function CustomerPetsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!createForm.code?.trim()) {
-      toast.error("Kode Pet wajib diisi");
-      return;
-    }
     if (
       !createForm.weight ||
       Number.isNaN(Number(createForm.weight)) ||
@@ -826,10 +819,6 @@ export default function CustomerPetsPage() {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editPet) return;
-    if (!editForm.code?.trim()) {
-      toast.error("Kode Pet wajib diisi");
-      return;
-    }
     if (
       !editForm.weight ||
       Number.isNaN(Number(editForm.weight)) ||
@@ -851,7 +840,6 @@ export default function CustomerPetsPage() {
       weight: editForm.weight ? Number(editForm.weight) : undefined,
       tags: editForm.tags.length > 0 ? editForm.tags : undefined,
       is_active: editForm.is_active,
-      code: editForm.code || undefined,
     };
     try {
       if (editImageFile) {

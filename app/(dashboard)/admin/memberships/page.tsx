@@ -228,7 +228,6 @@ function formToPayload(form: MembershipForm): MembershipPayload {
       service_id: b.service_id || undefined,
       limit: b.limit !== undefined ? Number(b.limit) : null,
     })),
-    code: form.code || undefined,
     show_on_website: form.show_on_website,
     display_order: Number(form.display_order) || 0,
     badge_label: form.badge_label || undefined,
@@ -1067,18 +1066,17 @@ function MembershipFormDialog({
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          {/* Membership Code */}
-          <div className="flex flex-col gap-2">
-            <Label>
-              Kode Membership <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              required
-              placeholder="Cth: MEMBERSHIP-001"
-              value={form.code}
-              onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
-            />
-          </div>
+          {/* Membership Code — readonly in edit mode, hidden in create mode */}
+          {mode === "edit" && form.code && (
+            <div className="flex flex-col gap-2">
+              <Label>Kode Membership</Label>
+              <Input
+                readOnly
+                value={form.code}
+                className="bg-muted text-muted-foreground cursor-not-allowed"
+              />
+            </div>
+          )}
 
           {/* Name */}
           <div className="flex flex-col gap-2">
@@ -1479,10 +1477,6 @@ function MembershipsTab() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.code.trim()) {
-      toast.error("Kode Membership wajib diisi");
-      return;
-    }
     if (form.pet_type_ids.length === 0) {
       toast.error("Pilih minimal satu jenis hewan");
       return;

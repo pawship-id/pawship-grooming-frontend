@@ -313,13 +313,6 @@ export default function UsersPage() {
         return;
       }
 
-      // Validate code for customer role
-      if (createForm.role === "customer" && !createForm.code?.trim()) {
-        toast.error("Kode Customer wajib diisi");
-        setIsCreating(false);
-        return;
-      }
-
       // Validate: non-customer roles require email and password
       if (createForm.role !== "customer") {
         if (!createForm.email || createForm.email.trim() === "") {
@@ -398,13 +391,6 @@ export default function UsersPage() {
         return;
       }
 
-      // Validate code for customer role
-      if (editUser.role === "customer" && !editForm.code?.trim()) {
-        toast.error("Kode Customer wajib diisi");
-        setIsEditing(false);
-        return;
-      }
-
       // Update user basic fields only
       const payload: UpdateUserPayload = {
         username: editForm.username,
@@ -415,11 +401,6 @@ export default function UsersPage() {
       // Only include email if not empty
       if (editForm.email && editForm.email.trim() !== "") {
         payload.email = editForm.email;
-      }
-
-      // Include code for customer role
-      if (editUser.role === "customer" && editForm.code?.trim()) {
-        payload.code = editForm.code.trim();
       }
 
       await updateUser(editUser._id, payload);
@@ -1554,25 +1535,6 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
-            {createForm.role === "customer" && (
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="c-code">
-                  Kode Customer <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  required
-                  id="c-code"
-                  placeholder="Cth: CUST-001"
-                  value={createForm.code ?? ""}
-                  onChange={(e) =>
-                    setCreateForm((p) => ({
-                      ...p,
-                      code: e.target.value || undefined,
-                    }))
-                  }
-                />
-              </div>
-            )}
             <div className="flex items-center gap-3">
               <Switch
                 id="c-active"
@@ -1648,21 +1610,13 @@ export default function UsersPage() {
               />
             </div>
 
-            {editUser?.role === "customer" && (
+            {editUser?.role === "customer" && editUser.code && (
               <div className="flex flex-col gap-1.5">
-                <Label>
-                  Kode Customer <span className="text-red-500">*</span>
-                </Label>
+                <Label>Kode Customer</Label>
                 <Input
-                  required
-                  placeholder="Cth: CUST-001"
-                  value={editForm.code ?? ""}
-                  onChange={(e) =>
-                    setEditForm((p) => ({
-                      ...p,
-                      code: e.target.value || undefined,
-                    }))
-                  }
+                  readOnly
+                  value={editUser.code}
+                  className="bg-muted text-muted-foreground cursor-not-allowed"
                 />
               </div>
             )}
