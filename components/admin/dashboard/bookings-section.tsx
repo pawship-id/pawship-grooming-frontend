@@ -1,0 +1,470 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  CalendarDays,
+  CheckCircle2,
+  Clock4,
+  GhostIcon,
+  Minus,
+  PawPrint,
+  Repeat,
+  XCircle,
+} from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import { useDashboardFilters } from "@/hooks/use-dashboard-filters";
+import {
+  getBookingsMetrics,
+  type BookingsByDayBucket,
+  type BookingsMetricsResponse,
+  type PeakHourBucket,
+} from "@/lib/api/dashboard";
+
+const STATUS_LABEL: Record<string, string> = {
+  requested: "Menunggu",
+  confirmed: "Terkonfirmasi",
+  waitlist: "Waitlist",
+  "driver on the way": "Driver berangkat",
+  "groomer on the way": "Groomer berangkat",
+  arrived: "Tiba",
+  "in progress": "Berlangsung",
+  completed: "Selesai",
+  returned: "Kembali",
+  rescheduled: "Dijadwalkan ulang",
+  cancelled: "Dibatalkan",
+};
+
+const STATUS_TONE: Record<string, string> = {
+  completed: "bg-emerald-500",
+  cancelled: "bg-red-500",
+  requested: "bg-amber-500",
+  confirmed: "bg-primary",
+  "in progress": "bg-blue-500",
+  rescheduled: "bg-slate-400",
+};
+
+export function BookingsSection() {
+  const { storeId, preset, resolvedRange } = useDashboardFilters();
+  const [data, setData] = useState<BookingsMetricsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const range = resolvedRange();
+  const fromKey = range?.from ?? "";
+  const toKey = range?.to ?? "";
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getBookingsMetrics({
+      store_id: storeId,
+      from: fromKey || undefined,
+      to: toKey || undefined,
+    })
+      .then((res) => {
+        if (!cancelled) setData(res);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled)
+          setError(err instanceof Error ? err.message : "Gagal memuat data");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [storeId, fromKey, toKey]);
+
+  const kpis = data?.kpis;
+
+  return (
+    <Card className="border-border/50">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle className="font-display text-lg font-bold flex items-center gap-2">
+          <CalendarDays className="h-4 w-4 text-blue-600" />
+          Booking
+        </CardTitle>
+        <span className="text-xs text-muted-foreground">Cabang · Tanggal</span>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {error ? (
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <KpiTile
+            icon={<CalendarDays className="h-4 w-4 text-primary" />}
+            label="Total booking"
+            value={loading || !kpis ? null : kpis.total_bookings.toString()}
+            delta={kpis?.delta.total_bookings_pct ?? null}
+            tone="primary"
+          />
+          <KpiTile
+            icon={<PawPrint className="h-4 w-4 text-emerald-600" />}
+            label="Pet baru dilayani"
+            value={loading || !kpis ? null : kpis.new_pets_served.toString()}
+            delta={kpis?.delta.new_pets_served_pct ?? null}
+            tone="emerald"
+            sublabel={
+              kpis
+                ? `${kpis.returning_pets} returning · ${kpis.repeat_booking_rate_pct.toFixed(0)}% repeat`
+                : undefined
+            }
+          />
+          <KpiTile
+            icon={<CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+            label="Selesai"
+            value={loading || !kpis ? null : kpis.completed.toString()}
+            delta={null}
+            tone="emerald"
+            sublabel={
+              kpis && kpis.total_bookings
+                ? `${Math.round((kpis.completed / kpis.total_bookings) * 100)}% dari total`
+                : undefined
+            }
+          />
+          <KpiTile
+            icon={<XCircle className="h-4 w-4 text-red-600" />}
+            label="Dibatalkan"
+            value={loading || !kpis ? null : kpis.cancelled.toString()}
+            delta={null}
+            tone="red"
+            sublabel={
+              kpis
+                ? `${kpis.cancellation_rate_pct.toFixed(1)}% rate${kpis.cancellation_rate_pct > 15 ? " · tinggi" : ""}`
+                : undefined
+            }
+          />
+          <KpiTile
+            icon={<GhostIcon className="h-4 w-4 text-slate-500" />}
+            label="No shows"
+            value={loading || !kpis ? null : kpis.no_shows.toString()}
+            delta={null}
+            tone="slate"
+            sublabel="Belum di-track"
+          />
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <ByStatusBlock loading={loading} rows={data?.by_status ?? []} />
+          <ByServiceBlock
+            loading={loading}
+            rows={data?.by_service_type ?? []}
+          />
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <PeakHourBlock loading={loading} rows={data?.peak_hour ?? []} />
+          {preset === "week" ? (
+            <ByDayBlock loading={loading} rows={data?.by_day ?? []} />
+          ) : (
+            <ByDayPreviewHint preset={preset} />
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PeakHourBlock({
+  loading,
+  rows,
+}: {
+  loading: boolean;
+  rows: PeakHourBucket[];
+}) {
+  const data = rows.map((r) => ({
+    label: `${String(r.hour).padStart(2, "0")}:00`,
+    count: r.count,
+  }));
+  return (
+    <div className="rounded-lg border border-border/50 p-4">
+      <div className="flex items-center gap-2">
+        <Clock4 className="h-4 w-4 text-blue-600" />
+        <p className="text-xs font-medium text-muted-foreground">
+          Peak hour booking
+        </p>
+      </div>
+      {loading ? (
+        <Skeleton className="mt-3 h-32 w-full" />
+      ) : data.length === 0 ? (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Belum ada booking dengan jadwal pada periode ini.
+        </p>
+      ) : (
+        <div className="mt-2 h-36 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={data}
+              margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={28} />
+              <Tooltip labelClassName="text-xs" />
+              <Bar dataKey="count" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ByDayBlock({
+  loading,
+  rows,
+}: {
+  loading: boolean;
+  rows: BookingsByDayBucket[];
+}) {
+  return (
+    <div className="rounded-lg border border-border/50 p-4">
+      <div className="flex items-center gap-2">
+        <CalendarDays className="h-4 w-4 text-emerald-600" />
+        <p className="text-xs font-medium text-muted-foreground">
+          Bookings per hari (Sen–Min)
+        </p>
+      </div>
+      {loading ? (
+        <Skeleton className="mt-3 h-32 w-full" />
+      ) : (
+        <div className="mt-2 h-36 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={rows}
+              margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={28} />
+              <Tooltip labelClassName="text-xs" />
+              <Bar
+                dataKey="count"
+                fill="rgb(16 185 129)"
+                radius={[3, 3, 0, 0]}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ByDayPreviewHint({ preset }: { preset: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border/60 p-4 flex items-center">
+      <p className="text-xs text-muted-foreground">
+        Chart "Bookings per hari" muncul saat preset periode = "Minggu Ini"
+        (saat ini: <span className="font-medium">{preset}</span>).
+      </p>
+    </div>
+  );
+}
+
+function KpiTile({
+  icon,
+  label,
+  value,
+  delta,
+  tone,
+  sublabel,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | null;
+  delta: number | null;
+  tone: "primary" | "emerald" | "red" | "blue" | "slate";
+  sublabel?: string;
+}) {
+  const iconBg =
+    tone === "primary"
+      ? "bg-primary/10"
+      : tone === "emerald"
+        ? "bg-emerald-100"
+        : tone === "red"
+          ? "bg-red-100"
+          : tone === "slate"
+            ? "bg-slate-100"
+            : "bg-blue-100";
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-border/50 p-4">
+      <div
+        className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+          iconBg,
+        )}
+      >
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-muted-foreground">{label}</p>
+        {value === null ? (
+          <Skeleton className="mt-1 h-6 w-16" />
+        ) : (
+          <p className="font-display text-lg font-bold text-foreground">
+            {value}
+          </p>
+        )}
+        {delta !== null ? (
+          <DeltaBadge delta={delta} />
+        ) : sublabel ? (
+          <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Repeat className="h-3 w-3" />
+            {sublabel}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function DeltaBadge({ delta }: { delta: number | null }) {
+  if (delta === null) {
+    return (
+      <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+        <Minus className="h-3 w-3" /> vs periode sebelumnya
+      </span>
+    );
+  }
+  const positive = delta >= 0;
+  const colour = positive ? "text-emerald-600" : "text-red-600";
+  const Icon = positive ? ArrowUpRight : ArrowDownRight;
+  return (
+    <span
+      className={cn(
+        "mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium",
+        colour,
+      )}
+    >
+      <Icon className="h-3 w-3" />
+      {Math.abs(delta).toFixed(1)}% vs periode sebelumnya
+    </span>
+  );
+}
+
+function ByStatusBlock({
+  loading,
+  rows,
+}: {
+  loading: boolean;
+  rows: { status: string; count: number }[];
+}) {
+  const total = rows.reduce((s, r) => s + r.count, 0);
+  return (
+    <div className="rounded-lg border border-border/50 p-4">
+      <p className="text-xs font-medium text-muted-foreground">
+        Distribusi status
+      </p>
+      {loading ? (
+        <div className="mt-3 space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-7 w-full" />
+          ))}
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Belum ada booking pada periode ini.
+        </p>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {rows.map((r) => {
+            const pct = total > 0 ? Math.round((r.count / total) * 100) : 0;
+            const tone = STATUS_TONE[r.status] ?? "bg-slate-400";
+            return (
+              <li key={r.status} className="text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium">
+                    {STATUS_LABEL[r.status] ?? r.status}
+                  </span>
+                  <span className="text-muted-foreground whitespace-nowrap">
+                    {r.count} · {pct}%
+                  </span>
+                </div>
+                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={cn("h-full", tone)}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ByServiceBlock({
+  loading,
+  rows,
+}: {
+  loading: boolean;
+  rows: { service_type: string; count: number }[];
+}) {
+  const total = rows.reduce((s, r) => s + r.count, 0);
+  return (
+    <div className="rounded-lg border border-border/50 p-4">
+      <p className="text-xs font-medium text-muted-foreground">
+        Distribusi tipe layanan
+      </p>
+      {loading ? (
+        <div className="mt-3 space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-7 w-full" />
+          ))}
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Belum ada booking pada periode ini.
+        </p>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {rows.map((r) => {
+            const pct = total > 0 ? Math.round((r.count / total) * 100) : 0;
+            return (
+              <li key={r.service_type} className="text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-medium">{r.service_type}</span>
+                  <span className="text-muted-foreground whitespace-nowrap">
+                    {r.count} · {pct}%
+                  </span>
+                </div>
+                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full bg-primary/70"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
