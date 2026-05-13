@@ -110,6 +110,7 @@ export interface GroomingSession {
 
 export interface BookingCustomer {
   _id: string;
+  code?: string;
   username: string;
   email: string;
   phone_number: string;
@@ -117,6 +118,7 @@ export interface BookingCustomer {
 
 export interface BookingStore {
   _id: string;
+  code?: string;
   name: string;
 }
 
@@ -443,6 +445,7 @@ export async function getAllAdminBookingsForExport(
   if (params?.created_by_role)
     qs.set("created_by_role", params.created_by_role);
   if (params?.customer_id) qs.set("customer_id", params.customer_id);
+  if (params?.store_id) qs.set("store_id", params.store_id);
   const query = qs.toString();
   const response = await apiAuthRequest<BookingsResponse>(`/bookings?${query}`);
   return response.bookings;
