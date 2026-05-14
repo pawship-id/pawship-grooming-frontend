@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -161,6 +162,7 @@ export function StatusBookingCard({
   const [selectedStatus, setSelectedStatus] = useState("");
   const [rescheduledDate, setRescheduledDate] = useState("");
   const [rescheduledTimeRange, setRescheduledTimeRange] = useState("");
+  const [cancellationReason, setCancellationReason] = useState("");
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [confirmingStatus, setConfirmingStatus] = useState(false);
 
@@ -207,6 +209,7 @@ export function StatusBookingCard({
 
   const statusChanged = selectedStatus !== "";
   const isRescheduled = selectedStatus === "rescheduled";
+  const isCancelled = selectedStatus === "cancelled";
   const allSessionsFinished =
     booking.sessions.length === 0 ||
     booking.sessions.every((s) => s.status === "finished");
@@ -227,11 +230,15 @@ export function StatusBookingCard({
         ...(isRescheduled
           ? { date: rescheduledDate, time_range: rescheduledTimeRange }
           : {}),
+        ...(isCancelled && cancellationReason
+          ? { cancellation_reason: cancellationReason }
+          : {}),
       });
       await refreshBooking();
       setSelectedStatus("");
       setRescheduledDate("");
       setRescheduledTimeRange("");
+      setCancellationReason("");
       toast.success(`Status diperbarui: ${selectedStatus}`);
     } catch (err) {
       toast.error(
@@ -324,7 +331,10 @@ export function StatusBookingCard({
                 </Label>
                 <Select
                   value={selectedStatus}
-                  onValueChange={setSelectedStatus}
+                  onValueChange={(val) => {
+                    setSelectedStatus(val);
+                    if (val !== "cancelled") setCancellationReason("");
+                  }}
                   disabled={
                     updatingStatus || allowedNextStatuses.length === 0
                   }
@@ -400,6 +410,20 @@ export function StatusBookingCard({
                 Simpan Status
               </Button>
             </div>
+            {isCancelled && (
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs text-muted-foreground">
+                  Alasan pembatalan
+                </Label>
+                <Textarea
+                  className="text-sm"
+                  placeholder="Masukkan alasan pembatalan booking..."
+                  rows={3}
+                  value={cancellationReason}
+                  onChange={(e) => setCancellationReason(e.target.value)}
+                />
+              </div>
+            )}
             {selectedStatus === "completed" && !allSessionsFinished && (
               <p className="text-xs text-destructive">
                 Semua sesi grooming harus selesai sebelum status dapat diubah

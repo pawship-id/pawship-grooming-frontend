@@ -84,6 +84,8 @@ export interface BookingSession {
   _id?: string;
   type: string;
   groomer_id?: string | { _id: string; username?: string };
+  /** Populated groomer object — backend toJSON renames groomer_id → groomer_detail when populated */
+  groomer_detail?: { _id: string; username?: string; email?: string; phone_number?: string };
   status: string;
   started_at: string | null;
   finished_at: string | null;
@@ -199,6 +201,7 @@ export interface AdminBooking {
   grooming_session?: GroomingSession;
   referal_code?: string;
   note?: string;
+  cancellation_reason?: string | null;
   payment_method?: string;
   created_by_role?: "customer" | "admin" | null;
   manual_discount_type?: string | null; // kept for legacy display
@@ -401,6 +404,7 @@ export interface UpdateBookingStatusPayload {
   date?: string;
   time_range?: string;
   note?: string;
+  cancellation_reason?: string;
 }
 
 // ── API functions ─────────────────────────────────────────────────────────────
