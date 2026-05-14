@@ -108,6 +108,7 @@ type EditUserForm = UpdateUserPayload & {
   placement?: string;
   groomer_skills?: string[];
   groomer_rating?: number;
+  customer_category_id?: string;
   addresses: UserAddress[];
 };
 
@@ -193,6 +194,8 @@ export default function UsersPage() {
   const [stores, setStores] = useState<ApiStore[]>([]);
   const [sessionSkills, setSessionSkills] = useState<ApiOption[]>([]);
   const [isLoadingSkills, setIsLoadingSkills] = useState(true);
+  const [customerCategories, setCustomerCategories] = useState<ApiOption[]>([]);
+  const [createCustomerCategoryId, setCreateCustomerCategoryId] = useState<string | undefined>(undefined);
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
@@ -215,6 +218,7 @@ export default function UsersPage() {
     full_name: "",
     groomer_skills: [],
     groomer_rating: 0,
+    customer_category_id: undefined,
     addresses: [],
   });
   const [isEditing, setIsEditing] = useState(false);
@@ -280,6 +284,7 @@ export default function UsersPage() {
       placement: user.profile?.placement,
       groomer_skills: skillIds,
       groomer_rating: user.profile?.groomer_rating || 0,
+      customer_category_id: user.profile?.customer_category_id,
       addresses: user.profile?.addresses ?? [],
     });
     setEditImageFile(null);
@@ -336,18 +341,26 @@ export default function UsersPage() {
       };
 
       const res = await createUser(payload);
-      if (createImageFile && res.user?._id) {
-        const uploaded = await uploadFile(createImageFile, "profiles");
-        await adminUpdateUserProfile(res.user._id, {
-          image_url: uploaded.image_url,
-          public_id: uploaded.public_id,
-        });
+      if (res.user?._id) {
+        const profileUpdate: any = {};
+        if (createImageFile) {
+          const uploaded = await uploadFile(createImageFile, "profiles");
+          profileUpdate.image_url = uploaded.image_url;
+          profileUpdate.public_id = uploaded.public_id;
+        }
+        if (createForm.role === "customer" && createCustomerCategoryId) {
+          profileUpdate.customer_category_id = createCustomerCategoryId;
+        }
+        if (Object.keys(profileUpdate).length > 0) {
+          await adminUpdateUserProfile(res.user._id, profileUpdate);
+        }
       }
       toast.success("User berhasil dibuat");
       setAddOpen(false);
       setCreateForm(DEFAULT_CREATE);
       setCreateImageFile(null);
       setCreateImagePreview(null);
+      setCreateCustomerCategoryId(undefined);
       fetchUsers();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Gagal membuat user.";
@@ -430,6 +443,9 @@ export default function UsersPage() {
       }
       if (editForm.groomer_rating !== undefined)
         profilePayload.groomer_rating = editForm.groomer_rating;
+      if (editForm.role === "customer" && editForm.customer_category_id) {
+        profilePayload.customer_category_id = editForm.customer_category_id;
+      }
 
       // Include addresses with created_by
       profilePayload.addresses = editForm.addresses.map((a) => ({
@@ -578,6 +594,15 @@ export default function UsersPage() {
     }
   }, []);
 
+  const fetchCustomerCategories = useCallback(async () => {
+    try {
+      const data = await getOptions("customer category");
+      setCustomerCategories((data.options ?? []).filter((opt) => opt.is_active));
+    } catch (err) {
+      console.error("Failed to fetch customer categories:", err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
@@ -589,6 +614,10 @@ export default function UsersPage() {
   useEffect(() => {
     fetchSessionSkills();
   }, [fetchSessionSkills]);
+
+  useEffect(() => {
+    fetchCustomerCategories();
+  }, [fetchCustomerCategories]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Helper function to highlight matching text
@@ -1371,6 +1400,7 @@ export default function UsersPage() {
             setCreateImageFile(null);
             setCreateImagePreview(null);
             setShowCreatePassword(false);
+            setCreateCustomerCategoryId(undefined);
           }
         }}
       >
@@ -1535,6 +1565,31 @@ export default function UsersPage() {
                 </SelectContent>
               </Select>
             </div>
+            {createForm.role === "customer" && (
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="c-customer-category">
+                  Kategori Customer (opsional)
+                </Label>
+                <Select
+                  value={createCustomerCategoryId ?? "none"}
+                  onValueChange={(v) =>
+                    setCreateCustomerCategoryId(v === "none" ? undefined : v)
+                  }
+                >
+                  <SelectTrigger id="c-customer-category">
+                    <SelectValue placeholder="Pilih kategori" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Tidak ada</SelectItem>
+                    {customerCategories.map((cat) => (
+                      <SelectItem key={cat._id} value={cat._id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <Switch
                 id="c-active"
@@ -1764,6 +1819,36 @@ export default function UsersPage() {
                                 Inactive
                               </Badge>
                             )}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Customer Category (visible for customer) */}
+                {editForm.role === "customer" && (
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="e-customer-category">
+                      Kategori Customer (opsional)
+                    </Label>
+                    <Select
+                      value={editForm.customer_category_id ?? "none"}
+                      onValueChange={(v) =>
+                        setEditForm((p) => ({
+                          ...p,
+                          customer_category_id: v === "none" ? undefined : v,
+                        }))
+                      }
+                    >
+                      <SelectTrigger id="e-customer-category">
+                        <SelectValue placeholder="Pilih kategori" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Tidak ada</SelectItem>
+                        {customerCategories.map((cat) => (
+                          <SelectItem key={cat._id} value={cat._id}>
+                            {cat.name}
                           </SelectItem>
                         ))}
                       </SelectContent>

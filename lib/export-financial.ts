@@ -76,6 +76,15 @@ export function sortedSessions(booking: AdminBooking) {
   return [...(booking.sessions ?? [])].sort((a, b) => a.order - b.order);
 }
 
+function groomerName(
+  sess: AdminBooking["sessions"][number] | undefined,
+): string {
+  if (!sess) return "-";
+  const g = sess.groomer_id;
+  if (g && typeof g === "object") return g.username ?? "-";
+  return "-";
+}
+
 // ─── Revenue helpers ──────────────────────────────────────────────────────────
 
 export function membershipBenefitTotal(booking: AdminBooking): number {
@@ -117,7 +126,10 @@ export function onTimeInfo(booking: AdminBooking): {
   const startMs = new Date(first.started_at).getTime();
   const finishMs = new Date(last.finished_at).getTime();
   const estimatedEndMs = startMs + estDurationMins * 60 * 1000;
-  const overrunMins = Math.max(0, Math.round((finishMs - estimatedEndMs) / 60000));
+  const overrunMins = Math.max(
+    0,
+    Math.round((finishMs - estimatedEndMs) / 60000),
+  );
 
   return {
     is_on_time: overrunMins === 0 ? "Ya" : "Tidak",
@@ -129,11 +141,8 @@ export function onTimeInfo(booking: AdminBooking): {
 // Formula: gross_total * groomer_tier_rate (solo) or gross_total * 0.5 * rate (shared).
 // groomer_tier_rate does NOT exist in the User model yet → return "?" until implemented.
 
-export function commissionBase(_booking: AdminBooking): {
-  g1: number | string;
-  g2: number | string;
-} {
-  return { g1: "?", g2: "?" };
+export function commissionBase(_booking: AdminBooking): number | string {
+  return "?";
 }
 
 // ─── Row builder — single source of truth used by both table & export ─────────
@@ -154,7 +163,6 @@ export function buildFinancialRow(
   const totalDiscount = promoDisc + memberBenefit;
 
   const { is_on_time, overrun_mins } = onTimeInfo(b);
-  const { g1, g2 } = commissionBase(b);
 
   const addonNames =
     (b.service_snapshot?.addons ?? []).map((a) => a.name).join(", ") || "-";
@@ -173,7 +181,9 @@ export function buildFinancialRow(
     session_status: first?.status ?? "-",
     started_at: fmtDateTime(first?.started_at),
     finished_at: fmtDateTime(last?.finished_at),
-    duration_mins: fmtDuration(diffMinutes(first?.started_at, last?.finished_at)),
+    duration_mins: fmtDuration(
+      diffMinutes(first?.started_at, last?.finished_at),
+    ),
     payment_method: b.payment_method ?? "-",
     referral_code: b.referal_code ?? "-",
 
@@ -189,9 +199,12 @@ export function buildFinancialRow(
     customer_code: b.customer?.code ?? "-",
     customer_name: b.customer?.username ?? "-",
     customer_phone: b.customer?.phone_number ?? "-",
+    customer_category: b.customer_snapshot?.customer_category?.name ?? "-",
     // Snapshot — bukan nilai current
+    pet_id: b.pet_id ?? "-",
+    pet_code: b.pet?.code ?? "-",
     pet_name: b.pet_snapshot?.name ?? "-",
-    member_type: b.pet_snapshot?.member_type?.name ?? "-",
+    member_type: b.pet_snapshot?.member_type ?? "-",
 
     // ── SERVICE & LAYANAN ─────────────────────────────────────────────
     service_id: b.service_snapshot?._id ?? "-",
@@ -204,10 +217,8 @@ export function buildFinancialRow(
     addon_names: addonNames,
 
     // ── GROOMER / SALESMAN ────────────────────────────────────────────
-    groomer_1_name: first?.groomer_detail?.username ?? "-",
-    groomer_1_task: first?.type ?? "-",
-    groomer_2_name: sess[1]?.groomer_detail?.username ?? "-",
-    groomer_2_task: sess[1]?.type ?? "-",
+    // overridden per session in buildSessionRows
+    groomer_session: groomerName(first),
 
     // ── ON-TIME (Formula & Status) ────────────────────────────────────
     is_on_time,
@@ -223,9 +234,8 @@ export function buildFinancialRow(
     total_discount: totalDiscount,
     net_total: b.final_total_price ?? 0,
 
-    // ── COMMISSION BASE (Formula & Status) ────────────────────────────
-    commission_base_g1: g1,
-    commission_base_g2: g2,
+    // ── COMMISSION BASE (Formula & Status) — overridden per session ───
+    commission_base_groomer: commissionBase(b),
   };
 }
 
@@ -252,10 +262,12 @@ export function buildSessionRows(
   return sessions.map((sess, i) => ({
     ...base,
     session_name: sess.type ?? "-",
+    groomer_session: groomerName(sess),
     session_status: sess.status ?? "-",
     started_at: fmtDateTime(sess.started_at),
     finished_at: fmtDateTime(sess.finished_at),
     duration_mins: fmtDuration(diffMinutes(sess.started_at, sess.finished_at)),
+    commission_base_groomer: commissionBase(b),
     _sessionIndex: i,
     _sessionCount: sessions.length,
   }));
@@ -271,6 +283,7 @@ export const FINANCIAL_COLUMN_LABELS: Record<keyof FinancialRow, string> = {
   booking_type: "Tipe (In Store/In Home)",
   booking_status: "Status Booking",
   session_name: "Nama Sesi",
+  groomer_session: "Groomer Sesi",
   session_status: "Status Sesi",
   started_at: "Waktu Mulai Aktual",
   finished_at: "Waktu Selesai Aktual",
@@ -284,8 +297,11 @@ export const FINANCIAL_COLUMN_LABELS: Record<keyof FinancialRow, string> = {
   customer_code: "Kode Customer",
   customer_name: "Nama Customer",
   customer_phone: "No. HP Customer",
+  customer_category: "Kategori Customer",
+  pet_id: "ID Pet (DB)",
+  pet_code: "Kode Pet",
   pet_name: "Nama Pet",
-  member_type: "Tipe Member (Snapshot)",
+  member_type: "Tipe Member",
   service_id: "ID Layanan (DB)",
   service_code: "Kode Layanan",
   service_name: "Layanan",
@@ -293,10 +309,6 @@ export const FINANCIAL_COLUMN_LABELS: Record<keyof FinancialRow, string> = {
   service_base_price: "Harga List Layanan",
   service_duration: "Est. Durasi (menit)",
   addon_names: "Add-on",
-  groomer_1_name: "Groomer 1",
-  groomer_1_task: "Tugas Groomer 1",
-  groomer_2_name: "Groomer 2",
-  groomer_2_task: "Tugas Groomer 2",
   is_on_time: "Tepat Waktu?",
   overrun_mins: "Overrun (menit)",
   sub_total_service: "Sub Total Layanan",
@@ -307,8 +319,7 @@ export const FINANCIAL_COLUMN_LABELS: Record<keyof FinancialRow, string> = {
   membership_benefit: "Benefit Membership",
   total_discount: "Total Diskon",
   net_total: "Net Total (Dibayar)",
-  commission_base_g1: "Komisi Base Groomer 1",
-  commission_base_g2: "Komisi Base Groomer 2",
+  commission_base_groomer: "Komisi Base Groomer",
 };
 
 // ─── Column widths for Excel ──────────────────────────────────────────────────
@@ -321,6 +332,7 @@ const COL_WIDTHS: Partial<Record<keyof FinancialRow, number>> = {
   booking_type: 18,
   booking_status: 16,
   session_name: 18,
+  groomer_session: 22,
   session_status: 14,
   started_at: 18,
   finished_at: 18,
@@ -334,6 +346,9 @@ const COL_WIDTHS: Partial<Record<keyof FinancialRow, number>> = {
   customer_code: 22,
   customer_name: 22,
   customer_phone: 16,
+  customer_category: 20,
+  pet_id: 28,
+  pet_code: 16,
   pet_name: 16,
   member_type: 20,
   service_id: 28,
@@ -343,10 +358,6 @@ const COL_WIDTHS: Partial<Record<keyof FinancialRow, number>> = {
   service_base_price: 16,
   service_duration: 18,
   addon_names: 30,
-  groomer_1_name: 22,
-  groomer_1_task: 16,
-  groomer_2_name: 22,
-  groomer_2_task: 16,
   is_on_time: 12,
   overrun_mins: 14,
   sub_total_service: 16,
@@ -357,9 +368,20 @@ const COL_WIDTHS: Partial<Record<keyof FinancialRow, number>> = {
   membership_benefit: 18,
   total_discount: 14,
   net_total: 18,
-  commission_base_g1: 20,
-  commission_base_g2: 20,
+  commission_base_groomer: 22,
 };
+
+// ─── Columns that are session-specific (not merged in export) ─────────────────
+
+const SESSION_COL_KEYS = new Set<keyof FinancialRow>([
+  "session_name",
+  "groomer_session",
+  "session_status",
+  "started_at",
+  "finished_at",
+  "duration_mins",
+  "commission_base_groomer",
+]);
 
 // ─── Main export (ALL columns — column visibility doesn't apply here) ──────────
 
@@ -374,21 +396,43 @@ export function exportFinancialToExcel(
   const keys = Object.keys(FINANCIAL_COLUMN_LABELS) as (keyof FinancialRow)[];
   const headerLabels = keys.map((k) => FINANCIAL_COLUMN_LABELS[k]);
 
-  const displayRows = bookings.flatMap((b) =>
-    buildSessionRows(b, storeCodeMap).map((row) => {
+  const displayRows: Record<string, unknown>[] = [];
+  const merges: XLSX.Range[] = [];
+  let excelRow = 1; // row 0 is header
+
+  for (const b of bookings) {
+    const sessionRows = buildSessionRows(b, storeCodeMap);
+    const sessionCount = sessionRows.length;
+    const startRow = excelRow;
+
+    for (const row of sessionRows) {
       const out: Record<string, unknown> = {};
       for (const k of keys) {
         out[FINANCIAL_COLUMN_LABELS[k]] = row[k] ?? "-";
       }
-      return out;
-    }),
-  );
+      displayRows.push(out);
+    }
+
+    if (sessionCount > 1) {
+      keys.forEach((k, colIdx) => {
+        if (!SESSION_COL_KEYS.has(k)) {
+          merges.push({
+            s: { r: startRow, c: colIdx },
+            e: { r: startRow + sessionCount - 1, c: colIdx },
+          });
+        }
+      });
+    }
+
+    excelRow += sessionCount;
+  }
 
   const worksheet = XLSX.utils.json_to_sheet(displayRows, {
     header: headerLabels,
   });
 
   worksheet["!cols"] = keys.map((k) => ({ wch: COL_WIDTHS[k] ?? 16 }));
+  if (merges.length > 0) worksheet["!merges"] = merges;
 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Financial");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,16 +30,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   Download,
-  FileSpreadsheet,
   Filter,
+  FilterX,
   Loader2,
   AlertCircle,
   Columns,
   ChevronLeft,
   ChevronRight,
-  RefreshCw,
 } from "lucide-react";
-import { getFinancialReport } from "@/lib/api/reports";
+import { streamFinancialReport, connectLiveBookings } from "@/lib/api/reports";
 import { getStores } from "@/lib/api/stores";
 import {
   exportFinancialToExcel,
@@ -52,26 +51,16 @@ import {
 import type { ApiStore } from "@/lib/api/stores";
 import type { AdminBooking } from "@/lib/api/bookings";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type ColType = "Raw" | "Computed" | "Snapshot" | "Joined";
-
-interface SpecColumn {
-  name: string;
-  table: string;
-  source: string;
-  type: ColType;
-  description: string;
-}
-
 // ─── Session-specific columns (not merged — one cell per session row) ─────────
 
 const SESSION_COLS = new Set<keyof FinancialRow>([
   "session_name",
+  "groomer_session",
   "session_status",
   "started_at",
   "finished_at",
   "duration_mins",
+  "commission_base_groomer",
 ]);
 
 const RUPIAH_COLS = new Set<keyof FinancialRow>([
@@ -83,12 +72,10 @@ const RUPIAH_COLS = new Set<keyof FinancialRow>([
   "membership_benefit",
   "total_discount",
   "net_total",
-  "commission_base_g1",
-  "commission_base_g2",
+  "commission_base_groomer",
 ]);
 
 // ─── Column definitions for the data table ───────────────────────────────────
-// key matches FinancialRow keys; defaultVisible = shown by default
 
 const TABLE_COLUMNS: {
   key: keyof FinancialRow;
@@ -98,57 +85,56 @@ const TABLE_COLUMNS: {
   missing?: boolean;
 }[] = [
   // Transaction Identity
-  { key: "booking_id",      group: "Transaksi",   defaultVisible: false },
-  { key: "booking_code",    group: "Transaksi",   defaultVisible: true },
-  { key: "booking_date",    group: "Transaksi",   defaultVisible: true },
-  { key: "time_slot",       group: "Transaksi",   defaultVisible: true },
-  { key: "booking_type",    group: "Transaksi",   defaultVisible: true },
-  { key: "booking_status",  group: "Transaksi",   defaultVisible: true },
-  { key: "session_name",    group: "Transaksi",   defaultVisible: false },
-  { key: "session_status",  group: "Transaksi",   defaultVisible: false },
-  { key: "started_at",      group: "Transaksi",   defaultVisible: false },
-  { key: "finished_at",     group: "Transaksi",   defaultVisible: false },
-  { key: "duration_mins",   group: "Transaksi",   defaultVisible: false },
-  { key: "payment_method",  group: "Transaksi",   defaultVisible: false },
-  { key: "referral_code",   group: "Transaksi",   defaultVisible: false },
+  { key: "booking_id", group: "Transaksi", defaultVisible: false },
+  { key: "booking_code", group: "Transaksi", defaultVisible: true },
+  { key: "booking_date", group: "Transaksi", defaultVisible: true },
+  { key: "time_slot", group: "Transaksi", defaultVisible: true },
+  { key: "booking_type", group: "Transaksi", defaultVisible: true },
+  { key: "booking_status", group: "Transaksi", defaultVisible: true },
+  { key: "session_name", group: "Transaksi", defaultVisible: false },
+  { key: "groomer_session", group: "Transaksi", defaultVisible: false },
+  { key: "session_status", group: "Transaksi", defaultVisible: false },
+  { key: "started_at", group: "Transaksi", defaultVisible: false },
+  { key: "finished_at", group: "Transaksi", defaultVisible: false },
+  { key: "duration_mins", group: "Transaksi", defaultVisible: false },
+  { key: "payment_method", group: "Transaksi", defaultVisible: false },
+  { key: "referral_code", group: "Transaksi", defaultVisible: false },
   // Store
-  { key: "store_id",        group: "Cabang",      defaultVisible: false },
-  { key: "store_code",      group: "Cabang",      defaultVisible: false },
-  { key: "store_name",      group: "Cabang",      defaultVisible: true },
+  { key: "store_id", group: "Cabang", defaultVisible: false },
+  { key: "store_code", group: "Cabang", defaultVisible: false },
+  { key: "store_name", group: "Cabang", defaultVisible: true },
   // Customer & Pet
-  { key: "customer_id",     group: "Customer",    defaultVisible: false },
-  { key: "customer_code",   group: "Customer",    defaultVisible: false },
-  { key: "customer_name",   group: "Customer",    defaultVisible: true },
-  { key: "customer_phone",  group: "Customer",    defaultVisible: false },
-  { key: "pet_name",        group: "Customer",    defaultVisible: true },
-  { key: "member_type",     group: "Customer",    defaultVisible: false },
+  { key: "customer_id", group: "Customer", defaultVisible: false },
+  { key: "customer_code", group: "Customer", defaultVisible: false },
+  { key: "customer_name", group: "Customer", defaultVisible: true },
+  { key: "customer_phone", group: "Customer", defaultVisible: false },
+  { key: "customer_category", group: "Customer", defaultVisible: false },
+  { key: "pet_id", group: "Customer", defaultVisible: false },
+  { key: "pet_code", group: "Customer", defaultVisible: false },
+  { key: "pet_name", group: "Customer", defaultVisible: true },
+  { key: "member_type", group: "Customer", defaultVisible: false },
   // Service
-  { key: "service_id",      group: "Layanan",     defaultVisible: false },
-  { key: "service_code",    group: "Layanan",     defaultVisible: false },
-  { key: "service_name",    group: "Layanan",     defaultVisible: true },
-  { key: "service_type",    group: "Layanan",     defaultVisible: false },
-  { key: "service_base_price", group: "Layanan",  defaultVisible: false },
-  { key: "service_duration",group: "Layanan",     defaultVisible: false },
-  { key: "addon_names",     group: "Layanan",     defaultVisible: false },
+  { key: "service_id", group: "Layanan", defaultVisible: false },
+  { key: "service_code", group: "Layanan", defaultVisible: false },
+  { key: "service_name", group: "Layanan", defaultVisible: true },
+  { key: "service_type", group: "Layanan", defaultVisible: false },
+  { key: "service_base_price", group: "Layanan", defaultVisible: false },
+  { key: "service_duration", group: "Layanan", defaultVisible: false },
+  { key: "addon_names", group: "Layanan", defaultVisible: false },
   // Groomer
-  { key: "groomer_1_name",  group: "Groomer",     defaultVisible: false },
-  { key: "groomer_1_task",  group: "Groomer",     defaultVisible: false },
-  { key: "groomer_2_name",  group: "Groomer",     defaultVisible: false },
-  { key: "groomer_2_task",  group: "Groomer",     defaultVisible: false },
   // On-time
-  { key: "is_on_time",      group: "On-time",     defaultVisible: false },
-  { key: "overrun_mins",    group: "On-time",     defaultVisible: false },
+  { key: "is_on_time", group: "On-time", defaultVisible: false },
+  { key: "overrun_mins", group: "On-time", defaultVisible: false },
   // Revenue
-  { key: "sub_total_service", group: "Revenue",   defaultVisible: false },
-  { key: "travel_fee",      group: "Revenue",     defaultVisible: false },
-  { key: "gross_total",     group: "Revenue",     defaultVisible: false },
-  { key: "promo_codes_used",group: "Revenue",     defaultVisible: false },
-  { key: "promo_discount",  group: "Revenue",     defaultVisible: false },
-  { key: "membership_benefit", group: "Revenue",  defaultVisible: false },
-  { key: "total_discount",  group: "Revenue",     defaultVisible: false },
-  { key: "net_total",       group: "Revenue",     defaultVisible: true },
-  { key: "commission_base_g1", group: "Revenue",  defaultVisible: false, missing: true },
-  { key: "commission_base_g2", group: "Revenue",  defaultVisible: false, missing: true },
+  { key: "sub_total_service", group: "Revenue", defaultVisible: false },
+  { key: "travel_fee", group: "Revenue", defaultVisible: false },
+  { key: "gross_total", group: "Revenue", defaultVisible: false },
+  { key: "promo_codes_used", group: "Revenue", defaultVisible: false },
+  { key: "promo_discount", group: "Revenue", defaultVisible: false },
+  { key: "membership_benefit", group: "Revenue", defaultVisible: false },
+  { key: "total_discount", group: "Revenue", defaultVisible: false },
+  { key: "net_total", group: "Revenue", defaultVisible: true },
+  { key: "commission_base_groomer", group: "Revenue", defaultVisible: false, missing: true },
 ];
 
 const DEFAULT_VISIBLE = new Set(
@@ -157,114 +143,9 @@ const DEFAULT_VISIBLE = new Set(
 
 const PAGE_SIZE = 20;
 
-// ─── Column spec data (for the Spec tab) ─────────────────────────────────────
-
-const typeConfig: Record<ColType, { label: string; className: string }> = {
-  Raw: {
-    label: "Raw",
-    className:
-      "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800",
-  },
-  Computed: {
-    label: "Computed",
-    className:
-      "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-900/40 dark:text-slate-400 dark:border-slate-700",
-  },
-  Snapshot: {
-    label: "Snapshot",
-    className:
-      "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800",
-  },
-  Joined: {
-    label: "Joined",
-    className:
-      "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800",
-  },
-};
-
-const specSections: { heading: string; columns: SpecColumn[] }[] = [
-  {
-    heading: "Transaction Identity",
-    columns: [
-      { name: "booking_code",   table: "Booking", source: "code",                          type: "Raw",      description: "Kode booking (bukan MongoDB _id)." },
-      { name: "booking_date",   table: "Booking", source: "date",                          type: "Raw",      description: "Tanggal sesi. Sumbu filter utama." },
-      { name: "time_slot",      table: "Booking", source: "time_range",                    type: "Raw",      description: "Slot waktu terjadwal." },
-      { name: "booking_type",   table: "Booking", source: "type",                          type: "Raw",      description: "in_store atau in_home." },
-      { name: "booking_status", table: "Booking", source: "booking_confirmed",             type: "Raw",      description: "approved / not_confirmed / cancelled." },
-      { name: "session_status", table: "Booking", source: "sessions[].status",             type: "Raw",      description: "not_started / in_progress / finished." },
-      { name: "started_at",     table: "Booking", source: "sessions[0].started_at",        type: "Raw",      description: "Waktu mulai aktual — dari sesi pertama." },
-      { name: "finished_at",    table: "Booking", source: "sessions[last].finished_at",    type: "Raw",      description: "Waktu selesai aktual — dari sesi terakhir." },
-      { name: "duration_mins",  table: "Booking", source: "finished_at − started_at",      type: "Computed", description: "Durasi aktual dalam menit." },
-      { name: "payment_method", table: "Booking", source: "payment_method",                type: "Raw",      description: "Cash / transfer / e-wallet." },
-      { name: "referral_code",  table: "Booking", source: "referal_code",                  type: "Raw",      description: "Kode referral yang digunakan." },
-    ],
-  },
-  {
-    heading: "Store / Cabang",
-    columns: [
-      { name: "store_code",  table: "Store",   source: "code",  type: "Joined",   description: "Kode cabang (bukan MongoDB store_id)." },
-      { name: "store_name",  table: "Store",   source: "name",  type: "Joined",   description: "Nama cabang." },
-    ],
-  },
-  {
-    heading: "Customer & Pet",
-    columns: [
-      { name: "customer_code",  table: "Users",   source: "username",                      type: "Raw",      description: "Kode/username customer (bukan MongoDB customer_id)." },
-      { name: "customer_name",  table: "Users",   source: "username",                      type: "Raw",      description: "Nama customer." },
-      { name: "customer_phone", table: "Users",   source: "phone_number",                  type: "Raw",      description: "Nomor HP customer." },
-      { name: "pet_name",       table: "Booking", source: "pet_snapshot.name",             type: "Snapshot", description: "Nama pet saat booking." },
-      { name: "member_type",    table: "Booking", source: "pet_snapshot.member_type.name", type: "Snapshot", description: "Tier membership saat booking — bukan nilai current." },
-    ],
-  },
-  {
-    heading: "Service & Layanan",
-    columns: [
-      { name: "service_code",       table: "Services", source: "code",                type: "Joined",   description: "Kode layanan (bukan MongoDB service_id)." },
-      { name: "service_name",       table: "Services", source: "name",                type: "Joined",   description: "Nama layanan." },
-      { name: "service_type",       table: "Services", source: "service_type.title",  type: "Joined",   description: "Kategori layanan." },
-      { name: "service_base_price", table: "Services", source: "price",               type: "Joined",   description: "Harga list sebelum diskon." },
-      { name: "service_duration",   table: "Services", source: "duration",            type: "Joined",   description: "Estimasi durasi (menit)." },
-      { name: "addon_names",        table: "Services", source: "addons[].name",       type: "Joined",   description: "Add-on dipisah koma." },
-    ],
-  },
-  {
-    heading: "Groomer / Salesman",
-    columns: [
-      { name: "groomer_1_name", table: "Users",   source: "sessions[0].groomer_detail.username", type: "Joined", description: "Groomer pertama." },
-      { name: "groomer_1_task", table: "Booking", source: "sessions[0].type",                    type: "Raw",    description: "Tugas groomer 1." },
-      { name: "groomer_2_name", table: "Users",   source: "sessions[1].groomer_detail.username", type: "Joined", description: "Groomer kedua (null jika solo)." },
-      { name: "groomer_2_task", table: "Booking", source: "sessions[1].type",                    type: "Raw",    description: "Tugas groomer 2." },
-    ],
-  },
-  {
-    heading: "On-time (Formula & Status)",
-    columns: [
-      { name: "is_on_time",    table: "—", source: "finished_at ≤ started_at + service.duration", type: "Computed", description: "Ya/Tidak — sesuai Formula On-time Rate." },
-      { name: "overrun_mins",  table: "—", source: "MAX(0, finished_at − estimated_end)",          type: "Computed", description: "Menit terlambat dari estimasi." },
-    ],
-  },
-  {
-    heading: "Revenue & Pricing",
-    columns: [
-      { name: "sub_total_service",  table: "Booking",      source: "sub_total_service",                       type: "Raw",      description: "Layanan + add-on sebelum travel fee." },
-      { name: "travel_fee",         table: "Booking",      source: "travel_fee",                              type: "Raw",      description: "Biaya transport in-home; 0 untuk in-store." },
-      { name: "gross_total",        table: "—",            source: "sub_total_service + travel_fee",          type: "Computed", description: "Harga penuh sebelum diskon." },
-      { name: "promo_codes_used",   table: "PromoClaims",  source: "applied_promotions[].code",               type: "Joined",   description: "Kode promo yang digunakan." },
-      { name: "promo_discount",     table: "PromoClaims",  source: "SUM(applied_promotions.amount_deducted)", type: "Computed", description: "Total diskon promo." },
-      { name: "membership_benefit", table: "BenefitUsage", source: "SUM(applied_benefits.amount_deducted)",   type: "Computed", description: "Total benefit membership terpakai." },
-      { name: "total_discount",     table: "—",            source: "promo_discount + membership_benefit",     type: "Computed", description: "Semua diskon gabungan." },
-      { name: "net_total",          table: "Booking",      source: "final_total_price",                       type: "Raw",      description: "Jumlah akhir yang dibayar." },
-      { name: "commission_base_g1", table: "—",            source: "gross_total · solo=100%, shared=50%",     type: "Computed", description: "Gross attribution Groomer 1." },
-      { name: "commission_base_g2", table: "—",            source: "gross_total × 50% (jika shared)",         type: "Computed", description: "Gross attribution Groomer 2." },
-    ],
-  },
-];
-
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export default function FinancialReportPage() {
-  const [activeTab, setActiveTab] = useState<"export" | "spec">("export");
-
   // ── Filter state ────────────────────────────────────────────────────────────
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -277,10 +158,19 @@ export default function FinancialReportPage() {
   const [allBookings, setAllBookings] = useState<AdminBooking[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasLoaded, setHasLoaded] = useState(false);
+
+  // ── SSE stream abort ref ────────────────────────────────────────────────────
+  const streamAbortRef = useRef<AbortController | null>(null);
+  const liveAbortRef = useRef<AbortController | null>(null);
+
+  // Keep a stable ref to active filter values so the live handler can read them
+  // without needing to be re-subscribed every time filters change.
+  const filtersRef = useRef({ dateFrom, dateTo, storeId, bookingType, bookingStatus });
+  filtersRef.current = { dateFrom, dateTo, storeId, bookingType, bookingStatus };
 
   // ── Column visibility ───────────────────────────────────────────────────────
-  const [visibleCols, setVisibleCols] = useState<Set<keyof FinancialRow>>(DEFAULT_VISIBLE);
+  const [visibleCols, setVisibleCols] =
+    useState<Set<keyof FinancialRow>>(DEFAULT_VISIBLE);
 
   // ── Pagination ──────────────────────────────────────────────────────────────
   const [page, setPage] = useState(1);
@@ -299,11 +189,99 @@ export default function FinancialReportPage() {
       .catch(() => {});
   }, []);
 
-  // booking_type is now a server-side filter — allBookings is already filtered
+  // ── Cancel streams on unmount ───────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      streamAbortRef.current?.abort();
+      liveAbortRef.current?.abort();
+    };
+  }, []);
+
+  // ── Persistent live SSE — receives individual booking events in real-time ────
+  useEffect(() => {
+    liveAbortRef.current?.abort();
+    const controller = new AbortController();
+    liveAbortRef.current = controller;
+
+    connectLiveBookings((booking) => {
+      const f = filtersRef.current;
+
+      // Apply the same filters the batch stream uses
+      if (f.storeId !== "all" && booking.store_id !== f.storeId) return;
+      if (f.bookingStatus !== "all" && booking.booking_status !== f.bookingStatus) return;
+      if (f.bookingType !== "all" && booking.type !== f.bookingType) return;
+      if (f.dateFrom) {
+        const bookingDate = booking.date ? booking.date.slice(0, 10) : "";
+        if (bookingDate < f.dateFrom) return;
+      }
+      if (f.dateTo) {
+        const bookingDate = booking.date ? booking.date.slice(0, 10) : "";
+        if (bookingDate > f.dateTo) return;
+      }
+
+      setAllBookings((prev) => {
+        const idx = prev.findIndex((b) => b._id === booking._id);
+        if (idx !== -1) {
+          // Replace existing booking (update)
+          const next = [...prev];
+          next[idx] = booking;
+          return next;
+        }
+        // Prepend new booking (create)
+        return [booking, ...prev];
+      });
+    }, controller.signal);
+
+    return () => controller.abort();
+  }, []);
+
+  // ── Auto-stream on mount + filter change (debounced 400 ms) ─────────────────
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // Cancel any in-flight stream before starting a new one
+      streamAbortRef.current?.abort();
+      const controller = new AbortController();
+      streamAbortRef.current = controller;
+
+      setAllBookings([]);
+      setPage(1);
+      setLoading(true);
+      setError(null);
+
+      streamFinancialReport(
+        {
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+          store_id: storeId !== "all" ? storeId : undefined,
+          booking_status: bookingStatus !== "all" ? bookingStatus : undefined,
+          booking_type: bookingType !== "all" ? bookingType : undefined,
+        },
+        (chunk) => setAllBookings((prev) => [...prev, ...chunk]),
+        () => setLoading(false),
+        (msg) => {
+          setError(msg);
+          setLoading(false);
+        },
+        controller.signal,
+      ).catch((err: unknown) => {
+        // AbortError is expected when filters change — suppress it
+        if (err instanceof Error && err.name === "AbortError") return;
+        setError(err instanceof Error ? err.message : "Gagal memuat data");
+        setLoading(false);
+      });
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [dateFrom, dateTo, storeId, bookingType, bookingStatus]);
+
+  // booking_type is server-side filtered — allBookings is already filtered
   const filteredBookings = allBookings;
 
   // ── Rows for current page (one row per session) ─────────────────────────────
-  const totalPages = Math.max(1, Math.ceil(filteredBookings.length / PAGE_SIZE));
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredBookings.length / PAGE_SIZE),
+  );
   const pageRows = useMemo<SessionFinancialRow[]>(() => {
     const start = (page - 1) * PAGE_SIZE;
     return filteredBookings
@@ -320,43 +298,17 @@ export default function FinancialReportPage() {
     });
   }, [pageRows, page]);
 
-  // Reset to page 1 when loaded data changes
-  useEffect(() => {
-    setPage(1);
-  }, [allBookings]);
-
   // ── Visible columns list (ordered) ─────────────────────────────────────────
   const visibleColDefs = TABLE_COLUMNS.filter((c) => visibleCols.has(c.key));
 
-  // ── Load data ───────────────────────────────────────────────────────────────
-  async function loadData() {
-    setLoading(true);
-    setError(null);
-    try {
-      const bookings = await getFinancialReport({
-        date_from: dateFrom || undefined,
-        date_to: dateTo || undefined,
-        store_id: storeId !== "all" ? storeId : undefined,
-        booking_status: bookingStatus !== "all" ? bookingStatus : undefined,
-        booking_type: bookingType !== "all" ? bookingType : undefined,
-      });
-      setAllBookings(bookings);
-      setHasLoaded(true);
-      setPage(1);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Gagal mengambil data");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   // ── Export ──────────────────────────────────────────────────────────────────
-  async function handleExport() {
-    if (!hasLoaded) {
-      await loadData();
-    }
+  function handleExport() {
     if (filteredBookings.length === 0) {
-      setError("Tidak ada data yang sesuai filter untuk diexport.");
+      setError(
+        loading
+          ? "Data masih dimuat, coba lagi setelah selesai."
+          : "Tidak ada data yang sesuai filter untuk diexport.",
+      );
       return;
     }
     try {
@@ -371,7 +323,7 @@ export default function FinancialReportPage() {
     setVisibleCols((prev) => {
       const next = new Set(prev);
       if (next.has(key)) {
-        if (next.size === 1) return prev; // keep at least 1 column
+        if (next.size === 1) return prev;
         next.delete(key);
       } else {
         next.add(key);
@@ -398,6 +350,21 @@ export default function FinancialReportPage() {
     return true;
   }, [visibleCols]);
 
+  const isFiltered =
+    dateFrom !== "" ||
+    dateTo !== "" ||
+    storeId !== "all" ||
+    bookingType !== "all" ||
+    bookingStatus !== "all";
+
+  function resetFilters() {
+    setDateFrom("");
+    setDateTo("");
+    setStoreId("all");
+    setBookingType("all");
+    setBookingStatus("all");
+  }
+
   function selectAllCols() {
     setVisibleCols(new Set(TABLE_COLUMNS.map((c) => c.key)));
   }
@@ -422,87 +389,105 @@ export default function FinancialReportPage() {
           </Badge>
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
-          Report #1 · Daily / Monthly · Used by: Owner, Finance · Sheet: Financial
+          Report #1 · Daily / Monthly · Used by: Owner, Finance · Sheet:
+          Financial
         </p>
       </div>
 
-      {/* Tab switcher */}
-      <div className="flex gap-2 border-b border-border">
-        <button
-          onClick={() => setActiveTab("export")}
-          className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === "export"
-              ? "border-emerald-600 text-emerald-700 dark:text-emerald-400"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <FileSpreadsheet className="h-4 w-4" />
-          Export Data
-        </button>
-        <button
-          onClick={() => setActiveTab("spec")}
-          className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-            activeTab === "spec"
-              ? "border-emerald-600 text-emerald-700 dark:text-emerald-400"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          Column Spec
-        </button>
-      </div>
-
-      {/* ── EXPORT TAB ──────────────────────────────────────────────────────── */}
-      {activeTab === "export" && (
-        <div className="space-y-4">
-
+      <div className="space-y-4">
           {/* Filter panel */}
           <Card>
-            <CardHeader className="pb-3 pt-4">
+            <CardHeader className="flex flex-row items-center justify-between pb-3 pt-4">
               <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                 <Filter className="h-4 w-4" />
                 Filter Data
               </CardTitle>
+              {isFiltered && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 border-orange-300 text-orange-600 hover:bg-orange-50 hover:text-orange-700 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950/30"
+                  onClick={resetFilters}
+                >
+                  <FilterX className="h-3.5 w-3.5" />
+                  Reset Filter
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Tanggal Dari</label>
-                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                <label className="text-xs font-medium text-muted-foreground">
+                  Tanggal Dari
+                </label>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Tanggal Sampai</label>
-                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                <label className="text-xs font-medium text-muted-foreground">
+                  Tanggal Sampai
+                </label>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Cabang</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  Cabang
+                </label>
                 <Select value={storeId} onValueChange={setStoreId}>
-                  <SelectTrigger><SelectValue placeholder="Semua Cabang" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Cabang" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Semua Cabang</SelectItem>
                     {stores.map((s) => (
-                      <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>
+                      <SelectItem key={s._id} value={s._id}>
+                        {s.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Tipe Booking</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  Tipe Booking
+                </label>
                 <Select value={bookingType} onValueChange={setBookingType}>
-                  <SelectTrigger><SelectValue placeholder="Semua Tipe" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Tipe" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Semua Tipe</SelectItem>
-                    <SelectItem value="in_store">In Store</SelectItem>
-                    <SelectItem value="in_home">In Home</SelectItem>
+                    <SelectItem value="in store">In Store</SelectItem>
+                    <SelectItem value="in home">In Home</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Status Booking</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  Status Booking
+                </label>
                 <Select value={bookingStatus} onValueChange={setBookingStatus}>
-                  <SelectTrigger><SelectValue placeholder="Semua Status" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Status" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Semua Status</SelectItem>
-                    <SelectItem value="approved">Approved</SelectItem>
-                    <SelectItem value="not_confirmed">Not Confirmed</SelectItem>
+                    <SelectItem value="requested">Requested</SelectItem>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="waitlist">Waitlist</SelectItem>
+                    <SelectItem value="driver on the way">Driver on the Way</SelectItem>
+                    <SelectItem value="groomer on the way">Groomer on the Way</SelectItem>
+                    <SelectItem value="arrived">Arrived</SelectItem>
+                    <SelectItem value="in progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="returned">Returned</SelectItem>
+                    <SelectItem value="rescheduled">Rescheduled</SelectItem>
                     <SelectItem value="cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>
@@ -512,32 +497,38 @@ export default function FinancialReportPage() {
 
           {/* Action bar */}
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={loadData} disabled={loading} variant="outline">
-              {loading
-                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                : <RefreshCw className="mr-2 h-4 w-4" />}
-              {hasLoaded ? "Refresh Data" : "Load Data"}
-            </Button>
-
             <Button
               onClick={handleExport}
-              disabled={loading}
+              disabled={loading && filteredBookings.length === 0}
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              {loading
-                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                : <Download className="mr-2 h-4 w-4" />}
-              Export Semua Kolom (.xlsx)
+              <Download className="mr-2 h-4 w-4" />
+              Export Data (.xlsx)
             </Button>
 
-            {hasLoaded && !loading && (
-              <span className="text-sm text-muted-foreground">
-                <span className="font-semibold text-foreground">
-                  {filteredBookings.length.toLocaleString("id-ID")}
-                </span>{" "}
-                data ditemukan
-              </span>
-            )}
+            {/* Live data count */}
+            <span className="text-sm text-muted-foreground">
+              {loading ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Memuat
+                  {filteredBookings.length > 0 && (
+                    <span className="font-semibold text-foreground">
+                      {" "}
+                      ({filteredBookings.length.toLocaleString("id-ID")}{" "}
+                      data...)
+                    </span>
+                  )}
+                </span>
+              ) : (
+                <span>
+                  <span className="font-semibold text-foreground">
+                    {filteredBookings.length.toLocaleString("id-ID")}
+                  </span>{" "}
+                  data ditemukan
+                </span>
+              )}
+            </span>
           </div>
 
           {/* Error */}
@@ -548,32 +539,31 @@ export default function FinancialReportPage() {
             </div>
           )}
 
-          {/* Data table (shown after load) */}
-          {hasLoaded && (
-            <Card className="overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between pb-3 pt-4">
-                <div>
-                  <CardTitle className="text-sm font-semibold text-foreground">
-                    Data Report Financial
-                  </CardTitle>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Pilih kolom yang ingin ditampilkan. Export selalu mengambil semua{" "}
-                    {Object.keys(FINANCIAL_COLUMN_LABELS).length} kolom.
-                  </p>
-                </div>
+          {/* Data table */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3 pt-4">
+              <div>
+                <CardTitle className="text-sm font-semibold text-foreground">
+                  Data Report Financial
+                </CardTitle>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Pilih kolom yang ingin ditampilkan. Export selalu mengambil
+                  semua {Object.keys(FINANCIAL_COLUMN_LABELS).length} kolom.
+                </p>
+              </div>
 
+              <div className="flex items-center gap-2">
                 {/* Reset to default — only shown when selection differs from default */}
-                <div className="flex items-center gap-2">
-                  {!isDefaultSelection && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs text-muted-foreground"
-                      onClick={resetToDefault}
-                    >
-                      Reset ke Default
-                    </Button>
-                  )}
+                {!isDefaultSelection && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground"
+                    onClick={resetToDefault}
+                  >
+                    Reset ke Default
+                  </Button>
+                )}
 
                 {/* Column visibility toggle */}
                 <DropdownMenu>
@@ -581,7 +571,10 @@ export default function FinancialReportPage() {
                     <Button variant="outline" size="sm" className="gap-1.5">
                       <Columns className="h-4 w-4" />
                       Kolom
-                      <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
+                      <Badge
+                        variant="secondary"
+                        className="ml-1 text-xs px-1.5 py-0"
+                      >
                         {visibleCols.size}
                       </Badge>
                     </Button>
@@ -625,42 +618,64 @@ export default function FinancialReportPage() {
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                </div>
-              </CardHeader>
+              </div>
+            </CardHeader>
 
-              <CardContent className="p-0">
-                {annotatedPageRows.length === 0 ? (
-                  <p className="px-6 py-10 text-center text-sm text-muted-foreground">
-                    Tidak ada data yang sesuai filter.
-                  </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-10 text-center text-xs text-muted-foreground">
-                          #
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10 text-center text-xs text-muted-foreground">
+                        #
+                      </TableHead>
+                      {visibleColDefs.map((c) => (
+                        <TableHead
+                          key={c.key}
+                          className="whitespace-nowrap text-xs"
+                        >
+                          {FINANCIAL_COLUMN_LABELS[c.key]}
+                          {c.missing && (
+                            <span className="ml-1 text-amber-500">(?)</span>
+                          )}
                         </TableHead>
-                        {visibleColDefs.map((c) => (
-                          <TableHead
-                            key={c.key}
-                            className="whitespace-nowrap text-xs"
-                          >
-                            {FINANCIAL_COLUMN_LABELS[c.key]}
-                            {c.missing && (
-                              <span className="ml-1 text-amber-500">(?)</span>
-                            )}
-                          </TableHead>
-                        ))}
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading && annotatedPageRows.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={visibleColDefs.length + 1}
+                          className="py-10 text-center"
+                        >
+                          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Memuat data...
+                          </div>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {annotatedPageRows.map(({ row, bookingNum }) => {
+                    ) : annotatedPageRows.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={visibleColDefs.length + 1}
+                          className="py-10 text-center text-sm text-muted-foreground"
+                        >
+                          Tidak ada data yang sesuai filter.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      annotatedPageRows.map(({ row, bookingNum }) => {
                         const isFirst = row._sessionIndex === 0;
                         const span = row._sessionCount;
                         return (
                           <TableRow
                             key={`${row.booking_id}-${row._sessionIndex}`}
-                            className={isFirst && bookingNum > (page - 1) * PAGE_SIZE + 1 ? "border-t-2 border-muted" : ""}
+                            className={
+                              isFirst && bookingNum > (page - 1) * PAGE_SIZE + 1
+                                ? "border-t-2 border-muted"
+                                : ""
+                            }
                           >
                             {/* # column — rowspanned per booking */}
                             {isFirst && (
@@ -673,7 +688,6 @@ export default function FinancialReportPage() {
                             )}
                             {visibleColDefs.map((c) => {
                               const isSessionCol = SESSION_COLS.has(c.key);
-                              // booking-level cells: only render on first session row
                               if (!isSessionCol && !isFirst) return null;
                               const val = row[c.key];
                               return (
@@ -682,167 +696,115 @@ export default function FinancialReportPage() {
                                   rowSpan={isSessionCol ? 1 : span}
                                   className={`whitespace-nowrap text-xs${!isSessionCol ? " align-top" : ""}`}
                                 >
-                                  {val === "-" || val === undefined || val === null
-                                    ? <span className="text-muted-foreground/40">—</span>
-                                    : RUPIAH_COLS.has(c.key) && typeof val === "number"
-                                      ? fmtRupiah(val)
-                                      : String(val)}
+                                  {val === "-" ||
+                                  val === undefined ||
+                                  val === null ? (
+                                    <span className="text-muted-foreground/40">
+                                      —
+                                    </span>
+                                  ) : RUPIAH_COLS.has(c.key) &&
+                                    typeof val === "number" ? (
+                                    fmtRupiah(val)
+                                  ) : (
+                                    String(val)
+                                  )}
                                 </TableCell>
                               );
                             })}
                           </TableRow>
                         );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-between border-t border-border px-4 py-3">
-                    <span className="text-xs text-muted-foreground">
-                      Halaman{" "}
-                      <span className="font-semibold text-foreground">{page}</span>{" "}
-                      dari{" "}
-                      <span className="font-semibold text-foreground">{totalPages}</span>
-                      {" · "}
-                      {filteredBookings.length.toLocaleString("id-ID")} total data
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        disabled={page === 1}
-                        className="h-7 w-7 p-0"
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-
-                      {/* Page number buttons — show max 5 around current */}
-                      {Array.from({ length: totalPages }, (_, i) => i + 1)
-                        .filter(
-                          (p) =>
-                            p === 1 ||
-                            p === totalPages ||
-                            (p >= page - 2 && p <= page + 2),
-                        )
-                        .reduce<(number | "…")[]>((acc, p, idx, arr) => {
-                          if (idx > 0 && p - (arr[idx - 1] as number) > 1)
-                            acc.push("…");
-                          acc.push(p);
-                          return acc;
-                        }, [])
-                        .map((item, idx) =>
-                          item === "…" ? (
-                            <span
-                              key={`ellipsis-${idx}`}
-                              className="px-1 text-xs text-muted-foreground"
-                            >
-                              …
-                            </span>
-                          ) : (
-                            <Button
-                              key={item}
-                              variant={page === item ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setPage(item as number)}
-                              className="h-7 w-7 p-0 text-xs"
-                            >
-                              {item}
-                            </Button>
-                          ),
-                        )}
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={page === totalPages}
-                        className="h-7 w-7 p-0"
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
-
-      {/* ── COLUMN SPEC TAB ─────────────────────────────────────────────────── */}
-      {activeTab === "spec" && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader className="pb-2 pt-4">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Type Tags
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2 pb-4">
-              {(Object.keys(typeConfig) as ColType[]).map((t) => (
-                <Badge key={t} variant="outline" className={`text-xs ${typeConfig[t].className}`}>
-                  {t === "Raw"      && "[Raw] = direct DB field"}
-                  {t === "Computed" && "[Computed] = calculated at query time"}
-                  {t === "Snapshot" && "[Snapshot] = stored at booking time"}
-                  {t === "Joined"   && "[Joined] = from another table"}
-                </Badge>
-              ))}
-            </CardContent>
-          </Card>
-
-          {specSections.map((section) => (
-            <Card key={section.heading}>
-              <CardHeader className="pb-0 pt-4">
-                <CardTitle className="text-sm font-semibold text-foreground">
-                  {section.heading}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-44">Column Name</TableHead>
-                      <TableHead className="hidden sm:table-cell w-32">DB Table</TableHead>
-                      <TableHead className="hidden md:table-cell">DB Field / Source</TableHead>
-                      <TableHead className="w-24">Type</TableHead>
-                      <TableHead>Keterangan</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {section.columns.map((col) => {
-                      const tc = typeConfig[col.type];
-                      return (
-                        <TableRow key={col.name}>
-                          <TableCell className="font-mono text-xs font-semibold text-foreground">
-                            {col.name}
-                          </TableCell>
-                          <TableCell className="hidden sm:table-cell text-xs italic text-muted-foreground">
-                            {col.table}
-                          </TableCell>
-                          <TableCell className="hidden md:table-cell font-mono text-xs text-muted-foreground">
-                            {col.source}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={`text-xs ${tc.className}`}>
-                              {tc.label}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {col.description}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                      })
+                    )}
                   </TableBody>
                 </Table>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+
+              {/* Streaming indicator at bottom of table */}
+              {loading && annotatedPageRows.length > 0 && (
+                <div className="flex items-center justify-center gap-2 border-t border-border py-3 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Memuat lebih banyak data...
+                </div>
+              )}
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-border px-4 py-3">
+                  <span className="text-xs text-muted-foreground">
+                    Halaman{" "}
+                    <span className="font-semibold text-foreground">
+                      {page}
+                    </span>{" "}
+                    dari{" "}
+                    <span className="font-semibold text-foreground">
+                      {totalPages}
+                    </span>
+                    {" · "}
+                    {filteredBookings.length.toLocaleString("id-ID")} total data
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      className="h-7 w-7 p-0"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+
+                    {/* Page number buttons — show max 5 around current */}
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(
+                        (p) =>
+                          p === 1 ||
+                          p === totalPages ||
+                          (p >= page - 2 && p <= page + 2),
+                      )
+                      .reduce<(number | "…")[]>((acc, p, idx, arr) => {
+                        if (idx > 0 && p - (arr[idx - 1] as number) > 1)
+                          acc.push("…");
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((item, idx) =>
+                        item === "…" ? (
+                          <span
+                            key={`ellipsis-${idx}`}
+                            className="px-1 text-xs text-muted-foreground"
+                          >
+                            …
+                          </span>
+                        ) : (
+                          <Button
+                            key={item}
+                            variant={page === item ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setPage(item as number)}
+                            className="h-7 w-7 p-0 text-xs"
+                          >
+                            {item}
+                          </Button>
+                        ),
+                      )}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setPage((p) => Math.min(totalPages, p + 1))
+                      }
+                      disabled={page === totalPages}
+                      className="h-7 w-7 p-0"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
-      )}
     </div>
   );
 }

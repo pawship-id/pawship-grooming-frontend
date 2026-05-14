@@ -9,12 +9,18 @@ export interface BookingOptionRef {
 
 // ── Pet Snapshot ─────────────────────────────────────────────────────────────
 
+export interface CustomerSnapshot {
+  customer_name: string;
+  customer_phone: string;
+  customer_category?: { _id: string; name: string } | null;
+}
+
 export interface PetSnapshot {
   _id: string;
   name: string;
   description?: string;
   internal_note?: string;
-  member_type: BookingOptionRef;
+  member_type?: string | null;
   pet_type: BookingOptionRef;
   size: BookingOptionRef;
   hair: BookingOptionRef;
@@ -77,8 +83,7 @@ export interface SessionMedia {
 export interface BookingSession {
   _id?: string;
   type: string;
-  groomer_id?: string;
-  groomer_detail?: BookingCustomer;
+  groomer_id?: string | { _id: string; username?: string };
   status: string;
   started_at: string | null;
   finished_at: string | null;
@@ -166,6 +171,7 @@ export interface AdminBooking {
   pet_id: string;
   store_id: string;
   service_type?: string;
+  customer_snapshot?: CustomerSnapshot;
   pet_snapshot: PetSnapshot;
   service_snapshot: ServiceSnapshot;
   date: string;
@@ -212,6 +218,7 @@ export interface AdminBooking {
   // Populated by backend (present in both list and detail responses)
   customer?: BookingCustomer;
   store?: BookingStore;
+  pet?: { _id: string; code?: string };
   // Enriched by backend: memberships active on the booking date
   active_memberships?: { name: string }[];
 }

@@ -32,6 +32,17 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
   responseHeaders.delete("content-encoding")
   responseHeaders.delete("content-length")
 
+  // SSE responses must not be buffered — stream the body directly
+  const contentType = upstreamResponse.headers.get("content-type") ?? ""
+  if (contentType.includes("text/event-stream")) {
+    responseHeaders.set("X-Accel-Buffering", "no")
+    return new NextResponse(upstreamResponse.body, {
+      status: upstreamResponse.status,
+      statusText: upstreamResponse.statusText,
+      headers: responseHeaders,
+    })
+  }
+
   const responseBody = await upstreamResponse.arrayBuffer()
 
   return new NextResponse(responseBody, {

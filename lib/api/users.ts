@@ -103,6 +103,7 @@ export type UpdateMyProfilePayload = {
   image_url?: string;
   public_id?: string;
   gender?: "Male" | "Female";
+  customer_category_id?: string;
   tags?: string[];
   addresses?: UserAddress[];
   placement?: string;
