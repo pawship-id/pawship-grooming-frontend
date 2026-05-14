@@ -212,9 +212,13 @@ export function buildFinancialRow(
     service_code: b.service_snapshot?.code ?? "-",
     service_name: b.service_snapshot?.name ?? "-",
     service_type: b.service_snapshot?.service_type?.title ?? "-",
-    service_base_price: b.service_snapshot?.price ?? 0,
     service_duration: b.service_snapshot?.duration ?? 0,
     addon_names: addonNames,
+    service_base_price: b.service_snapshot?.price ?? 0,
+    addon_price: (b.service_snapshot?.addons ?? []).reduce(
+      (sum, a) => sum + (a.price ?? 0),
+      0,
+    ),
 
     // ── GROOMER / SALESMAN ────────────────────────────────────────────
     // overridden per session in buildSessionRows
@@ -275,8 +279,7 @@ export function buildSessionRows(
 
 // ─── Excel column header mapping ──────────────────────────────────────────────
 
-export const FINANCIAL_COLUMN_LABELS: Record<keyof FinancialRow, string> = {
-  booking_id: "ID Booking (DB)",
+export const FINANCIAL_COLUMN_LABELS: Partial<Record<keyof FinancialRow, string>> = {
   booking_code: "Kode Booking",
   booking_date: "Tanggal Booking",
   time_slot: "Time Slot",
@@ -290,28 +293,23 @@ export const FINANCIAL_COLUMN_LABELS: Record<keyof FinancialRow, string> = {
   duration_mins: "Durasi Aktual",
   payment_method: "Metode Pembayaran",
   referral_code: "Kode Referral",
-  store_id: "ID Cabang (DB)",
   store_code: "Kode Cabang",
   store_name: "Nama Cabang",
-  customer_id: "ID Customer (DB)",
   customer_code: "Kode Customer",
   customer_name: "Nama Customer",
   customer_phone: "No. HP Customer",
   customer_category: "Kategori Customer",
-  pet_id: "ID Pet (DB)",
   pet_code: "Kode Pet",
   pet_name: "Nama Pet",
   member_type: "Tipe Member",
-  service_id: "ID Layanan (DB)",
   service_code: "Kode Layanan",
   service_name: "Layanan",
   service_type: "Kategori Layanan",
-  service_base_price: "Harga List Layanan",
   service_duration: "Est. Durasi (menit)",
   addon_names: "Add-on",
-  is_on_time: "Tepat Waktu?",
-  overrun_mins: "Overrun (menit)",
-  sub_total_service: "Sub Total Layanan",
+  service_base_price: "Harga Layanan",
+  addon_price: "Harga Add-on",
+  sub_total_service: "Sub Total Layanan (Harga Layanan + Add-on)",
   travel_fee: "Biaya Perjalanan",
   gross_total: "Gross Total",
   promo_codes_used: "Kode Promo",
@@ -355,9 +353,10 @@ const COL_WIDTHS: Partial<Record<keyof FinancialRow, number>> = {
   service_code: 14,
   service_name: 28,
   service_type: 18,
-  service_base_price: 16,
   service_duration: 18,
   addon_names: 30,
+  service_base_price: 16,
+  addon_price: 16,
   is_on_time: 12,
   overrun_mins: 14,
   sub_total_service: 16,
@@ -394,7 +393,7 @@ export function exportFinancialToExcel(
   }
 
   const keys = Object.keys(FINANCIAL_COLUMN_LABELS) as (keyof FinancialRow)[];
-  const headerLabels = keys.map((k) => FINANCIAL_COLUMN_LABELS[k]);
+  const headerLabels = keys.map((k) => FINANCIAL_COLUMN_LABELS[k]!);
 
   const displayRows: Record<string, unknown>[] = [];
   const merges: XLSX.Range[] = [];
@@ -408,7 +407,7 @@ export function exportFinancialToExcel(
     for (const row of sessionRows) {
       const out: Record<string, unknown> = {};
       for (const k of keys) {
-        out[FINANCIAL_COLUMN_LABELS[k]] = row[k] ?? "-";
+        out[FINANCIAL_COLUMN_LABELS[k]!] = row[k] ?? "-";
       }
       displayRows.push(out);
     }

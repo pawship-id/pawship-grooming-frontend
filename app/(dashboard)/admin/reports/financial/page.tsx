@@ -65,6 +65,7 @@ const SESSION_COLS = new Set<keyof FinancialRow>([
 
 const RUPIAH_COLS = new Set<keyof FinancialRow>([
   "service_base_price",
+  "addon_price",
   "sub_total_service",
   "travel_fee",
   "gross_total",
@@ -85,7 +86,6 @@ const TABLE_COLUMNS: {
   missing?: boolean;
 }[] = [
   // Transaction Identity
-  { key: "booking_id", group: "Transaksi", defaultVisible: false },
   { key: "booking_code", group: "Transaksi", defaultVisible: true },
   { key: "booking_date", group: "Transaksi", defaultVisible: true },
   { key: "time_slot", group: "Transaksi", defaultVisible: true },
@@ -100,31 +100,24 @@ const TABLE_COLUMNS: {
   { key: "payment_method", group: "Transaksi", defaultVisible: false },
   { key: "referral_code", group: "Transaksi", defaultVisible: false },
   // Store
-  { key: "store_id", group: "Cabang", defaultVisible: false },
   { key: "store_code", group: "Cabang", defaultVisible: false },
   { key: "store_name", group: "Cabang", defaultVisible: true },
   // Customer & Pet
-  { key: "customer_id", group: "Customer", defaultVisible: false },
   { key: "customer_code", group: "Customer", defaultVisible: false },
   { key: "customer_name", group: "Customer", defaultVisible: true },
   { key: "customer_phone", group: "Customer", defaultVisible: false },
   { key: "customer_category", group: "Customer", defaultVisible: false },
-  { key: "pet_id", group: "Customer", defaultVisible: false },
   { key: "pet_code", group: "Customer", defaultVisible: false },
   { key: "pet_name", group: "Customer", defaultVisible: true },
   { key: "member_type", group: "Customer", defaultVisible: false },
   // Service
-  { key: "service_id", group: "Layanan", defaultVisible: false },
   { key: "service_code", group: "Layanan", defaultVisible: false },
   { key: "service_name", group: "Layanan", defaultVisible: true },
   { key: "service_type", group: "Layanan", defaultVisible: false },
-  { key: "service_base_price", group: "Layanan", defaultVisible: false },
   { key: "service_duration", group: "Layanan", defaultVisible: false },
   { key: "addon_names", group: "Layanan", defaultVisible: false },
-  // Groomer
-  // On-time
-  { key: "is_on_time", group: "On-time", defaultVisible: false },
-  { key: "overrun_mins", group: "On-time", defaultVisible: false },
+  { key: "service_base_price", group: "Layanan", defaultVisible: false },
+  { key: "addon_price", group: "Layanan", defaultVisible: false },
   // Revenue
   { key: "sub_total_service", group: "Revenue", defaultVisible: false },
   { key: "travel_fee", group: "Revenue", defaultVisible: false },
@@ -174,6 +167,9 @@ export default function FinancialReportPage() {
 
   // ── Pagination ──────────────────────────────────────────────────────────────
   const [page, setPage] = useState(1);
+
+  // ── Row hover — highlight all rows belonging to the same booking ────────────
+  const [hoveredBookingId, setHoveredBookingId] = useState<string | null>(null);
 
   // ── Store code map (store._id → store.code) ─────────────────────────────────
   const storeCodeMap = useMemo<Record<string, string>>(() => {
@@ -500,7 +496,7 @@ export default function FinancialReportPage() {
             <Button
               onClick={handleExport}
               disabled={loading && filteredBookings.length === 0}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               <Download className="mr-2 h-4 w-4" />
               Export Data (.xlsx)
@@ -661,7 +657,9 @@ export default function FinancialReportPage() {
                           colSpan={visibleColDefs.length + 1}
                           className="py-10 text-center text-sm text-muted-foreground"
                         >
-                          Tidak ada data yang sesuai filter.
+                          {isFiltered
+                            ? "Tidak ada data yang sesuai filter."
+                            : "Belum ada data."}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -671,11 +669,21 @@ export default function FinancialReportPage() {
                         return (
                           <TableRow
                             key={`${row.booking_id}-${row._sessionIndex}`}
-                            className={
+                            onMouseEnter={() => setHoveredBookingId(row.booking_id)}
+                            onMouseLeave={() => setHoveredBookingId(null)}
+                            style={
+                              hoveredBookingId === row.booking_id
+                                ? { backgroundColor: "hsl(var(--muted) / 0.5)" }
+                                : undefined
+                            }
+                            className={[
+                              "hover:bg-transparent",
                               isFirst && bookingNum > (page - 1) * PAGE_SIZE + 1
                                 ? "border-t-2 border-muted"
-                                : ""
-                            }
+                                : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" ")}
                           >
                             {/* # column — rowspanned per booking */}
                             {isFirst && (
