@@ -1,5 +1,139 @@
 import { apiAuthRequest } from "./client";
 import { getAccessToken } from "./storage";
+
+// ─── Capacity Utilisation Report ──────────────────────────────────────────────
+
+export interface CapacityReportRow {
+  store_id: string;
+  store_code: string;
+  store_name: string;
+  date: string;
+  default_capacity_mins: number;
+  daily_override_mins: number | null;
+  effective_capacity_mins: number;
+  used_minutes: number;
+  utilisation_pct: number;
+  remaining_minutes: number;
+  total_bookings: number;
+  overbooking_limit_mins: number;
+  is_overbooked: boolean;
+  has_capacity_override: boolean;
+  capacity_notes: string | null;
+}
+
+export interface CapacityReportParams {
+  date_from?: string;
+  date_to?: string;
+  store_id?: string;
+}
+
+export async function getCapacityReport(
+  params: CapacityReportParams = {},
+): Promise<{ count: number; data: CapacityReportRow[] }> {
+  const qs = new URLSearchParams();
+  if (params.date_from) qs.set("date_from", params.date_from);
+  if (params.date_to) qs.set("date_to", params.date_to);
+  if (params.store_id && params.store_id !== "all")
+    qs.set("store_id", params.store_id);
+
+  return apiAuthRequest<{ count: number; data: CapacityReportRow[] }>(
+    `/reports/capacity-utilisation${qs.toString() ? `?${qs}` : ""}`,
+  );
+}
+
+/**
+ * Opens a live SSE stream for the Capacity Utilisation report.
+ * - `onSnapshot`: called once with the full initial dataset.
+ * - `onUpdate`: called each time a booking mutation causes a row to change.
+ * - `onError`: called on server-reported errors (not AbortError).
+ * Pass an AbortSignal to close the stream.
+ */
+export async function streamCapacityReport(
+  params: CapacityReportParams,
+  onSnapshot: (rows: CapacityReportRow[]) => void,
+  onUpdate: (row: CapacityReportRow) => void,
+  onError: (message: string) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  const qs = new URLSearchParams();
+  if (params.date_from) qs.set("date_from", params.date_from);
+  if (params.date_to) qs.set("date_to", params.date_to);
+  if (params.store_id && params.store_id !== "all")
+    qs.set("store_id", params.store_id);
+
+  const token = getAccessToken();
+  const url = `/api/reports/capacity-utilisation/stream${qs.toString() ? `?${qs}` : ""}`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token ?? ""}`,
+      Accept: "text/event-stream",
+      "Cache-Control": "no-cache",
+    },
+    signal,
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    let message = `Request gagal (${response.status})`;
+    try {
+      const json = JSON.parse(text);
+      if (json.message)
+        message = Array.isArray(json.message)
+          ? json.message.join(", ")
+          : json.message;
+    } catch { /* ignore */ }
+    onError(message);
+    return;
+  }
+
+  if (!response.body) {
+    onError("Response body tidak tersedia");
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      buffer = buffer.replace(/\r\n|\r/g, "\n");
+
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() ?? "";
+
+      for (const part of parts) {
+        if (!part.trim()) continue;
+
+        let eventType = "message";
+        let data = "";
+        for (const line of part.split("\n")) {
+          if (line.startsWith("event:")) eventType = line.slice(6).trim();
+          else if (line.startsWith("data:")) data = line.slice(5).trim();
+        }
+        if (!data) continue;
+
+        try {
+          const parsed = JSON.parse(data) as Record<string, unknown>;
+          if (eventType === "snapshot" && Array.isArray(parsed.rows)) {
+            onSnapshot(parsed.rows as CapacityReportRow[]);
+          } else if (eventType === "update" && parsed.row) {
+            onUpdate(parsed.row as CapacityReportRow);
+          } else if (eventType === "error") {
+            onError((parsed.message as string) ?? "Terjadi kesalahan");
+          }
+        } catch { /* malformed JSON — skip */ }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
 import type { AdminBooking } from "./bookings";
 
 export interface FinancialReportParams {

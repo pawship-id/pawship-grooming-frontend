@@ -43,6 +43,9 @@ import { cn } from "@/lib/utils";
 import { streamOperationsReport } from "@/lib/api/reports";
 import { getStores } from "@/lib/api/stores";
 import { getServiceTypes } from "@/lib/api/service-types";
+import { streamCapacityReport } from "@/lib/api/reports";
+import type { CapacityReportRow } from "@/lib/api/reports";
+import * as XLSX from "xlsx";
 import type { ApiServiceType } from "@/lib/api/service-types";
 import {
   exportOperationsToExcel,
@@ -52,9 +55,206 @@ import {
   type OperationsRow,
   type OperationsSessionRow,
 } from "@/lib/export-operations";
-import { fmtRupiah } from "@/lib/export-financial";
+import {
+  fmtRupiah,
+  sortedSessions,
+  onTimeInfo,
+  diffMinutes,
+} from "@/lib/export-financial";
 import type { ApiStore } from "@/lib/api/stores";
 import type { AdminBooking } from "@/lib/api/bookings";
+
+// ─── Groomer Performance types & aggregation ──────────────────────────────────
+
+interface GroomerPerformanceRow {
+  groomer_id: string;
+  groomer_name: string;
+  store_placement: string;
+  period_start: string;
+  period_end: string;
+  total_sessions: number;
+  solo_sessions: number;
+  shared_sessions: number;
+  orders_completed: number;
+  on_time_sessions: number;
+  on_time_rate_pct: number;
+  avg_duration_mins: number;
+  avg_overrun_mins: number;
+  gross_revenue_attributed: number;
+}
+
+function buildGroomerPerformanceRows(
+  bookings: AdminBooking[],
+  periodStart: string,
+  periodEnd: string,
+): GroomerPerformanceRow[] {
+  const map = new Map<
+    string,
+    {
+      groomer_id: string;
+      groomer_name: string;
+      store_placement: string;
+      total_sessions: number;
+      solo_sessions: number;
+      shared_sessions: number;
+      orders_completed: number;
+      on_time_sessions: number;
+      duration_sum: number;
+      duration_count: number;
+      overrun_sum: number;
+      overrun_count: number;
+      gross_revenue: number;
+    }
+  >();
+
+  for (const booking of bookings) {
+    const sessions = sortedSessions(booking);
+    const isSolo = sessions.length === 1;
+    const { is_on_time, overrun_mins } = onTimeInfo(booking);
+    const isOnTime = is_on_time === "Ya";
+    const overrunNum = typeof overrun_mins === "number" ? overrun_mins : 0;
+
+    for (const sess of sessions) {
+      const rawId =
+        sess.groomer_detail?._id ??
+        (typeof sess.groomer_id === "object"
+          ? sess.groomer_id?._id
+          : sess.groomer_id);
+      if (!rawId) continue;
+
+      const name =
+        sess.groomer_detail?.username ??
+        (typeof sess.groomer_id === "object"
+          ? sess.groomer_id?.username
+          : undefined) ??
+        rawId;
+
+      if (!map.has(rawId)) {
+        map.set(rawId, {
+          groomer_id: rawId,
+          groomer_name: name,
+          store_placement: booking.store?.name ?? "-",
+          total_sessions: 0,
+          solo_sessions: 0,
+          shared_sessions: 0,
+          orders_completed: 0,
+          on_time_sessions: 0,
+          duration_sum: 0,
+          duration_count: 0,
+          overrun_sum: 0,
+          overrun_count: 0,
+          gross_revenue: 0,
+        });
+      }
+
+      const entry = map.get(rawId)!;
+      entry.total_sessions++;
+      if (isSolo) entry.solo_sessions++;
+      else entry.shared_sessions++;
+      if (sess.status === "finished") {
+        entry.orders_completed++;
+        if (isOnTime) entry.on_time_sessions++;
+        else {
+          entry.overrun_sum += overrunNum;
+          entry.overrun_count++;
+        }
+      }
+
+      const dur = diffMinutes(sess.started_at, sess.finished_at);
+      if (typeof dur === "number") {
+        entry.duration_sum += dur;
+        entry.duration_count++;
+      }
+
+      const gross = booking.final_total_price ?? 0;
+      entry.gross_revenue += isSolo ? gross : gross * 0.5;
+    }
+  }
+
+  return Array.from(map.values())
+    .sort((a, b) => b.total_sessions - a.total_sessions)
+    .map((g) => ({
+      groomer_id: g.groomer_id,
+      groomer_name: g.groomer_name,
+      store_placement: g.store_placement,
+      period_start: periodStart || "-",
+      period_end: periodEnd || "-",
+      total_sessions: g.total_sessions,
+      solo_sessions: g.solo_sessions,
+      shared_sessions: g.shared_sessions,
+      orders_completed: g.orders_completed,
+      on_time_sessions: g.on_time_sessions,
+      on_time_rate_pct:
+        g.total_sessions > 0
+          ? Math.round((g.on_time_sessions / g.total_sessions) * 100)
+          : 0,
+      avg_duration_mins:
+        g.duration_count > 0
+          ? Math.round(g.duration_sum / g.duration_count)
+          : 0,
+      avg_overrun_mins:
+        g.overrun_count > 0 ? Math.round(g.overrun_sum / g.overrun_count) : 0,
+      gross_revenue_attributed: g.gross_revenue,
+    }));
+}
+
+// ─── Capacity Utilisation types ───────────────────────────────────────────────
+
+type CapacityRow = CapacityReportRow;
+
+const CAP_PAGE_SIZE = 20;
+
+function utilisationBadgeClass(pct: number, isOverbooked: boolean) {
+  if (isOverbooked || pct > 90)
+    return "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400";
+  if (pct >= 70)
+    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400";
+  return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400";
+}
+
+function exportCapacityToExcel(rows: CapacityRow[]) {
+  const headers = [
+    "#",
+    "Store ID",
+    "Kode Cabang",
+    "Cabang",
+    "Tanggal",
+    "Default Cap (min)",
+    "Daily Override (min)",
+    "Effective Cap (min)",
+    "Used (min)",
+    "Utilisasi %",
+    "Remaining (min)",
+    "Total Bookings",
+    "Overbooking Limit (min)",
+    "Overbooked",
+  ];
+
+  const data = rows.map((r, i) => [
+    i + 1,
+    r.store_id,
+    r.store_code,
+    r.store_name,
+    r.date,
+    r.default_capacity_mins,
+    r.daily_override_mins ?? "",
+    r.effective_capacity_mins,
+    r.used_minutes,
+    r.utilisation_pct,
+    r.remaining_minutes,
+    r.total_bookings,
+    r.overbooking_limit_mins,
+    r.is_overbooked ? "Ya" : "Tidak",
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Capacity Utilisation");
+  XLSX.writeFile(
+    wb,
+    `capacity-utilisation-${new Date().toISOString().slice(0, 10)}.xlsx`,
+  );
+}
 
 // ─── Column definitions ───────────────────────────────────────────────────────
 
@@ -64,39 +264,47 @@ const TABLE_COLUMNS: {
   defaultVisible: boolean;
 }[] = [
   // Transaksi
-  { key: "booking_code",        group: "Transaksi",       defaultVisible: true  },
-  { key: "booking_date",        group: "Transaksi",       defaultVisible: true  },
-  { key: "time_slot",           group: "Transaksi",       defaultVisible: true  },
-  { key: "booking_type",        group: "Transaksi",       defaultVisible: true  },
-  { key: "booking_status",      group: "Transaksi",       defaultVisible: true  },
+  { key: "booking_code", group: "Transaksi", defaultVisible: true },
+  { key: "booking_date", group: "Transaksi", defaultVisible: true },
+  { key: "time_slot", group: "Transaksi", defaultVisible: true },
+  { key: "booking_type", group: "Transaksi", defaultVisible: true },
+  { key: "booking_status", group: "Transaksi", defaultVisible: true },
   // Cabang
-  { key: "store_name",          group: "Cabang",          defaultVisible: true  },
+  { key: "store_name", group: "Cabang", defaultVisible: true },
   // Customer & Pet
-  { key: "customer_name",       group: "Customer & Pet",  defaultVisible: true  },
-  { key: "customer_phone",      group: "Customer & Pet",  defaultVisible: false },
-  { key: "pet_name",            group: "Customer & Pet",  defaultVisible: true  },
-  { key: "member_type",         group: "Customer & Pet",  defaultVisible: false },
+  { key: "customer_name", group: "Customer & Pet", defaultVisible: true },
+  { key: "customer_phone", group: "Customer & Pet", defaultVisible: false },
+  { key: "pet_name", group: "Customer & Pet", defaultVisible: true },
+  { key: "member_type", group: "Customer & Pet", defaultVisible: false },
   // Layanan
-  { key: "service_name",        group: "Layanan",         defaultVisible: true  },
-  { key: "service_type",        group: "Layanan",         defaultVisible: false },
-  { key: "addon_names",         group: "Layanan",         defaultVisible: false },
+  { key: "service_name", group: "Layanan", defaultVisible: true },
+  { key: "service_type", group: "Layanan", defaultVisible: false },
+  { key: "addon_names", group: "Layanan", defaultVisible: false },
   // Groomer & Sesi (session-level — NOT merged)
-  { key: "session_name",        group: "Groomer & Sesi",  defaultVisible: false },
-  { key: "groomer_session",     group: "Groomer & Sesi",  defaultVisible: false },
-  { key: "session_status",      group: "Groomer & Sesi",  defaultVisible: false },
-  { key: "started_at",          group: "Groomer & Sesi",  defaultVisible: false },
-  { key: "finished_at",         group: "Groomer & Sesi",  defaultVisible: false },
-  { key: "actual_duration_mins",group: "Groomer & Sesi",  defaultVisible: false },
-  { key: "pre_conditions",      group: "Groomer & Sesi",  defaultVisible: false },
-  { key: "internal_note",       group: "Groomer & Sesi",  defaultVisible: false },
+  { key: "session_name", group: "Groomer & Sesi", defaultVisible: false },
+  { key: "groomer_session", group: "Groomer & Sesi", defaultVisible: false },
+  { key: "session_status", group: "Groomer & Sesi", defaultVisible: false },
+  { key: "started_at", group: "Groomer & Sesi", defaultVisible: false },
+  { key: "finished_at", group: "Groomer & Sesi", defaultVisible: false },
+  {
+    key: "actual_duration_mins",
+    group: "Groomer & Sesi",
+    defaultVisible: false,
+  },
+  { key: "pre_conditions", group: "Groomer & Sesi", defaultVisible: false },
+  { key: "internal_note", group: "Groomer & Sesi", defaultVisible: false },
   // Waktu & Performa (booking-level — merged)
-  { key: "estimated_duration",  group: "Waktu & Performa",defaultVisible: false },
-  { key: "is_on_time",          group: "Waktu & Performa",defaultVisible: false },
-  { key: "overrun_mins",        group: "Waktu & Performa",defaultVisible: false },
+  {
+    key: "estimated_duration",
+    group: "Waktu & Performa",
+    defaultVisible: false,
+  },
+  { key: "is_on_time", group: "Waktu & Performa", defaultVisible: false },
+  { key: "overrun_mins", group: "Waktu & Performa", defaultVisible: false },
   // Pembayaran (booking-level — merged)
-  { key: "net_total",           group: "Pembayaran",      defaultVisible: true  },
-  { key: "payment_method",      group: "Pembayaran",      defaultVisible: false },
-  { key: "cancellation_reason", group: "Pembayaran",      defaultVisible: false },
+  { key: "net_total", group: "Pembayaran", defaultVisible: true },
+  { key: "payment_method", group: "Pembayaran", defaultVisible: false },
+  { key: "cancellation_reason", group: "Pembayaran", defaultVisible: false },
 ];
 
 const DEFAULT_VISIBLE = new Set(
@@ -111,8 +319,8 @@ const PAGE_SIZE = 20;
 
 const REPORT_TABS = [
   { id: "a", label: "A — Booking & Ops Detail", live: true },
-  { id: "b", label: "B — Groomer Performance", live: false },
-  { id: "c", label: "C — Capacity Utilisation", live: false },
+  { id: "b", label: "B — Groomer Performance", live: true },
+  { id: "c", label: "C — Capacity Utilisation", live: true },
   { id: "d", label: "D — Cancellation & No-show", live: false },
 ];
 
@@ -150,6 +358,15 @@ export default function OperationsReportPage() {
   // ── Row hover — highlight all session rows of the same booking together ──────
   const [hoveredBooking, setHoveredBooking] = useState<string | null>(null);
 
+  // ── Capacity Utilisation (Tab C) state ──────────────────────────────────────
+  const [capData, setCapData] = useState<CapacityReportRow[]>([]);
+  const [capLoading, setCapLoading] = useState(false);
+  const [capLive, setCapLive] = useState(false);
+  const [capError, setCapError] = useState<string | null>(null);
+  const [capPage, setCapPage] = useState(1);
+  const [capUtilFilter, setCapUtilFilter] = useState("all");
+  const capStreamAbortRef = useRef<AbortController | null>(null);
+
   // ── Fetch stores ────────────────────────────────────────────────────────────
   useEffect(() => {
     getStores({ page: 1, limit: 100 })
@@ -169,7 +386,7 @@ export default function OperationsReportPage() {
 
   // ── Auto-stream on mount + filter change (debounced 400 ms) ─────────────────
   useEffect(() => {
-    if (activeTab !== "a") return;
+    if (activeTab !== "a" && activeTab !== "b") return;
 
     const timer = setTimeout(() => {
       streamAbortRef.current?.abort();
@@ -206,7 +423,108 @@ export default function OperationsReportPage() {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [dateFrom, dateTo, storeId, bookingType, bookingStatus, sessionStatus, serviceType, activeTab]);
+  }, [
+    dateFrom,
+    dateTo,
+    storeId,
+    bookingType,
+    bookingStatus,
+    sessionStatus,
+    serviceType,
+    activeTab,
+  ]);
+
+  // ── Cancel capacity stream on unmount ───────────────────────────────────────
+  useEffect(() => {
+    return () => { capStreamAbortRef.current?.abort(); };
+  }, []);
+
+  // ── Capacity SSE stream (Tab C) — reconnects on filter change ───────────────
+  useEffect(() => {
+    if (activeTab !== "c") {
+      capStreamAbortRef.current?.abort();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      capStreamAbortRef.current?.abort();
+      const controller = new AbortController();
+      capStreamAbortRef.current = controller;
+
+      setCapData([]);
+      setCapPage(1);
+      setCapLoading(true);
+      setCapLive(false);
+      setCapError(null);
+
+      streamCapacityReport(
+        {
+          store_id: storeId !== "all" ? storeId : undefined,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+        },
+        (rows) => {
+          setCapData(rows);
+          setCapLoading(false);
+          setCapLive(true);
+        },
+        (row) => {
+          setCapData((prev) => {
+            const idx = prev.findIndex(
+              (r) => r.store_id === row.store_id && r.date === row.date,
+            );
+            if (idx === -1) {
+              return [...prev, row].sort((a, b) => b.date.localeCompare(a.date));
+            }
+            const next = [...prev];
+            next[idx] = row;
+            return next;
+          });
+        },
+        (msg) => {
+          setCapError(msg);
+          setCapLoading(false);
+          setCapLive(false);
+        },
+        controller.signal,
+      ).catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        setCapError(err instanceof Error ? err.message : "Gagal memuat data kapasitas");
+        setCapLoading(false);
+        setCapLive(false);
+      });
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [activeTab, storeId, dateFrom, dateTo]);
+
+  // ── Build capacity rows (API returns enriched data, just filter client-side) ──
+  const capacityRows = useMemo<CapacityRow[]>(() => {
+    if (activeTab !== "c") return [];
+    return capData.filter((row) => {
+      if (capUtilFilter === "green")
+        return !row.is_overbooked && row.utilisation_pct < 70;
+      if (capUtilFilter === "amber")
+        return (
+          !row.is_overbooked &&
+          row.utilisation_pct >= 70 &&
+          row.utilisation_pct <= 90
+        );
+      if (capUtilFilter === "red")
+        return !row.is_overbooked && row.utilisation_pct > 90;
+      if (capUtilFilter === "overbooked") return row.is_overbooked;
+      return true;
+    });
+  }, [activeTab, capData, capUtilFilter]);
+
+  const capTotalPages = Math.max(
+    1,
+    Math.ceil(capacityRows.length / CAP_PAGE_SIZE),
+  );
+  const capPageRows = useMemo(() => {
+    const start = (capPage - 1) * CAP_PAGE_SIZE;
+    return capacityRows.slice(start, start + CAP_PAGE_SIZE);
+  }, [capacityRows, capPage]);
 
   // ── Build session rows for current page ─────────────────────────────────────
   const totalPages = Math.max(1, Math.ceil(allBookings.length / PAGE_SIZE));
@@ -226,6 +544,12 @@ export default function OperationsReportPage() {
       return { row, bookingNum: num };
     });
   }, [pageSessionRows, page]);
+
+  // ── Groomer Performance rows (Report B) ─────────────────────────────────────
+  const groomerRows = useMemo<GroomerPerformanceRow[]>(() => {
+    if (activeTab !== "b" || allBookings.length === 0) return [];
+    return buildGroomerPerformanceRows(allBookings, dateFrom, dateTo);
+  }, [allBookings, activeTab, dateFrom, dateTo]);
 
   // ── Visible columns (ordered) ────────────────────────────────────────────────
   const visibleColDefs = TABLE_COLUMNS.filter((c) => visibleCols.has(c.key));
@@ -286,7 +610,8 @@ export default function OperationsReportPage() {
     bookingType !== "all" ||
     bookingStatus !== "all" ||
     sessionStatus !== "all" ||
-    serviceType !== "all";
+    serviceType !== "all" ||
+    capUtilFilter !== "all";
 
   function resetFilters() {
     setDateFrom("");
@@ -296,6 +621,7 @@ export default function OperationsReportPage() {
     setBookingStatus("all");
     setSessionStatus("all");
     setServiceType("all");
+    setCapUtilFilter("all");
   }
 
   return (
@@ -427,8 +753,12 @@ export default function OperationsReportPage() {
                     <SelectItem value="requested">Requested</SelectItem>
                     <SelectItem value="confirmed">Confirmed</SelectItem>
                     <SelectItem value="waitlist">Waitlist</SelectItem>
-                    <SelectItem value="driver on the way">Driver on the Way</SelectItem>
-                    <SelectItem value="groomer on the way">Groomer on the Way</SelectItem>
+                    <SelectItem value="driver on the way">
+                      Driver on the Way
+                    </SelectItem>
+                    <SelectItem value="groomer on the way">
+                      Groomer on the Way
+                    </SelectItem>
                     <SelectItem value="arrived">Arrived</SelectItem>
                     <SelectItem value="in progress">In Progress</SelectItem>
                     <SelectItem value="completed">Completed</SelectItem>
@@ -494,8 +824,7 @@ export default function OperationsReportPage() {
                   {allBookings.length > 0 && (
                     <span className="font-semibold text-foreground">
                       {" "}
-                      ({allBookings.length.toLocaleString("id-ID")}{" "}
-                      data...)
+                      ({allBookings.length.toLocaleString("id-ID")} data...)
                     </span>
                   )}
                 </span>
@@ -526,8 +855,8 @@ export default function OperationsReportPage() {
                   Report A — Booking &amp; Ops Detail
                 </CardTitle>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Satu baris per sesi. Kolom booking di-merge. Export mengambil semua{" "}
-                  {Object.keys(OPERATIONS_COLUMN_LABELS).length} kolom.
+                  Satu baris per sesi. Kolom booking di-merge. Export mengambil
+                  semua {Object.keys(OPERATIONS_COLUMN_LABELS).length} kolom.
                 </p>
               </div>
 
@@ -644,11 +973,15 @@ export default function OperationsReportPage() {
                         return (
                           <TableRow
                             key={`${row.booking_code}-${row._sessionIndex}`}
-                            onMouseEnter={() => setHoveredBooking(row.booking_code)}
+                            onMouseEnter={() =>
+                              setHoveredBooking(row.booking_code)
+                            }
                             onMouseLeave={() => setHoveredBooking(null)}
                             className={cn(
                               "hover:bg-transparent",
-                              isFirst && bookingNum > (page - 1) * PAGE_SIZE + 1 && "border-t-2 border-muted",
+                              isFirst &&
+                                bookingNum > (page - 1) * PAGE_SIZE + 1 &&
+                                "border-t-2 border-muted",
                             )}
                           >
                             {/* # — rowspan per booking */}
@@ -657,7 +990,8 @@ export default function OperationsReportPage() {
                                 rowSpan={span}
                                 className={cn(
                                   "text-center text-xs text-muted-foreground align-top transition-colors",
-                                  hoveredBooking === row.booking_code && "bg-muted/50",
+                                  hoveredBooking === row.booking_code &&
+                                    "bg-muted/50",
                                 )}
                               >
                                 {bookingNum}
@@ -678,7 +1012,8 @@ export default function OperationsReportPage() {
                                     "whitespace-nowrap text-xs transition-colors",
                                     !isSessionCol && "align-top",
                                     // Apply bg on every <td> directly — same paint layer for all cells
-                                    hoveredBooking === row.booking_code && "bg-muted/50",
+                                    hoveredBooking === row.booking_code &&
+                                      "bg-muted/50",
                                   )}
                                 >
                                   {val === "-" ||
@@ -804,8 +1139,782 @@ export default function OperationsReportPage() {
         </div>
       )}
 
+      {/* ── Report B: Groomer Performance ────────────────────────────────────── */}
+      {activeTab === "b" && (
+        <div className="space-y-4">
+          {/* Filter panel — identical to Report A */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3 pt-4">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <Filter className="h-4 w-4" />
+                Filter Data
+              </CardTitle>
+              {isFiltered && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 border-orange-300 text-orange-600 hover:bg-orange-50 hover:text-orange-700 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950/30"
+                  onClick={resetFilters}
+                >
+                  <FilterX className="h-3.5 w-3.5" />
+                  Reset Filter
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Tanggal Dari
+                </label>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Tanggal Sampai
+                </label>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Cabang
+                </label>
+                <Select value={storeId} onValueChange={setStoreId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Cabang" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Cabang</SelectItem>
+                    {stores.map((s) => (
+                      <SelectItem key={s._id} value={s._id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Tipe Booking
+                </label>
+                <Select value={bookingType} onValueChange={setBookingType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Tipe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Tipe</SelectItem>
+                    <SelectItem value="in store">In Store</SelectItem>
+                    <SelectItem value="in home">In Home</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Status Booking
+                </label>
+                <Select value={bookingStatus} onValueChange={setBookingStatus}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Status</SelectItem>
+                    <SelectItem value="requested">Requested</SelectItem>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="waitlist">Waitlist</SelectItem>
+                    <SelectItem value="driver on the way">
+                      Driver on the Way
+                    </SelectItem>
+                    <SelectItem value="groomer on the way">
+                      Groomer on the Way
+                    </SelectItem>
+                    <SelectItem value="arrived">Arrived</SelectItem>
+                    <SelectItem value="in progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="returned">Returned</SelectItem>
+                    <SelectItem value="rescheduled">Rescheduled</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Status Sesi
+                </label>
+                <Select value={sessionStatus} onValueChange={setSessionStatus}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Status Sesi" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Status Sesi</SelectItem>
+                    <SelectItem value="not started">Not Started</SelectItem>
+                    <SelectItem value="in progress">In Progress</SelectItem>
+                    <SelectItem value="finished">Finished</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Kategori Layanan
+                </label>
+                <Select value={serviceType} onValueChange={setServiceType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Kategori" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Kategori</SelectItem>
+                    {serviceTypes.map((st) => (
+                      <SelectItem key={st._id} value={st.title}>
+                        {st.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Status bar */}
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm text-muted-foreground">
+              {loading ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Memuat
+                  {allBookings.length > 0 && (
+                    <span className="font-semibold text-foreground">
+                      {" "}
+                      ({allBookings.length.toLocaleString("id-ID")} booking...)
+                    </span>
+                  )}
+                </span>
+              ) : (
+                <span>
+                  <span className="font-semibold text-foreground">
+                    {groomerRows.length}
+                  </span>{" "}
+                  groomer ditemukan dari{" "}
+                  <span className="font-semibold text-foreground">
+                    {allBookings.length.toLocaleString("id-ID")}
+                  </span>{" "}
+                  booking
+                </span>
+              )}
+            </span>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {error}
+            </div>
+          )}
+
+          {/* Groomer performance table */}
+          <Card>
+            <CardHeader className="pb-3 pt-4">
+              <CardTitle className="text-sm font-semibold text-foreground">
+                Report B — Groomer Performance
+              </CardTitle>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Satu baris per groomer per periode filter. Solo = 100% gross,
+                Shared = 50% gross.
+              </p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-8 text-center text-xs text-muted-foreground">
+                        #
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs">
+                        Nama Groomer
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs">
+                        Cabang
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs">
+                        Periode Mulai
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs">
+                        Periode Akhir
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Total Sesi
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Solo
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Shared
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Selesai
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Tepat Waktu
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        On-Time %
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Avg Durasi (min)
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Avg Overrun (min)
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Gross Revenue
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading && groomerRows.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={14} className="py-10 text-center">
+                          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Memuat data...
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : groomerRows.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={14}
+                          className="py-10 text-center text-sm text-muted-foreground"
+                        >
+                          Tidak ada data yang sesuai filter.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      groomerRows.map((row, idx) => {
+                        const onTimePct = row.on_time_rate_pct;
+                        const onTimeBadgeClass =
+                          onTimePct < 60
+                            ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400"
+                            : onTimePct < 80
+                              ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
+                              : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400";
+                        return (
+                          <TableRow key={row.groomer_id}>
+                            <TableCell className="text-center text-xs text-muted-foreground">
+                              {idx + 1}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs font-medium">
+                              {row.groomer_name}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs">
+                              {row.store_placement}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs">
+                              {row.period_start !== "-" ? (
+                                row.period_start
+                              ) : (
+                                <span className="text-muted-foreground/40">
+                                  —
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs">
+                              {row.period_end !== "-" ? (
+                                row.period_end
+                              ) : (
+                                <span className="text-muted-foreground/40">
+                                  —
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right font-semibold">
+                              {row.total_sessions}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right">
+                              {row.solo_sessions}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right">
+                              {row.shared_sessions}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right">
+                              {row.orders_completed}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right">
+                              {row.on_time_sessions}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right">
+                              <Badge
+                                variant="outline"
+                                className={onTimeBadgeClass}
+                              >
+                                {onTimePct}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right">
+                              {row.avg_duration_mins > 0 ? (
+                                row.avg_duration_mins
+                              ) : (
+                                <span className="text-muted-foreground/40">
+                                  —
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right">
+                              {row.avg_overrun_mins > 0 ? (
+                                row.avg_overrun_mins
+                              ) : (
+                                <span className="text-muted-foreground/40">
+                                  —
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right">
+                              {fmtRupiah(row.gross_revenue_attributed)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {loading && groomerRows.length > 0 && (
+                <div className="flex items-center justify-center gap-2 border-t border-border py-3 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Memuat lebih banyak data...
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Report C: Capacity Utilisation ───────────────────────────────────── */}
+      {activeTab === "c" && (
+        <div className="space-y-4">
+          {/* Filter panel */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3 pt-4">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <Filter className="h-4 w-4" />
+                Filter Data
+              </CardTitle>
+              {isFiltered && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 border-orange-300 text-orange-600 hover:bg-orange-50 hover:text-orange-700 dark:border-orange-700 dark:text-orange-400 dark:hover:bg-orange-950/30"
+                  onClick={resetFilters}
+                >
+                  <FilterX className="h-3.5 w-3.5" />
+                  Reset Filter
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Tanggal Dari
+                </label>
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => {
+                    setDateFrom(e.target.value);
+                    setCapPage(1);
+                  }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Tanggal Sampai
+                </label>
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => {
+                    setDateTo(e.target.value);
+                    setCapPage(1);
+                  }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Cabang
+                </label>
+                <Select
+                  value={storeId}
+                  onValueChange={(v) => {
+                    setStoreId(v);
+                    setCapPage(1);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Cabang" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Cabang</SelectItem>
+                    {stores.map((s) => (
+                      <SelectItem key={s._id} value={s._id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Status Utilisasi
+                </label>
+                <Select
+                  value={capUtilFilter}
+                  onValueChange={(v) => {
+                    setCapUtilFilter(v);
+                    setCapPage(1);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Status</SelectItem>
+                    <SelectItem value="green">Hijau — &lt;70%</SelectItem>
+                    <SelectItem value="amber">Kuning — 70–90%</SelectItem>
+                    <SelectItem value="red">Merah — &gt;90%</SelectItem>
+                    <SelectItem value="overbooked">Overbooked</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Action bar */}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              onClick={() => {
+                if (capacityRows.length === 0) {
+                  setCapError(
+                    capLoading
+                      ? "Data masih dimuat, coba lagi setelah selesai."
+                      : "Tidak ada data yang sesuai filter untuk diexport.",
+                  );
+                  return;
+                }
+                try {
+                  exportCapacityToExcel(capacityRows);
+                } catch (e: unknown) {
+                  setCapError(
+                    e instanceof Error ? e.message : "Gagal export data",
+                  );
+                }
+              }}
+              disabled={capLoading && capData.length === 0}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              <Download className="mr-2 h-4 w-4" />
+              Export Data (.xlsx)
+            </Button>
+
+            <span className="text-sm text-muted-foreground">
+              {capLoading ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Memuat data kapasitas...
+                </span>
+              ) : (
+                <span>
+                  <span className="font-semibold text-foreground">
+                    {capacityRows.length.toLocaleString("id-ID")}
+                  </span>{" "}
+                  baris ditemukan
+                </span>
+              )}
+            </span>
+          </div>
+
+          {/* Error */}
+          {capError && (
+            <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {capError}
+            </div>
+          )}
+
+          {/* Table */}
+          <Card>
+            <CardHeader className="pb-3 pt-4">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-semibold text-foreground">
+                  Report C — Capacity Utilisation
+                </CardTitle>
+                {capLive && (
+                  <span className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    </span>
+                    Live
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Satu baris per cabang per tanggal. Hijau &lt;70% · Kuning 70–90%
+                · Merah &gt;90%.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Hanya tanggal yang memiliki minimal 1 booking aktif pada cabang
+                tersebut yang akan muncul di tabel ini.
+              </p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-8 text-center text-xs text-muted-foreground">
+                        #
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs">
+                        Kode Cabang
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs">
+                        Cabang
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs">
+                        Tanggal
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Default Cap (min)
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Daily Override (min)
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Effective Cap (min)
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Used (min)
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Utilisasi %
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Remaining (min)
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Total Bookings
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-right">
+                        Overbooking Limit (min)
+                      </TableHead>
+                      <TableHead className="whitespace-nowrap text-xs text-center">
+                        Overbooked
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {capLoading && capPageRows.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={12} className="py-10 text-center">
+                          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Memuat data...
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : capPageRows.length === 0 ? (
+                      <TableRow>
+                        <TableCell
+                          colSpan={12}
+                          className="py-10 text-center text-sm text-muted-foreground"
+                        >
+                          Tidak ada data yang sesuai filter.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      capPageRows.map((row, idx) => {
+                        const rowNum = (capPage - 1) * CAP_PAGE_SIZE + idx + 1;
+                        const badgeClass = utilisationBadgeClass(
+                          row.utilisation_pct,
+                          row.is_overbooked,
+                        );
+                        return (
+                          <TableRow key={`${row.store_id}-${row.date}`}>
+                            <TableCell className="text-center text-xs text-muted-foreground">
+                              {rowNum}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs font-mono text-muted-foreground">
+                              {row.store_code}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs font-medium">
+                              {row.store_name}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs">
+                              {row.date}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right">
+                              {row.default_capacity_mins != null ? (
+                                row.default_capacity_mins
+                              ) : (
+                                <span className="text-muted-foreground/40">
+                                  —
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right">
+                              {row.daily_override_mins != null ? (
+                                <span className="font-medium text-blue-600 dark:text-blue-400">
+                                  {row.daily_override_mins}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground/40">
+                                  —
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right font-semibold">
+                              {row.effective_capacity_mins}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right">
+                              {row.used_minutes}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right">
+                              <Badge variant="outline" className={badgeClass}>
+                                {row.utilisation_pct}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right">
+                              {row.remaining_minutes}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right">
+                              {row.total_bookings > 0 ? (
+                                row.total_bookings
+                              ) : (
+                                <span className="text-muted-foreground/40">
+                                  —
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-right">
+                              {row.overbooking_limit_mins > 0 ? (
+                                row.overbooking_limit_mins
+                              ) : (
+                                <span className="text-muted-foreground/40">
+                                  —
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="whitespace-nowrap text-xs text-center">
+                              {row.is_overbooked ? (
+                                <Badge
+                                  variant="outline"
+                                  className="border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400"
+                                >
+                                  Ya
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground/40">
+                                  —
+                                </span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Pagination */}
+              {capTotalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-border px-4 py-3">
+                  <span className="text-xs text-muted-foreground">
+                    Halaman{" "}
+                    <span className="font-semibold text-foreground">
+                      {capPage}
+                    </span>{" "}
+                    dari{" "}
+                    <span className="font-semibold text-foreground">
+                      {capTotalPages}
+                    </span>
+                    {" · "}
+                    {capacityRows.length.toLocaleString("id-ID")} total baris
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCapPage((p) => Math.max(1, p - 1))}
+                      disabled={capPage === 1}
+                      className="h-7 w-7 p-0"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+
+                    {Array.from({ length: capTotalPages }, (_, i) => i + 1)
+                      .filter(
+                        (p) =>
+                          p === 1 ||
+                          p === capTotalPages ||
+                          (p >= capPage - 2 && p <= capPage + 2),
+                      )
+                      .reduce<(number | "…")[]>((acc, p, idx, arr) => {
+                        if (idx > 0 && p - (arr[idx - 1] as number) > 1)
+                          acc.push("…");
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((item, idx) =>
+                        item === "…" ? (
+                          <span
+                            key={`ellipsis-${idx}`}
+                            className="px-1 text-xs text-muted-foreground"
+                          >
+                            …
+                          </span>
+                        ) : (
+                          <Button
+                            key={item}
+                            variant={capPage === item ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setCapPage(item as number)}
+                            className="h-7 w-7 p-0 text-xs"
+                          >
+                            {item}
+                          </Button>
+                        ),
+                      )}
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setCapPage((p) => Math.min(capTotalPages, p + 1))
+                      }
+                      disabled={capPage === capTotalPages}
+                      className="h-7 w-7 p-0"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* ── Other tabs — coming soon ──────────────────────────────────────────── */}
-      {activeTab !== "a" && (
+      {activeTab !== "a" && activeTab !== "b" && activeTab !== "c" && (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <Lock className="mb-3 h-8 w-8 text-muted-foreground/40" />
