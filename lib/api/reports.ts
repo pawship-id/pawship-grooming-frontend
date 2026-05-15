@@ -1,6 +1,76 @@
 import { apiAuthRequest } from "./client";
 import { getAccessToken } from "./storage";
 
+// ─── Customer Report types ────────────────────────────────────────────────────
+
+export interface CustomerMasterDataRow {
+  customer_id: string;
+  customer_code: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string;
+  customer_category: string;
+  customer_tags: string[];
+  customer_address: string;
+  registered_at: string | null;
+  pet_id: string;
+  pet_code: string;
+  pet_name: string;
+  pet_type: string;
+  breed: string;
+  size_category: string;
+  feather_type: string;
+  birthday: string | null;
+  weight: number | null;
+  pet_tags: string[];
+  internal_note: string;
+  membership_tier: string;
+  membership_status: string;
+  membership_start: string | null;
+  membership_expiry: string | null;
+  last_visit_at: string | null;
+  last_grooming_at: string | null;
+  pet_registered_at: string | null;
+  has_booked: boolean;
+}
+
+export interface CustomerRetentionRow {
+  customer_id: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_category: string;
+  pet_id: string;
+  pet_name: string;
+  pet_type: string;
+  breed: string;
+  membership_tier: string;
+  first_booking_date: string | null;
+  last_booking_date: string | null;
+  days_since_last_visit: number | null;
+  total_visits: number;
+  total_visits_ytd: number;
+  avg_visit_interval: number | null;
+  lifetime_revenue: number;
+  lifetime_revenue_ytd: number;
+  favourite_service: string;
+  pet_status: "idle" | "new" | "active" | "at_risk" | "lapsed";
+  has_booked: boolean;
+}
+
+export async function getCustomerMasterData(search?: string): Promise<{ data: CustomerMasterDataRow[]; total: number }> {
+  const qs = new URLSearchParams();
+  if (search) qs.set("search", search);
+  const query = qs.toString();
+  return apiAuthRequest(`/reports/customer/master-data${query ? `?${query}` : ""}`);
+}
+
+export async function getCustomerRetentionReport(search?: string): Promise<{ data: CustomerRetentionRow[]; total: number }> {
+  const qs = new URLSearchParams();
+  if (search) qs.set("search", search);
+  const query = qs.toString();
+  return apiAuthRequest(`/reports/customer/retention${query ? `?${query}` : ""}`);
+}
+
 // ─── Capacity Utilisation Report ──────────────────────────────────────────────
 
 export interface CapacityReportRow {
