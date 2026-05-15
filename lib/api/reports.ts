@@ -36,10 +36,12 @@ export interface CustomerMasterDataRow {
 
 export interface CustomerRetentionRow {
   customer_id: string;
+  customer_code: string;
   customer_name: string;
   customer_phone: string;
   customer_category: string;
   pet_id: string;
+  pet_code: string;
   pet_name: string;
   pet_type: string;
   breed: string;
@@ -69,6 +71,49 @@ export async function getCustomerRetentionReport(search?: string): Promise<{ dat
   if (search) qs.set("search", search);
   const query = qs.toString();
   return apiAuthRequest(`/reports/customer/retention${query ? `?${query}` : ""}`);
+}
+
+export interface NewCustomerConversionRow {
+  customer_id: string;
+  customer_code: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_category: string;
+  pet_id: string;
+  pet_code: string;
+  pet_name: string;
+  pet_type: string;
+  pet_registered_at: string;
+  days_since_registered: number;
+  has_booked: boolean;
+  first_booking_date: string | null;
+  days_to_first_booking: number | null;
+}
+
+export async function getNewCustomerConversionReport(search?: string): Promise<{ data: NewCustomerConversionRow[]; total: number }> {
+  const qs = new URLSearchParams();
+  if (search) qs.set("search", search);
+  const query = qs.toString();
+  return apiAuthRequest(`/reports/customer/new-conversion${query ? `?${query}` : ""}`);
+}
+
+export interface VipCustomerRow {
+  customer_id: string;
+  pet_id: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_category: string;
+  pet_name: string;
+  membership_tier: string;
+  total_visits: number;
+  lifetime_revenue: number;
+  last_booking_date: string | null;
+  days_since_last_visit: number | null;
+  pet_status: "idle" | "new" | "active" | "at_risk" | "lapsed";
+}
+
+export async function getVipCustomerReport(): Promise<{ data: VipCustomerRow[]; total: number }> {
+  return apiAuthRequest(`/reports/customer/vip-top-customers`);
 }
 
 // ─── Capacity Utilisation Report ──────────────────────────────────────────────
