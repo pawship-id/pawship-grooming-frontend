@@ -69,7 +69,6 @@ const reportSubItems = [
   { title: "Report Index", href: "/admin/reports" },
   { title: "Financial", href: "/admin/reports/financial" },
   { title: "Operations", href: "/admin/reports/operations" },
-  { title: "Formula & Status", href: "/admin/reports/formulas" },
   { title: "Customer", href: "/admin/reports/customer" },
 ];
 
