@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -2058,8 +2059,41 @@ const CUSTOMER_REPORT_TABS = [
 
 // ─── Page (owns data + filters) ───────────────────────────────────────────────
 
-export default function CustomerReportPage() {
-  const [activeTab, setActiveTab] = useState("master-data");
+const VALID_TABS = [
+  "master-data",
+  "retention",
+  "lapsed-at-risk",
+  "new-conversion",
+  "vip-top-customer",
+] as const;
+
+function CustomerReportPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const initialTab = (() => {
+    const t = searchParams.get("tab");
+    return VALID_TABS.includes(t as (typeof VALID_TABS)[number])
+      ? (t as string)
+      : "master-data";
+  })();
+
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (!searchParams.get("tab")) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", "master-data");
+      router.replace(`?${params.toString()}`, { scroll: false });
+    }
+  }, []);
+
+  function changeTab(tabId: string) {
+    setActiveTab(tabId);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tabId);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }
 
   // ── Raw data from API ────────────────────────────────────────────────────────
   const [masterRaw, setMasterRaw] = useState<CustomerMasterDataRow[]>([]);
@@ -2811,7 +2845,7 @@ export default function CustomerReportPage() {
             key={t.id}
             onClick={() => {
               if (t.live) {
-                setActiveTab(t.id);
+                changeTab(t.id);
                 resetFilters();
               }
             }}
@@ -2876,5 +2910,13 @@ export default function CustomerReportPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function CustomerReportPageWrapper() {
+  return (
+    <Suspense>
+      <CustomerReportPage />
+    </Suspense>
   );
 }
