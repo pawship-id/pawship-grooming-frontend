@@ -315,6 +315,32 @@ const RUPIAH_COLS = new Set<keyof OperationsRow>(["net_total"]);
 
 const PAGE_SIZE = 20;
 
+// ─── Capacity Utilisation column definitions ──────────────────────────────────
+
+const CAP_COLUMNS: {
+  key: keyof CapacityReportRow;
+  label: string;
+  defaultVisible: boolean;
+  align?: "right" | "center";
+}[] = [
+  { key: "store_code", label: "Kode Cabang", defaultVisible: true },
+  { key: "store_name", label: "Cabang", defaultVisible: true },
+  { key: "date", label: "Tanggal", defaultVisible: true },
+  { key: "default_capacity_mins", label: "Default Cap (min)", defaultVisible: false, align: "right" },
+  { key: "daily_override_mins", label: "Daily Override (min)", defaultVisible: false, align: "right" },
+  { key: "effective_capacity_mins", label: "Effective Cap (min)", defaultVisible: true, align: "right" },
+  { key: "used_minutes", label: "Used (min)", defaultVisible: false, align: "right" },
+  { key: "utilisation_pct", label: "Utilisasi %", defaultVisible: true, align: "right" },
+  { key: "remaining_minutes", label: "Remaining (min)", defaultVisible: false, align: "right" },
+  { key: "total_bookings", label: "Total Bookings", defaultVisible: true, align: "right" },
+  { key: "overbooking_limit_mins", label: "Overbooking Limit (min)", defaultVisible: true, align: "right" },
+  { key: "is_overbooked", label: "Overbooked", defaultVisible: false, align: "center" },
+];
+
+const CAP_DEFAULT_VISIBLE = new Set(
+  CAP_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key),
+);
+
 // ─── Sub-report tabs ──────────────────────────────────────────────────────────
 
 const REPORT_TABS = [
@@ -365,6 +391,7 @@ export default function OperationsReportPage() {
   const [capError, setCapError] = useState<string | null>(null);
   const [capPage, setCapPage] = useState(1);
   const [capUtilFilter, setCapUtilFilter] = useState("all");
+  const [capVisibleCols, setCapVisibleCols] = useState<Set<keyof CapacityReportRow>>(CAP_DEFAULT_VISIBLE);
   const capStreamAbortRef = useRef<AbortController | null>(null);
 
   // ── Fetch stores ────────────────────────────────────────────────────────────
@@ -457,42 +484,58 @@ export default function OperationsReportPage() {
       setCapLive(false);
       setCapError(null);
 
-      streamCapacityReport(
-        {
-          store_id: storeId !== "all" ? storeId : undefined,
-          date_from: dateFrom || undefined,
-          date_to: dateTo || undefined,
-        },
-        (rows) => {
-          setCapData(rows);
-          setCapLoading(false);
-          setCapLive(true);
-        },
-        (row) => {
-          setCapData((prev) => {
-            const idx = prev.findIndex(
-              (r) => r.store_id === row.store_id && r.date === row.date,
-            );
-            if (idx === -1) {
-              return [...prev, row].sort((a, b) => b.date.localeCompare(a.date));
-            }
-            const next = [...prev];
-            next[idx] = row;
-            return next;
-          });
-        },
-        (msg) => {
-          setCapError(msg);
-          setCapLoading(false);
-          setCapLive(false);
-        },
-        controller.signal,
-      ).catch((err: unknown) => {
-        if (err instanceof Error && err.name === "AbortError") return;
-        setCapError(err instanceof Error ? err.message : "Gagal memuat data kapasitas");
+      const params = {
+        store_id: storeId !== "all" ? storeId : undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+      };
+
+      const onSnapshot = (rows: import("@/lib/api/reports").CapacityReportRow[]) => {
+        setCapData(rows);
+        setCapLoading(false);
+        setCapLive(true);
+      };
+
+      const onUpdate = (row: import("@/lib/api/reports").CapacityReportRow) => {
+        setCapData((prev) => {
+          const idx = prev.findIndex(
+            (r) => r.store_id === row.store_id && r.date === row.date,
+          );
+          if (idx === -1) {
+            return [...prev, row].sort((a, b) => b.date.localeCompare(a.date));
+          }
+          const next = [...prev];
+          next[idx] = row;
+          return next;
+        });
+      };
+
+      const onError = (msg: string) => {
+        setCapError(msg);
         setCapLoading(false);
         setCapLive(false);
-      });
+      };
+
+      // Auto-reconnect when the stream closes unexpectedly (not via abort)
+      const tryStream = (): void => {
+        if (controller.signal.aborted) return;
+        streamCapacityReport(params, onSnapshot, onUpdate, onError, controller.signal)
+          .then(() => {
+            // Stream ended normally (not aborted) — reconnect after brief pause
+            if (!controller.signal.aborted) {
+              setCapLive(false);
+              setTimeout(tryStream, 3000);
+            }
+          })
+          .catch((err: unknown) => {
+            if (err instanceof Error && err.name === "AbortError") return;
+            setCapError(err instanceof Error ? err.message : "Gagal memuat data kapasitas");
+            setCapLoading(false);
+            setCapLive(false);
+          });
+      };
+
+      tryStream();
     }, 400);
 
     return () => clearTimeout(timer);
@@ -502,6 +545,7 @@ export default function OperationsReportPage() {
   const capacityRows = useMemo<CapacityRow[]>(() => {
     if (activeTab !== "c") return [];
     return capData.filter((row) => {
+      if (row.total_bookings < 1) return false;
       if (capUtilFilter === "green")
         return !row.is_overbooked && row.utilisation_pct < 70;
       if (capUtilFilter === "amber")
@@ -595,6 +639,30 @@ export default function OperationsReportPage() {
   }
 
   const isAllSelected = visibleCols.size === TABLE_COLUMNS.length;
+
+  // ── Capacity column helpers ─────────────────────────────────────────────────
+  const capVisibleColDefs = CAP_COLUMNS.filter((c) => capVisibleCols.has(c.key));
+  const isCapAllSelected = capVisibleCols.size === CAP_COLUMNS.length;
+  const isCapDefaultSelection = useMemo(() => {
+    if (capVisibleCols.size !== CAP_DEFAULT_VISIBLE.size) return false;
+    for (const k of CAP_DEFAULT_VISIBLE) {
+      if (!capVisibleCols.has(k)) return false;
+    }
+    return true;
+  }, [capVisibleCols]);
+
+  function toggleCapCol(key: keyof CapacityReportRow) {
+    setCapVisibleCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        if (next.size === 1) return prev;
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
   const isDefaultSelection = useMemo(() => {
     if (visibleCols.size !== DEFAULT_VISIBLE.size) return false;
     for (const k of DEFAULT_VISIBLE) {
@@ -1650,29 +1718,79 @@ export default function OperationsReportPage() {
 
           {/* Table */}
           <Card>
-            <CardHeader className="pb-3 pt-4">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-sm font-semibold text-foreground">
-                  Report C — Capacity Utilisation
-                </CardTitle>
-                {capLive && (
-                  <span className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400">
-                    <span className="relative flex h-1.5 w-1.5">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                      <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            <CardHeader className="flex flex-row items-start justify-between pb-3 pt-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-sm font-semibold text-foreground">
+                    Report C — Capacity Utilisation
+                  </CardTitle>
+                  {capLive && (
+                    <span className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400">
+                      <span className="relative flex h-1.5 w-1.5">
+                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                        <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      </span>
+                      Live
                     </span>
-                    Live
-                  </span>
-                )}
+                  )}
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Satu baris per cabang per tanggal. Hijau &lt;70% · Kuning 70–90%
+                  · Merah &gt;90%.
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Hanya tanggal yang memiliki minimal 1 booking aktif pada cabang
+                  tersebut yang akan muncul di tabel ini.
+                </p>
               </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Satu baris per cabang per tanggal. Hijau &lt;70% · Kuning 70–90%
-                · Merah &gt;90%.
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Hanya tanggal yang memiliki minimal 1 booking aktif pada cabang
-                tersebut yang akan muncul di tabel ini.
-              </p>
+
+              <div className="flex items-center gap-2">
+                {!isCapDefaultSelection && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground"
+                    onClick={() => setCapVisibleCols(new Set(CAP_DEFAULT_VISIBLE))}
+                  >
+                    Reset ke Default
+                  </Button>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1.5">
+                      <Columns className="h-4 w-4" />
+                      Kolom
+                      <Badge variant="secondary" className="ml-1 text-xs px-1.5 py-0">
+                        {capVisibleCols.size}
+                      </Badge>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="max-h-[420px] w-56 overflow-y-auto">
+                    <DropdownMenuCheckboxItem
+                      checked={isCapAllSelected}
+                      onCheckedChange={() =>
+                        isCapAllSelected
+                          ? setCapVisibleCols(new Set(CAP_DEFAULT_VISIBLE))
+                          : setCapVisibleCols(new Set(CAP_COLUMNS.map((c) => c.key)))
+                      }
+                      className="text-xs font-semibold"
+                    >
+                      Pilih Semua
+                    </DropdownMenuCheckboxItem>
+                    <DropdownMenuSeparator />
+                    {CAP_COLUMNS.map((c) => (
+                      <DropdownMenuCheckboxItem
+                        key={c.key}
+                        checked={capVisibleCols.has(c.key)}
+                        onCheckedChange={() => toggleCapCol(c.key)}
+                        className="text-xs"
+                      >
+                        {c.label}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </CardHeader>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
@@ -1682,48 +1800,24 @@ export default function OperationsReportPage() {
                       <TableHead className="w-8 text-center text-xs text-muted-foreground">
                         #
                       </TableHead>
-                      <TableHead className="whitespace-nowrap text-xs">
-                        Kode Cabang
-                      </TableHead>
-                      <TableHead className="whitespace-nowrap text-xs">
-                        Cabang
-                      </TableHead>
-                      <TableHead className="whitespace-nowrap text-xs">
-                        Tanggal
-                      </TableHead>
-                      <TableHead className="whitespace-nowrap text-xs text-right">
-                        Default Cap (min)
-                      </TableHead>
-                      <TableHead className="whitespace-nowrap text-xs text-right">
-                        Daily Override (min)
-                      </TableHead>
-                      <TableHead className="whitespace-nowrap text-xs text-right">
-                        Effective Cap (min)
-                      </TableHead>
-                      <TableHead className="whitespace-nowrap text-xs text-right">
-                        Used (min)
-                      </TableHead>
-                      <TableHead className="whitespace-nowrap text-xs text-right">
-                        Utilisasi %
-                      </TableHead>
-                      <TableHead className="whitespace-nowrap text-xs text-right">
-                        Remaining (min)
-                      </TableHead>
-                      <TableHead className="whitespace-nowrap text-xs text-right">
-                        Total Bookings
-                      </TableHead>
-                      <TableHead className="whitespace-nowrap text-xs text-right">
-                        Overbooking Limit (min)
-                      </TableHead>
-                      <TableHead className="whitespace-nowrap text-xs text-center">
-                        Overbooked
-                      </TableHead>
+                      {capVisibleColDefs.map((col) => (
+                        <TableHead
+                          key={col.key}
+                          className={cn(
+                            "whitespace-nowrap text-xs",
+                            col.align === "right" && "text-right",
+                            col.align === "center" && "text-center",
+                          )}
+                        >
+                          {col.label}
+                        </TableHead>
+                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {capLoading && capPageRows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={12} className="py-10 text-center">
+                        <TableCell colSpan={1 + capVisibleColDefs.length} className="py-10 text-center">
                           <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                             <Loader2 className="h-4 w-4 animate-spin" />
                             Memuat data...
@@ -1733,7 +1827,7 @@ export default function OperationsReportPage() {
                     ) : capPageRows.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={12}
+                          colSpan={1 + capVisibleColDefs.length}
                           className="py-10 text-center text-sm text-muted-foreground"
                         >
                           Tidak ada data yang sesuai filter.
@@ -1747,85 +1841,99 @@ export default function OperationsReportPage() {
                           row.is_overbooked,
                         );
                         return (
-                          <TableRow key={`${row.store_id}-${row.date}`}>
+                          <TableRow key={`${row.store_id}-${row.date}-${idx}`}>
                             <TableCell className="text-center text-xs text-muted-foreground">
                               {rowNum}
                             </TableCell>
-                            <TableCell className="whitespace-nowrap text-xs font-mono text-muted-foreground">
-                              {row.store_code}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap text-xs font-medium">
-                              {row.store_name}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap text-xs">
-                              {row.date}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap text-xs text-right">
-                              {row.default_capacity_mins != null ? (
-                                row.default_capacity_mins
-                              ) : (
-                                <span className="text-muted-foreground/40">
-                                  —
-                                </span>
-                              )}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap text-xs text-right">
-                              {row.daily_override_mins != null ? (
-                                <span className="font-medium text-blue-600 dark:text-blue-400">
-                                  {row.daily_override_mins}
-                                </span>
-                              ) : (
-                                <span className="text-muted-foreground/40">
-                                  —
-                                </span>
-                              )}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap text-xs text-right font-semibold">
-                              {row.effective_capacity_mins}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap text-xs text-right">
-                              {row.used_minutes}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap text-xs text-right">
-                              <Badge variant="outline" className={badgeClass}>
-                                {row.utilisation_pct}%
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap text-xs text-right">
-                              {row.remaining_minutes}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap text-xs text-right">
-                              {row.total_bookings > 0 ? (
-                                row.total_bookings
-                              ) : (
-                                <span className="text-muted-foreground/40">
-                                  —
-                                </span>
-                              )}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap text-xs text-right">
-                              {row.overbooking_limit_mins > 0 ? (
-                                row.overbooking_limit_mins
-                              ) : (
-                                <span className="text-muted-foreground/40">
-                                  —
-                                </span>
-                              )}
-                            </TableCell>
-                            <TableCell className="whitespace-nowrap text-xs text-center">
-                              {row.is_overbooked ? (
-                                <Badge
-                                  variant="outline"
-                                  className="border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400"
-                                >
-                                  Ya
+                            {capVisibleCols.has("store_code") && (
+                              <TableCell className="whitespace-nowrap text-xs font-mono text-muted-foreground">
+                                {row.store_code}
+                              </TableCell>
+                            )}
+                            {capVisibleCols.has("store_name") && (
+                              <TableCell className="whitespace-nowrap text-xs font-medium">
+                                {row.store_name}
+                              </TableCell>
+                            )}
+                            {capVisibleCols.has("date") && (
+                              <TableCell className="whitespace-nowrap text-xs">
+                                {row.date}
+                              </TableCell>
+                            )}
+                            {capVisibleCols.has("default_capacity_mins") && (
+                              <TableCell className="whitespace-nowrap text-xs text-right">
+                                {row.default_capacity_mins != null ? (
+                                  row.default_capacity_mins
+                                ) : (
+                                  <span className="text-muted-foreground/40">—</span>
+                                )}
+                              </TableCell>
+                            )}
+                            {capVisibleCols.has("daily_override_mins") && (
+                              <TableCell className="whitespace-nowrap text-xs text-right">
+                                {row.daily_override_mins != null ? (
+                                  <span className="font-medium text-blue-600 dark:text-blue-400">
+                                    {row.daily_override_mins}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground/40">—</span>
+                                )}
+                              </TableCell>
+                            )}
+                            {capVisibleCols.has("effective_capacity_mins") && (
+                              <TableCell className="whitespace-nowrap text-xs text-right font-semibold">
+                                {row.effective_capacity_mins}
+                              </TableCell>
+                            )}
+                            {capVisibleCols.has("used_minutes") && (
+                              <TableCell className="whitespace-nowrap text-xs text-right">
+                                {row.used_minutes}
+                              </TableCell>
+                            )}
+                            {capVisibleCols.has("utilisation_pct") && (
+                              <TableCell className="whitespace-nowrap text-xs text-right">
+                                <Badge variant="outline" className={badgeClass}>
+                                  {row.utilisation_pct}%
                                 </Badge>
-                              ) : (
-                                <span className="text-muted-foreground/40">
-                                  —
-                                </span>
-                              )}
-                            </TableCell>
+                              </TableCell>
+                            )}
+                            {capVisibleCols.has("remaining_minutes") && (
+                              <TableCell className="whitespace-nowrap text-xs text-right">
+                                {row.remaining_minutes}
+                              </TableCell>
+                            )}
+                            {capVisibleCols.has("total_bookings") && (
+                              <TableCell className="whitespace-nowrap text-xs text-right">
+                                {row.total_bookings > 0 ? (
+                                  row.total_bookings
+                                ) : (
+                                  <span className="text-muted-foreground/40">—</span>
+                                )}
+                              </TableCell>
+                            )}
+                            {capVisibleCols.has("overbooking_limit_mins") && (
+                              <TableCell className="whitespace-nowrap text-xs text-right">
+                                {row.overbooking_limit_mins > 0 ? (
+                                  row.overbooking_limit_mins
+                                ) : (
+                                  <span className="text-muted-foreground/40">—</span>
+                                )}
+                              </TableCell>
+                            )}
+                            {capVisibleCols.has("is_overbooked") && (
+                              <TableCell className="whitespace-nowrap text-xs text-center">
+                                {row.is_overbooked ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400"
+                                  >
+                                    Ya
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground/40">—</span>
+                                )}
+                              </TableCell>
+                            )}
                           </TableRow>
                         );
                       })
