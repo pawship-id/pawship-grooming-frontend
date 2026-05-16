@@ -638,8 +638,10 @@ export interface MembershipExpiryRow {
   membership_id: string;
   member_code: string;
   pet_id: string;
+  pet_code: string;
   pet_name: string;
   pet_type: string;
+  customer_code: string;
   owner_name: string;
   owner_phone: string;
   plan_name: string;

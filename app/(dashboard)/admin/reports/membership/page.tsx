@@ -1178,11 +1178,13 @@ const EXPIRY_COLS: {
   label: string;
   defaultVisible: boolean;
 }[] = [
-  { key: "member_code", label: "Kode Member", defaultVisible: true },
+  { key: "pet_code", label: "Kode Pet", defaultVisible: true },
   { key: "pet_name", label: "Nama Pet", defaultVisible: true },
   { key: "pet_type", label: "Jenis Hewan", defaultVisible: false },
+  { key: "customer_code", label: "Kode Customer", defaultVisible: true },
   { key: "owner_name", label: "Nama Customer", defaultVisible: true },
   { key: "owner_phone", label: "No. HP (WhatsApp)", defaultVisible: true },
+  { key: "member_code", label: "Kode Member", defaultVisible: true },
   { key: "plan_name", label: "Nama Membership", defaultVisible: true },
   { key: "plan_tier", label: "Tier", defaultVisible: false },
   { key: "start_date", label: "Tgl Mulai", defaultVisible: false },
@@ -1229,31 +1231,17 @@ function MembershipExpiryTab({
   );
   const visibleColDefs = EXPIRY_COLS.filter((c) => visibleCols.has(c.key));
 
-  const expiringIn7 = useMemo(
-    () =>
-      data.filter(
-        (r) =>
-          r.days_until_expiry !== null &&
-          r.days_until_expiry >= 0 &&
-          r.days_until_expiry <= 7,
-      ).length,
+  // Buckets follow the Urgensi CASE: ≤7 critical | 8–14 warning | 15–30 upcoming
+  const criticalCount = useMemo(
+    () => data.filter((r) => r.expiry_urgency === "critical").length,
     [data],
   );
-  const expiringIn30 = useMemo(
-    () =>
-      data.filter(
-        (r) =>
-          r.days_until_expiry !== null &&
-          r.days_until_expiry > 7 &&
-          r.days_until_expiry <= 30,
-      ).length,
+  const warningCount = useMemo(
+    () => data.filter((r) => r.expiry_urgency === "warning").length,
     [data],
   );
-  const alreadyExpired = useMemo(
-    () =>
-      data.filter(
-        (r) => r.days_until_expiry !== null && r.days_until_expiry < 0,
-      ).length,
+  const upcomingCount = useMemo(
+    () => data.filter((r) => r.expiry_urgency === "upcoming").length,
     [data],
   );
 
@@ -1388,16 +1376,16 @@ function MembershipExpiryTab({
       {!loading && (
         <div className="flex flex-wrap gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400">
-            Sudah Expired
-            <span className="font-bold">{alreadyExpired}</span>
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-400">
-            Expired dalam 7 hari
-            <span className="font-bold">{expiringIn7}</span>
+            Kritis (≤7 hari)
+            <span className="font-bold">{criticalCount}</span>
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-400">
-            Expired 8–30 hari
-            <span className="font-bold">{expiringIn30}</span>
+            Peringatan (8–14 hari)
+            <span className="font-bold">{warningCount}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-yellow-200 bg-yellow-50 px-3 py-1 text-xs font-medium text-yellow-700 dark:border-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-400">
+            Akan Datang (15–30 hari)
+            <span className="font-bold">{upcomingCount}</span>
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
             Total
