@@ -70,6 +70,7 @@ const reportSubItems = [
   { title: "Financial", href: "/admin/reports/financial" },
   { title: "Operations", href: "/admin/reports/operations" },
   { title: "Customer", href: "/admin/reports/customer" },
+  { title: "Membership", href: "/admin/reports/membership" },
 ];
 
 export function AdminSidebar() {

@@ -579,3 +579,139 @@ export function connectLiveBookings(
       console.warn("[live-bookings] SSE connection closed:", err);
     });
 }
+
+// ─── Membership Report types ──────────────────────────────────────────────────
+
+export interface BenefitSnapshotItem {
+  name: string | null;
+  type: string | null;
+  applies_to: string | null;
+  value: number | null;
+  period: string | null;
+  limit: number | null;
+  used: number | null;
+  current_period_used: number | null;
+  remaining: number | null;
+}
+
+export interface MembershipDetailRow {
+  pet_membership_id: string;
+  pet_id: string;
+  pet_code: string;
+  pet_name: string;
+  pet_type: string;
+  breed: string;
+  customer_id: string;
+  customer_code: string;
+  customer_name: string;
+  customer_phone: string;
+  membership_plan_id: string;
+  membership_code: string;
+  membership_name: string;
+  membership_price: number;
+  duration_days: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  days_until_expiry: number | null;
+  membership_status: "active" | "menunggu" | "expired" | "cancelled";
+  is_early_renewal: boolean;
+  renewal_count: number;
+  previous_plan: string | null;
+  // Full benefits snapshot array (if returned by the API)
+  benefits_snapshot?: BenefitSnapshotItem[];
+  // Benefit snapshot (first benefit — kept for backward compat)
+  benefit_1_name: string | null;
+  benefit_1_type: string | null;
+  benefit_1_applies_to: string | null;
+  benefit_1_value: number | null;
+  benefit_1_limit: number | null;
+  benefit_1_used: number | null;
+  benefit_1_current_period_used: number | null;
+  benefit_1_remaining: number | null;
+  // Benefit utilisation (from BenefitUsage collection)
+  total_benefit_used_amount: number;
+  total_sessions_using_benefit: number;
+  benefit_roi: number;
+}
+
+export interface MembershipExpiryRow {
+  membership_id: string;
+  member_code: string;
+  pet_id: string;
+  pet_name: string;
+  pet_type: string;
+  owner_name: string;
+  owner_phone: string;
+  plan_name: string;
+  plan_tier: string;
+  start_date: string | null;
+  expiry_date: string | null;
+  days_until_expiry: number | null;
+  expiry_urgency: "critical" | "warning" | "upcoming" | null;
+  renewal_count: number;
+  last_visit_at: string | null;
+  days_since_last_visit: number | null;
+  double_risk_flag: boolean;
+  total_benefit_used: number;
+  status: "active" | "expired" | "cancelled" | "pending";
+}
+
+export interface MembershipRevenueRow {
+  period: string;
+  plan_id: string;
+  plan_name: string;
+  plan_tier: string;
+  total_active: number;
+  new_members: number;
+  renewed_members: number;
+  expired_members: number;
+  gross_revenue: number;
+  benefit_usage_count: number;
+}
+
+export interface BenefitUtilisationRow {
+  membership_id: string;
+  member_code: string;
+  pet_id: string;
+  pet_name: string;
+  owner_name: string;
+  plan_name: string;
+  plan_tier: string;
+  benefit_name: string;
+  benefit_type: "discount" | "quota";
+  benefit_applies_to: string;
+  used_count: number;
+  allowed_count: number | null;
+  remaining: number | null;
+  utilisation_pct: number | null;
+  last_used_at: string | null;
+  booking_reference: string | null;
+}
+
+export async function getMembershipDetailReport(): Promise<{
+  data: MembershipDetailRow[];
+  total: number;
+}> {
+  return apiAuthRequest(`/reports/membership/detail`);
+}
+
+export async function getMembershipExpiryReport(): Promise<{
+  data: MembershipExpiryRow[];
+  total: number;
+}> {
+  return apiAuthRequest(`/reports/membership/expiry`);
+}
+
+export async function getMembershipRevenueReport(): Promise<{
+  data: MembershipRevenueRow[];
+  total: number;
+}> {
+  return apiAuthRequest(`/reports/membership/revenue`);
+}
+
+export async function getBenefitUtilisationReport(): Promise<{
+  data: BenefitUtilisationRow[];
+  total: number;
+}> {
+  return apiAuthRequest(`/reports/membership/benefit-utilisation`);
+}

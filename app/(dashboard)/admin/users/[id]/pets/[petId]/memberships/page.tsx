@@ -451,26 +451,152 @@ export default function PetMembershipsPage() {
   ]);
 
   // Overlap error: real-time validation for purchase start date
+  // Checks against active & pending memberships (any plan) — expired & cancelled are excluded.
+  // Merges consecutive/adjacent periods so that a chain like [active → pending] is treated as
+  // one blocked block and the available date is calculated from the END of the full chain.
   const overlapError = (() => {
     if (!selectedPlanId || !purchaseStartDate) return null;
     const plan = availablePlans.find((p) => p._id === selectedPlanId);
     if (!plan) return null;
     const newStart = new Date(purchaseStartDate);
     const newEnd = addMonths(newStart, plan.duration_months);
-    const overlap = nonCancelledMemberships.find(
-      (m) =>
-        m.membership._id === selectedPlanId &&
-        newStart < new Date(m.end_date) &&
-        newEnd > new Date(m.start_date),
+
+    const activeAndPending = nonCancelledMemberships.filter(
+      (m) => m.status === "active" || m.status === "pending",
     );
-    if (!overlap) return null;
+
+    // Find the first membership that directly conflicts (for the error label)
+    const firstConflict = activeAndPending.find(
+      (m) =>
+        newStart < new Date(m.end_date) && newEnd > new Date(m.start_date),
+    );
+    if (!firstConflict) return null;
+
+    // Merge consecutive/overlapping periods to find the full blocked-until date.
+    // Periods starting within 1 day after the previous end are treated as consecutive
+    // (e.g. active ends Nov 16, pending starts Nov 17 → same block).
+    const sorted = [...activeAndPending].sort(
+      (a, b) =>
+        new Date(a.start_date).getTime() - new Date(b.start_date).getTime(),
+    );
+    const merged: { start: Date; end: Date }[] = [];
+    for (const m of sorted) {
+      const s = new Date(m.start_date);
+      const e = new Date(m.end_date);
+      if (merged.length === 0) {
+        merged.push({ start: s, end: e });
+      } else {
+        const lastEnd = merged[merged.length - 1].end;
+        // Merge if overlapping OR adjacent (gap ≤ 1 day)
+        const isConsecutive = s.getTime() <= lastEnd.getTime() + 86_400_000;
+        if (!isConsecutive) {
+          merged.push({ start: s, end: e });
+        } else if (e > lastEnd) {
+          merged[merged.length - 1].end = e;
+        }
+      }
+    }
+    const overlapBlock = merged.find(
+      (p) => newStart < p.end && newEnd > p.start,
+    );
+    if (!overlapBlock) return null;
+
     const statusLabel =
-      overlap.status === "active"
-        ? "Aktif"
-        : overlap.status === "pending"
-          ? "Menunggu"
-          : "Berakhir";
-    return `Tanggal mulai bertabrakan dengan membership ${statusLabel} (${formatDate(overlap.start_date)} – ${formatDate(overlap.end_date)})`;
+      firstConflict.status === "active" ? "Aktif" : "Menunggu";
+    const planName = firstConflict.membership?.name ?? "membership lain";
+    const availableFromDate = new Date(overlapBlock.end);
+    availableFromDate.setDate(availableFromDate.getDate() + 1);
+    const availableFrom = availableFromDate.toISOString().split("T")[0];
+    return {
+      message: `Tanggal mulai bertabrakan dengan "${planName}" ${statusLabel} (${formatDate(firstConflict.start_date)} – ${formatDate(firstConflict.end_date)})`,
+      availableFrom,
+      availableFromFormatted: formatDate(availableFromDate.toISOString()),
+    };
+  })();
+
+  // Overlap error for the EDIT form. Excludes the membership being edited.
+  // Triggers if the start date alone falls within another active/pending period,
+  // OR if the full [start, end] range overlaps one — independent of end-date validity.
+  const updateOverlapError = (() => {
+    if (!updateTarget || !updateForm.start_date) return null;
+    const newStart = new Date(updateForm.start_date);
+    const newEnd = updateForm.end_date
+      ? new Date(updateForm.end_date)
+      : null;
+
+    const others = nonCancelledMemberships.filter(
+      (m) =>
+        m._id !== updateTarget._id &&
+        (m.status === "active" || m.status === "pending"),
+    );
+    if (others.length === 0) return null;
+
+    const sorted = [...others].sort(
+      (a, b) =>
+        new Date(a.start_date).getTime() - new Date(b.start_date).getTime(),
+    );
+
+    // Conflict = start date inside a membership's period, OR full range overlaps
+    const conflictsWith = (s: Date, e: Date) => {
+      const startInside = newStart >= s && newStart < e;
+      const rangeOverlap =
+        newEnd !== null && newStart < e && newEnd > s;
+      return startInside || rangeOverlap;
+    };
+
+    const firstConflict = sorted.find((m) =>
+      conflictsWith(new Date(m.start_date), new Date(m.end_date)),
+    );
+    if (!firstConflict) return null;
+
+    // Merge consecutive/overlapping periods to compute the full blocked-until date
+    const merged: { start: Date; end: Date }[] = [];
+    for (const m of sorted) {
+      const s = new Date(m.start_date);
+      const e = new Date(m.end_date);
+      if (merged.length === 0) {
+        merged.push({ start: s, end: e });
+      } else {
+        const lastEnd = merged[merged.length - 1].end;
+        const isConsecutive = s.getTime() <= lastEnd.getTime() + 86_400_000;
+        if (!isConsecutive) {
+          merged.push({ start: s, end: e });
+        } else if (e > lastEnd) {
+          merged[merged.length - 1].end = e;
+        }
+      }
+    }
+    const overlapBlock =
+      merged.find((p) => {
+        const startInside = newStart >= p.start && newStart < p.end;
+        const rangeOverlap =
+          newEnd !== null && newStart < p.end && newEnd > p.start;
+        return startInside || rangeOverlap;
+      }) ?? null;
+    if (!overlapBlock) return null;
+
+    const statusLabel =
+      firstConflict.status === "active" ? "Aktif" : "Menunggu";
+    const planName = firstConflict.membership?.name ?? "membership lain";
+    const availableFromDate = new Date(overlapBlock.end);
+    availableFromDate.setDate(availableFromDate.getDate() + 1);
+    const availableFrom = availableFromDate.toISOString().split("T")[0];
+    return {
+      message: `Tanggal mulai masuk ke periode "${planName}" ${statusLabel} (${formatDate(firstConflict.start_date)} – ${formatDate(firstConflict.end_date)})`,
+      availableFrom,
+      availableFromFormatted: formatDate(availableFromDate.toISOString()),
+    };
+  })();
+
+  // End date must be strictly after start date in the EDIT form
+  const updateDateRangeError = (() => {
+    if (!updateForm.start_date || !updateForm.end_date) return null;
+    const s = new Date(updateForm.start_date);
+    const e = new Date(updateForm.end_date);
+    if (e <= s) {
+      return "Tanggal berakhir tidak boleh lebih kecil atau sama dengan tanggal mulai";
+    }
+    return null;
   })();
 
   const handlePurchase = async (e: React.FormEvent) => {
@@ -480,7 +606,7 @@ export default function PetMembershipsPage() {
       return;
     }
     if (overlapError) {
-      toast.error(overlapError);
+      toast.error(overlapError.message);
       return;
     }
     setIsPurchasing(true);
@@ -538,6 +664,14 @@ export default function PetMembershipsPage() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!updateTarget) return;
+    if (updateDateRangeError) {
+      toast.error(updateDateRangeError);
+      return;
+    }
+    if (updateOverlapError) {
+      toast.error(updateOverlapError.message);
+      return;
+    }
     setIsUpdating(true);
     try {
       const payload: Record<string, string> = {};
@@ -639,6 +773,7 @@ export default function PetMembershipsPage() {
               onClick={() => {
                 setSelectedPlanId("");
                 setPurchaseStartDate(new Date().toISOString().split("T")[0]);
+                loadNonCancelledMemberships();
                 setPurchaseOpen(true);
               }}
             >
@@ -718,6 +853,7 @@ export default function PetMembershipsPage() {
                         key={pm._id}
                         membership={pm}
                         onEdit={() => {
+                          loadNonCancelledMemberships();
                           setUpdateTarget(pm);
                           setUpdateForm({
                             start_date: isoToDateInput(pm.start_date),
@@ -756,6 +892,7 @@ export default function PetMembershipsPage() {
                             setPurchaseStartDate(
                               new Date().toISOString().split("T")[0],
                             );
+                            loadNonCancelledMemberships();
                             setPurchaseOpen(true);
                           }}
                         >
@@ -1209,7 +1346,19 @@ export default function PetMembershipsPage() {
                     </div>
                   </div>
                   {overlapError && (
-                    <p className="text-xs text-destructive">{overlapError}</p>
+                    <div className="flex flex-col gap-1">
+                      <p className="text-xs text-destructive">{overlapError.message}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Tersedia mulai:{" "}
+                        <button
+                          type="button"
+                          className="font-medium text-foreground underline underline-offset-2 hover:text-foreground/70 transition-colors"
+                          onClick={() => setPurchaseStartDate(overlapError.availableFrom)}
+                        >
+                          {overlapError.availableFromFormatted}
+                        </button>
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
@@ -1434,6 +1583,33 @@ export default function PetMembershipsPage() {
                 />
               </div>
             </div>
+            {updateDateRangeError && (
+              <p className="text-xs text-destructive -mt-1">
+                {updateDateRangeError}
+              </p>
+            )}
+            {!updateDateRangeError && updateOverlapError && (
+              <div className="flex flex-col gap-1 -mt-1">
+                <p className="text-xs text-destructive">
+                  {updateOverlapError.message}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Tersedia mulai:{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-foreground underline underline-offset-2 hover:text-foreground/70 transition-colors"
+                    onClick={() =>
+                      setUpdateForm((p) => ({
+                        ...p,
+                        start_date: updateOverlapError.availableFrom,
+                      }))
+                    }
+                  >
+                    {updateOverlapError.availableFromFormatted}
+                  </button>
+                </p>
+              </div>
+            )}
             <div className="flex flex-col gap-2">
               <Label htmlFor="update-note">
                 Catatan{" "}
@@ -1460,7 +1636,14 @@ export default function PetMembershipsPage() {
               >
                 Batal
               </Button>
-              <Button type="submit" disabled={isUpdating}>
+              <Button
+                type="submit"
+                disabled={
+                  isUpdating ||
+                  !!updateDateRangeError ||
+                  !!updateOverlapError
+                }
+              >
                 {isUpdating ? "Menyimpan..." : "Simpan"}
               </Button>
             </div>
