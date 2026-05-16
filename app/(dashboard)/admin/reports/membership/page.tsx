@@ -1186,7 +1186,6 @@ const EXPIRY_COLS: {
   { key: "owner_phone", label: "No. HP (WhatsApp)", defaultVisible: true },
   { key: "member_code", label: "Kode Member", defaultVisible: true },
   { key: "plan_name", label: "Nama Membership", defaultVisible: true },
-  { key: "plan_tier", label: "Tier", defaultVisible: false },
   { key: "start_date", label: "Tgl Mulai", defaultVisible: false },
   { key: "expiry_date", label: "Tgl Expired", defaultVisible: true },
   { key: "days_until_expiry", label: "Sisa Hari", defaultVisible: true },
@@ -1577,7 +1576,6 @@ const REVENUE_COLS: {
 }[] = [
   { key: "period", label: "Periode", defaultVisible: true },
   { key: "plan_name", label: "Plan Membership", defaultVisible: true },
-  { key: "plan_tier", label: "Tier", defaultVisible: true },
   { key: "total_active", label: "Total Aktif", defaultVisible: true },
   { key: "new_members", label: "Member Baru", defaultVisible: true },
   { key: "renewed_members", label: "Perpanjang", defaultVisible: true },
@@ -1869,7 +1867,6 @@ const BENEFIT_COLS: {
   { key: "pet_name", label: "Nama Pet", defaultVisible: true },
   { key: "owner_name", label: "Nama Owner", defaultVisible: true },
   { key: "plan_name", label: "Plan Membership", defaultVisible: true },
-  { key: "plan_tier", label: "Tier", defaultVisible: false },
   { key: "benefit_name", label: "Nama Benefit", defaultVisible: true },
   { key: "benefit_type", label: "Tipe Benefit", defaultVisible: true },
   { key: "benefit_applies_to", label: "Berlaku Untuk", defaultVisible: false },
