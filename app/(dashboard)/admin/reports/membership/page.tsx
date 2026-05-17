@@ -141,7 +141,8 @@ interface MembershipFilters {
   status: string;
   expiryFrom: string;
   expiryTo: string;
-  periodMonth: string;
+  /** Revenue tab: membership-log grouping granularity. */
+  periodGrouping: "month" | "week";
 }
 
 const EMPTY_FILTERS: MembershipFilters = {
@@ -151,7 +152,7 @@ const EMPTY_FILTERS: MembershipFilters = {
   status: "",
   expiryFrom: "",
   expiryTo: "",
-  periodMonth: "",
+  periodGrouping: "month",
 };
 
 function isFilterActive(f: MembershipFilters): boolean {
@@ -161,8 +162,7 @@ function isFilterActive(f: MembershipFilters): boolean {
     f.planName !== "" ||
     f.status !== "" ||
     f.expiryFrom !== "" ||
-    f.expiryTo !== "" ||
-    f.periodMonth !== ""
+    f.expiryTo !== ""
   );
 }
 
@@ -1575,13 +1575,13 @@ const REVENUE_COLS: {
   defaultVisible: boolean;
 }[] = [
   { key: "period", label: "Periode", defaultVisible: true },
-  { key: "plan_name", label: "Plan Membership", defaultVisible: true },
   { key: "total_active", label: "Total Aktif", defaultVisible: true },
   { key: "new_members", label: "Member Baru", defaultVisible: true },
   { key: "renewed_members", label: "Perpanjang", defaultVisible: true },
   { key: "expired_members", label: "Expired", defaultVisible: true },
   { key: "gross_revenue", label: "Gross Revenue", defaultVisible: true },
   { key: "benefit_usage_count", label: "Benefit Terpakai", defaultVisible: true },
+  { key: "by_plan_breakdown", label: "Breakdown per Plan", defaultVisible: true },
 ];
 
 const REVENUE_DEFAULT_VISIBLE = new Set(
@@ -1660,6 +1660,14 @@ function MembershipRevenueTab({
   ): React.ReactNode {
     const val = row[key];
 
+    if (key === "period") return row.period_label || row.period;
+    if (key === "by_plan_breakdown")
+      return (
+        row.by_plan_breakdown
+          .map((b) => `${b.plan_name}: ${b.count}`)
+          .join(", ") || "—"
+      );
+
     if (key === "gross_revenue") {
       return (
         <span className="font-semibold">{fmtRupiah((val ?? 0) as number)}</span>
@@ -1676,6 +1684,11 @@ function MembershipRevenueTab({
     const headers = REVENUE_COLS.map((c) => c.label);
     const rows = data.map((r) =>
       REVENUE_COLS.map((c) => {
+        if (c.key === "period") return r.period_label;
+        if (c.key === "by_plan_breakdown")
+          return r.by_plan_breakdown
+            .map((b) => `${b.plan_name}: ${b.count}`)
+            .join("; ");
         const v = r[c.key];
         if (v === null || v === undefined) return "";
         return v;
@@ -1707,10 +1720,16 @@ function MembershipRevenueTab({
       )}
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-3 pt-4">
-          <CardTitle className="text-sm font-semibold">
-            Membership Revenue & Renewal
-          </CardTitle>
+        <CardHeader className="flex flex-row items-start justify-between pb-3 pt-4">
+          <div className="space-y-1">
+            <CardTitle className="text-sm font-semibold">
+              Membership Revenue & Renewal
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Periode dihitung dari tanggal membership di-purchase atau
+              di-renew, bukan dari tanggal mulai membership.
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1821,21 +1840,63 @@ function MembershipRevenueTab({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  pageRows.map((row, idx) => (
-                    <TableRow key={`${row.plan_id}-${row.period}`}>
-                      <TableCell className="text-center text-xs text-muted-foreground">
-                        {(page - 1) * PAGE_SIZE + idx + 1}
-                      </TableCell>
-                      {visibleColDefs.map((c) => (
-                        <TableCell
-                          key={c.key}
-                          className="whitespace-nowrap text-xs"
-                        >
-                          {renderCell(row, c.key)}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
+                  pageRows.flatMap((row, idx) => {
+                    const showBreakdown = visibleColDefs.some(
+                      (c) => c.key === "by_plan_breakdown",
+                    );
+                    const breakdown =
+                      row.by_plan_breakdown &&
+                      row.by_plan_breakdown.length > 0
+                        ? row.by_plan_breakdown
+                        : [null];
+                    const subRows = showBreakdown ? breakdown : [null];
+                    const span = subRows.length;
+                    return subRows.map((bp, sub) => (
+                      <TableRow key={`${row.period}-${sub}`}>
+                        {sub === 0 && (
+                          <TableCell
+                            rowSpan={span}
+                            className="text-center align-top text-xs text-muted-foreground"
+                          >
+                            {(page - 1) * PAGE_SIZE + idx + 1}
+                          </TableCell>
+                        )}
+                        {visibleColDefs.map((c) => {
+                          if (c.key === "by_plan_breakdown") {
+                            return (
+                              <TableCell
+                                key={c.key}
+                                className="whitespace-nowrap text-xs"
+                              >
+                                {bp ? (
+                                  <span>
+                                    <span className="font-medium">
+                                      {bp.plan_name}
+                                    </span>
+                                    : {bp.count}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground/40">
+                                    —
+                                  </span>
+                                )}
+                              </TableCell>
+                            );
+                          }
+                          if (sub !== 0) return null;
+                          return (
+                            <TableCell
+                              key={c.key}
+                              rowSpan={span}
+                              className="whitespace-nowrap align-top text-xs"
+                            >
+                              {renderCell(row, c.key)}
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    ));
+                  })
                 )}
               </TableBody>
             </Table>
@@ -2289,15 +2350,6 @@ function MembershipReportPage() {
       )
       .finally(() => setExpiryLoading(false));
 
-    setRevenueLoading(true);
-    setRevenueError(null);
-    getMembershipRevenueReport()
-      .then((res) => setRevenueRaw(res.data ?? []))
-      .catch((e: unknown) =>
-        setRevenueError(e instanceof Error ? e.message : "Gagal memuat data"),
-      )
-      .finally(() => setRevenueLoading(false));
-
     setBenefitLoading(true);
     setBenefitError(null);
     getBenefitUtilisationReport()
@@ -2308,6 +2360,18 @@ function MembershipReportPage() {
       .finally(() => setBenefitLoading(false));
   }, []);
 
+  // ── Revenue: re-fetch when the period grouping (month/week) changes ──────────
+  useEffect(() => {
+    setRevenueLoading(true);
+    setRevenueError(null);
+    getMembershipRevenueReport(filters.periodGrouping)
+      .then((res) => setRevenueRaw(res.data ?? []))
+      .catch((e: unknown) =>
+        setRevenueError(e instanceof Error ? e.message : "Gagal memuat data"),
+      )
+      .finally(() => setRevenueLoading(false));
+  }, [filters.periodGrouping]);
+
   // ── Dropdown options ─────────────────────────────────────────────────────────
   const planTierOptions = useMemo(
     () =>
@@ -2317,20 +2381,8 @@ function MembershipReportPage() {
 
   const planNameOptions = useMemo(
     () =>
-      [
-        ...new Set(
-          [
-            ...expiryRaw.map((r) => r.plan_name),
-            ...revenueRaw.map((r) => r.plan_name),
-          ].filter(Boolean),
-        ),
-      ].sort(),
-    [expiryRaw, revenueRaw],
-  );
-
-  const periodOptions = useMemo(
-    () => [...new Set(revenueRaw.map((r) => r.period).filter(Boolean))].sort(),
-    [revenueRaw],
+      [...new Set(expiryRaw.map((r) => r.plan_name).filter(Boolean))].sort(),
+    [expiryRaw],
   );
 
   const filteredExpiry = useMemo(() => {
@@ -2364,14 +2416,8 @@ function MembershipReportPage() {
     );
   }, [expiryRaw, filters]);
 
-  const filteredRevenue = useMemo(() => {
-    let d = revenueRaw;
-    const { planTier, planName, periodMonth } = filters;
-    if (planTier) d = d.filter((r) => r.plan_tier === planTier);
-    if (planName) d = d.filter((r) => r.plan_name === planName);
-    if (periodMonth) d = d.filter((r) => r.period === periodMonth);
-    return d;
-  }, [revenueRaw, filters]);
+  // One row per period — plan-level filters no longer apply here.
+  const filteredRevenue = revenueRaw;
 
   const filteredBenefit = useMemo(() => {
     let d = benefitRaw;
@@ -2485,55 +2531,59 @@ function MembershipReportPage() {
 
           {/* Row 2 — Dropdowns */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Plan Tier */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Tier Membership
-              </label>
-              <Select
-                value={filters.planTier || "__all__"}
-                onValueChange={(v) =>
-                  setFilter("planTier", v === "__all__" ? "" : v)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Semua Tier" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Semua Tier</SelectItem>
-                  {planTierOptions.map((v) => (
-                    <SelectItem key={v} value={v}>
-                      {v}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Plan Tier / Plan Name — not applicable on the revenue tab
+                (revenue is grouped by period only, all plans merged) */}
+            {activeTab !== "revenue" && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Tier Membership
+                  </label>
+                  <Select
+                    value={filters.planTier || "__all__"}
+                    onValueChange={(v) =>
+                      setFilter("planTier", v === "__all__" ? "" : v)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Semua Tier" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">Semua Tier</SelectItem>
+                      {planTierOptions.map((v) => (
+                        <SelectItem key={v} value={v}>
+                          {v}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            {/* Plan Name */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Plan Membership
-              </label>
-              <Select
-                value={filters.planName || "__all__"}
-                onValueChange={(v) =>
-                  setFilter("planName", v === "__all__" ? "" : v)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Semua Plan" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Semua Plan</SelectItem>
-                  {planNameOptions.map((v) => (
-                    <SelectItem key={v} value={v}>
-                      {v}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Plan Membership
+                  </label>
+                  <Select
+                    value={filters.planName || "__all__"}
+                    onValueChange={(v) =>
+                      setFilter("planName", v === "__all__" ? "" : v)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Semua Plan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">Semua Plan</SelectItem>
+                      {planNameOptions.map((v) => (
+                        <SelectItem key={v} value={v}>
+                          {v}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
 
             {/* Status (detail & expiry tabs only) */}
             {(activeTab === "detail" || activeTab === "expiry") && (
@@ -2564,28 +2614,24 @@ function MembershipReportPage() {
               </div>
             )}
 
-            {/* Period (revenue tab only) */}
+            {/* Period grouping (revenue tab only) */}
             {activeTab === "revenue" && (
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">
                   Periode
                 </label>
                 <Select
-                  value={filters.periodMonth || "__all__"}
+                  value={filters.periodGrouping}
                   onValueChange={(v) =>
-                    setFilter("periodMonth", v === "__all__" ? "" : v)
+                    setFilter("periodGrouping", v as "month" | "week")
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Semua Periode" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__all__">Semua Periode</SelectItem>
-                    {periodOptions.map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {v}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="month">Bulanan</SelectItem>
+                    <SelectItem value="week">Mingguan</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

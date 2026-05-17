@@ -660,15 +660,16 @@ export interface MembershipExpiryRow {
 
 export interface MembershipRevenueRow {
   period: string;
-  plan_id: string;
-  plan_name: string;
-  plan_tier: string;
+  /** Human-readable period incl. date range, e.g. "2026-W19 (4 – 10 Mei 2026)". */
+  period_label: string;
   total_active: number;
   new_members: number;
   renewed_members: number;
   expired_members: number;
   gross_revenue: number;
   benefit_usage_count: number;
+  /** Memberships sold in the period, split by plan. */
+  by_plan_breakdown: { plan_name: string; count: number }[];
 }
 
 export interface BenefitUtilisationRow {
@@ -704,11 +705,13 @@ export async function getMembershipExpiryReport(): Promise<{
   return apiAuthRequest(`/reports/membership/expiry`);
 }
 
-export async function getMembershipRevenueReport(): Promise<{
+export async function getMembershipRevenueReport(
+  period: "month" | "week" = "month",
+): Promise<{
   data: MembershipRevenueRow[];
   total: number;
 }> {
-  return apiAuthRequest(`/reports/membership/revenue`);
+  return apiAuthRequest(`/reports/membership/revenue?period=${period}`);
 }
 
 export async function getBenefitUtilisationReport(): Promise<{
