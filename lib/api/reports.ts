@@ -605,6 +605,7 @@ export interface MembershipDetailRow {
   customer_code: string;
   customer_name: string;
   customer_phone: string;
+  order_number: string;
   membership_plan_id: string;
   membership_code: string;
   membership_name: string;
@@ -632,10 +633,12 @@ export interface MembershipDetailRow {
   total_benefit_used_amount: number;
   total_sessions_using_benefit: number;
   benefit_roi: number;
+  created_at: string | null;
 }
 
 export interface MembershipExpiryRow {
   membership_id: string;
+  order_number: string;
   member_code: string;
   pet_id: string;
   pet_code: string;

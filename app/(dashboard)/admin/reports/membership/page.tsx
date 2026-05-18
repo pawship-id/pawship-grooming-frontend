@@ -257,6 +257,7 @@ const DETAIL_COLS: {
   label: string;
   defaultVisible: boolean;
 }[] = [
+  { key: "order_number", label: "Nomor Pesanan", defaultVisible: true },
   { key: "pet_code", label: "Kode Pet", defaultVisible: true },
   { key: "pet_name", label: "Nama Pet", defaultVisible: true },
   { key: "pet_type", label: "Jenis Hewan", defaultVisible: true },
@@ -310,6 +311,9 @@ const SUMMARY_COL_KEYS = new Set<DetailKey>([
   "total_sessions_using_benefit",
   "benefit_roi",
 ]);
+
+// Leading columns — membership-level, rendered first (before pet columns)
+const LEADING_COL_KEYS = new Set<DetailKey>(["order_number"]);
 
 // Pet-level columns — same value for all memberships of the same pet, merged per (pet_id, membership_plan_id) group
 const PET_COL_KEYS = new Set<DetailKey>([
@@ -538,14 +542,25 @@ function MembershipDetailTab({
     [data, page],
   );
   const visibleColDefs = DETAIL_COLS.filter((c) => visibleCols.has(c.key));
+  // Leading cols — membership-level, rendered before pet cols
+  const leadingColDefs = visibleColDefs.filter((c) => LEADING_COL_KEYS.has(c.key));
   // Pet-level cols — rowspan per (pet_id, membership_plan_id) group
   const petColDefs = visibleColDefs.filter((c) => PET_COL_KEYS.has(c.key));
   // Membership-level cols — rowspan per membership
-  const membershipColDefs = visibleColDefs.filter((c) => !PET_COL_KEYS.has(c.key) && !BENEFIT_COL_KEYS.has(c.key) && !SUMMARY_COL_KEYS.has(c.key));
+  const membershipColDefs = visibleColDefs.filter((c) => !LEADING_COL_KEYS.has(c.key) && !PET_COL_KEYS.has(c.key) && !BENEFIT_COL_KEYS.has(c.key) && !SUMMARY_COL_KEYS.has(c.key));
   // Cols rendered per benefit row (one row per benefit)
   const benefitColDefs = visibleColDefs.filter((c) => BENEFIT_COL_KEYS.has(c.key));
   // Cols rendered with rowSpan after benefit cols (right side summary)
   const summaryColDefs = visibleColDefs.filter((c) => SUMMARY_COL_KEYS.has(c.key));
+  // Physical column order actually rendered in the table body — used for the header
+  // so header labels stay aligned with body cells regardless of DETAIL_COLS order.
+  const orderedColDefs = [
+    ...leadingColDefs,
+    ...petColDefs,
+    ...membershipColDefs,
+    ...benefitColDefs,
+    ...summaryColDefs,
+  ];
 
   const expandedRows = useMemo(() => {
     if (petColDefs.length === 0 && benefitColDefs.length === 0) return null;
@@ -759,7 +774,29 @@ function MembershipDetailTab({
         }),
       );
     });
+
+    // Merge cells vertically to mirror the on-screen rowspan: each membership row
+    // expands into `benefitCount` Excel rows (one per benefit); every non-benefit
+    // column is merged across those rows, just like the merged table cells.
+    const merges: XLSX.Range[] = [];
+    let excelRow = 1; // row 0 is the header
+    for (const r of data) {
+      const benefitCount = getBenefits(r).length;
+      if (benefitCount > 1) {
+        DETAIL_COLS.forEach((c, ci) => {
+          if (!BENEFIT_COL_KEYS.has(c.key)) {
+            merges.push({
+              s: { r: excelRow, c: ci },
+              e: { r: excelRow + benefitCount - 1, c: ci },
+            });
+          }
+        });
+      }
+      excelRow += benefitCount;
+    }
+
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    if (merges.length > 0) ws["!merges"] = merges;
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Membership Detail");
     XLSX.writeFile(wb, "membership-detail-report.xlsx");
@@ -1054,7 +1091,7 @@ function MembershipDetailTab({
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10 text-center text-xs">#</TableHead>
-                  {visibleColDefs.map((c) => (
+                  {orderedColDefs.map((c) => (
                     <TableHead key={c.key} className="whitespace-nowrap text-xs">
                       {c.label}
                     </TableHead>
@@ -1115,6 +1152,11 @@ function MembershipDetailTab({
                             {rowNumber}
                           </TableCell>
                         )}
+                        {benefitIdx === 0 && leadingColDefs.map((c) => (
+                          <TableCell key={c.key} rowSpan={benefitCount} className="whitespace-nowrap text-xs align-top">
+                            {renderCell(row, c.key)}
+                          </TableCell>
+                        ))}
                         {isFirstInGroup && petColDefs.map((c) => (
                           <TableCell key={c.key} rowSpan={groupTotalRows} className="whitespace-nowrap text-xs align-top">
                             {renderCell(row, c.key)}
@@ -1144,7 +1186,7 @@ function MembershipDetailTab({
                       <TableCell className="text-center text-xs text-muted-foreground">
                         {(page - 1) * PAGE_SIZE + idx + 1}
                       </TableCell>
-                      {visibleColDefs.map((c) => (
+                      {orderedColDefs.map((c) => (
                         <TableCell key={c.key} className="whitespace-nowrap text-xs">
                           {renderCell(row, c.key)}
                         </TableCell>
@@ -1178,6 +1220,7 @@ const EXPIRY_COLS: {
   label: string;
   defaultVisible: boolean;
 }[] = [
+  { key: "order_number", label: "Nomor Pesanan", defaultVisible: true },
   { key: "pet_code", label: "Kode Pet", defaultVisible: true },
   { key: "pet_name", label: "Nama Pet", defaultVisible: true },
   { key: "pet_type", label: "Jenis Hewan", defaultVisible: false },

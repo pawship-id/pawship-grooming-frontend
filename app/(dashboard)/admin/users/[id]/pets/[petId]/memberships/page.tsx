@@ -599,6 +599,68 @@ export default function PetMembershipsPage() {
     return null;
   })();
 
+  // Overlap error for the RENEW form. The renewed period is [start, start + duration].
+  // Checks against active & pending memberships of ANY plan (same or different),
+  // excluding the membership being renewed. Merges consecutive/adjacent periods so
+  // the available date is calculated from the END of the full blocked chain.
+  const renewOverlapError = (() => {
+    if (!renewTarget || !renewStartDate) return null;
+    const newStart = new Date(renewStartDate);
+    const newEnd = addMonths(
+      newStart,
+      renewTarget.membership.duration_months,
+    );
+
+    const activeAndPending = nonCancelledMemberships.filter(
+      (m) =>
+        m._id !== renewTarget._id &&
+        (m.status === "active" || m.status === "pending"),
+    );
+
+    const firstConflict = activeAndPending.find(
+      (m) =>
+        newStart < new Date(m.end_date) && newEnd > new Date(m.start_date),
+    );
+    if (!firstConflict) return null;
+
+    const sorted = [...activeAndPending].sort(
+      (a, b) =>
+        new Date(a.start_date).getTime() - new Date(b.start_date).getTime(),
+    );
+    const merged: { start: Date; end: Date }[] = [];
+    for (const m of sorted) {
+      const s = new Date(m.start_date);
+      const e = new Date(m.end_date);
+      if (merged.length === 0) {
+        merged.push({ start: s, end: e });
+      } else {
+        const lastEnd = merged[merged.length - 1].end;
+        const isConsecutive = s.getTime() <= lastEnd.getTime() + 86_400_000;
+        if (!isConsecutive) {
+          merged.push({ start: s, end: e });
+        } else if (e > lastEnd) {
+          merged[merged.length - 1].end = e;
+        }
+      }
+    }
+    const overlapBlock = merged.find(
+      (p) => newStart < p.end && newEnd > p.start,
+    );
+    if (!overlapBlock) return null;
+
+    const statusLabel =
+      firstConflict.status === "active" ? "Aktif" : "Menunggu";
+    const planName = firstConflict.membership?.name ?? "membership lain";
+    const availableFromDate = new Date(overlapBlock.end);
+    availableFromDate.setDate(availableFromDate.getDate() + 1);
+    const availableFrom = availableFromDate.toISOString().split("T")[0];
+    return {
+      message: `Tanggal mulai bertabrakan dengan "${planName}" ${statusLabel} (${formatDate(firstConflict.start_date)} – ${formatDate(firstConflict.end_date)})`,
+      availableFrom,
+      availableFromFormatted: formatDate(availableFromDate.toISOString()),
+    };
+  })();
+
   const handlePurchase = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlanId) {
@@ -698,6 +760,10 @@ export default function PetMembershipsPage() {
   const handleRenew = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!renewTarget) return;
+    if (renewOverlapError) {
+      toast.error(renewOverlapError.message);
+      return;
+    }
     setIsRenewing(true);
     try {
       const renewPayload: { start_date?: string; purchase_price?: number } = {
@@ -863,6 +929,7 @@ export default function PetMembershipsPage() {
                         }}
                         onCancel={() => setCancelTarget(pm)}
                         onRenew={() => {
+                          loadNonCancelledMemberships();
                           setRenewStartDate(
                             new Date().toISOString().split("T")[0],
                           );
@@ -1715,6 +1782,25 @@ export default function PetMembershipsPage() {
                 />
               </div>
             </div>
+            {renewOverlapError && (
+              <div className="flex flex-col gap-1 -mt-1">
+                <p className="text-xs text-destructive">
+                  {renewOverlapError.message}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Tersedia mulai:{" "}
+                  <button
+                    type="button"
+                    className="font-medium text-foreground underline underline-offset-2 hover:text-foreground/70 transition-colors"
+                    onClick={() =>
+                      setRenewStartDate(renewOverlapError.availableFrom)
+                    }
+                  >
+                    {renewOverlapError.availableFromFormatted}
+                  </button>
+                </p>
+              </div>
+            )}
             {renewTarget && renewStartDate && (
               <div className="rounded-xl border border-border/60 bg-muted/40 p-3 flex flex-col gap-1.5">
                 <div className="flex justify-between items-center">
@@ -1749,7 +1835,12 @@ export default function PetMembershipsPage() {
               >
                 Batal
               </Button>
-              <Button type="submit" disabled={isRenewing || !renewStartDate}>
+              <Button
+                type="submit"
+                disabled={
+                  isRenewing || !renewStartDate || !!renewOverlapError
+                }
+              >
                 {isRenewing ? "Memproses..." : "Perpanjang"}
               </Button>
             </div>
