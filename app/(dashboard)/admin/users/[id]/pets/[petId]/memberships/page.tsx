@@ -450,8 +450,9 @@ export default function PetMembershipsPage() {
     loadMembershipHistory,
   ]);
 
-  // Overlap error: real-time validation for purchase start date
-  // Checks against active & pending memberships (any plan) — expired & cancelled are excluded.
+  // Overlap error: real-time validation for purchase start date.
+  // Hanya memblokir overlap dengan membership plan yang SAMA; plan berbeda diperbolehkan
+  // berjalan paralel pada pet yang sama. Expired & cancelled are excluded.
   // Merges consecutive/adjacent periods so that a chain like [active → pending] is treated as
   // one blocked block and the available date is calculated from the END of the full chain.
   const overlapError = (() => {
@@ -462,7 +463,9 @@ export default function PetMembershipsPage() {
     const newEnd = addMonths(newStart, plan.duration_months);
 
     const activeAndPending = nonCancelledMemberships.filter(
-      (m) => m.status === "active" || m.status === "pending",
+      (m) =>
+        m.membership._id === selectedPlanId &&
+        (m.status === "active" || m.status === "pending"),
     );
 
     // Find the first membership that directly conflicts (for the error label)
@@ -515,6 +518,7 @@ export default function PetMembershipsPage() {
   })();
 
   // Overlap error for the EDIT form. Excludes the membership being edited.
+  // Hanya cek overlap terhadap membership lain dengan PLAN YANG SAMA.
   // Triggers if the start date alone falls within another active/pending period,
   // OR if the full [start, end] range overlaps one — independent of end-date validity.
   const updateOverlapError = (() => {
@@ -527,6 +531,7 @@ export default function PetMembershipsPage() {
     const others = nonCancelledMemberships.filter(
       (m) =>
         m._id !== updateTarget._id &&
+        m.membership._id === updateTarget.membership._id &&
         (m.status === "active" || m.status === "pending"),
     );
     if (others.length === 0) return null;
@@ -600,9 +605,9 @@ export default function PetMembershipsPage() {
   })();
 
   // Overlap error for the RENEW form. The renewed period is [start, start + duration].
-  // Checks against active & pending memberships of ANY plan (same or different),
-  // excluding the membership being renewed. Merges consecutive/adjacent periods so
-  // the available date is calculated from the END of the full blocked chain.
+  // Hanya cek overlap terhadap membership lain dengan PLAN YANG SAMA, excluding
+  // the membership being renewed. Merges consecutive/adjacent periods so the
+  // available date is calculated from the END of the full blocked chain.
   const renewOverlapError = (() => {
     if (!renewTarget || !renewStartDate) return null;
     const newStart = new Date(renewStartDate);
@@ -614,6 +619,7 @@ export default function PetMembershipsPage() {
     const activeAndPending = nonCancelledMemberships.filter(
       (m) =>
         m._id !== renewTarget._id &&
+        m.membership._id === renewTarget.membership._id &&
         (m.status === "active" || m.status === "pending"),
     );
 
