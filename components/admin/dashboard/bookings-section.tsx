@@ -24,6 +24,13 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useDashboardFilters } from "@/hooks/use-dashboard-filters";
 import {
@@ -32,6 +39,10 @@ import {
   type BookingsMetricsResponse,
   type PeakHourBucket,
 } from "@/lib/api/dashboard";
+import {
+  getServiceTypes,
+  type ApiServiceType,
+} from "@/lib/api/service-types";
 
 const STATUS_LABEL: Record<string, string> = {
   requested: "Requested",
@@ -61,6 +72,9 @@ export function BookingsSection() {
   const [data, setData] = useState<BookingsMetricsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [serviceType, setServiceType] = useState<string>("all");
+  const [serviceTypes, setServiceTypes] = useState<ApiServiceType[]>([]);
+  const [serviceTypesLoading, setServiceTypesLoading] = useState(false);
 
   const range = resolvedRange();
   const fromKey = range?.from ?? "";
@@ -68,10 +82,27 @@ export function BookingsSection() {
 
   useEffect(() => {
     let cancelled = false;
+    setServiceTypesLoading(true);
+    getServiceTypes({ page: 1, limit: 100, is_active: "true" })
+      .then((res) => {
+        if (!cancelled) setServiceTypes(res.serviceTypes);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setServiceTypesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
     getBookingsMetrics({
       store_id: storeId,
+      service_type: serviceType,
       from: fromKey || undefined,
       to: toKey || undefined,
     })
@@ -88,18 +119,39 @@ export function BookingsSection() {
     return () => {
       cancelled = true;
     };
-  }, [storeId, fromKey, toKey]);
+  }, [storeId, serviceType, fromKey, toKey]);
 
   const kpis = data?.kpis;
 
   return (
     <Card className="border-border/50">
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+      <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle className="font-display text-lg font-bold flex items-center gap-2">
           <CalendarDays className="h-4 w-4 text-blue-600" />
           Bookings
         </CardTitle>
-        <span className="text-xs text-muted-foreground">Branch · Date</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            Jenis Layanan
+          </span>
+          <Select
+            value={serviceType}
+            onValueChange={setServiceType}
+            disabled={serviceTypesLoading}
+          >
+            <SelectTrigger className="h-8 w-[180px] text-xs">
+              <SelectValue placeholder="Pilih jenis layanan" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua layanan</SelectItem>
+              {serviceTypes.map((st) => (
+                <SelectItem key={st._id} value={st.title}>
+                  {st.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {error ? (

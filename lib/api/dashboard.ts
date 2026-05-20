@@ -2,6 +2,7 @@ import { apiAuthRequest } from "./client";
 
 export interface DashboardRangeParams {
   store_id?: string;
+  service_type?: string;
   from?: string;
   to?: string;
 }
@@ -10,6 +11,8 @@ function buildQuery(params?: DashboardRangeParams) {
   const qs = new URLSearchParams();
   if (params?.store_id && params.store_id !== "all")
     qs.set("store_id", params.store_id);
+  if (params?.service_type && params.service_type !== "all")
+    qs.set("service_type", params.service_type);
   if (params?.from) qs.set("from", params.from);
   if (params?.to) qs.set("to", params.to);
   const s = qs.toString();
