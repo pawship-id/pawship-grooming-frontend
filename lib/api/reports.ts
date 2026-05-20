@@ -656,14 +656,23 @@ export interface MembershipRevenueRow {
   period: string;
   /** Human-readable period incl. date range, e.g. "2026-W19 (4 – 10 Mei 2026)". */
   period_label: string;
-  total_active: number;
-  new_members: number;
-  renewed_members: number;
-  expired_members: number;
-  gross_revenue: number;
-  benefit_usage_count: number;
-  /** Memberships sold in the period, split by plan. */
-  by_plan_breakdown: { plan_name: string; count: number }[];
+  new_memberships: number;
+  renewed_memberships: number;
+  early_renewals: number;
+  late_renewals: number;
+  lapsed_memberships: number;
+  /** renewed / (renewed + lapsed) * 100. Flag if <70%. */
+  renewal_rate_pct: number;
+  renewal_rate_flag: boolean;
+  membership_revenue: number;
+  avg_membership_value: number;
+  /** Revenue & count per plan tier in the period. */
+  by_plan_breakdown: {
+    plan_name: string;
+    plan_tier: string;
+    count: number;
+    revenue: number;
+  }[];
 }
 
 export interface BenefitUtilisationRow {

@@ -1563,12 +1563,14 @@ const REVENUE_COLS: {
   defaultVisible: boolean;
 }[] = [
   { key: "period", label: "Periode", defaultVisible: true },
-  { key: "total_active", label: "Total Aktif", defaultVisible: true },
-  { key: "new_members", label: "Member Baru", defaultVisible: true },
-  { key: "renewed_members", label: "Perpanjang", defaultVisible: true },
-  { key: "expired_members", label: "Expired", defaultVisible: true },
-  { key: "gross_revenue", label: "Gross Revenue", defaultVisible: true },
-  { key: "benefit_usage_count", label: "Benefit Terpakai", defaultVisible: true },
+  { key: "new_memberships", label: "Member Baru", defaultVisible: true },
+  { key: "renewed_memberships", label: "Perpanjang", defaultVisible: true },
+  { key: "early_renewals", label: "Early Renewal", defaultVisible: true },
+  { key: "late_renewals", label: "Late Renewal", defaultVisible: true },
+  { key: "lapsed_memberships", label: "Lapsed", defaultVisible: true },
+  { key: "renewal_rate_pct", label: "Renewal Rate", defaultVisible: true },
+  { key: "membership_revenue", label: "Revenue", defaultVisible: true },
+  { key: "avg_membership_value", label: "Avg Value", defaultVisible: true },
   { key: "by_plan_breakdown", label: "Breakdown per Plan", defaultVisible: true },
 ];
 
@@ -1591,6 +1593,7 @@ function MembershipRevenueTab({
   const [visibleCols, setVisibleCols] = useState<Set<RevenueKey>>(
     REVENUE_DEFAULT_VISIBLE,
   );
+  const [hoveredPeriod, setHoveredPeriod] = useState<string | null>(null);
 
   useEffect(() => {
     setPage(1);
@@ -1604,15 +1607,15 @@ function MembershipRevenueTab({
   const visibleColDefs = REVENUE_COLS.filter((c) => visibleCols.has(c.key));
 
   const totalRevenue = useMemo(
-    () => data.reduce((s, r) => s + r.gross_revenue, 0),
+    () => data.reduce((s, r) => s + r.membership_revenue, 0),
     [data],
   );
   const totalNewMembers = useMemo(
-    () => data.reduce((s, r) => s + r.new_members, 0),
+    () => data.reduce((s, r) => s + r.new_memberships, 0),
     [data],
   );
   const totalRenewed = useMemo(
-    () => data.reduce((s, r) => s + r.renewed_members, 0),
+    () => data.reduce((s, r) => s + r.renewed_memberships, 0),
     [data],
   );
 
@@ -1652,13 +1655,33 @@ function MembershipRevenueTab({
     if (key === "by_plan_breakdown")
       return (
         row.by_plan_breakdown
-          .map((b) => `${b.plan_name}: ${b.count}`)
+          .map((b) => `${b.plan_name}: ${b.count} (${fmtRupiah(b.revenue)})`)
           .join(", ") || "—"
       );
 
-    if (key === "gross_revenue") {
+    if (key === "membership_revenue" || key === "avg_membership_value") {
       return (
-        <span className="font-semibold">{fmtRupiah((val ?? 0) as number)}</span>
+        <span className={key === "membership_revenue" ? "font-semibold" : ""}>
+          {fmtRupiah((val ?? 0) as number)}
+        </span>
+      );
+    }
+
+    if (key === "renewal_rate_pct") {
+      const pct = (val ?? 0) as number;
+      const denom = row.renewed_memberships + row.lapsed_memberships;
+      if (denom === 0)
+        return <span className="text-muted-foreground/40">—</span>;
+      return (
+        <span
+          className={
+            row.renewal_rate_flag
+              ? "font-semibold text-rose-600 dark:text-rose-400"
+              : "font-medium"
+          }
+        >
+          {pct.toFixed(2)}%
+        </span>
       );
     }
 
@@ -1675,10 +1698,15 @@ function MembershipRevenueTab({
         if (c.key === "period") return r.period_label;
         if (c.key === "by_plan_breakdown")
           return r.by_plan_breakdown
-            .map((b) => `${b.plan_name}: ${b.count}`)
+            .map((b) => `${b.plan_name}: ${b.count} (${b.revenue})`)
             .join("; ");
+        if (c.key === "renewal_rate_pct") {
+          const denom = r.renewed_memberships + r.lapsed_memberships;
+          return denom === 0 ? "" : r.renewal_rate_pct;
+        }
         const v = r[c.key];
         if (v === null || v === undefined) return "";
+        if (typeof v === "boolean") return v ? "Yes" : "No";
         return v;
       }),
     );
@@ -1840,7 +1868,18 @@ function MembershipRevenueTab({
                     const subRows = showBreakdown ? breakdown : [null];
                     const span = subRows.length;
                     return subRows.map((bp, sub) => (
-                      <TableRow key={`${row.period}-${sub}`}>
+                      <TableRow
+                        key={`${row.period}-${sub}`}
+                        onMouseEnter={() => setHoveredPeriod(row.period)}
+                        onMouseLeave={() =>
+                          setHoveredPeriod((p) =>
+                            p === row.period ? null : p,
+                          )
+                        }
+                        className={
+                          hoveredPeriod === row.period ? "bg-muted/50" : ""
+                        }
+                      >
                         {sub === 0 && (
                           <TableCell
                             rowSpan={span}
@@ -1861,7 +1900,10 @@ function MembershipRevenueTab({
                                     <span className="font-medium">
                                       {bp.plan_name}
                                     </span>
-                                    : {bp.count}
+                                    : {bp.count} ·{" "}
+                                    <span className="text-muted-foreground">
+                                      {fmtRupiah(bp.revenue)}
+                                    </span>
                                   </span>
                                 ) : (
                                   <span className="text-muted-foreground/40">
@@ -2475,55 +2517,57 @@ function MembershipReportPage() {
           )}
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Row 1 — Search + expiry date */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Search */}
-            <div className="space-y-1.5 lg:col-span-2">
-              <label className="text-xs font-medium text-muted-foreground">
-                Cari
-              </label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          {/* Row 1 — Search + expiry date (hidden on revenue: only Periode applies) */}
+          {activeTab !== "revenue" && (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {/* Search */}
+              <div className="space-y-1.5 lg:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Cari
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Nama owner, no. HP, nama pet, kode member..."
+                    value={filters.search}
+                    onChange={(e) => setFilter("search", e.target.value)}
+                    className="pl-9 pr-8"
+                  />
+                  {filters.search && (
+                    <button
+                      onClick={() => setFilter("search", "")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Expiry From */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Expired Dari
+                </label>
                 <Input
-                  placeholder="Nama owner, no. HP, nama pet, kode member..."
-                  value={filters.search}
-                  onChange={(e) => setFilter("search", e.target.value)}
-                  className="pl-9 pr-8"
+                  type="date"
+                  value={filters.expiryFrom}
+                  onChange={(e) => setFilter("expiryFrom", e.target.value)}
                 />
-                {filters.search && (
-                  <button
-                    onClick={() => setFilter("search", "")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
+              </div>
+              {/* Expiry To */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Expired Sampai
+                </label>
+                <Input
+                  type="date"
+                  value={filters.expiryTo}
+                  onChange={(e) => setFilter("expiryTo", e.target.value)}
+                />
               </div>
             </div>
-
-            {/* Expiry From */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Expired Dari
-              </label>
-              <Input
-                type="date"
-                value={filters.expiryFrom}
-                onChange={(e) => setFilter("expiryFrom", e.target.value)}
-              />
-            </div>
-            {/* Expiry To */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-muted-foreground">
-                Expired Sampai
-              </label>
-              <Input
-                type="date"
-                value={filters.expiryTo}
-                onChange={(e) => setFilter("expiryTo", e.target.value)}
-              />
-            </div>
-          </div>
+          )}
 
           {/* Row 2 — Dropdowns */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
