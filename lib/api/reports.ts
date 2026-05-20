@@ -638,28 +638,18 @@ export interface MembershipDetailRow {
 }
 
 export interface MembershipExpiryRow {
-  membership_id: string;
-  order_number: string;
-  member_code: string;
-  pet_id: string;
-  pet_code: string;
+  customer_name: string;
+  customer_phone: string;
   pet_name: string;
-  pet_type: string;
-  customer_code: string;
-  owner_name: string;
-  owner_phone: string;
-  plan_name: string;
-  plan_tier: string;
-  start_date: string | null;
-  expiry_date: string | null;
-  days_until_expiry: number | null;
-  expiry_urgency: "critical" | "warning" | "upcoming" | null;
+  membership_name: string;
+  end_date: string | null;
+  days_until_expiry: number;
+  expiry_urgency: "critical" | "warning" | "upcoming";
   renewal_count: number;
   last_visit_at: string | null;
   days_since_last_visit: number | null;
   double_risk_flag: boolean;
   total_benefit_used: number;
-  status: "active" | "expired" | "cancelled" | "pending";
 }
 
 export interface MembershipRevenueRow {

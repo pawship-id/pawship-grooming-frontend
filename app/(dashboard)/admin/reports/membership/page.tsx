@@ -141,6 +141,8 @@ interface MembershipFilters {
   status: string;
   expiryFrom: string;
   expiryTo: string;
+  /** Expiry tab: filter by expiry_urgency value (critical|warning|upcoming). */
+  expiryUrgency: string;
   /** Revenue tab: membership-log grouping granularity. */
   periodGrouping: "month" | "week";
 }
@@ -152,6 +154,7 @@ const EMPTY_FILTERS: MembershipFilters = {
   status: "",
   expiryFrom: "",
   expiryTo: "",
+  expiryUrgency: "",
   periodGrouping: "month",
 };
 
@@ -162,7 +165,8 @@ function isFilterActive(f: MembershipFilters): boolean {
     f.planName !== "" ||
     f.status !== "" ||
     f.expiryFrom !== "" ||
-    f.expiryTo !== ""
+    f.expiryTo !== "" ||
+    f.expiryUrgency !== ""
   );
 }
 
@@ -1180,17 +1184,11 @@ const EXPIRY_COLS: {
   label: string;
   defaultVisible: boolean;
 }[] = [
-  { key: "order_number", label: "Nomor Pesanan", defaultVisible: true },
-  { key: "pet_code", label: "Kode Pet", defaultVisible: true },
+  { key: "customer_name", label: "Nama Customer", defaultVisible: true },
+  { key: "customer_phone", label: "No. HP (WhatsApp)", defaultVisible: true },
   { key: "pet_name", label: "Nama Pet", defaultVisible: true },
-  { key: "pet_type", label: "Jenis Hewan", defaultVisible: false },
-  { key: "customer_code", label: "Kode Customer", defaultVisible: true },
-  { key: "owner_name", label: "Nama Customer", defaultVisible: true },
-  { key: "owner_phone", label: "No. HP (WhatsApp)", defaultVisible: true },
-  { key: "member_code", label: "Kode Member", defaultVisible: true },
-  { key: "plan_name", label: "Nama Membership", defaultVisible: true },
-  { key: "start_date", label: "Tgl Mulai", defaultVisible: false },
-  { key: "expiry_date", label: "Tgl Expired", defaultVisible: true },
+  { key: "membership_name", label: "Nama Membership", defaultVisible: true },
+  { key: "end_date", label: "Tgl Expired", defaultVisible: true },
   { key: "days_until_expiry", label: "Sisa Hari", defaultVisible: true },
   { key: "expiry_urgency", label: "Urgensi", defaultVisible: true },
   { key: "renewal_count", label: "Jumlah Renewal", defaultVisible: true },
@@ -1198,7 +1196,6 @@ const EXPIRY_COLS: {
   { key: "days_since_last_visit", label: "Hari Sejak Kunjungan", defaultVisible: true },
   { key: "double_risk_flag", label: "Double Risk", defaultVisible: true },
   { key: "total_benefit_used", label: "Total Benefit Digunakan", defaultVisible: true },
-  { key: "status", label: "Status", defaultVisible: true },
 ];
 
 const EXPIRY_DEFAULT_VISIBLE = new Set(
@@ -1279,17 +1276,6 @@ function MembershipExpiryTab({
   ): React.ReactNode {
     const val = row[key];
 
-    if (key === "status") {
-      const cfg =
-        MEMBERSHIP_STATUS_CONFIG[String(val)] ??
-        MEMBERSHIP_STATUS_CONFIG.expired;
-      return (
-        <Badge variant="outline" className={cfg.className}>
-          {cfg.label}
-        </Badge>
-      );
-    }
-
     if (key === "days_until_expiry") {
       if (val === null || val === undefined)
         return <span className="text-muted-foreground/40">—</span>;
@@ -1337,7 +1323,7 @@ function MembershipExpiryTab({
       return <span>{d} hari</span>;
     }
 
-    if (key === "start_date" || key === "expiry_date" || key === "last_visit_at")
+    if (key === "end_date" || key === "last_visit_at")
       return fmtDate(val as string | null);
 
     if (val === null || val === undefined || val === "")
@@ -1352,9 +1338,7 @@ function MembershipExpiryTab({
     const rows = data.map((r) =>
       EXPIRY_COLS.map((c) => {
         const v = r[c.key];
-        if (c.key === "status")
-          return MEMBERSHIP_STATUS_CONFIG[String(v)]?.label ?? String(v);
-        if (c.key === "start_date" || c.key === "expiry_date" || c.key === "last_visit_at")
+        if (c.key === "end_date" || c.key === "last_visit_at")
           return fmtDate(v as string | null);
         if (c.key === "expiry_urgency") return v ? (URGENCY_LABEL[String(v)] ?? String(v)) : "";
         if (c.key === "double_risk_flag") return v ? "Ya" : "Tidak";
@@ -1415,13 +1399,13 @@ function MembershipExpiryTab({
           ) : (
             <span>
               <span className="font-semibold text-foreground">
-                {[...new Set(data.map((r) => r.owner_phone).filter(Boolean))].length.toLocaleString("id-ID")}
+                {[...new Set(data.map((r) => r.customer_phone).filter(Boolean))].length.toLocaleString("id-ID")}
               </span>{" "}
               owner ·{" "}
               <span className="font-semibold text-foreground">
-                {[...new Set(data.map((r) => r.pet_id))].length.toLocaleString("id-ID")}
+                {data.length.toLocaleString("id-ID")}
               </span>{" "}
-              pet
+              membership
             </span>
           )}
         </span>
@@ -1434,9 +1418,8 @@ function MembershipExpiryTab({
               Membership Expiry Report
             </CardTitle>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Kolom{" "}
-              <span className="font-medium text-foreground">Sisa Hari</span> dan{" "}
-              <span className="font-medium text-foreground">Status</span>{" "}
+              Menampilkan membership yang akan expired dalam 30 hari ke depan.
+              Kolom <span className="font-medium text-foreground">Sisa Hari</span>{" "}
               dihitung dari tanggal hari ini.
             </p>
           </div>
@@ -1536,7 +1519,9 @@ function MembershipExpiryTab({
                   </TableRow>
                 ) : (
                   pageRows.map((row, idx) => (
-                    <TableRow key={row.membership_id}>
+                    <TableRow
+                      key={`${row.customer_phone}-${row.pet_name}-${row.membership_name}-${row.end_date ?? idx}`}
+                    >
                       <TableCell className="text-center text-xs text-muted-foreground">
                         {(page - 1) * PAGE_SIZE + idx + 1}
                       </TableCell>
@@ -2376,47 +2361,55 @@ function MembershipReportPage() {
   }, [filters.periodGrouping]);
 
   // ── Dropdown options ─────────────────────────────────────────────────────────
+  // Sourced from benefitRaw because the expiry payload no longer carries
+  // plan_tier / plan_name (renamed to membership_name and tier dropped).
   const planTierOptions = useMemo(
     () =>
-      [...new Set(expiryRaw.map((r) => r.plan_tier).filter(Boolean))].sort(),
-    [expiryRaw],
+      [...new Set(benefitRaw.map((r) => r.plan_tier).filter(Boolean))].sort(),
+    [benefitRaw],
   );
 
   const planNameOptions = useMemo(
     () =>
-      [...new Set(expiryRaw.map((r) => r.plan_name).filter(Boolean))].sort(),
+      [...new Set(benefitRaw.map((r) => r.plan_name).filter(Boolean))].sort(),
+    [benefitRaw],
+  );
+
+  // Expiry tab has its own plan-name source because the expiry payload carries
+  // `membership_name` rather than `plan_name` (the benefit-utilisation field).
+  const expiryPlanNameOptions = useMemo(
+    () =>
+      [
+        ...new Set(expiryRaw.map((r) => r.membership_name).filter(Boolean)),
+      ].sort(),
     [expiryRaw],
   );
 
   const filteredExpiry = useMemo(() => {
     let d = expiryRaw;
-    const { search, planTier, planName, status, expiryFrom, expiryTo } =
-      filters;
+    const { search, expiryFrom, expiryTo, planName, expiryUrgency } = filters;
 
     if (search) {
       const s = search.toLowerCase();
       d = d.filter(
         (r) =>
-          r.owner_name.toLowerCase().includes(s) ||
-          r.owner_phone.includes(s) ||
+          r.customer_name.toLowerCase().includes(s) ||
+          r.customer_phone.includes(s) ||
           r.pet_name.toLowerCase().includes(s) ||
-          r.member_code.toLowerCase().includes(s),
+          r.membership_name.toLowerCase().includes(s),
       );
     }
-    if (planTier) d = d.filter((r) => r.plan_tier === planTier);
-    if (planName) d = d.filter((r) => r.plan_name === planName);
-    if (status) d = d.filter((r) => r.status === status);
+    if (planName) d = d.filter((r) => r.membership_name === planName);
+    if (expiryUrgency) d = d.filter((r) => r.expiry_urgency === expiryUrgency);
     if (expiryFrom)
       d = d.filter(
-        (r) => r.expiry_date && r.expiry_date.slice(0, 10) >= expiryFrom,
+        (r) => r.end_date && r.end_date.slice(0, 10) >= expiryFrom,
       );
     if (expiryTo)
       d = d.filter(
-        (r) => r.expiry_date && r.expiry_date.slice(0, 10) <= expiryTo,
+        (r) => r.end_date && r.end_date.slice(0, 10) <= expiryTo,
       );
-    return [...d].sort(
-      (a, b) => (a.days_until_expiry ?? 0) - (b.days_until_expiry ?? 0),
-    );
+    return [...d].sort((a, b) => a.days_until_expiry - b.days_until_expiry);
   }, [expiryRaw, filters]);
 
   // One row per period — plan-level filters no longer apply here.
@@ -2534,62 +2527,93 @@ function MembershipReportPage() {
 
           {/* Row 2 — Dropdowns */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Plan Tier / Plan Name — not applicable on the revenue tab
-                (revenue is grouped by period only, all plans merged) */}
-            {activeTab !== "revenue" && (
-              <>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">
-                    Tier Membership
-                  </label>
-                  <Select
-                    value={filters.planTier || "__all__"}
-                    onValueChange={(v) =>
-                      setFilter("planTier", v === "__all__" ? "" : v)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Semua Tier" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__all__">Semua Tier</SelectItem>
-                      {planTierOptions.map((v) => (
-                        <SelectItem key={v} value={v}>
-                          {v}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">
-                    Plan Membership
-                  </label>
-                  <Select
-                    value={filters.planName || "__all__"}
-                    onValueChange={(v) =>
-                      setFilter("planName", v === "__all__" ? "" : v)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Semua Plan" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__all__">Semua Plan</SelectItem>
-                      {planNameOptions.map((v) => (
-                        <SelectItem key={v} value={v}>
-                          {v}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
+            {/* Plan Tier — not applicable on revenue or expiry
+                (revenue is grouped by period only; expiry payload doesn't carry tier) */}
+            {activeTab !== "revenue" && activeTab !== "expiry" && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Tier Membership
+                </label>
+                <Select
+                  value={filters.planTier || "__all__"}
+                  onValueChange={(v) =>
+                    setFilter("planTier", v === "__all__" ? "" : v)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Tier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Semua Tier</SelectItem>
+                    {planTierOptions.map((v) => (
+                      <SelectItem key={v} value={v}>
+                        {v}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
 
-            {/* Status (detail & expiry tabs only) */}
-            {(activeTab === "detail" || activeTab === "expiry") && (
+            {/* Plan Membership — hidden on revenue. Expiry sources options from
+                its own payload (membership_name); benefit-utilisation uses
+                plan_name from benefitRaw. */}
+            {activeTab !== "revenue" && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Plan Membership
+                </label>
+                <Select
+                  value={filters.planName || "__all__"}
+                  onValueChange={(v) =>
+                    setFilter("planName", v === "__all__" ? "" : v)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Plan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Semua Plan</SelectItem>
+                    {(activeTab === "expiry"
+                      ? expiryPlanNameOptions
+                      : planNameOptions
+                    ).map((v) => (
+                      <SelectItem key={v} value={v}>
+                        {v}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Urgensi Expiry — expiry tab only */}
+            {activeTab === "expiry" && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Urgensi Expiry
+                </label>
+                <Select
+                  value={filters.expiryUrgency || "__all__"}
+                  onValueChange={(v) =>
+                    setFilter("expiryUrgency", v === "__all__" ? "" : v)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Semua Urgensi" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Semua Urgensi</SelectItem>
+                    <SelectItem value="critical">Kritis (≤7 hari)</SelectItem>
+                    <SelectItem value="warning">Peringatan (8–14 hari)</SelectItem>
+                    <SelectItem value="upcoming">Akan Datang (15–30 hari)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Status (detail tab only — expiry payload no longer carries status) */}
+            {activeTab === "detail" && (
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">
                   Status Membership
