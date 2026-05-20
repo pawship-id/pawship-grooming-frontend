@@ -135,7 +135,7 @@ export function BookingsSection() {
           />
           <KpiTile
             icon={<CheckCircle2 className="h-4 w-4 text-emerald-600" />}
-            label="Selesai"
+            label="Selesai (completed + returned)"
             value={loading || !kpis ? null : kpis.completed.toString()}
             delta={null}
             tone="emerald"
