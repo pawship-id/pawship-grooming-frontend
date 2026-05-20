@@ -84,7 +84,7 @@ export function RevenueSection() {
       })
       .catch((err: unknown) => {
         if (!cancelled)
-          setError(err instanceof Error ? err.message : "Gagal memuat data");
+          setError(err instanceof Error ? err.message : "Failed to load data");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -108,9 +108,9 @@ export function RevenueSection() {
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="font-display text-lg font-bold flex items-center gap-2">
           <CircleDollarSign className="h-4 w-4 text-primary" />
-          Pendapatan
+          Revenue
         </CardTitle>
-        <span className="text-xs text-muted-foreground">Cabang · Tanggal</span>
+        <span className="text-xs text-muted-foreground">Branch · Date</span>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {error ? (
@@ -137,19 +137,19 @@ export function RevenueSection() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <DiscountStreamCard
             loading={loading}
-            label="Membership benefit"
+            label="Membership Benefit"
             value={data?.discount_breakdown.membership_benefit_total ?? 0}
             tone="purple"
           />
           <DiscountStreamCard
             loading={loading}
-            label="Diskon promosi"
+            label="Promo Discount"
             value={data?.discount_breakdown.promotion_discount_total ?? 0}
             tone="blue"
           />
           <DiscountStreamCard
             loading={loading}
-            label="Diskon admin"
+            label="Admin Discount"
             value={data?.discount_breakdown.admin_discount_total ?? 0}
             tone="amber"
           />
@@ -177,28 +177,44 @@ function KpiGrid({
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <KpiTile
         icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
-        label="Pendapatan kotor"
+        label="Gross Revenue"
         value={loading || !kpis ? null : formatPrice(kpis.gross_revenue)}
+        subtext={
+          loading || !kpis ? null : (
+            <RevenueBreakdown
+              confirmed={kpis.gross_revenue_confirmed}
+              pending={kpis.gross_revenue_pending}
+            />
+          )
+        }
         delta={kpis?.delta.gross_revenue_pct ?? null}
         tone="emerald"
       />
       <KpiTile
         icon={<CircleDollarSign className="h-4 w-4 text-primary" />}
-        label="Pendapatan bersih"
+        label="Net Revenue"
         value={loading || !kpis ? null : formatPrice(kpis.net_revenue)}
+        subtext={
+          loading || !kpis ? null : (
+            <RevenueBreakdown
+              confirmed={kpis.net_revenue_confirmed}
+              pending={kpis.net_revenue_pending}
+            />
+          )
+        }
         delta={kpis?.delta.net_revenue_pct ?? null}
         tone="primary"
       />
       <KpiTile
         icon={<ShoppingBag className="h-4 w-4 text-blue-600" />}
-        label="Order selesai"
+        label="Completed Orders"
         value={loading || !kpis ? null : kpis.total_orders.toString()}
         delta={kpis?.delta.total_orders_pct ?? null}
         tone="blue"
       />
       <KpiTile
         icon={<Receipt className="h-4 w-4 text-amber-600" />}
-        label="Rata-rata order"
+        label="Avg Order Value"
         value={loading || !kpis ? null : formatPrice(kpis.avg_order_value)}
         delta={kpis?.delta.avg_order_value_pct ?? null}
         tone="amber"
@@ -211,12 +227,14 @@ function KpiTile({
   icon,
   label,
   value,
+  subtext,
   delta,
   tone,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string | null;
+  subtext?: React.ReactNode;
   delta: number | null;
   tone: "emerald" | "primary" | "blue" | "amber";
 }) {
@@ -247,8 +265,28 @@ function KpiTile({
             {value}
           </p>
         )}
+        {subtext ? (
+          <div className="mt-0.5 text-[11px] text-muted-foreground">
+            {subtext}
+          </div>
+        ) : null}
         <DeltaBadge delta={delta} />
       </div>
+    </div>
+  );
+}
+
+function RevenueBreakdown({
+  confirmed,
+  pending,
+}: {
+  confirmed: number;
+  pending: number;
+}) {
+  return (
+    <div className="flex flex-col leading-tight">
+      <span className="truncate">Confirmed {formatPrice(confirmed)}</span>
+      <span className="truncate">Pending {formatPrice(pending)}</span>
     </div>
   );
 }
@@ -257,7 +295,7 @@ function DeltaBadge({ delta }: { delta: number | null }) {
   if (delta === null) {
     return (
       <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-        <Minus className="h-3 w-3" /> vs periode sebelumnya
+        <Minus className="h-3 w-3" /> vs previous period
       </span>
     );
   }
@@ -272,7 +310,7 @@ function DeltaBadge({ delta }: { delta: number | null }) {
       )}
     >
       <Icon className="h-3 w-3" />
-      {Math.abs(delta).toFixed(1)}% vs periode sebelumnya
+      {Math.abs(delta).toFixed(1)}% vs previous period
     </span>
   );
 }
@@ -288,7 +326,7 @@ function ByServiceTypeBlock({
     <div className="rounded-lg border border-border/50 p-4">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-muted-foreground">
-          Per service type (grooming only)
+          Per Service Type (grooming only)
         </p>
       </div>
       {loading ? (
@@ -299,7 +337,7 @@ function ByServiceTypeBlock({
         </div>
       ) : rows.length === 0 ? (
         <p className="mt-3 text-xs text-muted-foreground">
-          Belum ada pendapatan grooming pada periode ini.
+          No grooming revenue in this period.
         </p>
       ) : (
         <ul className="mt-3 space-y-2">
@@ -345,7 +383,7 @@ function ByLayananCategoryBlock({
   return (
     <div className="rounded-lg border border-border/50 p-4">
       <p className="text-xs font-medium text-muted-foreground">
-        Per layanan category (all services)
+        Per Service Category (all services)
       </p>
       {loading ? (
         <div className="mt-3 space-y-2">
@@ -355,7 +393,7 @@ function ByLayananCategoryBlock({
         </div>
       ) : rows.length === 0 ? (
         <p className="mt-3 text-xs text-muted-foreground">
-          Belum ada pendapatan pada periode ini.
+          No revenue in this period.
         </p>
       ) : (
         <ul className="mt-3 space-y-2">
@@ -396,7 +434,7 @@ function MembershipCard({
       <div className="flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-purple-600" />
         <p className="text-xs font-medium text-muted-foreground">
-          Pendapatan membership
+          Membership Revenue
         </p>
       </div>
       {loading || !membership ? (
@@ -408,7 +446,7 @@ function MembershipCard({
       )}
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
         <div>
-          <p className="text-muted-foreground">Member baru</p>
+          <p className="text-muted-foreground">New Members</p>
           {loading || !membership ? (
             <Skeleton className="mt-0.5 h-4 w-10" />
           ) : (
@@ -416,7 +454,7 @@ function MembershipCard({
           )}
         </div>
         <div>
-          <p className="text-muted-foreground">Rata-rata</p>
+          <p className="text-muted-foreground">Average</p>
           {loading || !membership ? (
             <Skeleton className="mt-0.5 h-4 w-16" />
           ) : (
@@ -500,10 +538,10 @@ function DiscountLeakageCard({
       )}
       <p className="mt-0.5 text-[11px] opacity-80">
         {leakage > 20
-          ? "Mendekati batas — review!"
+          ? "Near the limit — review!"
           : leakage > 15
             ? "Approaching limit"
-            : "Sehat (< 15% target)"}
+            : "Healthy (< 15% target)"}
       </p>
     </div>
   );
@@ -519,7 +557,7 @@ function TrendChart({
   return (
     <div className="rounded-lg border border-border/50 p-4">
       <p className="text-xs font-medium text-muted-foreground">
-        Tren 7 hari terakhir (gross vs net)
+        Last 7 Days Trend (Gross vs Net)
       </p>
       {loading ? (
         <Skeleton className="mt-3 h-44 w-full" />

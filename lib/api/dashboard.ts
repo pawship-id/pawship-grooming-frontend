@@ -68,7 +68,11 @@ export interface RevenueKpiDelta {
 
 export interface RevenueKpis {
   gross_revenue: number;
+  gross_revenue_confirmed: number;
+  gross_revenue_pending: number;
   net_revenue: number;
+  net_revenue_confirmed: number;
+  net_revenue_pending: number;
   total_discount: number;
   discount_leakage_pct: number;
   total_orders: number;
