@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
+  CalendarClock,
   CalendarDays,
   CheckCircle2,
   Clock4,
-  GhostIcon,
   Minus,
   PawPrint,
   Repeat,
@@ -22,12 +22,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useDashboardFilters } from "@/hooks/use-dashboard-filters";
@@ -39,17 +34,17 @@ import {
 } from "@/lib/api/dashboard";
 
 const STATUS_LABEL: Record<string, string> = {
-  requested: "Menunggu",
-  confirmed: "Terkonfirmasi",
+  requested: "Requested",
+  confirmed: "Confirmed",
   waitlist: "Waitlist",
-  "driver on the way": "Driver berangkat",
-  "groomer on the way": "Groomer berangkat",
-  arrived: "Tiba",
-  "in progress": "Berlangsung",
-  completed: "Selesai",
-  returned: "Kembali",
-  rescheduled: "Dijadwalkan ulang",
-  cancelled: "Dibatalkan",
+  "driver on the way": "Driver On The Way",
+  "groomer on the way": "Groomer On The Way",
+  arrived: "Arrived",
+  "in progress": "In Progress",
+  completed: "Completed",
+  returned: "Returned",
+  rescheduled: "Rescheduled",
+  cancelled: "Cancelled",
 };
 
 const STATUS_TONE: Record<string, string> = {
@@ -85,7 +80,7 @@ export function BookingsSection() {
       })
       .catch((err: unknown) => {
         if (!cancelled)
-          setError(err instanceof Error ? err.message : "Gagal memuat data");
+          setError(err instanceof Error ? err.message : "Failed to load data");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -102,9 +97,9 @@ export function BookingsSection() {
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="font-display text-lg font-bold flex items-center gap-2">
           <CalendarDays className="h-4 w-4 text-blue-600" />
-          Booking
+          Bookings
         </CardTitle>
-        <span className="text-xs text-muted-foreground">Cabang · Tanggal</span>
+        <span className="text-xs text-muted-foreground">Branch · Date</span>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {error ? (
@@ -113,57 +108,63 @@ export function BookingsSection() {
           </div>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <KpiTile
             icon={<CalendarDays className="h-4 w-4 text-primary" />}
-            label="Total booking"
+            label="Total Bookings"
             value={loading || !kpis ? null : kpis.total_bookings.toString()}
             delta={kpis?.delta.total_bookings_pct ?? null}
             tone="primary"
           />
           <KpiTile
             icon={<PawPrint className="h-4 w-4 text-emerald-600" />}
-            label="Pet baru dilayani"
-            value={loading || !kpis ? null : kpis.new_pets_served.toString()}
-            delta={kpis?.delta.new_pets_served_pct ?? null}
+            label="New Pet"
+            value={loading || !kpis ? null : kpis.new_pets.toString()}
+            delta={kpis?.delta.new_pets_pct ?? null}
             tone="emerald"
-            sublabel={
-              kpis
-                ? `${kpis.returning_pets} returning · ${kpis.repeat_booking_rate_pct.toFixed(0)}% repeat`
-                : undefined
-            }
+          />
+          <KpiTile
+            icon={<Repeat className="h-4 w-4 text-blue-600" />}
+            label="Returning Pet"
+            value={loading || !kpis ? null : kpis.returning_pets.toString()}
+            delta={kpis?.delta.returning_pets_pct ?? null}
+            tone="blue"
           />
           <KpiTile
             icon={<CheckCircle2 className="h-4 w-4 text-emerald-600" />}
-            label="Selesai (completed + returned)"
+            label="Completed"
             value={loading || !kpis ? null : kpis.completed.toString()}
             delta={null}
             tone="emerald"
             sublabel={
               kpis && kpis.total_bookings
-                ? `${Math.round((kpis.completed / kpis.total_bookings) * 100)}% dari total`
+                ? `${Math.round((kpis.completed / kpis.total_bookings) * 100)}% of total`
                 : undefined
             }
           />
           <KpiTile
             icon={<XCircle className="h-4 w-4 text-red-600" />}
-            label="Dibatalkan"
+            label="Cancelled"
             value={loading || !kpis ? null : kpis.cancelled.toString()}
             delta={null}
             tone="red"
             sublabel={
               kpis
-                ? `${kpis.cancellation_rate_pct.toFixed(1)}% rate${kpis.cancellation_rate_pct > 15 ? " · tinggi" : ""}`
+                ? `${kpis.cancellation_rate_pct.toFixed(1)}% rate${kpis.cancellation_rate_pct > 15 ? " · high" : ""}`
                 : undefined
             }
           />
           <KpiTile
-            icon={<GhostIcon className="h-4 w-4 text-slate-500" />}
-            label="No shows"
-            value={loading || !kpis ? null : kpis.no_shows.toString()}
+            icon={<CalendarClock className="h-4 w-4 text-slate-500" />}
+            label="Reschedule"
+            value={loading || !kpis ? null : kpis.rescheduled.toString()}
             delta={null}
             tone="slate"
-            sublabel="Belum di-track"
+            sublabel={
+              kpis
+                ? `${kpis.reschedule_rate_pct.toFixed(1)}% rate${kpis.reschedule_rate_pct > 15 ? " · high" : ""}`
+                : undefined
+            }
           />
         </div>
 
@@ -204,14 +205,14 @@ function PeakHourBlock({
       <div className="flex items-center gap-2">
         <Clock4 className="h-4 w-4 text-blue-600" />
         <p className="text-xs font-medium text-muted-foreground">
-          Peak hour booking
+          Peak Hour Booking
         </p>
       </div>
       {loading ? (
         <Skeleton className="mt-3 h-32 w-full" />
       ) : data.length === 0 ? (
         <p className="mt-3 text-xs text-muted-foreground">
-          Belum ada booking dengan jadwal pada periode ini.
+          No bookings scheduled in this period.
         </p>
       ) : (
         <div className="mt-2 h-36 w-full">
@@ -224,7 +225,11 @@ function PeakHourBlock({
               <XAxis dataKey="label" tick={{ fontSize: 10 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={28} />
               <Tooltip labelClassName="text-xs" />
-              <Bar dataKey="count" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
+              <Bar
+                dataKey="count"
+                fill="hsl(var(--primary))"
+                radius={[3, 3, 0, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -245,7 +250,7 @@ function ByDayBlock({
       <div className="flex items-center gap-2">
         <CalendarDays className="h-4 w-4 text-emerald-600" />
         <p className="text-xs font-medium text-muted-foreground">
-          Bookings per hari (Sen–Min)
+          Bookings per Day (Mon–Sun)
         </p>
       </div>
       {loading ? (
@@ -278,8 +283,8 @@ function ByDayPreviewHint({ preset }: { preset: string }) {
   return (
     <div className="rounded-lg border border-dashed border-border/60 p-4 flex items-center">
       <p className="text-xs text-muted-foreground">
-        Chart "Bookings per hari" muncul saat preset periode = "Minggu Ini"
-        (saat ini: <span className="font-medium">{preset}</span>).
+        Chart "Bookings per Day" appears when period preset = "This Week"
+        (current: <span className="font-medium">{preset}</span>).
       </p>
     </div>
   );
@@ -346,7 +351,7 @@ function DeltaBadge({ delta }: { delta: number | null }) {
   if (delta === null) {
     return (
       <span className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-        <Minus className="h-3 w-3" /> vs periode sebelumnya
+        <Minus className="h-3 w-3" /> vs previous period
       </span>
     );
   }
@@ -361,7 +366,7 @@ function DeltaBadge({ delta }: { delta: number | null }) {
       )}
     >
       <Icon className="h-3 w-3" />
-      {Math.abs(delta).toFixed(1)}% vs periode sebelumnya
+      {Math.abs(delta).toFixed(1)}% vs previous period
     </span>
   );
 }
@@ -377,7 +382,7 @@ function ByStatusBlock({
   return (
     <div className="rounded-lg border border-border/50 p-4">
       <p className="text-xs font-medium text-muted-foreground">
-        Distribusi status
+        Status Distribution
       </p>
       {loading ? (
         <div className="mt-3 space-y-2">
@@ -387,7 +392,7 @@ function ByStatusBlock({
         </div>
       ) : rows.length === 0 ? (
         <p className="mt-3 text-xs text-muted-foreground">
-          Belum ada booking pada periode ini.
+          No bookings in this period.
         </p>
       ) : (
         <ul className="mt-3 space-y-2">
@@ -430,7 +435,7 @@ function ByServiceBlock({
   return (
     <div className="rounded-lg border border-border/50 p-4">
       <p className="text-xs font-medium text-muted-foreground">
-        Distribusi tipe layanan
+        Service Type Distribution
       </p>
       {loading ? (
         <div className="mt-3 space-y-2">
@@ -440,7 +445,7 @@ function ByServiceBlock({
         </div>
       ) : rows.length === 0 ? (
         <p className="mt-3 text-xs text-muted-foreground">
-          Belum ada booking pada periode ini.
+          No bookings in this period.
         </p>
       ) : (
         <ul className="mt-3 space-y-2">

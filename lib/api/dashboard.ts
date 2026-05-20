@@ -152,18 +152,19 @@ export async function getRevenueMetrics(params?: DashboardRangeParams) {
 
 export interface BookingsKpiDelta {
   total_bookings_pct: number | null;
-  new_pets_served_pct: number | null;
+  new_pets_pct: number | null;
+  returning_pets_pct: number | null;
 }
 
 export interface BookingsKpis {
   total_bookings: number;
-  new_pets_served: number;
+  new_pets: number;
   returning_pets: number;
-  repeat_booking_rate_pct: number;
   cancellation_rate_pct: number;
+  reschedule_rate_pct: number;
   completed: number;
   cancelled: number;
-  no_shows: number;
+  rescheduled: number;
   delta: BookingsKpiDelta;
 }
 
