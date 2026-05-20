@@ -177,7 +177,11 @@ export function BookingsSection() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <PeakHourBlock loading={loading} rows={data?.peak_hour ?? []} />
+          {preset === "today" ? (
+            <PeakHourBlock loading={loading} rows={data?.peak_hour ?? []} />
+          ) : (
+            <PeakHourPreviewHint preset={preset} />
+          )}
           {preset === "week" ? (
             <ByDayBlock loading={loading} rows={data?.by_day ?? []} />
           ) : (
@@ -284,6 +288,17 @@ function ByDayPreviewHint({ preset }: { preset: string }) {
     <div className="rounded-lg border border-dashed border-border/60 p-4 flex items-center">
       <p className="text-xs text-muted-foreground">
         Chart "Bookings per Day" appears when period preset = "This Week"
+        (current: <span className="font-medium">{preset}</span>).
+      </p>
+    </div>
+  );
+}
+
+function PeakHourPreviewHint({ preset }: { preset: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border/60 p-4 flex items-center">
+      <p className="text-xs text-muted-foreground">
+        Chart "Peak Hour Booking" appears when period preset = "Today"
         (current: <span className="font-medium">{preset}</span>).
       </p>
     </div>
