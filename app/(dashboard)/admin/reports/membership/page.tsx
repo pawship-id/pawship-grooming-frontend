@@ -493,42 +493,6 @@ function MembershipDetailTab({
     else if (urgency === "30days")
       d = d.filter((r) => r.days_until_expiry !== null && r.days_until_expiry >= 0 && r.days_until_expiry <= 30);
 
-    // One row per unique membership per pet (keyed by pet_id + membership_plan_id):
-    // a pet may show several rows as long as the plan differs, never the same plan twice.
-    // Priority: aktif → menunggu → expired → dibatalkan; tie-break: latest end_date
-    // (or, when both are menunggu, the soonest start_date).
-    const statusPriority = (r: MembershipDetailRow) =>
-      r.membership_status === "active"
-        ? 0
-        : r.membership_status === "menunggu"
-          ? 1
-          : r.membership_status === "expired"
-            ? 2
-            : 3; // cancelled / dibatalkan
-    const dedupMap = new Map<string, MembershipDetailRow>();
-    for (const row of d) {
-      const key = `${row.pet_id}::${row.membership_plan_id}`;
-      const existing = dedupMap.get(key);
-      if (!existing) { dedupMap.set(key, row); continue; }
-      const rowPrio = statusPriority(row);
-      const exPrio = statusPriority(existing);
-      if (rowPrio < exPrio) {
-        dedupMap.set(key, row); // higher priority status wins
-      } else if (rowPrio === exPrio) {
-        if (row.membership_status === "menunggu") {
-          // both menunggu → prefer the one starting soonest (closest start_date)
-          const start = row.start_date ? new Date(row.start_date).getTime() : Infinity;
-          const exStart = existing.start_date ? new Date(existing.start_date).getTime() : Infinity;
-          if (start < exStart) dedupMap.set(key, row);
-        } else {
-          const end = row.end_date ? new Date(row.end_date).getTime() : 0;
-          const exEnd = existing.end_date ? new Date(existing.end_date).getTime() : 0;
-          if (end > exEnd) dedupMap.set(key, row); // same priority → latest end_date
-        }
-      }
-    }
-    d = [...dedupMap.values()];
-
     return d;
   }, [rawData, filters]);
 
@@ -565,15 +529,9 @@ function MembershipDetailTab({
   const expandedRows = useMemo(() => {
     if (petColDefs.length === 0 && benefitColDefs.length === 0) return null;
 
-    // Group by (pet_id, membership_plan_id) — one block per unique plan; a pet with
-    // multiple distinct plans gets one block (and one pet-info rowspan) per plan.
-    const groupMap = new Map<string, MembershipDetailRow[]>();
-    for (const row of pageRows) {
-      const gKey = `${row.pet_id}::${row.membership_plan_id}`;
-      if (!groupMap.has(gKey)) groupMap.set(gKey, []);
-      groupMap.get(gKey)!.push(row);
-    }
-    const groups = [...groupMap.values()];
+    // 1 group per pet_membership — tidak ada penggabungan antar PM. Rowspan
+    // hanya dipakai untuk multi-benefit dalam PM yang sama.
+    const groups = pageRows.map((row) => [row]);
 
     let absoluteMembershipIdx = (page - 1) * PAGE_SIZE;
     return groups.flatMap((groupRows, groupIdx) => {
@@ -1128,7 +1086,7 @@ function MembershipDetailTab({
                   </TableRow>
                 ) : expandedRows !== null ? (
                   expandedRows.map(({ row, benefit, benefitIdx, benefitCount, isFirstInGroup, groupTotalRows, isFirstGroup, rowNumber }) => {
-                    const groupKey = `${row.pet_id}::${row.membership_plan_id}`;
+                    const groupKey = row.pet_membership_id;
                     const isGroupHovered = hoveredGroupKey === groupKey;
                     const borderClass =
                       isFirstInGroup && !isFirstGroup ? "border-t-2 border-border"
