@@ -265,6 +265,8 @@ const DETAIL_COLS: {
   { key: "customer_code", label: "Kode Customer", defaultVisible: true },
   { key: "customer_name", label: "Nama Customer", defaultVisible: true },
   { key: "customer_phone", label: "No. HP", defaultVisible: true },
+  { key: "is_early_renewal", label: "Early Renewal", defaultVisible: false },
+  { key: "renewal_count", label: "Jumlah Renewal", defaultVisible: false },
   { key: "membership_code", label: "Kode Membership", defaultVisible: true },
   { key: "membership_name", label: "Plan Membership", defaultVisible: true },
   { key: "membership_price", label: "Harga Plan", defaultVisible: false },
@@ -272,9 +274,9 @@ const DETAIL_COLS: {
   { key: "start_date", label: "Tgl Mulai", defaultVisible: false },
   { key: "end_date", label: "Tgl Expired", defaultVisible: false },
   { key: "days_until_expiry", label: "Sisa Hari", defaultVisible: true },
+  { key: "created_at", label: "Tanggal Beli Membership", defaultVisible: true },
+  { key: "cancelled_at", label: "Tanggal Dibatalkan", defaultVisible: true },
   { key: "membership_status", label: "Status", defaultVisible: true },
-  { key: "is_early_renewal", label: "Early Renewal", defaultVisible: false },
-  { key: "renewal_count", label: "Jumlah Renewal", defaultVisible: false },
   { key: "previous_plan", label: "Plan Sebelumnya", defaultVisible: false },
   // Per-benefit rows (each benefit in benefits_snapshot gets its own row)
   { key: "benefit_1_type", label: "Tipe Benefit", defaultVisible: false },
@@ -653,7 +655,7 @@ function MembershipDetailTab({
       return <span>{String(val)}</span>;
     }
 
-    if (key === "start_date" || key === "end_date") return fmtDate(val as string | null);
+    if (key === "start_date" || key === "end_date" || key === "created_at" || key === "cancelled_at") return fmtDate(val as string | null);
 
     if (key === "benefit_1_type") {
       if (!val) return <span className="text-muted-foreground/40">—</span>;
@@ -725,7 +727,7 @@ function MembershipDetailTab({
             return MEMBERSHIP_STATUS_CONFIG[String(v)]?.label ?? String(v);
           if (c.key === "membership_price" || c.key === "total_benefit_used_amount") return v as number;
           if (c.key === "is_early_renewal") return r.is_early_renewal ? "Ya" : "Tidak";
-          if (c.key === "start_date" || c.key === "end_date") return fmtDate(v as string | null);
+          if (c.key === "start_date" || c.key === "end_date" || c.key === "created_at" || c.key === "cancelled_at") return fmtDate(v as string | null);
           if (c.key === "benefit_roi") return v !== null && v !== undefined ? `${v}%` : "";
           if (v === null || v === undefined) return "";
           return v;

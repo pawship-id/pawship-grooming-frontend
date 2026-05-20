@@ -634,6 +634,7 @@ export interface MembershipDetailRow {
   total_sessions_using_benefit: number;
   benefit_roi: number;
   created_at: string | null;
+  cancelled_at: string | null;
 }
 
 export interface MembershipExpiryRow {
