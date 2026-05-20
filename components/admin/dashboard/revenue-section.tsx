@@ -34,8 +34,8 @@ import { useDashboardFilters } from "@/hooks/use-dashboard-filters";
 import {
   getRevenueMetrics,
   type DiscountBreakdown,
+  type RevenueByGroomingServiceItem,
   type RevenueByLayananCategoryItem,
-  type RevenueByServiceTypeItem,
   type RevenueResponse,
 } from "@/lib/api/dashboard";
 
@@ -126,9 +126,9 @@ export function RevenueSection() {
             loading={loading}
             rows={data?.by_layanan_category ?? []}
           />
-          <ByServiceTypeBlock
+          <ByGroomingServiceBlock
             loading={loading}
-            rows={data?.by_service_type_grooming ?? []}
+            rows={data?.by_grooming_service ?? []}
           />
         </div>
 
@@ -315,18 +315,18 @@ function DeltaBadge({ delta }: { delta: number | null }) {
   );
 }
 
-function ByServiceTypeBlock({
+function ByGroomingServiceBlock({
   loading,
   rows,
 }: {
   loading: boolean;
-  rows: RevenueByServiceTypeItem[];
+  rows: RevenueByGroomingServiceItem[];
 }) {
   return (
     <div className="rounded-lg border border-border/50 p-4">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs font-medium text-muted-foreground">
-          Per Service Type (grooming only)
+          Per Service (grooming only)
         </p>
       </div>
       {loading ? (
@@ -342,11 +342,15 @@ function ByServiceTypeBlock({
       ) : (
         <ul className="mt-3 space-y-2">
           {rows.slice(0, 6).map((r) => (
-            <li key={r.service_type} className="text-xs">
+            <li
+              key={r.service_id ?? r.service_name}
+              className="text-xs"
+            >
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate font-medium">{r.service_type}</span>
+                <span className="truncate font-medium">{r.service_name}</span>
                 <span className="text-muted-foreground whitespace-nowrap">
-                  {formatCompactPrice(r.net_revenue)} · {r.pct_of_total}%
+                  {formatPrice(r.revenue)} · {r.pct_of_total}% ·{" "}
+                  {r.order_count} order
                 </span>
               </div>
               <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -402,7 +406,7 @@ function ByLayananCategoryBlock({
               <div className="flex items-center justify-between gap-2">
                 <span className="truncate font-medium">{r.label}</span>
                 <span className="text-muted-foreground whitespace-nowrap">
-                  {formatCompactPrice(r.net_revenue)} · {r.pct_of_total}%
+                  {formatPrice(r.revenue)} · {r.pct_of_total}%
                 </span>
               </div>
               <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">

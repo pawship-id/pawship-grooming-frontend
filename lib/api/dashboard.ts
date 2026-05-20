@@ -82,7 +82,15 @@ export interface RevenueKpis {
 
 export interface RevenueByServiceTypeItem {
   service_type: string;
-  net_revenue: number;
+  revenue: number;
+  pct_of_total: number;
+  order_count: number;
+}
+
+export interface RevenueByGroomingServiceItem {
+  service_id: string | null;
+  service_name: string;
+  revenue: number;
   pct_of_total: number;
   order_count: number;
 }
@@ -99,7 +107,7 @@ export type LayananCategory =
 export interface RevenueByLayananCategoryItem {
   category: LayananCategory;
   label: string;
-  net_revenue: number;
+  revenue: number;
   pct_of_total: number;
 }
 
@@ -127,7 +135,7 @@ export interface RevenueResponse {
   message: string;
   range: { from: string; to: string };
   kpis: RevenueKpis;
-  by_service_type_grooming: RevenueByServiceTypeItem[];
+  by_grooming_service: RevenueByGroomingServiceItem[];
   by_layanan_category: RevenueByLayananCategoryItem[];
   discount_breakdown: DiscountBreakdown;
   membership: MembershipRevenue;
