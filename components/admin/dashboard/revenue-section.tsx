@@ -134,7 +134,7 @@ export function RevenueSection() {
 
         <TrendChart loading={loading} data={trendData} />
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <DiscountStreamCard
             loading={loading}
             label="Membership Benefit"
@@ -152,6 +152,12 @@ export function RevenueSection() {
             label="Admin Discount"
             value={data?.discount_breakdown.admin_discount_total ?? 0}
             tone="amber"
+          />
+          <DiscountStreamCard
+            loading={loading}
+            label="Total Discount"
+            value={data?.discount_breakdown.total_attributed ?? 0}
+            tone="rose"
           />
           <DiscountLeakageCard
             loading={loading}
@@ -481,14 +487,16 @@ function DiscountStreamCard({
   loading: boolean;
   label: string;
   value: number;
-  tone: "purple" | "blue" | "amber";
+  tone: "purple" | "blue" | "amber" | "rose";
 }) {
   const iconBg =
     tone === "purple"
       ? "bg-purple-100 text-purple-600"
       : tone === "blue"
         ? "bg-blue-100 text-blue-600"
-        : "bg-amber-100 text-amber-600";
+        : tone === "amber"
+          ? "bg-amber-100 text-amber-600"
+          : "bg-rose-100 text-rose-600";
   return (
     <div className="rounded-lg border border-border/50 p-4">
       <div className="flex items-center gap-2">
