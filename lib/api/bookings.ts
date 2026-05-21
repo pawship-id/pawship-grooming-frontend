@@ -1,4 +1,8 @@
 import { apiAuthRequest } from "./client";
+import {
+  uploadFileToCloudinary,
+  type CloudinarySignature,
+} from "../cloudinary-upload";
 
 // ── Shared ref shapes ────────────────────────────────────────────────────────
 
@@ -708,40 +712,34 @@ export async function deleteBookingSession(
   );
 }
 
-export async function uploadSessionMedia(
-  bookingId: string,
-  sessionId: string,
-  file: File,
-  type: "before" | "after",
-  note?: string,
-) {
-  const formData = new FormData();
-  formData.append("image", file);
-  formData.append("type", type);
-  if (note) formData.append("note", note);
-  return apiAuthRequest<{ message: string }>(
-    `/bookings/${bookingId}/session/${sessionId}/media`,
-    {
-      method: "POST",
-      body: formData,
-    },
-  );
-}
-
+// Booking-level media upload — signed direct upload to Cloudinary.
+// Flow: backend issues a signature (auth + folder lock) → browser uploads
+// the file directly to Cloudinary → backend records the metadata.
 export async function uploadBookingMedia(
   bookingId: string,
   file: File,
   type: "before" | "after" | "other",
   note?: string,
 ) {
-  const formData = new FormData();
-  formData.append("image", file);
-  formData.append("type", type);
-  if (note) formData.append("note", note);
-  return apiAuthRequest<{ message: string }>(`/bookings/${bookingId}/media`, {
-    method: "POST",
-    body: formData,
-  });
+  const signature = await apiAuthRequest<CloudinarySignature>(
+    `/bookings/${bookingId}/media/sign`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type }),
+    },
+  );
+
+  const { secure_url, public_id } = await uploadFileToCloudinary(file, signature);
+
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${bookingId}/media/confirm`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, public_id, secure_url, note }),
+    },
+  );
 }
 
 export async function deleteBookingMedia(bookingId: string, publicId: string) {
@@ -751,22 +749,32 @@ export async function deleteBookingMedia(bookingId: string, publicId: string) {
   );
 }
 
-// Upload "other" media from a specific session — stored in booking.media[]
-// Only admin or the groomer assigned to the session can call this
+// Upload "other" media from a specific session — stored in booking.media[].
+// Only admin or the groomer assigned to the session can call this. Uses the
+// same signed direct upload flow as uploadBookingMedia.
 export async function uploadSessionOtherMedia(
   bookingId: string,
   sessionId: string,
   file: File,
   note?: string,
 ) {
-  const formData = new FormData();
-  formData.append("image", file);
-  if (note) formData.append("note", note);
-  return apiAuthRequest<{ message: string }>(
-    `/bookings/${bookingId}/session/${sessionId}/media/other`,
+  const signature = await apiAuthRequest<CloudinarySignature>(
+    `/bookings/${bookingId}/session/${sessionId}/media/other/sign`,
     {
       method: "POST",
-      body: formData,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    },
+  );
+
+  const { secure_url, public_id } = await uploadFileToCloudinary(file, signature);
+
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${bookingId}/session/${sessionId}/media/other/confirm`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ public_id, secure_url, note }),
     },
   );
 }
