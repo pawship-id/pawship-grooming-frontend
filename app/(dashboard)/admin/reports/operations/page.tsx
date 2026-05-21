@@ -692,6 +692,27 @@ export default function OperationsReportPage() {
     setCapUtilFilter("all");
   }
 
+  const reportTabs = (
+    <div className="flex flex-wrap gap-2">
+      {REPORT_TABS.map((t) => (
+        <button
+          key={t.id}
+          onClick={() => t.live && setActiveTab(t.id)}
+          className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            activeTab === t.id
+              ? "bg-primary text-primary-foreground"
+              : t.live
+                ? "bg-muted text-muted-foreground hover:bg-muted/80"
+                : "cursor-not-allowed bg-muted/50 text-muted-foreground/50"
+          }`}
+        >
+          {!t.live && <Lock className="h-3 w-3" />}
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div className="w-full min-w-0 space-y-6">
       {/* Page header */}
@@ -710,26 +731,6 @@ export default function OperationsReportPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Reports #2–5 · Used by: Admin, Manager, Owner · Sheet: Operations
         </p>
-      </div>
-
-      {/* Sub-report tabs */}
-      <div className="flex flex-wrap gap-2">
-        {REPORT_TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => t.live && setActiveTab(t.id)}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              activeTab === t.id
-                ? "bg-primary text-primary-foreground"
-                : t.live
-                  ? "bg-muted text-muted-foreground hover:bg-muted/80"
-                  : "cursor-not-allowed bg-muted/50 text-muted-foreground/50"
-            }`}
-          >
-            {!t.live && <Lock className="h-3 w-3" />}
-            {t.label}
-          </button>
-        ))}
       </div>
 
       {/* ── Report A: Booking & Ops Detail ─────────────────────────────────── */}
@@ -872,6 +873,9 @@ export default function OperationsReportPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Sub-report tabs */}
+          {reportTabs}
 
           {/* Action bar */}
           <div className="flex flex-wrap items-center gap-3">
@@ -1348,6 +1352,9 @@ export default function OperationsReportPage() {
             </CardContent>
           </Card>
 
+          {/* Sub-report tabs */}
+          {reportTabs}
+
           {/* Status bar */}
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm text-muted-foreground">
@@ -1663,6 +1670,9 @@ export default function OperationsReportPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Sub-report tabs */}
+          {reportTabs}
 
           {/* Action bar */}
           <div className="flex flex-wrap items-center gap-3">
@@ -2023,17 +2033,22 @@ export default function OperationsReportPage() {
 
       {/* ── Other tabs — coming soon ──────────────────────────────────────────── */}
       {activeTab !== "a" && activeTab !== "b" && activeTab !== "c" && (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Lock className="mb-3 h-8 w-8 text-muted-foreground/40" />
-            <p className="text-sm font-medium text-muted-foreground">
-              Report ini belum tersedia.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground/60">
-              Sedang dalam pengembangan.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          {/* Sub-report tabs */}
+          {reportTabs}
+
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+              <Lock className="mb-3 h-8 w-8 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-muted-foreground">
+                Report ini belum tersedia.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground/60">
+                Sedang dalam pengembangan.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       )}
     </div>
   );
