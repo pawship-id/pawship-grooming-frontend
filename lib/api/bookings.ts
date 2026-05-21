@@ -808,12 +808,26 @@ export async function getGroomerMyJobs(params?: GetGroomerMyJobsParams) {
 export interface GetGroomerOpenJobsParams {
   page?: number;
   limit?: number;
+  // YYYY-MM-DD. When both are omitted the backend defaults to today (unless
+  // `scope` overrides). Pass both equal to today's date to be explicit.
+  date_from?: string;
+  date_to?: string;
+  // Explicit store override — ignored by the backend if the caller is a
+  // groomer with a placement (branch scoping is always enforced).
+  store_id?: string;
+  // "all" / "urgent" → backend skips the default today filter. Use this for
+  // the urgent dashboard section.
+  scope?: "today" | "all" | "urgent";
 }
 
 export async function getGroomerOpenJobs(params?: GetGroomerOpenJobsParams) {
   const qs = new URLSearchParams();
   if (params?.page) qs.set("page", String(params.page));
   if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.date_from) qs.set("date_from", params.date_from);
+  if (params?.date_to) qs.set("date_to", params.date_to);
+  if (params?.store_id) qs.set("store_id", params.store_id);
+  if (params?.scope) qs.set("scope", params.scope);
   const query = qs.toString();
   return apiAuthRequest<BookingsResponse>(
     query

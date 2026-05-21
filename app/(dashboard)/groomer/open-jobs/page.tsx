@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Calendar, Clock, MapPin, Store, Loader2, RefreshCw, UserPlus, Scissors, CheckCircle, AlertCircle } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   AlertDialog,
@@ -17,15 +18,27 @@ import {
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 import {
-  getGroomerOpenJobs,
   claimSession,
   type AdminBooking,
-  type BookingSession,
 } from "@/lib/api/bookings"
 import { getCurrentUser } from "@/lib/api/users"
+import {
+  fetchTodayOpenJobs,
+  todayYMD,
+  compareOpenJobsByStatusPriority,
+} from "@/lib/open-jobs"
+import { getStatusConfig } from "@/lib/booking-status"
+import { formatDateTime } from "@/lib/format"
 
 export default function OpenJobsPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Default date filter = today. Sourced from ?date= so a manual change
+  // survives reloads / share-links. An empty string = "all dates".
+  const initialDate = searchParams.get("date") ?? todayYMD()
+  const [dateFilter, setDateFilter] = useState<string>(initialDate)
+
   const [bookings, setBookings] = useState<AdminBooking[]>([])
   const [groomerSkills, setGroomerSkills] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -33,26 +46,48 @@ export default function OpenJobsPage() {
   const [claimingId, setClaimingId] = useState<string | null>(null)
   const [claimedBookingId, setClaimedBookingId] = useState<string | null>(null)
 
+  const isTodayFilter = dateFilter === todayYMD()
+
   const fetchOpenJobs = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
       const [res, meRes] = await Promise.all([
-        getGroomerOpenJobs({ limit: 50 }),
+        fetchTodayOpenJobs(
+          dateFilter
+            ? { date_from: dateFilter, date_to: dateFilter }
+            : { date_from: undefined, date_to: undefined, scope: "all" },
+        ),
         getCurrentUser(),
       ])
-      setBookings(res.bookings)
+      // Backend already sorts by status priority, but re-sort on the client so
+      // that the order stays correct after any filter/merge step the page may
+      // do in the future (e.g. merging with an urgent section).
+      setBookings([...res.bookings].sort(compareOpenJobsByStatusPriority))
       setGroomerSkills(meRes.user?.profile?.groomer_skills ?? [])
     } catch (err: any) {
       setError(err.message || "Gagal memuat data")
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [dateFilter])
 
   useEffect(() => {
     fetchOpenJobs()
   }, [fetchOpenJobs])
+
+  // Sync ?date= to URL so manual filter changes persist on reload.
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (dateFilter) params.set("date", dateFilter)
+    else params.delete("date")
+    const next = params.toString()
+    const current = searchParams.toString()
+    if (next !== current) {
+      router.replace(next ? `?${next}` : "?", { scroll: false })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFilter])
 
   const handleClaim = async (bookingId: string, sessionId: string) => {
     setClaimingId(sessionId)
@@ -97,17 +132,35 @@ export default function OpenJobsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-2xl font-bold text-foreground">Open Jobs</h1>
           <p className="text-sm text-muted-foreground">
-            {bookings.length} {bookings.length === 1 ? "booking" : "bookings"} available
+            {bookings.length} {bookings.length === 1 ? "booking" : "bookings"}
+            {dateFilter ? ` · ${isTodayFilter ? "today" : dateFilter}` : " · all dates"}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchOpenJobs}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="h-9 w-auto"
+          />
+          {!isTodayFilter && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setDateFilter(todayYMD())}
+            >
+              Today
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={fetchOpenJobs}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {bookings.length === 0 ? (
@@ -131,11 +184,23 @@ export default function OpenJobsPage() {
               (s) => s.groomer_id || s.groomer_detail,
             )
 
+            const statusConfig = getStatusConfig(booking.booking_status)
+            // For "arrived" bookings, surface the timestamp of the most recent
+            // arrived log so the groomer knows how long the customer has been waiting.
+            const arrivedAt =
+              booking.booking_status === "arrived"
+                ? booking.status_logs
+                    ?.filter((l) => l.status === "arrived")
+                    .map((l) => l.timestamp)
+                    .sort()
+                    .pop()
+                : undefined
+
             return (
               <Card key={booking._id} className="border-border/50">
                 <CardContent className="flex flex-col gap-4 p-5">
                   {/* Booking Info */}
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex flex-col gap-1">
                       <span className="font-display text-lg font-bold text-foreground">
                         {booking.pet_snapshot?.name}
@@ -144,8 +209,25 @@ export default function OpenJobsPage() {
                         {booking.service_snapshot?.name}
                       </span>
                     </div>
-                    <Badge variant="outline" className="capitalize">{booking.type}</Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge
+                        className={`${statusConfig.className} flex items-center gap-1 text-xs`}
+                      >
+                        {statusConfig.icon}
+                        {statusConfig.label}
+                      </Badge>
+                      <Badge variant="outline" className="capitalize text-xs">
+                        {booking.type}
+                      </Badge>
+                    </div>
                   </div>
+
+                  {arrivedAt && (
+                    <div className="flex items-center gap-1.5 rounded-md bg-indigo-50 px-2.5 py-1.5 text-xs text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-300">
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      <span>Arrived at {formatDateTime(arrivedAt)}</span>
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
