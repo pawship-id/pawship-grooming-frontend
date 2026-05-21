@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -142,24 +142,76 @@ function getPresetRange(
 
 const LIMIT = 20;
 
+const FILTERS_STORAGE_KEY = "admin:bookings:filters";
+
+type PersistedFilters = {
+  search: string;
+  statusFilter: string;
+  createdByFilter: string;
+  storeFilter: string;
+  serviceFilter: string;
+  datePreset: DatePreset;
+  dateFrom: string;
+  dateTo: string;
+  currentPage: number;
+};
+
+const defaultFilters: PersistedFilters = {
+  search: "",
+  statusFilter: "all",
+  createdByFilter: "all",
+  storeFilter: "all",
+  serviceFilter: "all",
+  datePreset: "",
+  dateFrom: "",
+  dateTo: "",
+  currentPage: 1,
+};
+
+function loadPersistedFilters(): PersistedFilters {
+  if (typeof window === "undefined") return defaultFilters;
+  try {
+    const raw = window.sessionStorage.getItem(FILTERS_STORAGE_KEY);
+    if (!raw) return defaultFilters;
+    const parsed = JSON.parse(raw) as Partial<PersistedFilters>;
+    return { ...defaultFilters, ...parsed };
+  } catch {
+    return defaultFilters;
+  }
+}
+
 export default function BookingsPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [createdByFilter, setCreatedByFilter] = useState<string>("all");
-  const [storeFilter, setStoreFilter] = useState<string>("all");
-  const [serviceFilter, setServiceFilter] = useState<string>("all");
+  const [search, setSearch] = useState(() => loadPersistedFilters().search);
+  const [debouncedSearch, setDebouncedSearch] = useState(
+    () => loadPersistedFilters().search,
+  );
+  const [statusFilter, setStatusFilter] = useState<string>(
+    () => loadPersistedFilters().statusFilter,
+  );
+  const [createdByFilter, setCreatedByFilter] = useState<string>(
+    () => loadPersistedFilters().createdByFilter,
+  );
+  const [storeFilter, setStoreFilter] = useState<string>(
+    () => loadPersistedFilters().storeFilter,
+  );
+  const [serviceFilter, setServiceFilter] = useState<string>(
+    () => loadPersistedFilters().serviceFilter,
+  );
   const [stores, setStores] = useState<ApiStore[]>([]);
   const [services, setServices] = useState<AdminService[]>([]);
-  const [datePreset, setDatePreset] = useState<DatePreset>("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [datePreset, setDatePreset] = useState<DatePreset>(
+    () => loadPersistedFilters().datePreset,
+  );
+  const [dateFrom, setDateFrom] = useState(() => loadPersistedFilters().dateFrom);
+  const [dateTo, setDateTo] = useState(() => loadPersistedFilters().dateTo);
+  const [currentPage, setCurrentPage] = useState(
+    () => loadPersistedFilters().currentPage,
+  );
   const [totalCount, setTotalCount] = useState(0);
 
   // Export preview modal state
@@ -229,10 +281,50 @@ export default function BookingsPage() {
       .catch(() => {});
   }, []);
 
-  // Reset to page 1 when filters or search change
+  // Reset to page 1 when filters or search change.
+  // Skip the first render so a restored page (from sessionStorage) survives mount.
+  const isFirstFilterRender = useRef(true);
   useEffect(() => {
+    if (isFirstFilterRender.current) {
+      isFirstFilterRender.current = false;
+      return;
+    }
     setCurrentPage(1);
   }, [statusFilter, createdByFilter, storeFilter, serviceFilter, datePreset, dateFrom, dateTo, debouncedSearch]);
+
+  // Persist filters to sessionStorage so they survive navigation away & back.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const payload: PersistedFilters = {
+      search,
+      statusFilter,
+      createdByFilter,
+      storeFilter,
+      serviceFilter,
+      datePreset,
+      dateFrom,
+      dateTo,
+      currentPage,
+    };
+    try {
+      window.sessionStorage.setItem(
+        FILTERS_STORAGE_KEY,
+        JSON.stringify(payload),
+      );
+    } catch {
+      // ignore quota / serialization errors
+    }
+  }, [
+    search,
+    statusFilter,
+    createdByFilter,
+    storeFilter,
+    serviceFilter,
+    datePreset,
+    dateFrom,
+    dateTo,
+    currentPage,
+  ]);
 
   useEffect(() => {
     fetchBookings(currentPage);
