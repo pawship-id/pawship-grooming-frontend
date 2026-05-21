@@ -1,6 +1,6 @@
 "use client";
 
-import { User, PawPrint } from "lucide-react";
+import { User, PawPrint, StickyNote } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AdminBooking } from "@/lib/api/bookings";
 
@@ -73,6 +73,19 @@ export function CustomerPetCard({ booking }: CustomerPetCardProps) {
             </div>
           </div>
         </div>
+        {booking.pet_snapshot.internal_note && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/30">
+            <StickyNote className="h-4 w-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                Internal Note Pet
+              </p>
+              <p className="text-sm text-amber-900/90 dark:text-amber-100 whitespace-pre-wrap break-words">
+                {booking.pet_snapshot.internal_note}
+              </p>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
