@@ -638,6 +638,7 @@ export interface MembershipDetailRow {
 }
 
 export interface MembershipExpiryRow {
+  order_number: string;
   customer_name: string;
   customer_phone: string;
   pet_name: string;
@@ -676,22 +677,19 @@ export interface MembershipRevenueRow {
 }
 
 export interface BenefitUtilisationRow {
-  membership_id: string;
-  member_code: string;
-  pet_id: string;
+  benefit_usage_id: string;
+  used_at: string | null;
+  booking_id: string;
+  pet_membership_id: string;
   pet_name: string;
-  owner_name: string;
-  plan_name: string;
-  plan_tier: string;
-  benefit_name: string;
-  benefit_type: "discount" | "quota";
-  benefit_applies_to: string;
-  used_count: number;
-  allowed_count: number | null;
-  remaining: number | null;
-  utilisation_pct: number | null;
-  last_used_at: string | null;
-  booking_reference: string | null;
+  membership_name: string;
+  benefit_type: "service" | "addon" | "pickup" | string;
+  target_service: string;
+  amount_used: number;
+  benefit_index: number | null;
+  cumulative_used: number;
+  membership_price: number;
+  benefit_vs_price_pct: number;
 }
 
 export async function getMembershipDetailReport(): Promise<{

@@ -480,7 +480,8 @@ function MembershipDetailTab({
           r.pet_name.toLowerCase().includes(s) ||
           r.customer_name.toLowerCase().includes(s) ||
           r.customer_phone.includes(s) ||
-          r.pet_membership_id.toLowerCase().includes(s),
+          r.pet_membership_id.toLowerCase().includes(s) ||
+          (r.order_number ?? "").toLowerCase().includes(s),
       );
     }
     if (status) d = d.filter((r) => r.membership_status === status);
@@ -731,7 +732,11 @@ function MembershipDetailTab({
             return MEMBERSHIP_STATUS_CONFIG[String(v)]?.label ?? String(v);
           if (c.key === "membership_price" || c.key === "total_benefit_used_amount") return v as number;
           if (c.key === "is_early_renewal") return r.is_early_renewal ? "Ya" : "Tidak";
-          if (c.key === "start_date" || c.key === "end_date" || c.key === "created_at" || c.key === "cancelled_at") return fmtDate(v as string | null);
+          // Tanggal di-export sebagai Date object (+ cellDates: true di
+          // aoa_to_sheet) supaya Google Sheets baca sebagai tipe date asli
+          // — bisa dipakai langsung di DATEVALUE/EOMONTH/dst.
+          if (c.key === "start_date" || c.key === "end_date" || c.key === "created_at" || c.key === "cancelled_at")
+            return v ? new Date(v as string) : "";
           if (c.key === "benefit_roi") return v !== null && v !== undefined ? `${v}%` : "";
           if (v === null || v === undefined) return "";
           return v;
@@ -759,7 +764,18 @@ function MembershipDetailTab({
       excelRow += benefitCount;
     }
 
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows], { cellDates: true });
+    // Format tanggal default yyyy-mm-dd untuk seluruh date-cell — kompatibel
+    // dengan Google Sheets dan tidak ambigu (tidak dd/mm vs mm/dd).
+    const dateCols = new Set(["start_date", "end_date", "created_at", "cancelled_at"]);
+    DETAIL_COLS.forEach((c, ci) => {
+      if (!dateCols.has(c.key)) return;
+      for (let r = 1; r <= rows.length; r++) {
+        const addr = XLSX.utils.encode_cell({ r, c: ci });
+        const cell = ws[addr];
+        if (cell && cell.t === "d") cell.z = "yyyy-mm-dd";
+      }
+    });
     if (merges.length > 0) ws["!merges"] = merges;
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Membership Detail");
@@ -1338,8 +1354,10 @@ function MembershipExpiryTab({
     const rows = data.map((r) =>
       EXPIRY_COLS.map((c) => {
         const v = r[c.key];
+        // Tanggal di-export sebagai Date object (+ cellDates: true di
+        // aoa_to_sheet) supaya Google Sheets baca sebagai tipe date asli.
         if (c.key === "end_date" || c.key === "last_visit_at")
-          return fmtDate(v as string | null);
+          return v ? new Date(v as string) : "";
         if (c.key === "expiry_urgency") return v ? (URGENCY_LABEL[String(v)] ?? String(v)) : "";
         if (c.key === "double_risk_flag") return v ? "Ya" : "Tidak";
         if (c.key === "days_since_last_visit") return v !== null && v !== undefined ? `${v} hari` : "";
@@ -1351,7 +1369,16 @@ function MembershipExpiryTab({
         return v;
       }),
     );
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows], { cellDates: true });
+    const dateCols = new Set(["end_date", "last_visit_at"]);
+    EXPIRY_COLS.forEach((c, ci) => {
+      if (!dateCols.has(c.key)) return;
+      for (let r = 1; r <= rows.length; r++) {
+        const addr = XLSX.utils.encode_cell({ r, c: ci });
+        const cell = ws[addr];
+        if (cell && cell.t === "d") cell.z = "yyyy-mm-dd";
+      }
+    });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Membership Expiry");
     XLSX.writeFile(wb, "membership-expiry-report.xlsx");
@@ -1571,7 +1598,7 @@ const REVENUE_COLS: {
   { key: "renewal_rate_pct", label: "Renewal Rate", defaultVisible: true },
   { key: "membership_revenue", label: "Revenue", defaultVisible: true },
   { key: "avg_membership_value", label: "Avg Value", defaultVisible: true },
-  { key: "by_plan_breakdown", label: "Breakdown per Plan", defaultVisible: true },
+  { key: "by_plan_breakdown", label: "Breakdown per Plan", defaultVisible: false },
 ];
 
 const REVENUE_DEFAULT_VISIBLE = new Set(
@@ -1693,24 +1720,65 @@ function MembershipRevenueTab({
 
   function handleExport() {
     const headers = REVENUE_COLS.map((c) => c.label);
-    const rows = data.map((r) =>
-      REVENUE_COLS.map((c) => {
-        if (c.key === "period") return r.period_label;
-        if (c.key === "by_plan_breakdown")
-          return r.by_plan_breakdown
-            .map((b) => `${b.plan_name}: ${b.count} (${b.revenue})`)
-            .join("; ");
-        if (c.key === "renewal_rate_pct") {
-          const denom = r.renewed_memberships + r.lapsed_memberships;
-          return denom === 0 ? "" : r.renewal_rate_pct;
-        }
-        const v = r[c.key];
-        if (v === null || v === undefined) return "";
-        if (typeof v === "boolean") return v ? "Yes" : "No";
-        return v;
-      }),
+    // Mirror tampilan tabel: 1 periode → N row (N = jumlah item di
+    // by_plan_breakdown). Kolom selain "Breakdown per Plan" di-merge
+    // vertikal sepanjang N row, sehingga di Sheet hasilnya juga terlihat
+    // seperti 1 periode dengan beberapa baris breakdown.
+    const rows = data.flatMap((r) => {
+      const breakdown =
+        r.by_plan_breakdown && r.by_plan_breakdown.length > 0
+          ? r.by_plan_breakdown
+          : [null as null];
+      return breakdown.map((bp, sub) =>
+        REVENUE_COLS.map((c) => {
+          if (c.key === "by_plan_breakdown") {
+            if (!bp) return "";
+            return `${bp.plan_name}: ${bp.count} (${bp.revenue})`;
+          }
+          // Kolom non-breakdown hanya diisi di sub-row pertama; sisanya
+          // dikosongkan supaya rapi di Sheet (sel kosong di bawah merged
+          // area sudah cukup; Excel/Sheets render merged area dari sel
+          // kiri-atas).
+          if (sub > 0) return "";
+          if (c.key === "period") return r.period_label;
+          if (c.key === "renewal_rate_pct") {
+            const denom = r.renewed_memberships + r.lapsed_memberships;
+            return denom === 0 ? "" : r.renewal_rate_pct;
+          }
+          const v = r[c.key];
+          if (v === null || v === undefined) return "";
+          if (typeof v === "boolean") return v ? "Yes" : "No";
+          return v;
+        }),
+      );
+    });
+
+    // Build vertical merges: tiap periode dengan >1 breakdown men-merge
+    // semua kolom non-breakdown dari sub-row 0 sampai N-1.
+    const merges: XLSX.Range[] = [];
+    const breakdownColIdx = REVENUE_COLS.findIndex(
+      (c) => c.key === "by_plan_breakdown",
     );
+    let excelRow = 1; // baris 0 = header
+    for (const r of data) {
+      const count =
+        r.by_plan_breakdown && r.by_plan_breakdown.length > 0
+          ? r.by_plan_breakdown.length
+          : 1;
+      if (count > 1) {
+        REVENUE_COLS.forEach((_c, ci) => {
+          if (ci === breakdownColIdx) return;
+          merges.push({
+            s: { r: excelRow, c: ci },
+            e: { r: excelRow + count - 1, c: ci },
+          });
+        });
+      }
+      excelRow += count;
+    }
+
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    if (merges.length > 0) ws["!merges"] = merges;
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Membership Revenue");
     XLSX.writeFile(wb, "membership-revenue-report.xlsx");
@@ -1735,6 +1803,33 @@ function MembershipRevenueTab({
         </div>
       )}
 
+      {/* Action bar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          onClick={handleExport}
+          disabled={loading || data.length === 0}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground"
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Export (.xlsx)
+        </Button>
+        <span className="text-sm text-muted-foreground">
+          {loading ? (
+            <span className="flex items-center gap-1.5">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Memuat...
+            </span>
+          ) : (
+            <span>
+              <span className="font-semibold text-foreground">
+                {data.length.toLocaleString("id-ID")}
+              </span>{" "}
+              periode
+            </span>
+          )}
+        </span>
+      </div>
+
       <Card>
         <CardHeader className="flex flex-row items-start justify-between pb-3 pt-4">
           <div className="space-y-1">
@@ -1747,28 +1842,35 @@ function MembershipRevenueTab({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {isNonDefault && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setVisibleCols(REVENUE_DEFAULT_VISIBLE)}
+                className="gap-1.5 text-xs text-muted-foreground"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset ke Default
+              </Button>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1.5">
-                  <Columns className="h-3.5 w-3.5" />
+                  <Columns className="h-4 w-4" />
                   Kolom
-                  {isNonDefault && (
-                    <span className="ml-0.5 rounded-full bg-primary px-1.5 py-0 text-[10px] text-primary-foreground">
-                      {visibleCols.size}
-                    </span>
-                  )}
+                  <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-xs">
+                    {visibleCols.size}
+                  </Badge>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="flex items-center justify-between text-xs">
-                  Tampilkan Kolom
-                  <button
-                    onClick={selectAllOrDefault}
-                    className="text-[10px] font-normal text-muted-foreground underline"
-                  >
-                    {allSelected ? "Default" : "Semua"}
-                  </button>
-                </DropdownMenuLabel>
+              <DropdownMenuContent align="end" className="max-h-[400px] w-56 overflow-y-auto">
+                <DropdownMenuCheckboxItem
+                  checked={allSelected}
+                  onCheckedChange={selectAllOrDefault}
+                  className="text-xs font-medium"
+                >
+                  Pilih Semua
+                </DropdownMenuCheckboxItem>
                 <DropdownMenuSeparator />
                 {REVENUE_COLS.map((c) => (
                   <DropdownMenuCheckboxItem
@@ -1780,30 +1882,8 @@ function MembershipRevenueTab({
                     {c.label}
                   </DropdownMenuCheckboxItem>
                 ))}
-                {isNonDefault && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <button
-                      onClick={() => setVisibleCols(REVENUE_DEFAULT_VISIBLE)}
-                      className="flex w-full items-center gap-1.5 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      <RotateCcw className="h-3 w-3" />
-                      Reset ke default
-                    </button>
-                  </>
-                )}
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={handleExport}
-              disabled={loading || data.length === 0}
-            >
-              <Download className="h-3.5 w-3.5" />
-              Export
-            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-3 p-0 pb-4">
@@ -1954,36 +2034,42 @@ const BENEFIT_COLS: {
   label: string;
   defaultVisible: boolean;
 }[] = [
-  { key: "member_code", label: "Kode Member", defaultVisible: true },
+  { key: "benefit_usage_id", label: "Benefit Usage ID", defaultVisible: false },
+  { key: "used_at", label: "Waktu Pakai", defaultVisible: true },
+  { key: "booking_id", label: "Booking", defaultVisible: true },
+  { key: "pet_membership_id", label: "No. Order Membership", defaultVisible: true },
   { key: "pet_name", label: "Nama Pet", defaultVisible: true },
-  { key: "owner_name", label: "Nama Owner", defaultVisible: true },
-  { key: "plan_name", label: "Plan Membership", defaultVisible: true },
-  { key: "benefit_name", label: "Nama Benefit", defaultVisible: true },
+  { key: "membership_name", label: "Plan Membership", defaultVisible: true },
   { key: "benefit_type", label: "Tipe Benefit", defaultVisible: true },
-  { key: "benefit_applies_to", label: "Berlaku Untuk", defaultVisible: false },
-  { key: "used_count", label: "Terpakai", defaultVisible: true },
-  { key: "allowed_count", label: "Maks", defaultVisible: true },
-  { key: "remaining", label: "Sisa", defaultVisible: true },
-  { key: "utilisation_pct", label: "% Utilisasi", defaultVisible: true },
-  { key: "last_used_at", label: "Terakhir Dipakai", defaultVisible: true },
-  { key: "booking_reference", label: "Ref. Booking", defaultVisible: false },
+  { key: "target_service", label: "Service Target", defaultVisible: true },
+  { key: "amount_used", label: "Amount Terpakai", defaultVisible: true },
+  { key: "benefit_index", label: "Index Benefit", defaultVisible: false },
+  { key: "cumulative_used", label: "Cumulative Used", defaultVisible: true },
+  { key: "membership_price", label: "Harga Membership", defaultVisible: true },
+  { key: "benefit_vs_price_pct", label: "% vs Harga", defaultVisible: true },
 ];
 
 const BENEFIT_DEFAULT_VISIBLE = new Set(
   BENEFIT_COLS.filter((c) => c.defaultVisible).map((c) => c.key),
 );
 
+// BenefitUsage.scope — describes the level the benefit was applied at.
 const BENEFIT_TYPE_CONFIG: Record<string, { label: string; className: string }> =
   {
-    discount: {
-      label: "Diskon",
+    service: {
+      label: "Service",
+      className:
+        "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800",
+    },
+    addon: {
+      label: "Addon",
       className:
         "bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:border-violet-800",
     },
-    quota: {
-      label: "Kuota",
+    pickup: {
+      label: "Pickup",
       className:
-        "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800",
+        "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800",
     },
   };
 
@@ -2016,21 +2102,20 @@ function BenefitUtilisationTab({
   );
   const visibleColDefs = BENEFIT_COLS.filter((c) => visibleCols.has(c.key));
 
-  const discountBenefits = useMemo(
-    () => data.filter((r) => r.benefit_type === "discount").length,
+  // Summary chips: count events per scope + total Rp consumed across all
+  // events in the current data set.
+  const serviceEvents = useMemo(
+    () => data.filter((r) => r.benefit_type === "service").length,
     [data],
   );
-  const quotaBenefits = useMemo(
-    () => data.filter((r) => r.benefit_type === "quota").length,
+  const addonEvents = useMemo(
+    () => data.filter((r) => r.benefit_type === "addon").length,
     [data],
   );
-  const avgUtilisation = useMemo(() => {
-    const rows = data.filter((r) => r.utilisation_pct !== null);
-    if (rows.length === 0) return 0;
-    return Math.round(
-      rows.reduce((s, r) => s + (r.utilisation_pct ?? 0), 0) / rows.length,
-    );
-  }, [data]);
+  const totalAmountUsed = useMemo(
+    () => data.reduce((s, r) => s + (r.amount_used ?? 0), 0),
+    [data],
+  );
 
   const allSelected = visibleCols.size === BENEFIT_COLS.length;
   const isNonDefault =
@@ -2065,8 +2150,13 @@ function BenefitUtilisationTab({
     const val = row[key];
 
     if (key === "benefit_type") {
-      const cfg =
-        BENEFIT_TYPE_CONFIG[String(val)] ?? BENEFIT_TYPE_CONFIG.quota;
+      const cfg = BENEFIT_TYPE_CONFIG[String(val)];
+      if (!cfg)
+        return (
+          <span className="text-muted-foreground/40">
+            {val ? String(val) : "—"}
+          </span>
+        );
       return (
         <Badge variant="outline" className={cfg.className}>
           {cfg.label}
@@ -2074,20 +2164,27 @@ function BenefitUtilisationTab({
       );
     }
 
-    if (key === "utilisation_pct") {
+    if (key === "benefit_vs_price_pct") {
       if (val === null || val === undefined)
         return <span className="text-muted-foreground/40">—</span>;
       const pct = val as number;
+      // >100% means the pet has consumed more benefit value than the
+      // membership price paid — flag it red.
       const colorClass =
-        pct >= 90
-          ? "font-semibold text-emerald-600 dark:text-emerald-400"
+        pct > 100
+          ? "font-semibold text-red-600 dark:text-red-400"
           : pct >= 50
             ? "text-blue-600 dark:text-blue-400"
             : "text-muted-foreground";
       return <span className={colorClass}>{pct}%</span>;
     }
 
-    if (key === "last_used_at") return fmtDate(val as string | null);
+    if (key === "amount_used" || key === "cumulative_used" || key === "membership_price") {
+      const n = (val as number) ?? 0;
+      return <span>{fmtRupiah(n)}</span>;
+    }
+
+    if (key === "used_at") return fmtDate(val as string | null);
 
     if (val === null || val === undefined || val === "")
       return <span className="text-muted-foreground/40">—</span>;
@@ -2102,12 +2199,23 @@ function BenefitUtilisationTab({
         const v = r[c.key];
         if (c.key === "benefit_type")
           return BENEFIT_TYPE_CONFIG[String(v)]?.label ?? String(v);
-        if (c.key === "last_used_at") return fmtDate(v as string | null);
+        // used_at di-export sebagai Date object (+ cellDates: true) supaya
+        // Google Sheets baca sebagai tipe date asli, bukan string label.
+        if (c.key === "used_at") return v ? new Date(v as string) : "";
         if (v === null || v === undefined) return "";
         return v;
       }),
     );
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows], { cellDates: true });
+    const dateCols = new Set(["used_at"]);
+    BENEFIT_COLS.forEach((c, ci) => {
+      if (!dateCols.has(c.key)) return;
+      for (let r = 1; r <= rows.length; r++) {
+        const addr = XLSX.utils.encode_cell({ r, c: ci });
+        const cell = ws[addr];
+        if (cell && cell.t === "d") cell.z = "yyyy-mm-dd hh:mm";
+      }
+    });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Benefit Utilisation");
     XLSX.writeFile(wb, "benefit-utilisation-report.xlsx");
@@ -2117,49 +2225,92 @@ function BenefitUtilisationTab({
     <div className="space-y-4">
       {!loading && (
         <div className="flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-400">
-            Benefit Diskon
-            <span className="font-bold">{discountBenefits}</span>
-          </span>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-400">
-            Benefit Kuota
-            <span className="font-bold">{quotaBenefits}</span>
+            Service
+            <span className="font-bold">{serviceEvents}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-medium text-violet-700 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-400">
+            Addon
+            <span className="font-bold">{addonEvents}</span>
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-            Rata-rata Utilisasi
-            <span className="font-bold">{avgUtilisation}%</span>
+            Total Terpakai
+            <span className="font-bold">{fmtRupiah(totalAmountUsed)}</span>
           </span>
         </div>
       )}
 
+      {/* Action bar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          onClick={handleExport}
+          disabled={loading || data.length === 0}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground"
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Export (.xlsx)
+        </Button>
+        <span className="text-sm text-muted-foreground">
+          {loading ? (
+            <span className="flex items-center gap-1.5">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Memuat...
+            </span>
+          ) : (
+            <span>
+              <span className="font-semibold text-foreground">
+                {data.length.toLocaleString("id-ID")}
+              </span>{" "}
+              event ·{" "}
+              <span className="font-semibold text-foreground">
+                {[...new Set(data.map((r) => r.pet_membership_id))].length.toLocaleString("id-ID")}
+              </span>{" "}
+              membership
+            </span>
+          )}
+        </span>
+      </div>
+
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-3 pt-4">
-          <CardTitle className="text-sm font-semibold">
-            Benefit Utilisation Report
-          </CardTitle>
+        <CardHeader className="flex flex-row items-start justify-between pb-3 pt-4">
+          <div className="space-y-1">
+            <CardTitle className="text-sm font-semibold">
+              Benefit Utilisation Report
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Setiap baris adalah satu event pemakaian benefit membership.
+            </p>
+          </div>
           <div className="flex items-center gap-2">
+            {isNonDefault && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setVisibleCols(BENEFIT_DEFAULT_VISIBLE)}
+                className="gap-1.5 text-xs text-muted-foreground"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset ke Default
+              </Button>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1.5">
-                  <Columns className="h-3.5 w-3.5" />
+                  <Columns className="h-4 w-4" />
                   Kolom
-                  {isNonDefault && (
-                    <span className="ml-0.5 rounded-full bg-primary px-1.5 py-0 text-[10px] text-primary-foreground">
-                      {visibleCols.size}
-                    </span>
-                  )}
+                  <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-xs">
+                    {visibleCols.size}
+                  </Badge>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="flex items-center justify-between text-xs">
-                  Tampilkan Kolom
-                  <button
-                    onClick={selectAllOrDefault}
-                    className="text-[10px] font-normal text-muted-foreground underline"
-                  >
-                    {allSelected ? "Default" : "Semua"}
-                  </button>
-                </DropdownMenuLabel>
+              <DropdownMenuContent align="end" className="max-h-[400px] w-56 overflow-y-auto">
+                <DropdownMenuCheckboxItem
+                  checked={allSelected}
+                  onCheckedChange={selectAllOrDefault}
+                  className="text-xs font-medium"
+                >
+                  Pilih Semua
+                </DropdownMenuCheckboxItem>
                 <DropdownMenuSeparator />
                 {BENEFIT_COLS.map((c) => (
                   <DropdownMenuCheckboxItem
@@ -2171,30 +2322,8 @@ function BenefitUtilisationTab({
                     {c.label}
                   </DropdownMenuCheckboxItem>
                 ))}
-                {isNonDefault && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <button
-                      onClick={() => setVisibleCols(BENEFIT_DEFAULT_VISIBLE)}
-                      className="flex w-full items-center gap-1.5 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                      <RotateCcw className="h-3 w-3" />
-                      Reset ke default
-                    </button>
-                  </>
-                )}
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={handleExport}
-              disabled={loading || data.length === 0}
-            >
-              <Download className="h-3.5 w-3.5" />
-              Export
-            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-3 p-0 pb-4">
@@ -2248,9 +2377,7 @@ function BenefitUtilisationTab({
                   </TableRow>
                 ) : (
                   pageRows.map((row, idx) => (
-                    <TableRow
-                      key={`${row.membership_id}-${row.benefit_name}-${idx}`}
-                    >
+                    <TableRow key={row.benefit_usage_id ?? idx}>
                       <TableCell className="text-center text-xs text-muted-foreground">
                         {(page - 1) * PAGE_SIZE + idx + 1}
                       </TableCell>
@@ -2403,17 +2530,25 @@ function MembershipReportPage() {
   }, [filters.periodGrouping]);
 
   // ── Dropdown options ─────────────────────────────────────────────────────────
-  // Sourced from benefitRaw because the expiry payload no longer carries
-  // plan_tier / plan_name (renamed to membership_name and tier dropped).
+  // benefitRaw no longer carries plan_tier; fall back to detailRaw which still
+  // exposes the tier badge per membership.
   const planTierOptions = useMemo(
     () =>
-      [...new Set(benefitRaw.map((r) => r.plan_tier).filter(Boolean))].sort(),
-    [benefitRaw],
+      [
+        ...new Set(
+          detailRaw
+            .map((r) => (r as { plan_tier?: string }).plan_tier)
+            .filter((v): v is string => Boolean(v)),
+        ),
+      ].sort(),
+    [detailRaw],
   );
 
   const planNameOptions = useMemo(
     () =>
-      [...new Set(benefitRaw.map((r) => r.plan_name).filter(Boolean))].sort(),
+      [
+        ...new Set(benefitRaw.map((r) => r.membership_name).filter(Boolean)),
+      ].sort(),
     [benefitRaw],
   );
 
@@ -2437,8 +2572,7 @@ function MembershipReportPage() {
         (r) =>
           r.customer_name.toLowerCase().includes(s) ||
           r.customer_phone.includes(s) ||
-          r.pet_name.toLowerCase().includes(s) ||
-          r.membership_name.toLowerCase().includes(s),
+          r.pet_name.toLowerCase().includes(s),
       );
     }
     if (planName) d = d.filter((r) => r.membership_name === planName);
@@ -2459,20 +2593,20 @@ function MembershipReportPage() {
 
   const filteredBenefit = useMemo(() => {
     let d = benefitRaw;
-    const { search, planTier, planName } = filters;
+    const { search, planName } = filters;
 
     if (search) {
       const s = search.toLowerCase();
       d = d.filter(
         (r) =>
-          r.owner_name.toLowerCase().includes(s) ||
-          r.pet_name.toLowerCase().includes(s) ||
-          r.benefit_name.toLowerCase().includes(s) ||
-          r.member_code.toLowerCase().includes(s),
+          (r.pet_name ?? "").toLowerCase().includes(s) ||
+          (r.membership_name ?? "").toLowerCase().includes(s) ||
+          (r.target_service ?? "").toLowerCase().includes(s) ||
+          (r.booking_id ?? "").toLowerCase().includes(s) ||
+          (r.pet_membership_id ?? "").toLowerCase().includes(s),
       );
     }
-    if (planTier) d = d.filter((r) => r.plan_tier === planTier);
-    if (planName) d = d.filter((r) => r.plan_name === planName);
+    if (planName) d = d.filter((r) => r.membership_name === planName);
     return d;
   }, [benefitRaw, filters]);
 
@@ -2571,9 +2705,11 @@ function MembershipReportPage() {
 
           {/* Row 2 — Dropdowns */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Plan Tier — not applicable on revenue or expiry
-                (revenue is grouped by period only; expiry payload doesn't carry tier) */}
-            {activeTab !== "revenue" && activeTab !== "expiry" && (
+            {/* Plan Tier — only relevant on the detail tab. Revenue is grouped
+                by period; expiry payload doesn't carry tier; benefit
+                utilisation report uses one row per BenefitUsage event and
+                doesn't expose tier. */}
+            {activeTab === "detail" && (
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">
                   Tier Membership
