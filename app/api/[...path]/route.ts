@@ -51,6 +51,17 @@ async function proxyRequest(request: NextRequest, pathSegments: string[]) {
     responseHeaders.delete("content-encoding")
     responseHeaders.delete("content-length")
     responseHeaders.delete("transfer-encoding")
+    responseHeaders.set("x-proxy-target", targetUrl)
+    responseHeaders.set("x-proxy-upstream-status", String(upstreamResponse.status))
+
+    if (upstreamResponse.status >= 500) {
+      console.error("[api-proxy] upstream returned error", {
+        method: request.method,
+        targetUrl,
+        status: upstreamResponse.status,
+        upstreamContentType: upstreamResponse.headers.get("content-type"),
+      })
+    }
 
     const contentType = upstreamResponse.headers.get("content-type") ?? ""
     if (contentType.includes("text/event-stream")) {
