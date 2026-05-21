@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -12,11 +12,28 @@ import {
   FileSpreadsheet,
   Truck,
   MapPin,
+  RotateCcw,
+  X,
+  ChevronsUpDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   Select,
   SelectContent,
@@ -85,7 +102,10 @@ function formatDate(iso: string) {
 }
 
 function toYMD(d: Date) {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function Highlight({ text, query }: { text: string; query: string }) {
@@ -139,24 +159,98 @@ function getPresetRange(
 
 const LIMIT = 20;
 
+const FILTERS_STORAGE_KEY = "admin:bookings:filters";
+
+const STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "requested", label: "Requested" },
+  { value: "waitlist", label: "Waitlist" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "driver on the way", label: "Driver on the Way" },
+  { value: "groomer on the way", label: "Groomer on the Way" },
+  { value: "arrived", label: "Arrived" },
+  { value: "in progress", label: "In Progress" },
+  { value: "completed", label: "Completed" },
+  { value: "returned", label: "Returned" },
+  { value: "rescheduled", label: "Rescheduled" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
+type PersistedFilters = {
+  search: string;
+  statusFilter: string[];
+  createdByFilter: string;
+  storeFilter: string;
+  serviceFilter: string;
+  datePreset: DatePreset;
+  dateFrom: string;
+  dateTo: string;
+  currentPage: number;
+};
+
+const defaultFilters: PersistedFilters = {
+  search: "",
+  statusFilter: [],
+  createdByFilter: "all",
+  storeFilter: "all",
+  serviceFilter: "all",
+  datePreset: "",
+  dateFrom: "",
+  dateTo: "",
+  currentPage: 1,
+};
+
+function loadPersistedFilters(): PersistedFilters {
+  if (typeof window === "undefined") return defaultFilters;
+  try {
+    const raw = window.sessionStorage.getItem(FILTERS_STORAGE_KEY);
+    if (!raw) return defaultFilters;
+    const parsed = JSON.parse(raw) as Partial<PersistedFilters>;
+    // Backwards-compat: older sessions stored statusFilter as string ("all" or single value)
+    const rawStatus = (parsed as { statusFilter?: unknown }).statusFilter;
+    const statusFilter: string[] = Array.isArray(rawStatus)
+      ? (rawStatus as string[])
+      : typeof rawStatus === "string" && rawStatus && rawStatus !== "all"
+        ? [rawStatus]
+        : [];
+    return { ...defaultFilters, ...parsed, statusFilter };
+  } catch {
+    return defaultFilters;
+  }
+}
+
 export default function BookingsPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [createdByFilter, setCreatedByFilter] = useState<string>("all");
-  const [storeFilter, setStoreFilter] = useState<string>("all");
-  const [serviceFilter, setServiceFilter] = useState<string>("all");
+  const [search, setSearch] = useState(() => loadPersistedFilters().search);
+  const [debouncedSearch, setDebouncedSearch] = useState(
+    () => loadPersistedFilters().search,
+  );
+  const [statusFilter, setStatusFilter] = useState<string[]>(
+    () => loadPersistedFilters().statusFilter,
+  );
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [createdByFilter, setCreatedByFilter] = useState<string>(
+    () => loadPersistedFilters().createdByFilter,
+  );
+  const [storeFilter, setStoreFilter] = useState<string>(
+    () => loadPersistedFilters().storeFilter,
+  );
+  const [serviceFilter, setServiceFilter] = useState<string>(
+    () => loadPersistedFilters().serviceFilter,
+  );
   const [stores, setStores] = useState<ApiStore[]>([]);
   const [services, setServices] = useState<AdminService[]>([]);
-  const [datePreset, setDatePreset] = useState<DatePreset>("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [datePreset, setDatePreset] = useState<DatePreset>(
+    () => loadPersistedFilters().datePreset,
+  );
+  const [dateFrom, setDateFrom] = useState(() => loadPersistedFilters().dateFrom);
+  const [dateTo, setDateTo] = useState(() => loadPersistedFilters().dateTo);
+  const [currentPage, setCurrentPage] = useState(
+    () => loadPersistedFilters().currentPage,
+  );
   const [totalCount, setTotalCount] = useState(0);
 
   // Export preview modal state
@@ -193,7 +287,8 @@ export default function BookingsPage() {
       getAdminBookings({
         page,
         limit: LIMIT,
-        status: statusFilter === "all" ? undefined : statusFilter,
+        status:
+          statusFilter.length > 0 ? statusFilter.join(",") : undefined,
         date_from: from || undefined,
         date_to: to || undefined,
         created_by_role:
@@ -226,10 +321,50 @@ export default function BookingsPage() {
       .catch(() => {});
   }, []);
 
-  // Reset to page 1 when filters or search change
+  // Reset to page 1 when filters or search change.
+  // Skip the first render so a restored page (from sessionStorage) survives mount.
+  const isFirstFilterRender = useRef(true);
   useEffect(() => {
+    if (isFirstFilterRender.current) {
+      isFirstFilterRender.current = false;
+      return;
+    }
     setCurrentPage(1);
   }, [statusFilter, createdByFilter, storeFilter, serviceFilter, datePreset, dateFrom, dateTo, debouncedSearch]);
+
+  // Persist filters to sessionStorage so they survive navigation away & back.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const payload: PersistedFilters = {
+      search,
+      statusFilter,
+      createdByFilter,
+      storeFilter,
+      serviceFilter,
+      datePreset,
+      dateFrom,
+      dateTo,
+      currentPage,
+    };
+    try {
+      window.sessionStorage.setItem(
+        FILTERS_STORAGE_KEY,
+        JSON.stringify(payload),
+      );
+    } catch {
+      // ignore quota / serialization errors
+    }
+  }, [
+    search,
+    statusFilter,
+    createdByFilter,
+    storeFilter,
+    serviceFilter,
+    datePreset,
+    dateFrom,
+    dateTo,
+    currentPage,
+  ]);
 
   useEffect(() => {
     fetchBookings(currentPage);
@@ -440,25 +575,85 @@ export default function BookingsPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Status
                 </label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Status</SelectItem>
-                    <SelectItem value="requested">Requested</SelectItem>
-                    <SelectItem value="waitlist">Waitlist</SelectItem>
-                    <SelectItem value="confirmed">Confirmed</SelectItem>
-                    <SelectItem value="driver on the way">Driver on the Way</SelectItem>
-                    <SelectItem value="groomer on the way">Groomer on the Way</SelectItem>
-                    <SelectItem value="arrived">Arrived</SelectItem>
-                    <SelectItem value="in progress">In Progress</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="returned">Returned</SelectItem>
-                    <SelectItem value="rescheduled">Rescheduled</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={statusOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      <span
+                        className={
+                          statusFilter.length === 0
+                            ? "text-muted-foreground"
+                            : ""
+                        }
+                      >
+                        {statusFilter.length === 0
+                          ? "Semua Status"
+                          : statusFilter.length === 1
+                            ? (STATUS_OPTIONS.find(
+                                (o) => o.value === statusFilter[0],
+                              )?.label ?? statusFilter[0])
+                            : `${statusFilter.length} status dipilih`}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-[var(--radix-popover-trigger-width)] p-0"
+                    align="start"
+                    sideOffset={4}
+                  >
+                    <Command>
+                      <CommandInput
+                        placeholder="Cari status..."
+                        className="h-9"
+                      />
+                      <CommandList>
+                        <CommandEmpty>Status tidak ditemukan.</CommandEmpty>
+                        <CommandGroup>
+                          {STATUS_OPTIONS.map((option) => {
+                            const checked = statusFilter.includes(option.value);
+                            return (
+                              <CommandItem
+                                key={option.value}
+                                value={option.label}
+                                onSelect={() => {
+                                  setStatusFilter((prev) =>
+                                    prev.includes(option.value)
+                                      ? prev.filter((v) => v !== option.value)
+                                      : [...prev, option.value],
+                                  );
+                                }}
+                                className="gap-2"
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  className="pointer-events-none"
+                                />
+                                <span>{option.label}</span>
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                      {statusFilter.length > 0 && (
+                        <div className="border-t p-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full h-8 text-xs"
+                            onClick={() => setStatusFilter([])}
+                          >
+                            Bersihkan pilihan
+                          </Button>
+                        </div>
+                      )}
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div className="flex flex-col gap-1">
@@ -542,18 +737,34 @@ export default function BookingsPage() {
             )}
 
             {/* Active filter summary + reset */}
-            {(statusFilter !== "all" ||
+            {(statusFilter.length > 0 ||
               createdByFilter !== "all" ||
               storeFilter !== "all" ||
               serviceFilter !== "all" ||
               datePreset !== "") && (
               <div className="flex items-center justify-between border-t pt-2">
                 <div className="flex flex-wrap gap-1">
-                  {statusFilter !== "all" && (
-                    <Badge variant="secondary" className="text-xs capitalize">
-                      {statusFilter}
+                  {statusFilter.map((s) => (
+                    <Badge
+                      key={s}
+                      variant="secondary"
+                      className="text-xs capitalize gap-1"
+                    >
+                      {STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setStatusFilter((prev) =>
+                            prev.filter((v) => v !== s),
+                          )
+                        }
+                        className="hover:bg-background/50 rounded-sm"
+                        aria-label={`Hapus filter ${s}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </Badge>
-                  )}
+                  ))}
                   {createdByFilter !== "all" && (
                     <Badge variant="secondary" className="text-xs capitalize">
                       {createdByFilter}
@@ -585,11 +796,13 @@ export default function BookingsPage() {
                   )}
                 </div>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
-                  className="h-6 text-xs text-muted-foreground"
+                  className="h-8 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive font-medium shrink-0"
                   onClick={() => {
-                    setStatusFilter("all");
+                    setSearch("");
+                    setDebouncedSearch("");
+                    setStatusFilter([]);
                     setCreatedByFilter("all");
                     setStoreFilter("all");
                     setServiceFilter("all");
@@ -598,6 +811,7 @@ export default function BookingsPage() {
                     setDateTo("");
                   }}
                 >
+                  <RotateCcw className="h-3.5 w-3.5" />
                   Reset semua
                 </Button>
               </div>

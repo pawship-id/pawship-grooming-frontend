@@ -40,25 +40,36 @@ export function BeforeAfterPhotos({ media }: BeforeAfterPhotosProps) {
               </label>
               {filtered.length > 0 ? (
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                  {filtered.map((m, idx) => (
-                    <a
-                      key={idx}
-                      href={m.secure_url || m.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block overflow-hidden rounded-lg border border-border/50 hover:opacity-90 transition-opacity"
-                    >
-                      <div className="relative aspect-square w-full">
-                        <Image
-                          src={m.secure_url || m.url || ""}
-                          alt={`${label} grooming ${idx + 1}`}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 640px) 50vw, 33vw"
-                        />
+                  {filtered.map((m, idx) => {
+                    const caption = m.notes ?? m.note ?? "";
+                    return (
+                      <div key={idx} className="flex flex-col gap-1">
+                        <a
+                          href={m.secure_url || m.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block overflow-hidden rounded-lg border border-border/50 hover:opacity-90 transition-opacity"
+                        >
+                          <div className="relative aspect-square w-full">
+                            <Image
+                              src={m.secure_url || m.url || ""}
+                              alt={
+                                caption || `${label} grooming ${idx + 1}`
+                              }
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 640px) 50vw, 33vw"
+                            />
+                          </div>
+                        </a>
+                        {caption && (
+                          <p className="whitespace-pre-wrap break-words text-[11px] leading-tight text-muted-foreground">
+                            {caption}
+                          </p>
+                        )}
                       </div>
-                    </a>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-xs text-muted-foreground/60">

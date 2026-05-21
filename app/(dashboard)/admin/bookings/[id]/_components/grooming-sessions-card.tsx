@@ -38,6 +38,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -116,6 +117,12 @@ export function GroomingSessionsCard({
   const [uploadingSessionMediaId, setUploadingSessionMediaId] = useState<
     string | null
   >(null);
+  const [pendingSessionUpload, setPendingSessionUpload] = useState<{
+    sessionId: string;
+    file: File;
+    previewUrl: string;
+  } | null>(null);
+  const [pendingSessionNotes, setPendingSessionNotes] = useState("");
 
   // Derived values
   const storeGroomers = booking.store_id
@@ -287,12 +294,34 @@ export function GroomingSessionsCard({
 
   const bookingDate = booking.date?.split("T")[0] || "";
 
-  const handleUploadSessionMedia = async (sessionId: string, file: File) => {
+  const openSessionUploadDialog = (sessionId: string, file: File) => {
+    const previewUrl = URL.createObjectURL(file);
+    setPendingSessionUpload({ sessionId, file, previewUrl });
+    setPendingSessionNotes("");
+  };
+
+  const closeSessionUploadDialog = () => {
+    if (pendingSessionUpload?.previewUrl)
+      URL.revokeObjectURL(pendingSessionUpload.previewUrl);
+    setPendingSessionUpload(null);
+    setPendingSessionNotes("");
+  };
+
+  const handleConfirmSessionUpload = async () => {
+    if (!pendingSessionUpload) return;
+    const { sessionId, file } = pendingSessionUpload;
+    const notes = pendingSessionNotes.trim();
     setUploadingSessionMediaId(sessionId);
     try {
-      await uploadSessionOtherMedia(bookingId, sessionId, file);
+      await uploadSessionOtherMedia(
+        bookingId,
+        sessionId,
+        file,
+        notes || undefined,
+      );
       await refreshBooking();
       toast.success("Foto sesi berhasil diupload");
+      closeSessionUploadDialog();
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Gagal mengupload foto sesi",
@@ -437,7 +466,9 @@ export function GroomingSessionsCard({
                             setAssignGroomerSessionType(session.type ?? "");
                             setAssignGroomerValue(
                               session.groomer_detail?._id ||
-                                session.groomer_id ||
+                                (typeof session.groomer_id === "string"
+                                  ? session.groomer_id
+                                  : session.groomer_id?._id) ||
                                 "",
                             );
                           }}
@@ -654,7 +685,7 @@ export function GroomingSessionsCard({
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file && session._id)
-                          handleUploadSessionMedia(session._id, file);
+                          openSessionUploadDialog(session._id, file);
                         e.target.value = "";
                       }}
                     />
@@ -1006,6 +1037,69 @@ export function GroomingSessionsCard({
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload Session Photo Dialog — captures optional caption */}
+      <Dialog
+        open={!!pendingSessionUpload}
+        onOpenChange={(open) => {
+          if (!open && uploadingSessionMediaId === null)
+            closeSessionUploadDialog();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">Upload Foto Sesi</DialogTitle>
+          </DialogHeader>
+          {pendingSessionUpload && (
+            <div className="flex flex-col gap-4">
+              <div className="flex justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={pendingSessionUpload.previewUrl}
+                  alt="preview"
+                  className="max-h-56 w-auto rounded-lg border border-border/50 object-contain"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="session-upload-notes" className="text-xs">
+                  Catatan / Caption (opsional)
+                </Label>
+                <Textarea
+                  id="session-upload-notes"
+                  value={pendingSessionNotes}
+                  onChange={(e) => setPendingSessionNotes(e.target.value)}
+                  placeholder="Mis. Setelah trimming kuku, kondisi tenang..."
+                  className="min-h-[80px] text-sm"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeSessionUploadDialog}
+              disabled={uploadingSessionMediaId !== null}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmSessionUpload}
+              disabled={uploadingSessionMediaId !== null}
+            >
+              {uploadingSessionMediaId !== null ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Mengupload...
+                </>
+              ) : (
+                "Upload"
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

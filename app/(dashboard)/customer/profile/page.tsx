@@ -2,7 +2,16 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Trash2, MapPin, Eye, Info } from "lucide-react";
+import {
+  Pencil,
+  Plus,
+  Trash2,
+  MapPin,
+  Eye,
+  Info,
+  ShieldAlert,
+} from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -550,6 +559,9 @@ function PetFormDialog({
     !!form.weight && !isNaN(Number(form.weight)) && Number(form.weight) > 0;
   const shouldShowSizeInfo =
     !form.size_category_id && (!form.pet_type_id || !isWeightValid);
+  const hasActiveMembership = !!editingPet?.memberships?.some(
+    (m) => m.status === "active",
+  );
 
   useEffect(() => {
     if (!open) {
@@ -684,6 +696,16 @@ function PetFormDialog({
             <DialogTitle>{editingPet ? "Edit Pet" : "Tambah Pet"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {hasActiveMembership && (
+              <Alert className="border-amber-200 bg-amber-50 text-amber-900 [&>svg]:text-amber-600">
+                <ShieldAlert className="h-4 w-4" />
+                <AlertTitle>This pet still has an active membership</AlertTitle>
+                <AlertDescription>
+                  Pet name and weight cannot be changed while membership is
+                  active. Please contact admin if changes are needed.
+                </AlertDescription>
+              </Alert>
+            )}
             {/* Image Upload */}
             <div className="flex flex-col gap-1.5">
               <Label>Foto Pet</Label>
@@ -741,6 +763,13 @@ function PetFormDialog({
                 onChange={(e) => set("name", e.target.value)}
                 placeholder="Nama pet"
                 required
+                readOnly={hasActiveMembership}
+                disabled={hasActiveMembership}
+                className={
+                  hasActiveMembership
+                    ? "bg-muted text-muted-foreground cursor-not-allowed"
+                    : undefined
+                }
               />
             </div>
 
@@ -879,6 +908,13 @@ function PetFormDialog({
                   onChange={(e) => set("weight", e.target.value)}
                   placeholder="Contoh: 4.5"
                   required
+                  readOnly={hasActiveMembership}
+                  disabled={hasActiveMembership}
+                  className={
+                    hasActiveMembership
+                      ? "bg-muted text-muted-foreground cursor-not-allowed"
+                      : undefined
+                  }
                 />
               </div>
 

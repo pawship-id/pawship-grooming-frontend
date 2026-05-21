@@ -206,6 +206,7 @@ export interface PetMembership {
   is_active: boolean;
   status: MembershipStatus;
   benefits_snapshot: BenefitSnapshot[];
+  base_price?: number;
   purchase_price?: number;
   purchase_note?: string;
   createdAt: string;

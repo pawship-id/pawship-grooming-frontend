@@ -44,6 +44,51 @@ function extractErrorMessage(payload: ApiErrorResponse | null, status: number) {
   return `Request failed (${status})`
 }
 
+let pendingRefresh: Promise<void> | null = null
+
+async function refreshAccessToken() {
+  if (pendingRefresh) {
+    return pendingRefresh
+  }
+
+  pendingRefresh = (async () => {
+    const refreshToken = getRefreshToken()
+
+    if (!refreshToken) {
+      throw new Error("missing refresh token")
+    }
+
+    const refreshResponse = await fetch(buildApiUrl("/auth/refresh"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+
+    if (!refreshResponse.ok) {
+      throw new Error("refresh failed")
+    }
+
+    const refreshed = (await refreshResponse.json()) as {
+      access_token?: string
+      refresh_token?: string
+    }
+
+    if (!refreshed.access_token || !refreshed.refresh_token) {
+      throw new Error("refresh response invalid")
+    }
+
+    setAuthTokens(refreshed.access_token, refreshed.refresh_token)
+  })()
+
+  try {
+    await pendingRefresh
+  } finally {
+    pendingRefresh = null
+  }
+}
+
 export async function apiRequest<TResponse>(path: string, options: ApiRequestOptions = {}): Promise<TResponse> {
   const { auth = false, skipRefresh = false, headers, body, ...restOptions } = options
   const requestHeaders = new Headers(headers)
@@ -75,38 +120,8 @@ export async function apiRequest<TResponse>(path: string, options: ApiRequestOpt
 
   if (!response.ok) {
     if (auth && !skipRefresh && response.status === 401) {
-      const refreshToken = getRefreshToken()
-
-      if (!refreshToken) {
-        clearAuthTokens()
-        dispatchSessionExpired()
-        throw new Error("Sesi login berakhir, silakan login kembali")
-      }
-
       try {
-        const refreshResponse = await fetch(buildApiUrl("/auth/refresh"), {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ refresh_token: refreshToken }),
-        })
-
-        if (!refreshResponse.ok) {
-          throw new Error("refresh failed")
-        }
-
-        const refreshed = (await refreshResponse.json()) as {
-          access_token?: string
-          refresh_token?: string
-        }
-
-        if (!refreshed.access_token || !refreshed.refresh_token) {
-          throw new Error("refresh response invalid")
-        }
-
-        setAuthTokens(refreshed.access_token, refreshed.refresh_token)
-
+        await refreshAccessToken()
         return apiRequest<TResponse>(path, {
           ...options,
           skipRefresh: true,

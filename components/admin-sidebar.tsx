@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -7,7 +8,6 @@ import {
   LayoutDashboard,
   CalendarDays,
   Users,
-  Package,
   Tag,
   Percent,
   Store,
@@ -18,6 +18,9 @@ import {
   Sun,
   UserCircle,
   CreditCard,
+  Sparkles,
+  FileBarChart2,
+  ChevronRight,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/lib/auth-context";
@@ -32,10 +35,18 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarSeparator,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 const menuItems = [
   { title: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
@@ -44,9 +55,22 @@ const menuItems = [
   { title: "Stores", href: "/admin/stores", icon: Store },
   { title: "Services", href: "/admin/services", icon: Scissors },
   { title: "Memberships", href: "/admin/memberships", icon: CreditCard },
+  {
+    title: "Pet Memberships",
+    href: "/admin/pet-memberships",
+    icon: Sparkles,
+  },
   { title: "Promotions", href: "/admin/promotions", icon: Percent },
   { title: "Options", href: "/admin/options", icon: Tag },
   { title: "Banners", href: "/admin/banners", icon: ImageIcon },
+];
+
+const reportSubItems = [
+  { title: "Report Index", href: "/admin/reports" },
+  { title: "Financial", href: "/admin/reports/financial" },
+  { title: "Operations", href: "/admin/reports/operations" },
+  { title: "Customer", href: "/admin/reports/customer" },
+  { title: "Membership", href: "/admin/reports/membership" },
 ];
 
 export function AdminSidebar() {
@@ -54,6 +78,8 @@ export function AdminSidebar() {
   const { user, logout } = useAuth();
   const { isMobile, setOpenMobile } = useSidebar();
   const { theme, setTheme } = useTheme();
+  const isReportsActive = pathname.startsWith("/admin/reports");
+  const [reportsOpen, setReportsOpen] = useState(isReportsActive);
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark");
@@ -107,6 +133,45 @@ export function AdminSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+
+              {/* Reports collapsible */}
+              <SidebarMenuItem>
+                <Collapsible
+                  open={reportsOpen}
+                  onOpenChange={setReportsOpen}
+                  className="group/collapsible w-full"
+                >
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton
+                      isActive={isReportsActive}
+                      className="flex w-full items-center gap-2 group-data-[collapsible=icon]:justify-center"
+                      tooltip="Reports"
+                    >
+                      <FileBarChart2 className="h-4 w-4 shrink-0" />
+                      <span className="flex-1 group-data-[collapsible=icon]:hidden">
+                        Reports
+                      </span>
+                      <ChevronRight className="ml-auto h-4 w-4 shrink-0 transition-transform duration-200 group-data-[collapsible=icon]:hidden group/collapsible:data-[state=open]:rotate-90" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub className="group-data-[collapsible=icon]:hidden">
+                      {reportSubItems.map((sub) => (
+                        <SidebarMenuSubItem key={sub.href}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={pathname === sub.href}
+                          >
+                            <Link href={sub.href} onClick={handleMenuClick}>
+                              {sub.title}
+                            </Link>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </Collapsible>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

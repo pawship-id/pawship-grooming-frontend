@@ -1,4 +1,8 @@
 import { apiAuthRequest } from "./client";
+import {
+  uploadFileToCloudinary,
+  type CloudinarySignature,
+} from "../cloudinary-upload";
 
 // ── Shared ref shapes ────────────────────────────────────────────────────────
 
@@ -9,12 +13,18 @@ export interface BookingOptionRef {
 
 // ── Pet Snapshot ─────────────────────────────────────────────────────────────
 
+export interface CustomerSnapshot {
+  customer_name: string;
+  customer_phone: string;
+  customer_category?: { _id: string; name: string } | null;
+}
+
 export interface PetSnapshot {
   _id: string;
   name: string;
   description?: string;
   internal_note?: string;
-  member_type: BookingOptionRef;
+  member_type?: string | null;
   pet_type: BookingOptionRef;
   size: BookingOptionRef;
   hair: BookingOptionRef;
@@ -65,7 +75,11 @@ export interface SessionMedia {
   secure_url?: string;
   public_id?: string;
   type: "before" | "after" | "other";
-  note?: string;
+  // Canonical caption field. Optional — old media may not have it; in that
+  // case the backend mirrors the legacy `note` value into `notes` on read.
+  notes?: string | null;
+  /** @deprecated kept so older payloads still render — use `notes`. */
+  note?: string | null;
   session_id?: string;
   created_by?: {
     user_id?: string;
@@ -77,8 +91,9 @@ export interface SessionMedia {
 export interface BookingSession {
   _id?: string;
   type: string;
-  groomer_id?: string;
-  groomer_detail?: BookingCustomer;
+  groomer_id?: string | { _id: string; username?: string };
+  /** Populated groomer object — backend toJSON renames groomer_id → groomer_detail when populated */
+  groomer_detail?: { _id: string; username?: string; email?: string; phone_number?: string };
   status: string;
   started_at: string | null;
   finished_at: string | null;
@@ -110,6 +125,7 @@ export interface GroomingSession {
 
 export interface BookingCustomer {
   _id: string;
+  code?: string;
   username: string;
   email: string;
   phone_number: string;
@@ -117,6 +133,7 @@ export interface BookingCustomer {
 
 export interface BookingStore {
   _id: string;
+  code?: string;
   name: string;
 }
 
@@ -164,6 +181,7 @@ export interface AdminBooking {
   pet_id: string;
   store_id: string;
   service_type?: string;
+  customer_snapshot?: CustomerSnapshot;
   pet_snapshot: PetSnapshot;
   service_snapshot: ServiceSnapshot;
   date: string;
@@ -191,6 +209,8 @@ export interface AdminBooking {
   grooming_session?: GroomingSession;
   referal_code?: string;
   note?: string;
+  brought_items_note?: string | null;
+  cancellation_reason?: string | null;
   payment_method?: string;
   created_by_role?: "customer" | "admin" | null;
   manual_discount_type?: string | null; // kept for legacy display
@@ -210,6 +230,7 @@ export interface AdminBooking {
   // Populated by backend (present in both list and detail responses)
   customer?: BookingCustomer;
   store?: BookingStore;
+  pet?: { _id: string; code?: string };
   // Enriched by backend: memberships active on the booking date
   active_memberships?: { name: string }[];
 }
@@ -351,6 +372,7 @@ export interface CreateBookingPayload {
   selected_promotion_ids?: string[];
   referal_code?: string;
   note?: string;
+  brought_items_note?: string;
   payment_method?: string;
   code?: string;
 }
@@ -392,6 +414,7 @@ export interface UpdateBookingStatusPayload {
   date?: string;
   time_range?: string;
   note?: string;
+  cancellation_reason?: string;
 }
 
 // ── API functions ─────────────────────────────────────────────────────────────
@@ -443,6 +466,7 @@ export async function getAllAdminBookingsForExport(
   if (params?.created_by_role)
     qs.set("created_by_role", params.created_by_role);
   if (params?.customer_id) qs.set("customer_id", params.customer_id);
+  if (params?.store_id) qs.set("store_id", params.store_id);
   const query = qs.toString();
   const response = await apiAuthRequest<BookingsResponse>(`/bookings?${query}`);
   return response.bookings;
@@ -582,6 +606,19 @@ export async function updateBookingNote(id: string, note?: string) {
   });
 }
 
+export async function updateBookingBroughtItemsNote(
+  id: string,
+  brought_items_note?: string,
+) {
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${id}/brought-items`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ brought_items_note }),
+    },
+  );
+}
+
 // Fetches membership benefits directly for a pet, bypassing service price lookups.
 // Used as a fallback when getBookingPreview fails (e.g. service is soft-deleted).
 export async function getPetBenefitsSummary(petId: string) {
@@ -694,40 +731,34 @@ export async function deleteBookingSession(
   );
 }
 
-export async function uploadSessionMedia(
-  bookingId: string,
-  sessionId: string,
-  file: File,
-  type: "before" | "after",
-  note?: string,
-) {
-  const formData = new FormData();
-  formData.append("image", file);
-  formData.append("type", type);
-  if (note) formData.append("note", note);
-  return apiAuthRequest<{ message: string }>(
-    `/bookings/${bookingId}/session/${sessionId}/media`,
-    {
-      method: "POST",
-      body: formData,
-    },
-  );
-}
-
+// Booking-level media upload — signed direct upload to Cloudinary.
+// Flow: backend issues a signature (auth + folder lock) → browser uploads
+// the file directly to Cloudinary → backend records the metadata.
 export async function uploadBookingMedia(
   bookingId: string,
   file: File,
   type: "before" | "after" | "other",
-  note?: string,
+  notes?: string,
 ) {
-  const formData = new FormData();
-  formData.append("image", file);
-  formData.append("type", type);
-  if (note) formData.append("note", note);
-  return apiAuthRequest<{ message: string }>(`/bookings/${bookingId}/media`, {
-    method: "POST",
-    body: formData,
-  });
+  const signature = await apiAuthRequest<CloudinarySignature>(
+    `/bookings/${bookingId}/media/sign`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type }),
+    },
+  );
+
+  const { secure_url, public_id } = await uploadFileToCloudinary(file, signature);
+
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${bookingId}/media/confirm`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, public_id, secure_url, notes }),
+    },
+  );
 }
 
 export async function deleteBookingMedia(bookingId: string, publicId: string) {
@@ -737,22 +768,49 @@ export async function deleteBookingMedia(bookingId: string, publicId: string) {
   );
 }
 
-// Upload "other" media from a specific session — stored in booking.media[]
-// Only admin or the groomer assigned to the session can call this
+// Upload "other" media from a specific session — stored in booking.media[].
+// Only admin or the groomer assigned to the session can call this. Uses the
+// same signed direct upload flow as uploadBookingMedia.
 export async function uploadSessionOtherMedia(
   bookingId: string,
   sessionId: string,
   file: File,
-  note?: string,
+  notes?: string,
 ) {
-  const formData = new FormData();
-  formData.append("image", file);
-  if (note) formData.append("note", note);
-  return apiAuthRequest<{ message: string }>(
-    `/bookings/${bookingId}/session/${sessionId}/media/other`,
+  const signature = await apiAuthRequest<CloudinarySignature>(
+    `/bookings/${bookingId}/session/${sessionId}/media/other/sign`,
     {
       method: "POST",
-      body: formData,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    },
+  );
+
+  const { secure_url, public_id } = await uploadFileToCloudinary(file, signature);
+
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${bookingId}/session/${sessionId}/media/other/confirm`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ public_id, secure_url, notes }),
+    },
+  );
+}
+
+// Update the caption/notes of an existing booking media item.
+// Admin can edit any; groomer only their own. Empty string clears it.
+export async function updateBookingMediaNotes(
+  bookingId: string,
+  publicId: string,
+  notes: string,
+) {
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${bookingId}/media/notes`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ public_id: publicId, notes }),
     },
   );
 }
@@ -794,12 +852,26 @@ export async function getGroomerMyJobs(params?: GetGroomerMyJobsParams) {
 export interface GetGroomerOpenJobsParams {
   page?: number;
   limit?: number;
+  // YYYY-MM-DD. When both are omitted the backend defaults to today (unless
+  // `scope` overrides). Pass both equal to today's date to be explicit.
+  date_from?: string;
+  date_to?: string;
+  // Explicit store override — ignored by the backend if the caller is a
+  // groomer with a placement (branch scoping is always enforced).
+  store_id?: string;
+  // "all" / "urgent" → backend skips the default today filter. Use this for
+  // the urgent dashboard section.
+  scope?: "today" | "all" | "urgent";
 }
 
 export async function getGroomerOpenJobs(params?: GetGroomerOpenJobsParams) {
   const qs = new URLSearchParams();
   if (params?.page) qs.set("page", String(params.page));
   if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.date_from) qs.set("date_from", params.date_from);
+  if (params?.date_to) qs.set("date_to", params.date_to);
+  if (params?.store_id) qs.set("store_id", params.store_id);
+  if (params?.scope) qs.set("scope", params.scope);
   const query = qs.toString();
   return apiAuthRequest<BookingsResponse>(
     query

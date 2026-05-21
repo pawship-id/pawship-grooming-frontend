@@ -17,6 +17,7 @@ import {
 interface StepNotesPaymentProps {
   form: {
     note: string;
+    brought_items_note: string;
     payment_method: string;
     referal_code: string;
   };
@@ -45,6 +46,30 @@ export function StepNotesPayment({
             value={form.note}
             onChange={(e) =>
               setForm((p: any) => ({ ...p, note: e.target.value }))
+            }
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="brought_items_note">
+            List Barang Bawaan Pawrents (opsional)
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            Tulis tiap barang di baris baru (tekan Enter) supaya daftarnya
+            lebih rapi dan mudah dibaca groomer.
+          </p>
+          <Textarea
+            id="brought_items_note"
+            placeholder={
+              "Contoh:\nTas carrier biru\nObat vitamin\nMakanan khusus\nBaju ganti\nMainan"
+            }
+            rows={5}
+            value={form.brought_items_note}
+            onChange={(e) =>
+              setForm((p: any) => ({
+                ...p,
+                brought_items_note: e.target.value,
+              }))
             }
           />
         </div>

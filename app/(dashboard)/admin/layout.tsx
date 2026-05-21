@@ -52,14 +52,14 @@ export default function AdminLayout({
   return (
     <SidebarProvider>
       <AdminSidebar />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b border-border/50 bg-card/80 px-4 backdrop-blur-md md:hidden">
           <SidebarTrigger />
           <span className="text-sm font-medium text-muted-foreground">
             Admin Panel
           </span>
         </header>
-        <div className="flex-1 p-6">{children}</div>
+        <div className="flex-1 min-w-0 overflow-x-hidden p-6">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   );

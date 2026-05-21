@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft,
   Play,
+  Check,
   CheckCircle,
   Camera,
   Calendar,
@@ -20,6 +21,7 @@ import {
   AlertCircle,
   Edit,
   PawPrint,
+  StickyNote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,8 +57,10 @@ import {
   claimSession,
   uploadSessionOtherMedia,
   deleteBookingMediaAuth,
+  updateBookingMediaNotes,
   type AdminBooking,
   type BookingSession,
+  type SessionMedia,
 } from "@/lib/api/bookings";
 import { getCurrentUser } from "@/lib/api/users";
 import { useAuth } from "@/lib/auth-context";
@@ -90,10 +94,24 @@ export default function GroomerJobDetailPage({
   const [uploadingSessionMediaId, setUploadingSessionMediaId] = useState<
     string | null
   >(null);
+  const [pendingSessionUpload, setPendingSessionUpload] = useState<{
+    sessionId: string;
+    file: File;
+    previewUrl: string;
+  } | null>(null);
+  const [pendingSessionNotes, setPendingSessionNotes] = useState("");
   const [confirmDeleteMediaPublicId, setConfirmDeleteMediaPublicId] = useState<
     string | null
   >(null);
   const [deletingMediaId, setDeletingMediaId] = useState<string | null>(null);
+  // Per-image notes editing on existing booking media (keyed by public_id)
+  const [editingMediaNotesPublicId, setEditingMediaNotesPublicId] = useState<
+    string | null
+  >(null);
+  const [mediaNotesDraft, setMediaNotesDraft] = useState("");
+  const [savingMediaNotes, setSavingMediaNotes] = useState(false);
+  // Caption captured inside the booking-media upload dialog
+  const [bookingMediaNotes, setBookingMediaNotes] = useState("");
   const [editSessionStartOpen, setEditSessionStartOpen] = useState(false);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [newSessionStartDate, setNewSessionStartDate] = useState("");
@@ -271,14 +289,21 @@ export default function GroomerJobDetailPage({
       toast.error("Pilih foto terlebih dahulu");
       return;
     }
+    const notes = bookingMediaNotes.trim();
     setActionLoading("upload-booking");
     try {
       // Only apply frame for before/after; skip for other
       const fileToUpload =
         type === "other" ? rawFile : await applyGroomingFrame(rawFile, type);
-      await uploadBookingMedia(booking._id, fileToUpload, type);
+      await uploadBookingMedia(
+        booking._id,
+        fileToUpload,
+        type,
+        notes || undefined,
+      );
       toast.success(`Foto ${type} berhasil diupload`);
       setUploadOpen(false);
+      setBookingMediaNotes("");
       await fetchBooking();
     } catch (err: any) {
       toast.error(err.message || "Gagal mengupload foto");
@@ -287,18 +312,137 @@ export default function GroomerJobDetailPage({
     }
   };
 
-  const handleUploadSessionMedia = async (sessionId: string, file: File) => {
-    if (!booking) return;
+  const openSessionUploadDialog = (sessionId: string, file: File) => {
+    const previewUrl = URL.createObjectURL(file);
+    setPendingSessionUpload({ sessionId, file, previewUrl });
+    setPendingSessionNotes("");
+  };
+
+  const closeSessionUploadDialog = () => {
+    if (pendingSessionUpload?.previewUrl)
+      URL.revokeObjectURL(pendingSessionUpload.previewUrl);
+    setPendingSessionUpload(null);
+    setPendingSessionNotes("");
+  };
+
+  const handleConfirmSessionUpload = async () => {
+    if (!booking || !pendingSessionUpload) return;
+    const { sessionId, file } = pendingSessionUpload;
+    const notes = pendingSessionNotes.trim();
     setUploadingSessionMediaId(sessionId);
     try {
-      await uploadSessionOtherMedia(booking._id, sessionId, file);
+      await uploadSessionOtherMedia(
+        booking._id,
+        sessionId,
+        file,
+        notes || undefined,
+      );
       toast.success("Foto sesi berhasil diupload");
+      closeSessionUploadDialog();
       await fetchBooking();
     } catch (err: any) {
       toast.error(err.message || "Gagal mengupload foto sesi");
     } finally {
       setUploadingSessionMediaId(null);
     }
+  };
+
+  const handleSaveMediaNotes = async (publicId: string) => {
+    if (!booking) return;
+    setSavingMediaNotes(true);
+    try {
+      await updateBookingMediaNotes(
+        booking._id,
+        publicId,
+        mediaNotesDraft.trim(),
+      );
+      toast.success("Catatan foto berhasil disimpan");
+      setEditingMediaNotesPublicId(null);
+      setMediaNotesDraft("");
+      await fetchBooking();
+    } catch (err: any) {
+      toast.error(err.message || "Gagal menyimpan catatan");
+    } finally {
+      setSavingMediaNotes(false);
+    }
+  };
+
+  const getMediaNotes = (m: SessionMedia) => m.notes ?? m.note ?? "";
+
+  // Per-image notes block — read-only for everyone, but the original uploader
+  // can edit. Renders below the photo + uploader info row.
+  const renderMediaNotes = (m: SessionMedia) => {
+    const notes = getMediaNotes(m);
+    const canEdit = !!m.public_id && m.created_by?.user_id === user?.id;
+    const isEditing = !!m.public_id && editingMediaNotesPublicId === m.public_id;
+
+    if (isEditing) {
+      return (
+        <div className="flex flex-col gap-1">
+          <Textarea
+            value={mediaNotesDraft}
+            onChange={(e) => setMediaNotesDraft(e.target.value)}
+            placeholder="Catatan foto..."
+            className="min-h-[60px] text-xs"
+          />
+          <div className="flex gap-1">
+            <Button
+              type="button"
+              size="sm"
+              className="h-6 flex-1 px-1.5 text-[11px]"
+              onClick={() => m.public_id && handleSaveMediaNotes(m.public_id)}
+              disabled={savingMediaNotes}
+            >
+              {savingMediaNotes ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Check className="h-3 w-3" />
+              )}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-6 px-1.5 text-[11px]"
+              onClick={() => {
+                setEditingMediaNotesPublicId(null);
+                setMediaNotesDraft("");
+              }}
+              disabled={savingMediaNotes}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-start gap-1">
+        {notes ? (
+          <p className="flex-1 whitespace-pre-wrap break-words text-[11px] leading-tight text-foreground">
+            {notes}
+          </p>
+        ) : (
+          <p className="flex-1 text-[11px] italic text-muted-foreground/70">
+            Tanpa catatan
+          </p>
+        )}
+        {canEdit && (
+          <button
+            type="button"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              setEditingMediaNotesPublicId(m.public_id!);
+              setMediaNotesDraft(notes);
+            }}
+            title="Edit catatan"
+          >
+            <Edit className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+    );
   };
 
   const handleDeleteMedia = async (publicId: string) => {
@@ -441,9 +585,21 @@ export default function GroomerJobDetailPage({
             )}
             {booking.note && (
               <div>
-                <span className="text-xs text-muted-foreground">Notes</span>
+                <span className="text-xs text-muted-foreground">
+                  Catatan Booking
+                </span>
                 <p className="mt-1 rounded-md bg-muted/50 p-2 text-sm text-foreground">
                   {booking.note}
+                </p>
+              </div>
+            )}
+            {booking.brought_items_note && (
+              <div>
+                <span className="text-xs text-muted-foreground">
+                  List Barang Bawaan Pawrents
+                </span>
+                <p className="mt-1 rounded-md bg-muted/50 p-2 text-sm text-foreground whitespace-pre-wrap break-words">
+                  {booking.brought_items_note}
                 </p>
               </div>
             )}
@@ -513,6 +669,19 @@ export default function GroomerJobDetailPage({
                 </div>
               </div>
             )}
+          {booking.pet_snapshot?.internal_note && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/30">
+              <StickyNote className="h-4 w-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                  Internal Note Pet
+                </p>
+                <p className="text-sm text-amber-900/90 dark:text-amber-100 whitespace-pre-wrap break-words">
+                  {booking.pet_snapshot.internal_note}
+                </p>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -537,7 +706,7 @@ export default function GroomerJobDetailPage({
               {(booking.media ?? [])
                 .filter((m) => m.type === "before")
                 .map((m, idx) => (
-                  <div key={m._id || idx} className="flex w-28 flex-col gap-1">
+                  <div key={m._id || idx} className="flex w-32 flex-col gap-1">
                     <div className="relative aspect-[9/16] w-full overflow-hidden rounded-lg border border-border/50 bg-muted">
                       <button
                         type="button"
@@ -577,6 +746,7 @@ export default function GroomerJobDetailPage({
                         })}
                       </p>
                     )}
+                    {renderMediaNotes(m)}
                   </div>
                 ))}
               {(booking.media ?? []).filter((m) => m.type === "before")
@@ -595,7 +765,7 @@ export default function GroomerJobDetailPage({
               {(booking.media ?? [])
                 .filter((m) => m.type === "after")
                 .map((m, idx) => (
-                  <div key={m._id || idx} className="flex w-28 flex-col gap-1">
+                  <div key={m._id || idx} className="flex w-32 flex-col gap-1">
                     <div className="relative aspect-[9/16] w-full overflow-hidden rounded-lg border border-border/50 bg-muted">
                       <button
                         type="button"
@@ -635,6 +805,7 @@ export default function GroomerJobDetailPage({
                         })}
                       </p>
                     )}
+                    {renderMediaNotes(m)}
                   </div>
                 ))}
               {(booking.media ?? []).filter((m) => m.type === "after")
@@ -657,7 +828,7 @@ export default function GroomerJobDetailPage({
                   return (
                     <div
                       key={m._id || idx}
-                      className="flex w-28 flex-col gap-1"
+                      className="flex w-32 flex-col gap-1"
                     >
                       <div className="relative aspect-[9/16] w-full overflow-hidden rounded-lg border border-border/50 bg-muted">
                         <button
@@ -703,6 +874,7 @@ export default function GroomerJobDetailPage({
                           })}
                         </p>
                       )}
+                      {renderMediaNotes(m)}
                     </div>
                   );
                 })}
@@ -1011,7 +1183,7 @@ export default function GroomerJobDetailPage({
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
                                   if (file && session._id)
-                                    handleUploadSessionMedia(session._id, file);
+                                    openSessionUploadDialog(session._id, file);
                                   e.target.value = "";
                                 }}
                               />
@@ -1343,6 +1515,18 @@ export default function GroomerJobDetailPage({
               <Label htmlFor="photo">Photo</Label>
               <Input id="photo" name="photo" type="file" accept="image/*" />
             </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="bookingMediaNotes">
+                Catatan / Caption (opsional)
+              </Label>
+              <Textarea
+                id="bookingMediaNotes"
+                value={bookingMediaNotes}
+                onChange={(e) => setBookingMediaNotes(e.target.value)}
+                placeholder="Mis. Kondisi bulu kusut di bagian kaki..."
+                rows={3}
+              />
+            </div>
             <Button
               type="submit"
               className="font-display font-bold"
@@ -1354,6 +1538,72 @@ export default function GroomerJobDetailPage({
               Upload
             </Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload Session Photo Dialog — captures optional caption */}
+      <Dialog
+        open={!!pendingSessionUpload}
+        onOpenChange={(open) => {
+          if (!open && uploadingSessionMediaId === null)
+            closeSessionUploadDialog();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">Upload Foto Sesi</DialogTitle>
+          </DialogHeader>
+          {pendingSessionUpload && (
+            <div className="flex flex-col gap-4">
+              <div className="flex justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={pendingSessionUpload.previewUrl}
+                  alt="preview"
+                  className="max-h-56 w-auto rounded-lg border border-border/50 object-contain"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label
+                  htmlFor="groomer-session-upload-notes"
+                  className="text-xs"
+                >
+                  Catatan / Caption (opsional)
+                </Label>
+                <Textarea
+                  id="groomer-session-upload-notes"
+                  value={pendingSessionNotes}
+                  onChange={(e) => setPendingSessionNotes(e.target.value)}
+                  placeholder="Mis. Setelah trimming kuku, kondisi tenang..."
+                  rows={3}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={closeSessionUploadDialog}
+                  disabled={uploadingSessionMediaId !== null}
+                >
+                  Batal
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleConfirmSessionUpload}
+                  disabled={uploadingSessionMediaId !== null}
+                >
+                  {uploadingSessionMediaId !== null ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      Mengupload...
+                    </>
+                  ) : (
+                    "Upload"
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

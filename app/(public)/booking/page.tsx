@@ -204,6 +204,9 @@ function BookingContent() {
   const [bookingCreated, setBookingCreated] = useState(false);
   const [submittingBooking, setSubmittingBooking] = useState(false);
 
+  // Barang Bawaan note state (list of items pawrents bring)
+  const [broughtItemsNote, setBroughtItemsNote] = useState("");
+
   // Closed dates from store daily capacities (total_capacity_minutes = 0)
   const [closedDates, setClosedDates] = useState<string[]>([]);
 
@@ -656,6 +659,7 @@ function BookingContent() {
         selected_benefit_ids: selectedBenefitIds,
         selected_promotion_ids: selectedPromotionIds,
         note: "",
+        brought_items_note: broughtItemsNote.trim() || undefined,
       };
       if (existingUser) {
         payload.customer_id = existingUser._id;
@@ -1567,6 +1571,8 @@ function BookingContent() {
               bookingCreated={bookingCreated}
               submittingBooking={submittingBooking}
               formError={formError}
+              broughtItemsNote={broughtItemsNote}
+              setBroughtItemsNote={setBroughtItemsNote}
               handleCreateBooking={handleCreateBooking}
             />
           </section>

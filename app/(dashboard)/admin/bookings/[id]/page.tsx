@@ -22,6 +22,7 @@ import { PriceEditPanel } from "./_components/price-edit-panel";
 import { PriceDisplay } from "./_components/price-display";
 import { CustomerPetCard } from "./_components/customer-pet-card";
 import { BookingNotesCard } from "./_components/booking-notes-card";
+import { BroughtItemsCard } from "./_components/brought-items-card";
 import { StatusLogsCard } from "./_components/status-logs-card";
 import { GroomingSessionsCard } from "./_components/grooming-sessions-card";
 import { PhotoGalleryCard } from "./_components/photo-gallery-card";
@@ -219,6 +220,14 @@ export default function BookingDetailPage({
               bookingId={id}
               note={booking.note}
               onNoteSaved={refreshBooking}
+              readOnly={isReturned}
+            />
+
+            {/* List Barang Bawaan Pawrents */}
+            <BroughtItemsCard
+              bookingId={id}
+              broughtItemsNote={booking.brought_items_note}
+              onSaved={refreshBooking}
               readOnly={isReturned}
             />
           </div>

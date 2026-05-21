@@ -148,7 +148,7 @@ export function StepCustomerPet({
                             />{" "}
                             ·{" "}
                             <HighlightText
-                              text={c.email}
+                              text={c.email || "-"}
                               query={customerSearch}
                             />
                           </span>
@@ -175,9 +175,7 @@ export function StepCustomerPet({
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">Status:</span>
                 <Badge
-                  variant={
-                    selectedCustomer.is_active ? "default" : "secondary"
-                  }
+                  variant={selectedCustomer.is_active ? "default" : "secondary"}
                   className="text-xs"
                 >
                   {selectedCustomer.is_active ? "Aktif" : "Nonaktif"}
@@ -242,13 +240,14 @@ export function StepCustomerPet({
                   <DetailRow
                     icon={<Cake className="h-3.5 w-3.5" />}
                     label="Tgl Lahir"
-                    value={new Date(
-                      selectedPet.birthday,
-                    ).toLocaleDateString("id-ID", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
+                    value={new Date(selectedPet.birthday).toLocaleDateString(
+                      "id-ID",
+                      {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      },
+                    )}
                   />
                 )}
               </div>

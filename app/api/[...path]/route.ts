@@ -1,8 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server"
 
+export const dynamic = "force-dynamic"
+export const maxDuration = 60
+
 const BACKEND_API_BASE_URL =
   process.env.BACKEND_API_BASE_URL ||
   process.env.NEXT_PUBLIC_API_BASE_URL
+
+const STRIPPED_REQUEST_HEADERS = [
+  "host",
+  "content-length",
+  "transfer-encoding",
+  "accept-encoding",
+  "connection",
+  "content-encoding",
+]
 
 function buildTargetUrl(pathSegments: string[], request: NextRequest) {
   const normalizedPath = pathSegments.join("/")
@@ -11,34 +23,87 @@ function buildTargetUrl(pathSegments: string[], request: NextRequest) {
 }
 
 async function proxyRequest(request: NextRequest, pathSegments: string[]) {
+  if (!BACKEND_API_BASE_URL) {
+    return NextResponse.json(
+      { statusCode: 500, message: "BACKEND_API_BASE_URL is not configured" },
+      { status: 500 },
+    )
+  }
+
   const targetUrl = buildTargetUrl(pathSegments, request)
 
   const headers = new Headers(request.headers)
-  headers.delete("host")
-  headers.delete("content-length")
+  for (const h of STRIPPED_REQUEST_HEADERS) headers.delete(h)
 
-  const requestBody = request.method === "GET" || request.method === "HEAD"
-    ? undefined
-    : await request.arrayBuffer()
+  try {
+    const requestBody = request.method === "GET" || request.method === "HEAD"
+      ? undefined
+      : await request.arrayBuffer()
 
-  const upstreamResponse = await fetch(targetUrl, {
-    method: request.method,
-    headers,
-    body: requestBody,
-    redirect: "manual",
-  })
+    const upstreamResponse = await fetch(targetUrl, {
+      method: request.method,
+      headers,
+      body: requestBody,
+      redirect: "manual",
+    })
 
-  const responseHeaders = new Headers(upstreamResponse.headers)
-  responseHeaders.delete("content-encoding")
-  responseHeaders.delete("content-length")
+    const responseHeaders = new Headers(upstreamResponse.headers)
+    responseHeaders.delete("content-encoding")
+    responseHeaders.delete("content-length")
+    responseHeaders.delete("transfer-encoding")
+    responseHeaders.set("x-proxy-target", targetUrl)
+    responseHeaders.set("x-proxy-upstream-status", String(upstreamResponse.status))
 
-  const responseBody = await upstreamResponse.arrayBuffer()
+    if (upstreamResponse.status >= 500) {
+      console.error("[api-proxy] upstream returned error", {
+        method: request.method,
+        targetUrl,
+        status: upstreamResponse.status,
+        upstreamContentType: upstreamResponse.headers.get("content-type"),
+      })
+    }
 
-  return new NextResponse(responseBody, {
-    status: upstreamResponse.status,
-    statusText: upstreamResponse.statusText,
-    headers: responseHeaders,
-  })
+    const contentType = upstreamResponse.headers.get("content-type") ?? ""
+    if (contentType.includes("text/event-stream")) {
+      responseHeaders.set("X-Accel-Buffering", "no")
+      return new NextResponse(upstreamResponse.body, {
+        status: upstreamResponse.status,
+        statusText: upstreamResponse.statusText,
+        headers: responseHeaders,
+      })
+    }
+
+    const responseBody = await upstreamResponse.arrayBuffer()
+
+    return new NextResponse(responseBody, {
+      status: upstreamResponse.status,
+      statusText: upstreamResponse.statusText,
+      headers: responseHeaders,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const stack = error instanceof Error ? error.stack : undefined
+    const cause =
+      error instanceof Error && "cause" in error ? (error as Error & { cause?: unknown }).cause : undefined
+
+    console.error("[api-proxy] upstream request failed", {
+      method: request.method,
+      targetUrl,
+      message,
+      cause,
+      stack,
+    })
+
+    return NextResponse.json(
+      {
+        statusCode: 500,
+        message: `Proxy error: ${message}`,
+        targetUrl,
+        cause: cause ? String(cause) : undefined,
+      },
+      { status: 500 },
+    )
+  }
 }
 
 export async function GET(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
