@@ -274,6 +274,7 @@ const DETAIL_COLS: {
   { key: "membership_code", label: "Kode Membership", defaultVisible: true },
   { key: "membership_name", label: "Plan Membership", defaultVisible: true },
   { key: "membership_price", label: "Harga Plan", defaultVisible: false },
+  { key: "actual_price", label: "Harga Aktual", defaultVisible: false },
   { key: "duration_days", label: "Durasi (hari)", defaultVisible: false },
   { key: "start_date", label: "Tgl Mulai", defaultVisible: false },
   { key: "end_date", label: "Tgl Expired", defaultVisible: false },
@@ -628,7 +629,7 @@ function MembershipDetailTab({
       );
     }
 
-    if (key === "membership_price") {
+    if (key === "membership_price" || key === "actual_price") {
       return <span className="font-semibold">{fmtRupiah((val ?? 0) as number)}</span>;
     }
 
@@ -730,7 +731,7 @@ function MembershipDetailTab({
           const v = r[c.key];
           if (c.key === "membership_status")
             return MEMBERSHIP_STATUS_CONFIG[String(v)]?.label ?? String(v);
-          if (c.key === "membership_price" || c.key === "total_benefit_used_amount") return v as number;
+          if (c.key === "membership_price" || c.key === "actual_price" || c.key === "total_benefit_used_amount") return v as number;
           if (c.key === "is_early_renewal") return r.is_early_renewal ? "Ya" : "Tidak";
           // Tanggal di-export sebagai Date object (+ cellDates: true di
           // aoa_to_sheet) supaya Google Sheets baca sebagai tipe date asli
@@ -2046,6 +2047,7 @@ const BENEFIT_COLS: {
   { key: "benefit_index", label: "Index Benefit", defaultVisible: false },
   { key: "cumulative_used", label: "Cumulative Used", defaultVisible: true },
   { key: "membership_price", label: "Harga Membership", defaultVisible: true },
+  { key: "actual_price", label: "Harga Aktual", defaultVisible: true },
   { key: "benefit_vs_price_pct", label: "% vs Harga", defaultVisible: true },
 ];
 
@@ -2179,7 +2181,7 @@ function BenefitUtilisationTab({
       return <span className={colorClass}>{pct}%</span>;
     }
 
-    if (key === "amount_used" || key === "cumulative_used" || key === "membership_price") {
+    if (key === "amount_used" || key === "cumulative_used" || key === "membership_price" || key === "actual_price") {
       const n = (val as number) ?? 0;
       return <span>{fmtRupiah(n)}</span>;
     }

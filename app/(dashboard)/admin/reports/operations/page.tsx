@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -344,16 +345,45 @@ const CAP_DEFAULT_VISIBLE = new Set(
 // ─── Sub-report tabs ──────────────────────────────────────────────────────────
 
 const REPORT_TABS = [
-  { id: "a", label: "A — Booking & Ops Detail", live: true },
-  { id: "b", label: "B — Groomer Performance", live: true },
-  { id: "c", label: "C — Capacity Utilisation", live: true },
-  { id: "d", label: "D — Cancellation & No-show", live: false },
+  { id: "detail", label: "A — Booking & Ops Detail", live: true },
+  { id: "groomer-performance", label: "B — Groomer Performance", live: true },
+  { id: "capacity-utilisation", label: "C — Capacity Utilisation", live: true },
+  { id: "cancellation", label: "D — Cancellation & No-show", live: false },
 ];
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export default function OperationsReportPage() {
-  const [activeTab, setActiveTab] = useState("a");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const initialTab =
+    tabParam && REPORT_TABS.some((t) => t.id === tabParam && t.live)
+      ? tabParam
+      : "detail";
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (tabParam && REPORT_TABS.some((t) => t.id === tabParam && t.live)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  useEffect(() => {
+    if (!searchParams.get("tab")) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", "detail");
+      router.replace(`?${params.toString()}`, { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function changeTab(tabId: string) {
+    setActiveTab(tabId);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tabId);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }
 
   // ── Filter state ────────────────────────────────────────────────────────────
   const [dateFrom, setDateFrom] = useState("");
@@ -413,7 +443,7 @@ export default function OperationsReportPage() {
 
   // ── Auto-stream on mount + filter change (debounced 400 ms) ─────────────────
   useEffect(() => {
-    if (activeTab !== "a" && activeTab !== "b") return;
+    if (activeTab !== "detail" && activeTab !== "groomer-performance") return;
 
     const timer = setTimeout(() => {
       streamAbortRef.current?.abort();
@@ -468,7 +498,7 @@ export default function OperationsReportPage() {
 
   // ── Capacity SSE stream (Tab C) — reconnects on filter change ───────────────
   useEffect(() => {
-    if (activeTab !== "c") {
+    if (activeTab !== "capacity-utilisation") {
       capStreamAbortRef.current?.abort();
       return;
     }
@@ -543,7 +573,7 @@ export default function OperationsReportPage() {
 
   // ── Build capacity rows (API returns enriched data, just filter client-side) ──
   const capacityRows = useMemo<CapacityRow[]>(() => {
-    if (activeTab !== "c") return [];
+    if (activeTab !== "capacity-utilisation") return [];
     return capData.filter((row) => {
       if (row.total_bookings < 1) return false;
       if (capUtilFilter === "green")
@@ -591,7 +621,7 @@ export default function OperationsReportPage() {
 
   // ── Groomer Performance rows (Report B) ─────────────────────────────────────
   const groomerRows = useMemo<GroomerPerformanceRow[]>(() => {
-    if (activeTab !== "b" || allBookings.length === 0) return [];
+    if (activeTab !== "groomer-performance" || allBookings.length === 0) return [];
     return buildGroomerPerformanceRows(allBookings, dateFrom, dateTo);
   }, [allBookings, activeTab, dateFrom, dateTo]);
 
@@ -697,7 +727,7 @@ export default function OperationsReportPage() {
       {REPORT_TABS.map((t) => (
         <button
           key={t.id}
-          onClick={() => t.live && setActiveTab(t.id)}
+          onClick={() => t.live && changeTab(t.id)}
           className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
             activeTab === t.id
               ? "bg-primary text-primary-foreground"
@@ -734,7 +764,7 @@ export default function OperationsReportPage() {
       </div>
 
       {/* ── Report A: Booking & Ops Detail ─────────────────────────────────── */}
-      {activeTab === "a" && (
+      {activeTab === "detail" && (
         <div className="space-y-4">
           {/* Filter panel */}
           <Card>
@@ -1212,7 +1242,7 @@ export default function OperationsReportPage() {
       )}
 
       {/* ── Report B: Groomer Performance ────────────────────────────────────── */}
-      {activeTab === "b" && (
+      {activeTab === "groomer-performance" && (
         <div className="space-y-4">
           {/* Filter panel — identical to Report A */}
           <Card>
@@ -1573,7 +1603,7 @@ export default function OperationsReportPage() {
       )}
 
       {/* ── Report C: Capacity Utilisation ───────────────────────────────────── */}
-      {activeTab === "c" && (
+      {activeTab === "capacity-utilisation" && (
         <div className="space-y-4">
           {/* Filter panel */}
           <Card>
@@ -2032,7 +2062,9 @@ export default function OperationsReportPage() {
       )}
 
       {/* ── Other tabs — coming soon ──────────────────────────────────────────── */}
-      {activeTab !== "a" && activeTab !== "b" && activeTab !== "c" && (
+      {activeTab !== "detail" &&
+        activeTab !== "groomer-performance" &&
+        activeTab !== "capacity-utilisation" && (
         <div className="space-y-4">
           {/* Sub-report tabs */}
           {reportTabs}

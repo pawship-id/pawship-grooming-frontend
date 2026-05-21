@@ -33,7 +33,7 @@ const reports = [
     usedBy: "Admin, Manager",
     sheet: "Operations",
     keyTables: "Booking, Store, Users, Services, StoreDailyUsage",
-    href: "/admin/reports/operations",
+    href: "/admin/reports/operations?tab=detail",
     locked: false,
   },
   {
@@ -44,7 +44,7 @@ const reports = [
     usedBy: "Manager, Owner",
     sheet: "Operations",
     keyTables: "Booking (sessions), Users, Store",
-    href: "/admin/reports/operations",
+    href: "/admin/reports/operations?tab=groomer-performance",
     locked: false,
   },
   {
@@ -55,7 +55,7 @@ const reports = [
     usedBy: "Manager, Owner",
     sheet: "Operations",
     keyTables: "StoreDailyCapacity, StoreDailyUsages, Store",
-    href: "/admin/reports/operations",
+    href: "/admin/reports/operations?tab=capacity-utilisation",
     locked: false,
   },
   {
@@ -66,7 +66,7 @@ const reports = [
     usedBy: "Manager, Admin",
     sheet: "Operations",
     keyTables: "Booking, Users, Store",
-    href: "/admin/reports/operations",
+    href: "/admin/reports/operations?tab=cancellation",
     locked: false,
   },
   {
@@ -77,8 +77,8 @@ const reports = [
     usedBy: "Admin, CRM",
     sheet: "Customer",
     keyTables: "Users, Pets, PetMemberships, MembershipPlans",
-    href: null,
-    locked: true,
+    href: "/admin/reports/customer?tab=master-data",
+    locked: false,
   },
   {
     id: 7,
@@ -88,8 +88,8 @@ const reports = [
     usedBy: "Owner, Marketing",
     sheet: "Customer",
     keyTables: "Pets, Booking, Users",
-    href: null,
-    locked: true,
+    href: "/admin/reports/customer?tab=retention",
+    locked: false,
   },
   {
     id: 8,
@@ -99,8 +99,8 @@ const reports = [
     usedBy: "Marketing, CS",
     sheet: "Customer",
     keyTables: "Pets, Booking, Users",
-    href: null,
-    locked: true,
+    href: "/admin/reports/customer?tab=lapsed-at-risk",
+    locked: false,
   },
   {
     id: 9,
@@ -110,8 +110,8 @@ const reports = [
     usedBy: "Owner, Marketing",
     sheet: "Customer",
     keyTables: "Users, Pets, Booking",
-    href: null,
-    locked: true,
+    href: "/admin/reports/customer?tab=new-conversion",
+    locked: false,
   },
   {
     id: 10,
@@ -121,8 +121,8 @@ const reports = [
     usedBy: "Owner, Marketing",
     sheet: "Customer",
     keyTables: "Users, Pets, Booking, PetMemberships",
-    href: null,
-    locked: true,
+    href: "/admin/reports/customer?tab=vip-top-customer",
+    locked: false,
   },
   {
     id: 11,
@@ -132,8 +132,8 @@ const reports = [
     usedBy: "Owner, Finance",
     sheet: "Membership",
     keyTables: "PetMemberships, MembershipPlans, Pets, Users",
-    href: null,
-    locked: true,
+    href: "/admin/reports/membership?tab=detail",
+    locked: false,
   },
   {
     id: 12,
@@ -143,8 +143,8 @@ const reports = [
     usedBy: "Admin, CS",
     sheet: "Membership",
     keyTables: "PetMemberships, MembershipPlans, Pets, Users",
-    href: null,
-    locked: true,
+    href: "/admin/reports/membership?tab=expiry",
+    locked: false,
   },
   {
     id: 13,
@@ -154,8 +154,8 @@ const reports = [
     usedBy: "Owner, Finance",
     sheet: "Membership",
     keyTables: "PetMemberships, MembershipPlans",
-    href: null,
-    locked: true,
+    href: "/admin/reports/membership?tab=revenue",
+    locked: false,
   },
   {
     id: 14,
@@ -165,8 +165,8 @@ const reports = [
     usedBy: "Owner, Finance",
     sheet: "Membership",
     keyTables: "BenefitUsage, PetMemberships, MembershipPlans, Booking",
-    href: null,
-    locked: true,
+    href: "/admin/reports/membership?tab=benefit-utilisation",
+    locked: false,
   },
 ];
 

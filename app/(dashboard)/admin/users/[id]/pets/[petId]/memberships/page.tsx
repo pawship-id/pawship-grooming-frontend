@@ -227,10 +227,11 @@ function MembershipCard({
             {pm.purchase_price != null && (
               <>
                 <span className="text-xs text-muted-foreground">·</span>
-                {pm.purchase_price !== pm.membership.price ? (
+                {pm.base_price != null &&
+                pm.purchase_price !== pm.base_price ? (
                   <span className="text-xs">
                     <span className="text-muted-foreground line-through">
-                      Rp {pm.membership.price.toLocaleString("id-ID")}
+                      Rp {pm.base_price.toLocaleString("id-ID")}
                     </span>{" "}
                     <span className="font-medium text-foreground">
                       Rp {pm.purchase_price.toLocaleString("id-ID")}

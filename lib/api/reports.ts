@@ -610,6 +610,7 @@ export interface MembershipDetailRow {
   membership_code: string;
   membership_name: string;
   membership_price: number;
+  actual_price: number;
   duration_days: number | null;
   start_date: string | null;
   end_date: string | null;
@@ -689,6 +690,7 @@ export interface BenefitUtilisationRow {
   benefit_index: number | null;
   cumulative_used: number;
   membership_price: number;
+  actual_price: number;
   benefit_vs_price_pct: number;
 }
 
