@@ -782,6 +782,7 @@ export async function createPublicBooking(
     selected_benefit_ids?: string[];
     selected_promotion_ids?: string[];
     note?: string;
+    brought_items_note?: string;
   },
   authToken?: string,
 ) {

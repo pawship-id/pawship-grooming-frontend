@@ -4,6 +4,8 @@ import { MapPin, User, PawPrint, Clock, CalendarDays, Truck, Home, Store, CheckC
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { formatPrice } from "@/lib/format"
 import type { PublicStore, PublicService, PublicServiceType, PublicUser, PublicPreviewResult, PublicApplyBenefitResult, PublicApplyPromotionResult } from "@/lib/api/stores"
 
@@ -32,6 +34,8 @@ interface StepSummaryProps {
   bookingCreated: boolean
   submittingBooking: boolean
   formError: string
+  broughtItemsNote: string
+  setBroughtItemsNote: (v: string) => void
   handleCreateBooking: () => void
 }
 
@@ -58,6 +62,8 @@ export function StepSummary({
   bookingCreated,
   submittingBooking,
   formError,
+  broughtItemsNote,
+  setBroughtItemsNote,
   handleCreateBooking,
 }: StepSummaryProps) {
   const grandTotal = previewData?.pricing_breakdown.grand_total ?? 0
@@ -162,6 +168,28 @@ export function StepSummary({
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Barang Bawaan dari Pawrents */}
+        {!bookingCreated && (
+          <div className="px-6 py-4 flex flex-col gap-2">
+            <Label htmlFor="brought_items_note">
+              List Barang Bawaan Pawrents (opsional)
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Tulis tiap barang di baris baru (tekan Enter) supaya daftarnya
+              lebih rapi dan mudah dibaca groomer.
+            </p>
+            <Textarea
+              id="brought_items_note"
+              placeholder={
+                "Contoh:\nTas carrier biru\nObat vitamin\nMakanan khusus\nBaju ganti\nMainan"
+              }
+              rows={4}
+              value={broughtItemsNote}
+              onChange={(e) => setBroughtItemsNote(e.target.value)}
+            />
           </div>
         )}
 

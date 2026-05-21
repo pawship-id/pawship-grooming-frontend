@@ -201,6 +201,7 @@ export interface AdminBooking {
   grooming_session?: GroomingSession;
   referal_code?: string;
   note?: string;
+  brought_items_note?: string | null;
   cancellation_reason?: string | null;
   payment_method?: string;
   created_by_role?: "customer" | "admin" | null;
@@ -363,6 +364,7 @@ export interface CreateBookingPayload {
   selected_promotion_ids?: string[];
   referal_code?: string;
   note?: string;
+  brought_items_note?: string;
   payment_method?: string;
   code?: string;
 }
@@ -594,6 +596,19 @@ export async function updateBookingNote(id: string, note?: string) {
     method: "PATCH",
     body: JSON.stringify({ note }),
   });
+}
+
+export async function updateBookingBroughtItemsNote(
+  id: string,
+  brought_items_note?: string,
+) {
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${id}/brought-items`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ brought_items_note }),
+    },
+  );
 }
 
 // Fetches membership benefits directly for a pet, bypassing service price lookups.

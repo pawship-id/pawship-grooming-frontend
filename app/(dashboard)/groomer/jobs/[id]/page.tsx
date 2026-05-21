@@ -442,9 +442,21 @@ export default function GroomerJobDetailPage({
             )}
             {booking.note && (
               <div>
-                <span className="text-xs text-muted-foreground">Notes</span>
+                <span className="text-xs text-muted-foreground">
+                  Catatan Booking
+                </span>
                 <p className="mt-1 rounded-md bg-muted/50 p-2 text-sm text-foreground">
                   {booking.note}
+                </p>
+              </div>
+            )}
+            {booking.brought_items_note && (
+              <div>
+                <span className="text-xs text-muted-foreground">
+                  List Barang Bawaan Pawrents
+                </span>
+                <p className="mt-1 rounded-md bg-muted/50 p-2 text-sm text-foreground whitespace-pre-wrap break-words">
+                  {booking.brought_items_note}
                 </p>
               </div>
             )}

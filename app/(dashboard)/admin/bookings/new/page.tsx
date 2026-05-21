@@ -50,6 +50,7 @@ const DEFAULT_FORM = {
   referal_code: "",
   payment_method: "",
   note: "",
+  brought_items_note: "",
 };
 
 // ── Page Component ─────────────────────────────────────────────────────────────
@@ -563,6 +564,7 @@ export default function NewBookingPage() {
             ? customPaymentMethod.trim() || undefined
             : form.payment_method || undefined,
         note: form.note || undefined,
+        brought_items_note: form.brought_items_note || undefined,
       });
       toast.success("Booking berhasil dibuat");
       router.push(
@@ -737,7 +739,14 @@ export default function NewBookingPage() {
             <StepHeader
               step={5}
               title="Catatan & Info Tambahan"
-              done={!!(form.note || form.payment_method || form.referal_code)}
+              done={
+                !!(
+                  form.note ||
+                  form.brought_items_note ||
+                  form.payment_method ||
+                  form.referal_code
+                )
+              }
             />
             <StepNotesPayment
               form={form}
