@@ -75,7 +75,11 @@ export interface SessionMedia {
   secure_url?: string;
   public_id?: string;
   type: "before" | "after" | "other";
-  note?: string;
+  // Canonical caption field. Optional — old media may not have it; in that
+  // case the backend mirrors the legacy `note` value into `notes` on read.
+  notes?: string | null;
+  /** @deprecated kept so older payloads still render — use `notes`. */
+  note?: string | null;
   session_id?: string;
   created_by?: {
     user_id?: string;
@@ -734,7 +738,7 @@ export async function uploadBookingMedia(
   bookingId: string,
   file: File,
   type: "before" | "after" | "other",
-  note?: string,
+  notes?: string,
 ) {
   const signature = await apiAuthRequest<CloudinarySignature>(
     `/bookings/${bookingId}/media/sign`,
@@ -752,7 +756,7 @@ export async function uploadBookingMedia(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, public_id, secure_url, note }),
+      body: JSON.stringify({ type, public_id, secure_url, notes }),
     },
   );
 }
@@ -771,7 +775,7 @@ export async function uploadSessionOtherMedia(
   bookingId: string,
   sessionId: string,
   file: File,
-  note?: string,
+  notes?: string,
 ) {
   const signature = await apiAuthRequest<CloudinarySignature>(
     `/bookings/${bookingId}/session/${sessionId}/media/other/sign`,
@@ -789,7 +793,24 @@ export async function uploadSessionOtherMedia(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ public_id, secure_url, note }),
+      body: JSON.stringify({ public_id, secure_url, notes }),
+    },
+  );
+}
+
+// Update the caption/notes of an existing booking media item.
+// Admin can edit any; groomer only their own. Empty string clears it.
+export async function updateBookingMediaNotes(
+  bookingId: string,
+  publicId: string,
+  notes: string,
+) {
+  return apiAuthRequest<{ message: string }>(
+    `/bookings/${bookingId}/media/notes`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ public_id: publicId, notes }),
     },
   );
 }
