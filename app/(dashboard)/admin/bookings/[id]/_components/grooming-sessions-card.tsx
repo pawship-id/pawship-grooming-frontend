@@ -466,7 +466,9 @@ export function GroomingSessionsCard({
                             setAssignGroomerSessionType(session.type ?? "");
                             setAssignGroomerValue(
                               session.groomer_detail?._id ||
-                                session.groomer_id ||
+                                (typeof session.groomer_id === "string"
+                                  ? session.groomer_id
+                                  : session.groomer_id?._id) ||
                                 "",
                             );
                           }}
