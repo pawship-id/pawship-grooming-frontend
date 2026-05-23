@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { getSafeRedirectPath, useAuth } from "@/lib/auth-context";
 import { PublicNavbar } from "@/components/public-navbar";
 import { PublicFooter } from "@/components/public-footer";
 
-export default function CustomerLayout({
+function CustomerLayoutInner({
   children,
 }: {
   children: React.ReactNode;
@@ -71,5 +71,23 @@ export default function CustomerLayout({
       </main>
       <PublicFooter />
     </div>
+  );
+}
+
+export default function CustomerLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          <div className="text-muted-foreground">Loading...</div>
+        </div>
+      }
+    >
+      <CustomerLayoutInner>{children}</CustomerLayoutInner>
+    </Suspense>
   );
 }
