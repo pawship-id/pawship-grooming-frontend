@@ -20,6 +20,7 @@ import {
   EyeOff,
   PawPrint,
   User,
+  UserCircle,
   MapPin,
   Map,
   ChevronDown,
@@ -1095,11 +1096,22 @@ export default function UsersPage() {
                           {user.code}
                         </p>
                       )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full mt-2"
+                        asChild
+                      >
+                        <Link href={`/admin/users/${user._id}/detail`}>
+                          <UserCircle className="mr-2 h-4 w-4" />
+                          Lihat Detail
+                        </Link>
+                      </Button>
                       {user.role === "customer" && (
                         <Button
                           variant="outline"
                           size="sm"
-                          className="w-full mt-2"
+                          className="w-full"
                           asChild
                         >
                           <Link href={`/admin/users/${user._id}/pets`}>
@@ -1269,19 +1281,27 @@ export default function UsersPage() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              {user.role === "customer" && (
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 <Button variant="outline" size="sm" asChild>
-                                  <Link href={`/admin/users/${user._id}/pets`}>
-                                    <PawPrint className="mr-1.5 h-3.5 w-3.5" />
-                                    Lihat Pet
-                                    {user.pet_count !== undefined && (
-                                      <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
-                                        {user.pet_count}
-                                      </span>
-                                    )}
+                                  <Link href={`/admin/users/${user._id}/detail`}>
+                                    <UserCircle className="mr-1.5 h-3.5 w-3.5" />
+                                    Detail
                                   </Link>
                                 </Button>
-                              )}
+                                {user.role === "customer" && (
+                                  <Button variant="outline" size="sm" asChild>
+                                    <Link href={`/admin/users/${user._id}/pets`}>
+                                      <PawPrint className="mr-1.5 h-3.5 w-3.5" />
+                                      Lihat Pet
+                                      {user.pet_count !== undefined && (
+                                        <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+                                          {user.pet_count}
+                                        </span>
+                                      )}
+                                    </Link>
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell className="text-right">
                               <DropdownMenu>
