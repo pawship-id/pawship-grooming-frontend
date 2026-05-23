@@ -235,9 +235,25 @@ export interface MembershipRef {
   price: number;
 }
 
+export interface PetMembershipsPagination {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface PetMembershipsStatusCounts {
+  active: number;
+  pending: number;
+  expired: number;
+  cancelled: number;
+}
+
 export interface PetMembershipsResponse {
   message: string;
   data: PetMembership[];
+  pagination?: PetMembershipsPagination;
+  statusCounts?: PetMembershipsStatusCounts;
 }
 
 export interface PetMembershipDetailResponse {
@@ -277,6 +293,11 @@ export interface GetPetMembershipsParams {
   membership_plan_id?: string;
   is_active?: boolean;
   status?: MembershipStatus;
+  page?: number;
+  limit?: number;
+  q?: string;
+  date_from?: string;
+  date_to?: string;
 }
 
 // Benefits summary types
@@ -348,6 +369,11 @@ export async function getPetMemberships(params: GetPetMembershipsParams = {}) {
   if (params.is_active !== undefined)
     query.set("is_active", String(params.is_active));
   if (params.status) query.set("status", params.status);
+  if (params.page) query.set("page", String(params.page));
+  if (params.limit) query.set("limit", String(params.limit));
+  if (params.q) query.set("q", params.q);
+  if (params.date_from) query.set("date_from", params.date_from);
+  if (params.date_to) query.set("date_to", params.date_to);
   const qs = query.toString();
   return apiAuthRequest<PetMembershipsResponse>(
     `/pet-memberships${qs ? `?${qs}` : ""}`,

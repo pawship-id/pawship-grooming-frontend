@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   CalendarDays,
+  CalendarRange,
   Users,
   Tag,
   Percent,
@@ -51,6 +52,11 @@ import {
 const menuItems = [
   { title: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Bookings", href: "/admin/bookings", icon: CalendarDays },
+  {
+    title: "Booking Calendar",
+    href: "/admin/bookings/calendar",
+    icon: CalendarRange,
+  },
   { title: "Users", href: "/admin/users", icon: Users },
   { title: "Stores", href: "/admin/stores", icon: Store },
   { title: "Services", href: "/admin/services", icon: Scissors },
@@ -80,6 +86,14 @@ export function AdminSidebar() {
   const { theme, setTheme } = useTheme();
   const isReportsActive = pathname.startsWith("/admin/reports");
   const [reportsOpen, setReportsOpen] = useState(isReportsActive);
+
+  // Highlight only the most specific matching item — prevents the
+  // "Bookings" parent route from staying active on nested pages like
+  // "Booking Calendar" which is a sibling-level entry.
+  const activeHref = menuItems
+    .map((m) => m.href)
+    .filter((h) => pathname === h || pathname.startsWith(h + "/"))
+    .sort((a, b) => b.length - a.length)[0];
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark");
@@ -118,7 +132,7 @@ export function AdminSidebar() {
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname.startsWith(item.href)}
+                    isActive={activeHref === item.href}
                   >
                     <Link
                       href={item.href}

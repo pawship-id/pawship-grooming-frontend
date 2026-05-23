@@ -2137,46 +2137,79 @@ function CustomerReportPage() {
 
   const filtered = isFilterActive(filters);
 
-  // ── Fetch on mount ───────────────────────────────────────────────────────────
+  // ── Track which tabs have been loaded — fetch lazily on tab activation ──────
+  // The backend now paginates + uses lean queries, but we still cap the page
+  // size to 5000 rows to keep the proxy round-trip bounded under Vercel's 60s
+  // limit. Typical production datasets fit comfortably; if a tab exceeds the
+  // cap a follow-up will be needed.
+  const PAGE_LIMIT = 5000;
+  const [loadedTabs, setLoadedTabs] = useState<Set<string>>(new Set());
+
   useEffect(() => {
-    setMasterLoading(true);
-    setMasterError(null);
-    getCustomerMasterData()
-      .then((res) => setMasterRaw(res.data ?? []))
-      .catch((e: unknown) =>
-        setMasterError(e instanceof Error ? e.message : "Gagal memuat data"),
-      )
-      .finally(() => setMasterLoading(false));
+    if (loadedTabs.has(activeTab)) return;
 
-    setRetentionLoading(true);
-    setRetentionError(null);
-    getCustomerRetentionReport()
-      .then((res) => setRetentionRaw(res.data ?? []))
-      .catch((e: unknown) =>
-        setRetentionError(e instanceof Error ? e.message : "Gagal memuat data"),
-      )
-      .finally(() => setRetentionLoading(false));
-
-    setConversionLoading(true);
-    setConversionError(null);
-    getNewCustomerConversionReport()
-      .then((res) => setConversionRaw(res.data ?? []))
-      .catch((e: unknown) =>
-        setConversionError(
-          e instanceof Error ? e.message : "Gagal memuat data",
-        ),
-      )
-      .finally(() => setConversionLoading(false));
-
-    setVipLoading(true);
-    setVipError(null);
-    getVipCustomerReport()
-      .then((res) => setVipRaw(res.data ?? []))
-      .catch((e: unknown) =>
-        setVipError(e instanceof Error ? e.message : "Gagal memuat data"),
-      )
-      .finally(() => setVipLoading(false));
-  }, []);
+    if (activeTab === "master-data") {
+      setMasterLoading(true);
+      setMasterError(null);
+      getCustomerMasterData({ limit: PAGE_LIMIT })
+        .then((res) => setMasterRaw(res.data ?? []))
+        .catch((e: unknown) =>
+          setMasterError(e instanceof Error ? e.message : "Gagal memuat data"),
+        )
+        .finally(() => {
+          setMasterLoading(false);
+          setLoadedTabs((prev) => new Set(prev).add("master-data"));
+        });
+    } else if (
+      activeTab === "retention" ||
+      activeTab === "lapsed-at-risk"
+    ) {
+      // Both `retention` and `lapsed-at-risk` tabs read from retentionRaw.
+      if (!loadedTabs.has("retention")) {
+        setRetentionLoading(true);
+        setRetentionError(null);
+        getCustomerRetentionReport({ limit: PAGE_LIMIT })
+          .then((res) => setRetentionRaw(res.data ?? []))
+          .catch((e: unknown) =>
+            setRetentionError(
+              e instanceof Error ? e.message : "Gagal memuat data",
+            ),
+          )
+          .finally(() => {
+            setRetentionLoading(false);
+            setLoadedTabs((prev) =>
+              new Set(prev).add("retention").add("lapsed-at-risk"),
+            );
+          });
+      }
+    } else if (activeTab === "new-conversion") {
+      setConversionLoading(true);
+      setConversionError(null);
+      getNewCustomerConversionReport({ limit: PAGE_LIMIT })
+        .then((res) => setConversionRaw(res.data ?? []))
+        .catch((e: unknown) =>
+          setConversionError(
+            e instanceof Error ? e.message : "Gagal memuat data",
+          ),
+        )
+        .finally(() => {
+          setConversionLoading(false);
+          setLoadedTabs((prev) => new Set(prev).add("new-conversion"));
+        });
+    } else if (activeTab === "vip-top-customer") {
+      setVipLoading(true);
+      setVipError(null);
+      getVipCustomerReport({ limit: PAGE_LIMIT })
+        .then((res) => setVipRaw(res.data ?? []))
+        .catch((e: unknown) =>
+          setVipError(e instanceof Error ? e.message : "Gagal memuat data"),
+        )
+        .finally(() => {
+          setVipLoading(false);
+          setLoadedTabs((prev) => new Set(prev).add("vip-top-customer"));
+        });
+    }
+  }, [activeTab, loadedTabs]);
 
   // ── Derive dropdown options from raw data ────────────────────────────────────
   const petTypeOptions = useMemo(

@@ -14,6 +14,10 @@ import {
   X,
   CreditCard,
   Info,
+  History,
+  ChevronLeft,
+  ChevronRight,
+  MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +64,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { type ApiPet, type ApiCurrentUser, getUser } from "@/lib/api/users";
 import {
   type CreatePetPayload,
@@ -70,7 +81,11 @@ import {
 } from "@/lib/api/pets";
 import { uploadFile } from "@/lib/api/upload";
 import { getOptions, type ApiOption } from "@/lib/api/options";
+import { getAdminBookings, type AdminBooking } from "@/lib/api/bookings";
+import { getStatusConfig } from "@/lib/booking-status";
+import { formatPrice, formatDateTime } from "@/lib/format";
 import { toast } from "sonner";
+import Link from "next/link";
 
 // ── Form types ─────────────────────────────────────────────────────────────
 type PetForm = {
@@ -178,11 +193,13 @@ function PetCard({
   onEdit,
   onDelete,
   onMembership,
+  onViewHistory,
 }: {
   pet: ApiPet;
   onEdit: (pet: ApiPet) => void;
   onDelete: (pet: ApiPet) => void;
   onMembership: (pet: ApiPet) => void;
+  onViewHistory: (pet: ApiPet) => void;
 }) {
   const initials = pet.name.slice(0, 2).toUpperCase();
 
@@ -238,33 +255,40 @@ function PetCard({
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              title="Membership"
-              onClick={() => onMembership(pet)}
-            >
-              <CreditCard className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => onEdit(pet)}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-destructive hover:text-destructive"
-              onClick={() => onDelete(pet)}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                aria-label="Aksi pet"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={() => onViewHistory(pet)}>
+                <History className="mr-2 h-4 w-4" />
+                Booking History
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onMembership(pet)}>
+                <CreditCard className="mr-2 h-4 w-4" />
+                Membership
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onEdit(pet)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit Pet
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => onDelete(pet)}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Hapus Pet
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-2 text-sm text-muted-foreground">
@@ -725,6 +749,9 @@ export default function CustomerPetsPage() {
   const [deletingPet, setDeletingPet] = useState<ApiPet | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Booking history dialog state
+  const [historyPet, setHistoryPet] = useState<ApiPet | null>(null);
+
   const [createImageFile, setCreateImageFile] = useState<File | null>(null);
   const [createImagePreview, setCreateImagePreview] = useState<string | null>(
     null,
@@ -967,6 +994,7 @@ export default function CustomerPetsPage() {
                       `/admin/users/${userId}/pets/${p._id}/memberships`,
                     )
                   }
+                  onViewHistory={setHistoryPet}
                 />
               ))}
 
@@ -1037,6 +1065,12 @@ export default function CustomerPetsPage() {
         }}
       />
 
+      {/* Booking History */}
+      <BookingHistoryDialog
+        pet={historyPet}
+        onClose={() => setHistoryPet(null)}
+      />
+
       {/* Delete Confirmation */}
       <AlertDialog
         open={!!deletingPet}
@@ -1068,5 +1102,210 @@ export default function CustomerPetsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+// ── Booking History Dialog ─────────────────────────────────────────────────
+const HISTORY_PAGE_SIZE = 10;
+const HISTORY_EMPTY = "-";
+
+function renderHistoryValue(value: unknown): string {
+  if (value === null || value === undefined) return HISTORY_EMPTY;
+  if (typeof value === "number")
+    return Number.isFinite(value) ? String(value) : HISTORY_EMPTY;
+  if (typeof value === "string")
+    return value.trim() === "" ? HISTORY_EMPTY : value;
+  return HISTORY_EMPTY;
+}
+
+function BookingHistoryDialog({
+  pet,
+  onClose,
+}: {
+  pet: ApiPet | null;
+  onClose: () => void;
+}) {
+  const [bookings, setBookings] = useState<AdminBooking[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+
+  const petId = pet?._id;
+
+  useEffect(() => {
+    if (!petId) {
+      setBookings(null);
+      setError(null);
+      setPage(1);
+      return;
+    }
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError(null);
+      setPage(1);
+      try {
+        const res = await getAdminBookings({
+          pet_id: petId,
+          limit: 200,
+          page: 1,
+        });
+        if (cancelled) return;
+        const sorted = [...(res.bookings ?? [])].sort((a, b) => {
+          const da = new Date(a.date || a.createdAt).getTime();
+          const db = new Date(b.date || b.createdAt).getTime();
+          if (db !== da) return db - da;
+          return (
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        });
+        setBookings(sorted);
+      } catch (err) {
+        if (cancelled) return;
+        setError(
+          err instanceof Error ? err.message : "Gagal memuat riwayat booking",
+        );
+        setBookings([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [petId]);
+
+  const totalPages = bookings
+    ? Math.max(1, Math.ceil(bookings.length / HISTORY_PAGE_SIZE))
+    : 1;
+  const safePage = Math.min(page, totalPages);
+  const pageItems = bookings
+    ? bookings.slice(
+        (safePage - 1) * HISTORY_PAGE_SIZE,
+        safePage * HISTORY_PAGE_SIZE,
+      )
+    : [];
+
+  return (
+    <Dialog
+      open={!!pet}
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+    >
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="font-display flex items-center gap-2">
+            <History className="h-4 w-4 text-primary" />
+            Riwayat Booking{pet ? ` · ${pet.name}` : ""}
+            {bookings && (
+              <span className="ml-1 inline-flex items-center justify-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                {bookings.length}
+              </span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto -mx-1 px-1">
+          {loading ? (
+            <div className="flex flex-col gap-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : error ? (
+            <div className="py-8 text-center text-sm text-destructive">
+              {error}
+            </div>
+          ) : !bookings || bookings.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">
+              <History className="mx-auto mb-3 h-8 w-8 opacity-30" />
+              <p className="text-sm">
+                Belum ada riwayat booking untuk pet ini
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {pageItems.map((b) => (
+                <BookingHistoryRow key={b._id} booking={b} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {bookings && bookings.length > HISTORY_PAGE_SIZE && (
+          <div className="flex items-center justify-between gap-3 border-t border-border/40 pt-3">
+            <span className="text-xs text-muted-foreground">
+              Halaman {safePage} dari {totalPages} · {bookings.length} booking
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BookingHistoryRow({ booking }: { booking: AdminBooking }) {
+  const cfg = getStatusConfig(booking.booking_status);
+  const serviceName = booking.service_snapshot?.name;
+  const storeName = booking.store?.name;
+  const groomerName =
+    booking.sessions?.[0]?.groomer_detail?.username ?? null;
+
+  return (
+    <Link
+      href={`/admin/bookings/${booking._id}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex flex-col gap-2 rounded-lg border border-border/40 p-3 transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-foreground">
+            {renderHistoryValue(serviceName)}
+          </span>
+          {booking.code && (
+            <span className="font-mono text-xs text-muted-foreground">
+              {booking.code}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>{renderHistoryValue(formatDateTime(booking.date))}</span>
+          {booking.time_range && <span>· {booking.time_range}</span>}
+          {storeName && <span>· {storeName}</span>}
+          <span>· Groomer: {renderHistoryValue(groomerName)}</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 sm:flex-col sm:items-end">
+        <Badge variant="outline" className={`capitalize ${cfg.className}`}>
+          {cfg.label || booking.booking_status}
+        </Badge>
+        <span className="text-sm font-medium text-foreground">
+          {typeof booking.final_total_price === "number"
+            ? formatPrice(booking.final_total_price)
+            : HISTORY_EMPTY}
+        </span>
+      </div>
+    </Link>
   );
 }

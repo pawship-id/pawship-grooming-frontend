@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { getAdminBookingById, type AdminBooking } from "@/lib/api/bookings";
+import { ApiError } from "@/lib/api/client";
 import { getStatusConfig } from "@/lib/booking-status";
 import {
   BookingLoadingState,
@@ -34,6 +36,19 @@ export default function CustomerOrderDetailPage() {
       const response = await getAdminBookingById(bookingId);
       setBooking(response.booking);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        toast.error(
+          err.message ||
+            "Booking ini bukan milik Anda, silahkan hubungi admin untuk konfirmasi",
+          { id: `booking-forbidden-${bookingId}` },
+        );
+        router.replace("/customer/order");
+        return;
+      }
+      if (err instanceof ApiError && err.status === 404) {
+        setError("Booking tidak ditemukan.");
+        return;
+      }
       console.error("Failed to fetch booking detail:", err);
       setError("Gagal memuat detail booking. Silakan coba lagi.");
     } finally {

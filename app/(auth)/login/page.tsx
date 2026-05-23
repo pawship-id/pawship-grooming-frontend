@@ -4,7 +4,8 @@ import React from "react"
 
 import { useState } from "react"
 import Image from "next/image"
-import { useAuth } from "@/lib/auth-context"
+import { useSearchParams } from "next/navigation"
+import { getSafeRedirectPath, useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +15,8 @@ import Link from "next/link"
 
 export default function LoginPage() {
   const { login } = useAuth()
+  const searchParams = useSearchParams()
+  const redirectTo = getSafeRedirectPath(searchParams.get("redirect"))
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -25,7 +28,7 @@ export default function LoginPage() {
     setError("")
     setIsLoading(true)
 
-    const result = await login(email, password)
+    const result = await login(email, password, redirectTo)
     if (!result.success) {
       setError(result.error || "Login failed")
     }
