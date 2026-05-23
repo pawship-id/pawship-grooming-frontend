@@ -16,8 +16,22 @@ import { clearAuthTokens, loginRequest, setAuthTokens } from "./api/index";
 import { SESSION_EXPIRED_EVENT } from "./api/client";
 
 const AUTH_STORAGE_KEY = "pawship-auth";
+const REDIRECT_STORAGE_KEY = "pawship-post-login-redirect";
 
 type LoginResult = { success: boolean; error?: string };
+
+/**
+ * Returns the value only if it's a safe internal application path.
+ * Rejects protocol-relative (`//foo`), backslash-escaped (`/\foo`), and
+ * absolute URLs — guards against open-redirect.
+ */
+export function getSafeRedirectPath(value: string | null | undefined): string | null {
+  if (!value || typeof value !== "string") return null;
+  if (!value.startsWith("/")) return null;
+  if (value.startsWith("//") || value.startsWith("/\\")) return null;
+  if (value.startsWith("/login") || value.startsWith("/register")) return null;
+  return value;
+}
 
 interface TokenPayload {
   _id?: string;
@@ -30,7 +44,11 @@ interface TokenPayload {
 
 interface AuthContextType {
   user: AuthUser | null;
-  login: (email: string, password: string) => Promise<LoginResult>;
+  login: (
+    email: string,
+    password: string,
+    redirectTo?: string | null,
+  ) => Promise<LoginResult>;
   loginSilent: (email: string, password: string) => Promise<LoginResult>;
   loginWithTokens: (email: string, accessToken: string, refreshToken: string) => void;
   logout: () => void;
@@ -102,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   const login = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string, redirectTo?: string | null) => {
       try {
         const response = await loginRequest(email, password);
         const authenticatedUser = mapUserFromToken(
@@ -117,7 +135,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
         setAuthTokens(response.access_token, response.refresh_token);
 
-        if (
+        const stashed =
+          typeof window !== "undefined"
+            ? sessionStorage.getItem(REDIRECT_STORAGE_KEY)
+            : null;
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem(REDIRECT_STORAGE_KEY);
+        }
+        const safeRedirect =
+          getSafeRedirectPath(redirectTo) ?? getSafeRedirectPath(stashed);
+
+        if (safeRedirect) {
+          router.push(safeRedirect);
+        } else if (
           authenticatedUser.role === "admin" ||
           authenticatedUser.role === "ops"
         ) {
@@ -172,6 +202,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setUser(null);
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    try {
+      sessionStorage.removeItem(REDIRECT_STORAGE_KEY);
+    } catch {}
     clearAuthTokens();
     router.push("/login");
   }, [router]);
@@ -181,7 +214,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       localStorage.removeItem(AUTH_STORAGE_KEY);
       toast.error("Sesi login berakhir, silakan login kembali");
-      router.push("/login");
+
+      const current = `${window.location.pathname}${window.location.search}`;
+      const safe = getSafeRedirectPath(current);
+      if (safe) {
+        sessionStorage.setItem(REDIRECT_STORAGE_KEY, safe);
+        router.push(`/login?redirect=${encodeURIComponent(safe)}`);
+      } else {
+        router.push("/login");
+      }
     };
 
     window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);

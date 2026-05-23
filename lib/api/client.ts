@@ -2,6 +2,15 @@ import { clearAuthTokens, getAccessToken, getRefreshToken, setAuthTokens } from 
 
 export const SESSION_EXPIRED_EVENT = "auth:session-expired"
 
+export class ApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = "ApiError"
+    this.status = status
+  }
+}
+
 function dispatchSessionExpired() {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT))
@@ -133,7 +142,10 @@ export async function apiRequest<TResponse>(path: string, options: ApiRequestOpt
       }
     }
 
-    throw new Error(extractErrorMessage(payload as ApiErrorResponse | null, response.status))
+    throw new ApiError(
+      extractErrorMessage(payload as ApiErrorResponse | null, response.status),
+      response.status,
+    )
   }
 
   if (response.status === 204) {
