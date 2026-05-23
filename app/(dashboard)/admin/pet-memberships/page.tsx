@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
@@ -195,7 +195,7 @@ function presetRange(
   return { from: null, to: null };
 }
 
-export default function AllPetMembershipsPage() {
+function AllPetMembershipsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -704,5 +704,21 @@ export default function AllPetMembershipsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function AllPetMembershipsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col gap-4">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      }
+    >
+      <AllPetMembershipsPageInner />
+    </Suspense>
   );
 }

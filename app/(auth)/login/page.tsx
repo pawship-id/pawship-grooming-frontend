@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { Suspense } from "react"
 
 import { useState } from "react"
 import Image from "next/image"
@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Eye, EyeOff, Home } from "lucide-react"
 import Link from "next/link"
 
-export default function LoginPage() {
+function LoginPageInner() {
   const { login } = useAuth()
   const searchParams = useSearchParams()
   const redirectTo = getSafeRedirectPath(searchParams.get("redirect"))
@@ -132,5 +132,19 @@ export default function LoginPage() {
       </Card>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          <div className="text-muted-foreground">Loading...</div>
+        </div>
+      }
+    >
+      <LoginPageInner />
+    </Suspense>
   )
 }
