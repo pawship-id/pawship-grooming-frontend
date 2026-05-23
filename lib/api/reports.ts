@@ -59,18 +59,42 @@ export interface CustomerRetentionRow {
   has_booked: boolean;
 }
 
-export async function getCustomerMasterData(search?: string): Promise<{ data: CustomerMasterDataRow[]; total: number }> {
-  const qs = new URLSearchParams();
-  if (search) qs.set("search", search);
-  const query = qs.toString();
-  return apiAuthRequest(`/reports/customer/master-data${query ? `?${query}` : ""}`);
+export interface CustomerReportPagination {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
-export async function getCustomerRetentionReport(search?: string): Promise<{ data: CustomerRetentionRow[]; total: number }> {
+export interface CustomerReportParams {
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+function buildCustomerReportQuery(params: CustomerReportParams = {}): string {
   const qs = new URLSearchParams();
-  if (search) qs.set("search", search);
-  const query = qs.toString();
-  return apiAuthRequest(`/reports/customer/retention${query ? `?${query}` : ""}`);
+  if (params.search) qs.set("search", params.search);
+  if (params.page) qs.set("page", String(params.page));
+  if (params.limit) qs.set("limit", String(params.limit));
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}
+
+export async function getCustomerMasterData(
+  params: CustomerReportParams = {},
+): Promise<{ data: CustomerMasterDataRow[]; total: number; pagination?: CustomerReportPagination }> {
+  return apiAuthRequest(
+    `/reports/customer/master-data${buildCustomerReportQuery(params)}`,
+  );
+}
+
+export async function getCustomerRetentionReport(
+  params: CustomerReportParams = {},
+): Promise<{ data: CustomerRetentionRow[]; total: number; pagination?: CustomerReportPagination }> {
+  return apiAuthRequest(
+    `/reports/customer/retention${buildCustomerReportQuery(params)}`,
+  );
 }
 
 export interface NewCustomerConversionRow {
@@ -90,11 +114,12 @@ export interface NewCustomerConversionRow {
   days_to_first_booking: number | null;
 }
 
-export async function getNewCustomerConversionReport(search?: string): Promise<{ data: NewCustomerConversionRow[]; total: number }> {
-  const qs = new URLSearchParams();
-  if (search) qs.set("search", search);
-  const query = qs.toString();
-  return apiAuthRequest(`/reports/customer/new-conversion${query ? `?${query}` : ""}`);
+export async function getNewCustomerConversionReport(
+  params: CustomerReportParams = {},
+): Promise<{ data: NewCustomerConversionRow[]; total: number; pagination?: CustomerReportPagination }> {
+  return apiAuthRequest(
+    `/reports/customer/new-conversion${buildCustomerReportQuery(params)}`,
+  );
 }
 
 export interface VipCustomerRow {
@@ -112,8 +137,12 @@ export interface VipCustomerRow {
   pet_status: "idle" | "new" | "active" | "at_risk" | "lapsed";
 }
 
-export async function getVipCustomerReport(): Promise<{ data: VipCustomerRow[]; total: number }> {
-  return apiAuthRequest(`/reports/customer/vip-top-customers`);
+export async function getVipCustomerReport(
+  params: CustomerReportParams = {},
+): Promise<{ data: VipCustomerRow[]; total: number; pagination?: CustomerReportPagination }> {
+  return apiAuthRequest(
+    `/reports/customer/vip-top-customers${buildCustomerReportQuery(params)}`,
+  );
 }
 
 // ─── Capacity Utilisation Report ──────────────────────────────────────────────

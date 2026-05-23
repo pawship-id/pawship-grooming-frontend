@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format } from "date-fns";
@@ -54,6 +54,7 @@ import {
   getPetMemberships,
   type MembershipStatus,
   type PetMembership,
+  type PetMembershipsStatusCounts,
 } from "@/lib/api/memberships";
 
 type FilterTab = "all" | MembershipStatus;
@@ -89,6 +90,13 @@ const DATE_PRESETS: { value: DatePreset; label: string }[] = [
 ];
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+
+const EMPTY_COUNTS: PetMembershipsStatusCounts = {
+  active: 0,
+  pending: 0,
+  expired: 0,
+  cancelled: 0,
+};
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("id-ID", {
@@ -198,11 +206,15 @@ export default function AllPetMembershipsPage() {
   const [items, setItems] = useState<PetMembership[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [total, setTotal] = useState(0);
+  const [statusCounts, setStatusCounts] =
+    useState<PetMembershipsStatusCounts>(EMPTY_COUNTS);
 
   const [tab, setTab] = useState<FilterTab>(
     STATUS_TABS.some((t) => t.value === initialTab) ? initialTab : "all",
   );
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [datePreset, setDatePreset] = useState<DatePreset>(initialPreset);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -212,87 +224,70 @@ export default function AllPetMembershipsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  // Debounce search input → debouncedSearch (used for the API call).
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    getPetMemberships()
-      .then((res) => {
-        if (!cancelled) setItems(res.data);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled)
-          setError(err instanceof Error ? err.message : "Gagal memuat data");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  // Reset page ke 1 setiap kali filter berubah
+  // Reset page ke 1 setiap kali filter berubah.
   useEffect(() => {
     setPage(1);
-  }, [tab, search, datePreset, dateFrom, dateTo, pageSize]);
+  }, [tab, debouncedSearch, datePreset, dateFrom, dateTo, pageSize]);
 
-  /**
-   * Pool setelah filter pencarian + tanggal (BELUM filter status).
-   * Counter di tab dihitung dari pool ini supaya angka mencerminkan hasil filter.
-   */
-  const poolFiltered = useMemo(() => {
+  // Track latest request to ignore stale responses.
+  const fetchSeq = useRef(0);
+
+  useEffect(() => {
+    const seq = ++fetchSeq.current;
+    setLoading(true);
+    setError(null);
+
     const { from, to } = presetRange(datePreset, dateFrom, dateTo);
-    const q = search.trim().toLowerCase();
 
-    return items.filter((m) => {
-      if (from || to) {
-        const end = new Date(m.end_date);
-        if (from && end < from) return false;
-        if (to && end > to) return false;
-      }
-      if (q) {
-        const match =
-          m.pet?.name?.toLowerCase().includes(q) ||
-          m.pet?.owner?.username?.toLowerCase().includes(q) ||
-          m.membership?.name?.toLowerCase().includes(q);
-        if (!match) return false;
-      }
-      return true;
-    });
-  }, [items, datePreset, dateFrom, dateTo, search]);
+    getPetMemberships({
+      page,
+      limit: pageSize,
+      status: tab === "all" ? undefined : tab,
+      q: debouncedSearch || undefined,
+      date_from: from ? toYMD(from) : undefined,
+      date_to: to ? toYMD(to) : undefined,
+    })
+      .then((res) => {
+        if (seq !== fetchSeq.current) return;
+        setItems(res.data);
+        setTotal(res.pagination?.total ?? res.data.length);
+        setStatusCounts(res.statusCounts ?? EMPTY_COUNTS);
+      })
+      .catch((err: unknown) => {
+        if (seq !== fetchSeq.current) return;
+        setError(err instanceof Error ? err.message : "Gagal memuat data");
+        setItems([]);
+        setTotal(0);
+      })
+      .finally(() => {
+        if (seq !== fetchSeq.current) return;
+        setLoading(false);
+      });
+  }, [page, pageSize, tab, debouncedSearch, datePreset, dateFrom, dateTo]);
 
-  const counts = useMemo(() => {
-    const c: Record<FilterTab, number> = {
-      all: poolFiltered.length,
-      active: 0,
-      pending: 0,
-      expired: 0,
-      cancelled: 0,
-    };
-    for (const m of poolFiltered) {
-      if (m.status in c) {
-        c[m.status as MembershipStatus] += 1;
-      }
-    }
-    return c;
-  }, [poolFiltered]);
-
-  const filtered = useMemo(() => {
-    let arr = poolFiltered;
-    if (tab !== "all") arr = arr.filter((m) => m.status === tab);
-    return [...arr].sort(
-      (a, b) =>
-        new Date(a.end_date).getTime() - new Date(b.end_date).getTime(),
-    );
-  }, [poolFiltered, tab]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const pagedItems = filtered.slice(
-    (safePage - 1) * pageSize,
-    safePage * pageSize,
+  const counts: Record<FilterTab, number> = useMemo(
+    () => ({
+      all:
+        statusCounts.active +
+        statusCounts.pending +
+        statusCounts.expired +
+        statusCounts.cancelled,
+      active: statusCounts.active,
+      pending: statusCounts.pending,
+      expired: statusCounts.expired,
+      cancelled: statusCounts.cancelled,
+    }),
+    [statusCounts],
   );
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
 
   const today = startOfDay(new Date());
   const hasAnyFilter =
@@ -537,19 +532,19 @@ export default function AllPetMembershipsPage() {
                       ))}
                     </TableRow>
                   ))
-                ) : pagedItems.length === 0 ? (
+                ) : items.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={7}
                       className="text-center text-sm text-muted-foreground py-10"
                     >
-                      {filtered.length === 0
+                      {total === 0
                         ? "Tidak ada membership yang cocok dengan filter ini."
                         : "Halaman ini kosong — coba pindah ke halaman sebelumnya."}
                     </TableCell>
                   </TableRow>
                 ) : (
-                  pagedItems.map((m) => {
+                  items.map((m) => {
                     const end = new Date(m.end_date);
                     const days = daysBetween(today, end);
                     const href = rowHref(m);
@@ -567,7 +562,7 @@ export default function AllPetMembershipsPage() {
                           <div className="flex items-center gap-1.5">
                             <PawPrint className="h-3.5 w-3.5 text-muted-foreground" />
                             {m.pet?.name ? (
-                              <Highlight text={m.pet.name} query={search} />
+                              <Highlight text={m.pet.name} query={debouncedSearch} />
                             ) : (
                               "-"
                             )}
@@ -588,7 +583,7 @@ export default function AllPetMembershipsPage() {
                               <UserRound className="h-3.5 w-3.5 text-muted-foreground" />
                               <Highlight
                                 text={m.pet.owner.username}
-                                query={search}
+                                query={debouncedSearch}
                               />
                             </Link>
                           ) : (
@@ -601,7 +596,7 @@ export default function AllPetMembershipsPage() {
                             {m.membership?.name ? (
                               <Highlight
                                 text={m.membership.name}
-                                query={search}
+                                query={debouncedSearch}
                               />
                             ) : (
                               "-"
@@ -657,9 +652,8 @@ export default function AllPetMembershipsPage() {
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <span>
-                  {filtered.length === 0 ? 0 : (safePage - 1) * pageSize + 1}–
-                  {Math.min(safePage * pageSize, filtered.length)} dari{" "}
-                  {filtered.length} hasil
+                  {total === 0 ? 0 : (safePage - 1) * pageSize + 1}–
+                  {Math.min(safePage * pageSize, total)} dari {total} hasil
                 </span>
                 <span className="text-border">·</span>
                 <span>Per halaman</span>
