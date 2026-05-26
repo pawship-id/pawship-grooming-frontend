@@ -425,6 +425,8 @@ export interface FinishSessionPayload {
 export interface UpdateBookingStatusPayload {
   status: string;
   date?: string;
+  /** Hotel reschedule: new check-out date. Required when rescheduling a hotel booking. */
+  end_date?: string;
   time_range?: string;
   note?: string;
   cancellation_reason?: string;
