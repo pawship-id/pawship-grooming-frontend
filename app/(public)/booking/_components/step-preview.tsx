@@ -688,11 +688,19 @@ function ServicePriceRow({
       x.can_apply,
   );
   const isQuota = b?.type === "quota";
+  const nights = previewData.pricing_breakdown.service.nights ?? 0;
+  const unit = previewData.pricing_breakdown.service.base_price ?? 0;
+  const isHotelLine = previewData.is_hotel === true && nights > 1;
   return (
     <div className="flex items-center justify-between px-4 py-2.5 text-sm">
       <div className="flex items-center gap-2">
         <span className="text-muted-foreground">
           {previewData.pricing_breakdown.service.name}
+          {isHotelLine && (
+            <span className="ml-1.5 text-[11px] text-muted-foreground">
+              ({formatPrice(unit)} × {nights} malam)
+            </span>
+          )}
         </span>
         {b && <BenefitBadge isQuota={!!isQuota} value={b.value} />}
       </div>

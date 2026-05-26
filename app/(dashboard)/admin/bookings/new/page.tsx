@@ -29,6 +29,7 @@ import type {
   ApplyBenefitPreviewResult,
   ApplyPromotionPreviewResult,
 } from "@/lib/api/bookings";
+import { isHotelServiceType } from "@/lib/format";
 
 import { StepCustomerPet } from "./_components/step-customer-pet";
 import { StepStoreSchedule } from "./_components/step-store-schedule";
@@ -45,6 +46,7 @@ const DEFAULT_FORM = {
   pet_id: "",
   service_id: "",
   date: "",
+  end_date: "",
   time_range: "",
   type: "",
   referal_code: "",
@@ -205,7 +207,16 @@ export default function NewBookingPage() {
   };
 
   const handleServiceTypeChange = async (typeId: string) => {
-    setForm((p) => ({ ...p, service_type_id: typeId, service_id: "" }));
+    // end_date only relevant for hotel; clear it when switching away so the
+    // form does not carry a stale checkout date into a non-hotel booking.
+    const nextTypeTitle = serviceTypes.find((t) => t._id === typeId)?.title;
+    const willBeHotel = isHotelServiceType(nextTypeTitle);
+    setForm((p) => ({
+      ...p,
+      service_type_id: typeId,
+      service_id: "",
+      end_date: willBeHotel ? p.end_date : "",
+    }));
     setSelectedAddonIds([]);
     setServices([]);
     setIsPickup(false);
@@ -243,6 +254,15 @@ export default function NewBookingPage() {
     ? selectedServiceType.title.toLowerCase().includes("addons")
     : false;
 
+  const isHotelBooking = isHotelServiceType(selectedServiceType?.title);
+  const hotelEndDateMissing =
+    isHotelBooking && !!form.date && !form.end_date;
+  const hotelEndDateBeforeStart =
+    isHotelBooking &&
+    !!form.date &&
+    !!form.end_date &&
+    form.end_date < form.date;
+
   const addons = selectedService?.addons ?? [];
 
   const pickupDeliveryAvailableForStore =
@@ -275,7 +295,12 @@ export default function NewBookingPage() {
     !!form.type &&
     !!form.date &&
     !!form.time_range;
-  const step3Done = step2Done && !!form.service_type_id && !!form.service_id;
+  const step3Done =
+    step2Done &&
+    !!form.service_type_id &&
+    !!form.service_id &&
+    (!isHotelBooking ||
+      (!!form.end_date && form.end_date >= form.date));
 
   // ── Toggle handlers ──────────────────────────────────────────────────────────
 
@@ -383,6 +408,9 @@ export default function NewBookingPage() {
       service_id: form.service_id,
       addon_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
       date: form.date,
+      end_date: isHotelBooking
+        ? form.end_date || undefined
+        : form.date || undefined,
       time_range: form.time_range || undefined,
       service_location_type: form.type || undefined,
       pick_up: needsPickupDelivery ? isPickup : undefined,
@@ -409,6 +437,7 @@ export default function NewBookingPage() {
     form.pet_id,
     form.service_id,
     form.date,
+    form.end_date,
     form.time_range,
     form.store_id,
     form.customer_id,
@@ -416,6 +445,7 @@ export default function NewBookingPage() {
     selectedAddonIds,
     isPickup,
     isDelivery,
+    isHotelBooking,
   ]);
 
   // ── Apply benefit: auto-fetch whenever benefit selection changes ──────────
@@ -548,6 +578,7 @@ export default function NewBookingPage() {
         store_id: form.store_id,
         service_id: form.service_id,
         date: form.date,
+        end_date: isHotelBooking ? form.end_date : form.date,
         time_range: form.time_range,
         type: form.type as "in home" | "in store",
         service_addon_ids:

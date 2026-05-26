@@ -1,16 +1,18 @@
 "use client"
 
 import { useState } from "react"
-import { Truck, Check, CalendarDays } from "lucide-react"
+import { AlertTriangle, Truck, CalendarDays } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import type { PublicStore } from "@/lib/api/stores"
+import { computeHotelNights } from "@/lib/format"
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +42,11 @@ interface StepScheduleProps {
   stepNumber: number
   selectedDate: string
   setSelectedDate: (v: string) => void
+  /** Hotel: end_date (check-out). Empty string when not yet picked or non-hotel. */
+  selectedEndDate: string
+  setSelectedEndDate: (v: string) => void
+  /** True when the chosen service type is "hotel" — toggles end_date UI + validation. */
+  isHotelBooking: boolean
   selectedTimeRange: string
   setSelectedTimeRange: (v: string) => void
   selectedStore: PublicStore
@@ -65,6 +72,9 @@ export function StepSchedule({
   stepNumber,
   selectedDate,
   setSelectedDate,
+  selectedEndDate,
+  setSelectedEndDate,
+  isHotelBooking,
   selectedTimeRange,
   setSelectedTimeRange,
   selectedStore,
@@ -176,6 +186,18 @@ export function StepSchedule({
           </div>
         </div>
 
+        {/* Hotel: end_date (check-out) — required when the chosen service type is "hotel" */}
+        {isHotelBooking && (
+          <HotelEndDateField
+            startDate={selectedDate}
+            endDate={selectedEndDate}
+            onEndDateChange={(value) => {
+              setSelectedEndDate(value)
+              onDateChange()
+            }}
+          />
+        )}
+
         {/* Pickup & Delivery toggles — only for in-store services */}
         {showPickupDeliverySection && (
           <>
@@ -258,5 +280,55 @@ export function StepSchedule({
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function HotelEndDateField({
+  startDate,
+  endDate,
+  onEndDateChange,
+}: {
+  startDate: string
+  endDate: string
+  onEndDateChange: (value: string) => void
+}) {
+  const missing = !!startDate && !endDate
+  const invalid = !!startDate && !!endDate && endDate < startDate
+  const nights =
+    !!startDate && !!endDate && endDate >= startDate
+      ? computeHotelNights(startDate, endDate)
+      : 0
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor="hotel-end-date">Tanggal Selesai (Check-out)</Label>
+      <Input
+        id="hotel-end-date"
+        type="date"
+        value={endDate}
+        min={startDate || undefined}
+        disabled={!startDate}
+        onChange={(e) => onEndDateChange(e.target.value)}
+      />
+      {!startDate ? (
+        <p className="text-xs text-muted-foreground">
+          Pilih tanggal mulai terlebih dahulu.
+        </p>
+      ) : missing ? (
+        <p className="flex items-start gap-1.5 text-xs text-destructive">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          Tanggal selesai wajib diisi untuk layanan hotel.
+        </p>
+      ) : invalid ? (
+        <p className="flex items-start gap-1.5 text-xs text-destructive">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          Tanggal selesai tidak boleh sebelum tanggal mulai.
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Durasi menginap: <strong>{nights} malam</strong>. Harga hotel dihitung
+          per malam.
+        </p>
+      )}
+    </div>
   )
 }

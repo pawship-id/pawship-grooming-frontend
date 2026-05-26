@@ -9,7 +9,12 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { formatDate, formatPrice } from "@/lib/format";
+import {
+  computeHotelNights,
+  formatDate,
+  formatPrice,
+  isHotelServiceType,
+} from "@/lib/format";
 import type { AdminBooking } from "@/lib/api/bookings";
 
 interface BookingDetailsProps {
@@ -18,6 +23,13 @@ interface BookingDetailsProps {
 }
 
 export function BookingDetails({ booking, groomerName }: BookingDetailsProps) {
+  const isHotel = isHotelServiceType(
+    booking.service_snapshot?.service_type?.title,
+  );
+  const nights =
+    isHotel && booking.end_date
+      ? computeHotelNights(booking.date, booking.end_date)
+      : 0;
   return (
     <Card>
       <CardHeader>
@@ -30,7 +42,7 @@ export function BookingDetails({ booking, groomerName }: BookingDetailsProps) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="text-xs font-medium text-muted-foreground">
-              Date
+              {isHotel ? "Check-in" : "Date"}
             </label>
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-primary/60" />
@@ -39,6 +51,24 @@ export function BookingDetails({ booking, groomerName }: BookingDetailsProps) {
               </span>
             </div>
           </div>
+          {isHotel && booking.end_date && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">
+                Check-out
+              </label>
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-primary/60" />
+                <span className="text-sm font-medium">
+                  {formatDate(booking.end_date)}
+                  {nights > 0 && (
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      ({nights} malam)
+                    </span>
+                  )}
+                </span>
+              </div>
+            </div>
+          )}
           <div>
             <label className="text-xs font-medium text-muted-foreground">
               Time

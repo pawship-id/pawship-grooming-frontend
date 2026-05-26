@@ -620,8 +620,14 @@ export interface PublicPreviewResult {
   pet_name: string;
   service_id: string;
   service_name: string;
+  is_hotel?: boolean;
+  hotel_nights?: number;
+  start_date?: string;
+  end_date?: string;
   pricing: {
     original_service_price: number;
+    base_service_price?: number;
+    hotel_nights?: number;
     addon_prices: { _id: string; name: string; price: number }[];
     subtotal_before_benefits: number;
     pickup_fee?: number;
@@ -634,7 +640,12 @@ export interface PublicPreviewResult {
     estimated_final_price: number;
   };
   pricing_breakdown: {
-    service: { name: string; price: number };
+    service: {
+      name: string;
+      price: number;
+      base_price?: number;
+      nights?: number;
+    };
     addons: { _id: string; name: string; price: number }[];
     pickup_fee?: number;
     delivery_fee?: number;
@@ -681,6 +692,7 @@ export async function getPublicBookingPreview(payload: {
   service_id: string;
   addon_ids?: string[];
   date: string;
+  end_date?: string;
   time_range?: string;
   service_location_type?: string;
   pick_up?: boolean;
@@ -774,6 +786,7 @@ export async function createPublicBooking(
     store_id: string;
     service_id: string;
     date: string;
+    end_date?: string;
     time_range: string;
     type: "in home" | "in store";
     service_addon_ids?: string[];

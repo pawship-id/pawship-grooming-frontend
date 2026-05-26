@@ -6,7 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { formatPrice } from "@/lib/format";
+import {
+  computeHotelNights,
+  formatPrice,
+  isHotelServiceType,
+} from "@/lib/format";
 import {
   getBookingPreview,
   getPetBenefitsSummary,
@@ -46,6 +50,16 @@ export function PriceEditPanel({
   onClose,
   onSaved,
 }: PriceEditPanelProps) {
+  // ── Hotel awareness ────────────────────────────────────────────────────────
+  // Hotel bookings price the service per-night; preview totals multiply the
+  // unit price by the saved date range so admins see what will be charged.
+  const isHotel = isHotelServiceType(
+    booking.service_snapshot?.service_type?.title,
+  );
+  const hotelNights =
+    isHotel && booking.end_date
+      ? computeHotelNights(booking.date, booking.end_date)
+      : 1;
   // ── State ──────────────────────────────────────────────────────────────────
   const [editBenefitIds, setEditBenefitIds] = useState<string[]>([]);
   const [editServicePrice, setEditServicePrice] = useState("");
@@ -574,8 +588,11 @@ export function PriceEditPanel({
       setLoadingPriceApply(false);
       return;
     }
-    const svcBase =
+    const svcUnit =
       parseFloat(editServicePrice) || booking.service_snapshot.price || 0;
+    // Hotel: snapshot.price is per-night; multiply by nights so the preview
+    // matches the per-night × nights total that the backend computes on save.
+    const svcBase = isHotel ? svcUnit * hotelNights : svcUnit;
     const rawSvcDisc = parseFloat(editServiceDiscount) || 0;
     const svcDisc =
       editServiceDiscountType === "pct"
@@ -668,8 +685,9 @@ export function PriceEditPanel({
     }
     let cancelled = false;
     setLoadingPricePromo(true);
-    const svcBase =
+    const svcUnit =
       parseFloat(editServicePrice) || booking.service_snapshot.price || 0;
+    const svcBase = isHotel ? svcUnit * hotelNights : svcUnit;
     const tFeeBase =
       editPickup || editDelivery || booking.type === "in home"
         ? parseFloat(editTravelFee) || booking.travel_fee || 0
@@ -748,9 +766,13 @@ export function PriceEditPanel({
     setSavingPrice(true);
     try {
       const svcPriceNum = parseFloat(editServicePrice);
-      const svcBase = !isNaN(svcPriceNum)
+      const svcUnit = !isNaN(svcPriceNum)
         ? svcPriceNum
         : booking.service_snapshot.price || 0;
+      // Hotel: cap the discount against the per-stay total (unit × nights) so
+      // a fixed-amount discount can wipe out the full stay rather than a
+      // single night's price.
+      const svcBase = isHotel ? svcUnit * hotelNights : svcUnit;
       const rawSvcDisc = parseFloat(editServiceDiscount) || 0;
       const svcDiscNominal =
         editServiceDiscountType === "pct"
@@ -951,24 +973,33 @@ export function PriceEditPanel({
       {/* Per-item price overrides */}
       <div>
         <p className="mb-3 text-sm font-semibold">Harga per Item</p>
+        {isHotel && (
+          <p className="mb-3 rounded-lg border border-blue-200/50 bg-blue-50/50 px-3 py-2 text-xs text-blue-700 dark:border-blue-800/40 dark:bg-blue-950/30 dark:text-blue-400">
+            Layanan hotel — harga di bawah dihitung per malam. Total stay ={" "}
+            <strong>{hotelNights} malam</strong>.
+          </p>
+        )}
         <div className="flex flex-col gap-2">
           {/* Service */}
           {(() => {
-            const svcBase =
+            const svcUnit =
               parseFloat(editServicePrice) ||
               booking.service_snapshot.price ||
               0;
+            const svcBase = isHotel ? svcUnit * hotelNights : svcUnit;
             const rawDisc = parseFloat(editServiceDiscount) || 0;
             const svcDiscNominal =
               editServiceDiscountType === "pct"
                 ? Math.min(svcBase, (rawDisc / 100) * svcBase)
                 : Math.min(svcBase, rawDisc);
             const svcEff = Math.max(0, svcBase - svcDiscNominal);
+            const baseLabel =
+              availableServices.find((s) => s._id === editServiceId)?.name ??
+              booking.service_snapshot.name;
             return (
               <ItemPriceEditor
                 label={
-                  availableServices.find((s) => s._id === editServiceId)
-                    ?.name ?? booking.service_snapshot.name
+                  isHotel ? `${baseLabel} (per malam)` : baseLabel
                 }
                 baseValue={editServicePrice}
                 onBaseChange={setEditServicePrice}

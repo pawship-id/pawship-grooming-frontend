@@ -2,7 +2,11 @@
 
 import { CreditCard, Truck, Gift, Pencil, Tag } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatPrice } from "@/lib/format";
+import {
+  computeHotelNights,
+  formatPrice,
+  isHotelServiceType,
+} from "@/lib/format";
 import type { AdminBooking } from "@/lib/api/bookings";
 
 interface PaymentSummaryProps {
@@ -150,8 +154,16 @@ function PriceDisplay({
 
 function ServiceRow({ booking }: { booking: AdminBooking }) {
   const b = booking.applied_benefits?.find((ab) => ab.applies_to === "service");
-  const svcBase =
+  const isHotel = isHotelServiceType(
+    booking.service_snapshot?.service_type?.title,
+  );
+  const nights =
+    isHotel && booking.end_date
+      ? computeHotelNights(booking.date, booking.end_date)
+      : 1;
+  const svcUnit =
     booking.edited_service_price ?? booking.service_snapshot.price;
+  const svcBase = isHotel ? svcUnit * nights : svcUnit;
   const svcItemDisc = booking.edited_service_discount ?? 0;
   const svcEffective = Math.max(0, svcBase - svcItemDisc);
   const hasItemDisc = svcItemDisc > 0;
@@ -161,6 +173,11 @@ function ServiceRow({ booking }: { booking: AdminBooking }) {
       <div className="flex items-center gap-2">
         <span className="text-muted-foreground">
           {booking.service_snapshot.name}
+          {isHotel && (
+            <span className="ml-1.5 text-[11px] text-muted-foreground">
+              ({formatPrice(svcUnit)} × {nights} malam)
+            </span>
+          )}
         </span>
         {hasItemDisc && <AdminDiscountBadge amount={svcItemDisc} />}
         {b && (

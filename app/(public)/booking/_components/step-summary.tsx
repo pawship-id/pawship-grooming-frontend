@@ -15,6 +15,8 @@ interface StepSummaryProps {
   selectedServiceType: PublicServiceType | undefined
   selectedAddons: PublicService[]
   selectedDate: string
+  selectedEndDate: string
+  isHotelBooking: boolean
   selectedTimeRange: string
   selectedLocationType: "in home" | "in store" | ""
   isPickup: boolean
@@ -45,6 +47,8 @@ export function StepSummary({
   selectedServiceType,
   selectedAddons,
   selectedDate,
+  selectedEndDate,
+  isHotelBooking,
   selectedTimeRange,
   selectedLocationType,
   isPickup,
@@ -147,9 +151,17 @@ export function StepSummary({
           <div className="flex items-start gap-3 px-6 py-4">
             <CalendarDays className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">Jadwal</p>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground mb-0.5">
+                {isHotelBooking ? "Jadwal Menginap" : "Jadwal"}
+              </p>
               <p className="text-sm font-semibold text-foreground">
                 {new Date(selectedDate + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                {isHotelBooking && selectedEndDate && (
+                  <>
+                    {" "}—{" "}
+                    {new Date(selectedEndDate + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                  </>
+                )}
               </p>
               <p className="text-xs text-muted-foreground">{selectedTimeRange}</p>
             </div>

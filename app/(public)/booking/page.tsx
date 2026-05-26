@@ -41,6 +41,7 @@ import { MessageCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getCurrentUser, updateMyProfile } from "@/lib/api/users";
 import { getPublicClosedDates } from "@/lib/api/store-daily-capacity";
+import { isHotelServiceType } from "@/lib/format";
 
 import { ServiceTypeCard } from "./_components/service-type-card";
 import { StoreCard } from "./_components/store-card";
@@ -131,6 +132,7 @@ function BookingContent() {
 
   // Date & session slot state
   const [selectedDate, setSelectedDate] = useState(dateFromQuery ?? "");
+  const [selectedEndDate, setSelectedEndDate] = useState("");
   const [selectedTimeRange, setSelectedTimeRange] = useState(
     timeRangeFromQuery ?? "",
   );
@@ -221,6 +223,12 @@ function BookingContent() {
     selectedAddonIds.includes(a._id),
   );
 
+  // Derived: hotel state — drives end_date input + validation gating
+  const isHotelBooking = isHotelServiceType(selectedServiceType?.title);
+  const hotelEndDateValid =
+    !isHotelBooking ||
+    (!!selectedEndDate && !!selectedDate && selectedEndDate >= selectedDate);
+
   // Derived: does this service need a location type choice?
   const serviceLocationTypes = selectedService?.service_location_type ?? [];
   const needsLocationChoice = serviceLocationTypes.length > 1;
@@ -280,6 +288,7 @@ function BookingContent() {
     setShowAddons(false);
     setSelectedLocationType("");
     setSelectedDate("");
+    setSelectedEndDate("");
     setSelectedTimeRange("");
     resetUserInfo();
   }
@@ -640,6 +649,14 @@ function BookingContent() {
       !selectedTimeRange
     )
       return;
+    if (isHotelBooking && !hotelEndDateValid) {
+      setFormError(
+        !selectedEndDate
+          ? "Tanggal selesai wajib diisi untuk layanan hotel."
+          : "Tanggal selesai tidak boleh sebelum tanggal mulai.",
+      );
+      return;
+    }
     setSubmittingBooking(true);
     setFormError("");
     try {
@@ -652,6 +669,7 @@ function BookingContent() {
         service_type_id: selectedServiceTypeId,
         service_addon_ids: selectedAddonIds,
         date: selectedDate,
+        end_date: isHotelBooking ? selectedEndDate : selectedDate,
         time_range: selectedTimeRange,
         type: locationType,
         pick_up: isPickup,
@@ -955,6 +973,9 @@ function BookingContent() {
       service_id: selectedServiceId,
       addon_ids: selectedAddonIds.length > 0 ? selectedAddonIds : undefined,
       date: selectedDate,
+      end_date: isHotelBooking
+        ? selectedEndDate || undefined
+        : selectedDate || undefined,
       time_range: selectedTimeRange || undefined,
       service_location_type: selectedLocationType || undefined,
       pick_up:
@@ -991,10 +1012,12 @@ function BookingContent() {
     selectedServiceId,
     selectedAddonIds,
     selectedDate,
+    selectedEndDate,
     selectedTimeRange,
     selectedLocationType,
     isPickup,
     isDelivery,
+    isHotelBooking,
   ]);
 
   // Apply benefit: auto-fetch when benefit selection changes
@@ -1193,6 +1216,11 @@ function BookingContent() {
                         setSelectedAddonIds([]);
                         setShowAddons(false);
                         setSelectedLocationType("");
+                        // end_date only applies to hotel; clear when leaving
+                        // the hotel service type.
+                        if (!isHotelServiceType(type.title)) {
+                          setSelectedEndDate("");
+                        }
                         resetUserInfo();
                       }}
                     />
@@ -1401,6 +1429,9 @@ function BookingContent() {
                 stepNumber={stepSchedule}
                 selectedDate={selectedDate}
                 setSelectedDate={setSelectedDate}
+                selectedEndDate={selectedEndDate}
+                setSelectedEndDate={setSelectedEndDate}
+                isHotelBooking={isHotelBooking}
                 selectedTimeRange={selectedTimeRange}
                 setSelectedTimeRange={setSelectedTimeRange}
                 selectedStore={selectedStore!}
@@ -1434,7 +1465,8 @@ function BookingContent() {
           {selectedService &&
             locationResolved &&
             selectedDate &&
-            selectedTimeRange && (
+            selectedTimeRange &&
+            hotelEndDateValid && (
               <section className="flex flex-col gap-4">
                 <StepHeader
                   step={stepUserInfo}
@@ -1554,6 +1586,8 @@ function BookingContent() {
               selectedServiceType={selectedServiceType}
               selectedAddons={selectedAddons}
               selectedDate={selectedDate}
+              selectedEndDate={selectedEndDate}
+              isHotelBooking={isHotelBooking}
               selectedTimeRange={selectedTimeRange}
               selectedLocationType={selectedLocationType}
               isPickup={isPickup}

@@ -185,6 +185,7 @@ export interface AdminBooking {
   pet_snapshot: PetSnapshot;
   service_snapshot: ServiceSnapshot;
   date: string;
+  end_date?: string | null;
   time_range: string;
   type: string;
   booking_status: string;
@@ -299,8 +300,14 @@ export interface BookingPreviewResult {
   pet_name: string;
   service_id: string;
   service_name: string;
+  is_hotel?: boolean;
+  hotel_nights?: number;
+  start_date?: string;
+  end_date?: string;
   pricing: {
     original_service_price: number;
+    base_service_price?: number;
+    hotel_nights?: number;
     addon_prices: { _id: string; name: string; price: number }[];
     subtotal_before_benefits: number;
     has_active_membership: boolean;
@@ -310,7 +317,12 @@ export interface BookingPreviewResult {
     estimated_final_price: number;
   };
   pricing_breakdown: {
-    service: { name: string; price: number };
+    service: {
+      name: string;
+      price: number;
+      base_price?: number;
+      nights?: number;
+    };
     addons: { _id: string; name: string; price: number }[];
     travel_fee?: number;
     subtotal: number;
@@ -362,6 +374,7 @@ export interface CreateBookingPayload {
   store_id: string;
   service_id: string;
   date: string;
+  end_date?: string;
   time_range: string;
   type: "in home" | "in store";
   service_addon_ids?: string[];
@@ -487,6 +500,7 @@ export async function getBookingPreview(payload: {
   service_id: string;
   addon_ids?: string[];
   date: string;
+  end_date?: string;
   time_range?: string;
   service_location_type?: string;
   pick_up?: boolean;
