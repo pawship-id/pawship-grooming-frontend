@@ -1,7 +1,11 @@
 "use client";
 
 import { Truck, Gift, Pencil, Tag } from "lucide-react";
-import { formatPrice } from "@/lib/format";
+import {
+  computeHotelNights,
+  formatPrice,
+  isHotelServiceType,
+} from "@/lib/format";
 import type { AdminBooking } from "@/lib/api/bookings";
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -11,6 +15,13 @@ interface PriceDisplayProps {
 }
 
 export function PriceDisplay({ booking }: PriceDisplayProps) {
+  const isHotel = isHotelServiceType(
+    booking.service_snapshot?.service_type?.title,
+  );
+  const hotelNights =
+    isHotel && booking.end_date
+      ? computeHotelNights(booking.date, booking.end_date)
+      : 1;
   return (
     <div className="overflow-hidden rounded-xl border border-border/50 bg-card">
       {/* Service row */}
@@ -19,7 +30,11 @@ export function PriceDisplay({ booking }: PriceDisplayProps) {
           (ab) => ab.applies_to === "service",
         );
         const isQuota = b?.benefit_type === "quota";
-        const svcBase = booking.edited_service_price ?? booking.service_snapshot.price;
+        // Hotel: snapshot.price is per-night. Multiply by nights to get the
+        // line-item base shown alongside other booking line items.
+        const svcUnit =
+          booking.edited_service_price ?? booking.service_snapshot.price;
+        const svcBase = isHotel ? svcUnit * hotelNights : svcUnit;
         const svcItemDisc = booking.edited_service_discount ?? 0;
         const svcEffective = Math.max(0, svcBase - svcItemDisc);
         const hasItemDisc = svcItemDisc > 0;
@@ -28,6 +43,11 @@ export function PriceDisplay({ booking }: PriceDisplayProps) {
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">
                 {booking.service_snapshot.name}
+                {isHotel && (
+                  <span className="ml-1.5 text-[11px] text-muted-foreground">
+                    ({formatPrice(svcUnit)} × {hotelNights} malam)
+                  </span>
+                )}
               </span>
               {booking.edited_service_price != null && (
                 <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">

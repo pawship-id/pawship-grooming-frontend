@@ -31,6 +31,10 @@ import {
 import { toast } from "sonner";
 import { updateBookingStatus } from "@/lib/api/bookings";
 import type { AdminBooking } from "@/lib/api/bookings";
+import {
+  AlertTriangle,
+} from "lucide-react";
+import { computeHotelNights, isHotelServiceType } from "@/lib/format";
 
 // ── Status flow configs ──────────────────────────────────────────────────────
 
@@ -161,10 +165,34 @@ export function StatusBookingCard({
 }: StatusBookingCardProps) {
   const [selectedStatus, setSelectedStatus] = useState("");
   const [rescheduledDate, setRescheduledDate] = useState("");
+  const [rescheduledEndDate, setRescheduledEndDate] = useState("");
   const [rescheduledTimeRange, setRescheduledTimeRange] = useState("");
   const [cancellationReason, setCancellationReason] = useState("");
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [confirmingStatus, setConfirmingStatus] = useState(false);
+
+  // Hotel reschedule requires picking a new check-out date; non-hotel
+  // bookings keep the existing single-day flow.
+  const isHotelBooking = isHotelServiceType(
+    booking.service_snapshot?.service_type?.title,
+  );
+  const hotelEndDateMissing =
+    isHotelBooking && !!rescheduledDate && !rescheduledEndDate;
+  const hotelEndDateBeforeStart =
+    isHotelBooking &&
+    !!rescheduledDate &&
+    !!rescheduledEndDate &&
+    rescheduledEndDate < rescheduledDate;
+  const hotelEndDateValid =
+    !isHotelBooking ||
+    (!!rescheduledEndDate && rescheduledEndDate >= rescheduledDate);
+  const hotelNightsPreview =
+    isHotelBooking &&
+    rescheduledDate &&
+    rescheduledEndDate &&
+    rescheduledEndDate >= rescheduledDate
+      ? computeHotelNights(rescheduledDate, rescheduledEndDate)
+      : 0;
 
   const isInHome = booking.type === "in home";
   const hasPickup = !isInHome && booking.pick_up === true;
@@ -223,12 +251,26 @@ export function StatusBookingCard({
       );
       return;
     }
+    if (isRescheduled && isHotelBooking && !hotelEndDateValid) {
+      toast.error(
+        !rescheduledEndDate
+          ? "Tanggal check-out wajib diisi untuk booking hotel"
+          : "Tanggal check-out tidak boleh sebelum tanggal mulai",
+      );
+      return;
+    }
     setUpdatingStatus(true);
     try {
       await updateBookingStatus(bookingId, {
         status: selectedStatus,
         ...(isRescheduled
-          ? { date: rescheduledDate, time_range: rescheduledTimeRange }
+          ? {
+              date: rescheduledDate,
+              time_range: rescheduledTimeRange,
+              // Send end_date only for hotel; non-hotel keeps the existing
+              // server behavior (end_date mirrors date automatically).
+              ...(isHotelBooking ? { end_date: rescheduledEndDate } : {}),
+            }
           : {}),
         ...(isCancelled && cancellationReason
           ? { cancellation_reason: cancellationReason }
@@ -237,6 +279,7 @@ export function StatusBookingCard({
       await refreshBooking();
       setSelectedStatus("");
       setRescheduledDate("");
+      setRescheduledEndDate("");
       setRescheduledTimeRange("");
       setCancellationReason("");
       toast.success(`Status diperbarui: ${selectedStatus}`);
@@ -360,15 +403,42 @@ export function StatusBookingCard({
                 <>
                   <div className="flex flex-col gap-1.5">
                     <Label className="text-xs text-muted-foreground">
-                      Tanggal baru
+                      {isHotelBooking ? "Check-in baru" : "Tanggal baru"}
                     </Label>
                     <Input
                       type="date"
                       className="h-9 w-[160px] text-sm"
                       value={rescheduledDate}
-                      onChange={(e) => setRescheduledDate(e.target.value)}
+                      onChange={(e) => {
+                        setRescheduledDate(e.target.value);
+                        // Clear stale end_date if it now precedes the new start
+                        if (
+                          isHotelBooking &&
+                          rescheduledEndDate &&
+                          rescheduledEndDate < e.target.value
+                        ) {
+                          setRescheduledEndDate("");
+                        }
+                      }}
                     />
                   </div>
+                  {isHotelBooking && (
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-xs text-muted-foreground">
+                        Check-out baru
+                      </Label>
+                      <Input
+                        type="date"
+                        className="h-9 w-[160px] text-sm"
+                        value={rescheduledEndDate}
+                        min={rescheduledDate || undefined}
+                        disabled={!rescheduledDate}
+                        onChange={(e) =>
+                          setRescheduledEndDate(e.target.value)
+                        }
+                      />
+                    </div>
+                  )}
                   <div className="flex flex-col gap-1.5">
                     <Label className="text-xs text-muted-foreground">
                       Sesi baru
@@ -404,12 +474,39 @@ export function StatusBookingCard({
               )}
               <Button
                 onClick={() => setConfirmingStatus(true)}
-                disabled={updatingStatus || !statusChanged || !canComplete}
+                disabled={
+                  updatingStatus ||
+                  !statusChanged ||
+                  !canComplete ||
+                  (isRescheduled && isHotelBooking && !hotelEndDateValid)
+                }
                 size="sm"
               >
                 Simpan Status
               </Button>
             </div>
+            {isRescheduled && isHotelBooking && (
+              <>
+                {hotelEndDateMissing ? (
+                  <p className="flex items-start gap-1.5 text-xs text-destructive">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    Tanggal check-out wajib diisi untuk reschedule booking
+                    hotel.
+                  </p>
+                ) : hotelEndDateBeforeStart ? (
+                  <p className="flex items-start gap-1.5 text-xs text-destructive">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    Tanggal check-out tidak boleh sebelum tanggal mulai.
+                  </p>
+                ) : hotelNightsPreview > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Durasi menginap baru:{" "}
+                    <strong>{hotelNightsPreview} malam</strong>. Total harga
+                    akan dihitung ulang.
+                  </p>
+                ) : null}
+              </>
+            )}
             {isCancelled && (
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs text-muted-foreground">

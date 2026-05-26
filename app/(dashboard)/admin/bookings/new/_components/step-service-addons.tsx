@@ -2,6 +2,7 @@
 
 import { AlertTriangle, Check, Clock, Star, Truck } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -12,7 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DetailRow } from "@/components/booking/detail-row";
-import { formatPrice } from "@/lib/format";
+import { computeHotelNights, formatPrice, isHotelServiceType } from "@/lib/format";
 import type { AdminService, AdminServicePrice } from "@/lib/api/services";
 import type { ApiServiceType } from "@/lib/api/service-types";
 import type { ApiStore } from "@/lib/api/stores";
@@ -37,6 +38,8 @@ interface StepServiceAddonsProps {
     type: string;
     service_type_id: string;
     service_id: string;
+    date: string;
+    end_date: string;
   };
   setForm: React.Dispatch<React.SetStateAction<any>>;
   serviceTypes: ApiServiceType[];
@@ -96,6 +99,7 @@ export function StepServiceAddons({
   handleDeliveryToggle,
   resetPickupDelivery,
 }: StepServiceAddonsProps) {
+  const isHotelBooking = isHotelServiceType(selectedServiceType?.title);
   return (
     <Card className="border-border/50">
       <CardContent className="flex flex-col gap-5 pt-6">
@@ -194,6 +198,17 @@ export function StepServiceAddons({
             />
           )}
         </div>
+
+        {/* Hotel: end_date (checkout) input — required for hotel bookings */}
+        {isHotelBooking && (
+          <HotelStaySection
+            startDate={form.date}
+            endDate={form.end_date}
+            onEndDateChange={(value) =>
+              setForm((p: any) => ({ ...p, end_date: value }))
+            }
+          />
+        )}
 
         {/* Pickup & Delivery */}
         {selectedService && form.type === "in store" && (
@@ -373,6 +388,58 @@ function ServiceDetail({
             ))}
           </ul>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── Hotel Stay Section ─────────────────────────────────────────────────────────
+
+function HotelStaySection({
+  startDate,
+  endDate,
+  onEndDateChange,
+}: {
+  startDate: string;
+  endDate: string;
+  onEndDateChange: (value: string) => void;
+}) {
+  const missing = !!startDate && !endDate;
+  const invalid = !!startDate && !!endDate && endDate < startDate;
+  const nights =
+    !!startDate && !!endDate && endDate >= startDate
+      ? computeHotelNights(startDate, endDate)
+      : 0;
+  return (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor="end_date">Tanggal Selesai (Check-out)</Label>
+      <Input
+        id="end_date"
+        type="date"
+        value={endDate}
+        min={startDate || undefined}
+        disabled={!startDate}
+        onChange={(e) => onEndDateChange(e.target.value)}
+      />
+      {!startDate ? (
+        <p className="text-xs text-muted-foreground">
+          Pilih tanggal mulai terlebih dahulu pada langkah Store & Jadwal.
+        </p>
+      ) : missing ? (
+        <p className="flex items-start gap-1.5 text-xs text-destructive">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          Tanggal selesai wajib diisi untuk layanan hotel.
+        </p>
+      ) : invalid ? (
+        <p className="flex items-start gap-1.5 text-xs text-destructive">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          Tanggal selesai tidak boleh sebelum tanggal mulai.
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Durasi menginap: <strong>{nights} malam</strong>. Harga hotel dihitung
+          per malam.
+        </p>
       )}
     </div>
   );

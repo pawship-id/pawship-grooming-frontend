@@ -1,54 +1,69 @@
-"use client"
+"use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react"
-import Link from "next/link"
-import { Calendar, Clock, MapPin, User, ArrowRight, Scissors, CheckCircle2 } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Progress } from "@/components/ui/progress"
-import { getGroomerMyJobs, type AdminBooking } from "@/lib/api/bookings"
+import { useEffect, useState, useCallback, useMemo } from "react";
+import Link from "next/link";
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  User,
+  ArrowRight,
+  Scissors,
+  CheckCircle2,
+} from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { getGroomerMyJobs, type AdminBooking } from "@/lib/api/bookings";
 
 const bookingStatusColors: Record<string, string> = {
   requested: "bg-accent/20 text-accent-foreground",
   confirmed: "bg-secondary/60 text-secondary-foreground",
-  waitlist: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400",
+  waitlist:
+    "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400",
   "driver on the way": "bg-primary/10 text-primary",
   "groomer on the way": "bg-primary/10 text-primary",
   arrived: "bg-primary/10 text-primary",
   "in progress": "bg-primary/10 text-primary",
   completed: "bg-secondary/60 text-secondary-foreground",
-  rescheduled: "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400",
+  rescheduled:
+    "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400",
   cancelled: "bg-destructive/10 text-destructive",
-}
+};
 
 function getToday() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function getBookingDateStr(booking: AdminBooking): string {
-  return booking.date?.split("T")[0] ?? ""
+  return booking.date?.split("T")[0] ?? "";
 }
 
 function SessionPreview({ booking }: { booking: AdminBooking }) {
-  const sessions = booking.sessions || []
-  if (sessions.length === 0) return null
+  const sessions = booking.sessions || [];
+  if (sessions.length === 0) return null;
 
-  const finished = sessions.filter((s) => s.status === "finished").length
-  const inProgress = sessions.filter((s) => s.status === "in progress").length
-  const total = sessions.length
-  const progress = total > 0 ? Math.round((finished / total) * 100) : 0
+  const finished = sessions.filter((s) => s.status === "finished").length;
+  const inProgress = sessions.filter((s) => s.status === "in progress").length;
+  const total = sessions.length;
+  const progress = total > 0 ? Math.round((finished / total) * 100) : 0;
 
   // Unique groomers
-  const groomers = new Map<string, string>()
+  const groomers = new Map<string, string>();
   sessions.forEach((s) => {
     if (s.groomer_detail) {
-      groomers.set(s.groomer_detail._id, s.groomer_detail.username)
+      groomers.set(
+        s.groomer_detail._id,
+        s.groomer_detail.username || "unknown",
+      );
     }
-  })
-  const unassigned = sessions.filter((s) => !s.groomer_id && !s.groomer_detail).length
+  });
+  const unassigned = sessions.filter(
+    (s) => !s.groomer_id && !s.groomer_detail,
+  ).length;
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border/30 bg-muted/30 p-2.5">
@@ -73,7 +88,9 @@ function SessionPreview({ booking }: { booking: AdminBooking }) {
                   : "bg-muted text-muted-foreground"
             }`}
           >
-            {s.status === "finished" && <CheckCircle2 className="h-2.5 w-2.5" />}
+            {s.status === "finished" && (
+              <CheckCircle2 className="h-2.5 w-2.5" />
+            )}
             {s.type}
           </span>
         ))}
@@ -83,7 +100,10 @@ function SessionPreview({ booking }: { booking: AdminBooking }) {
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
         <Scissors className="h-3 w-3" />
         {Array.from(groomers.values()).map((name) => (
-          <span key={name} className="rounded-full bg-muted px-1.5 py-0.5 font-medium">
+          <span
+            key={name}
+            className="rounded-full bg-muted px-1.5 py-0.5 font-medium"
+          >
             {name}
           </span>
         ))}
@@ -94,7 +114,7 @@ function SessionPreview({ booking }: { booking: AdminBooking }) {
         )}
       </div>
     </div>
-  )
+  );
 }
 
 function JobCard({ booking }: { booking: AdminBooking }) {
@@ -112,7 +132,11 @@ function JobCard({ booking }: { booking: AdminBooking }) {
               </span>
             </div>
             <div className="flex flex-col items-end gap-1">
-              <Badge className={bookingStatusColors[booking.booking_status] || "bg-muted"}>
+              <Badge
+                className={
+                  bookingStatusColors[booking.booking_status] || "bg-muted"
+                }
+              >
                 {booking.booking_status}
               </Badge>
               <Badge variant="outline" className="capitalize">
@@ -152,51 +176,56 @@ function JobCard({ booking }: { booking: AdminBooking }) {
         </CardContent>
       </Card>
     </Link>
-  )
+  );
 }
 
 export default function GroomerDashboard() {
-  const [bookings, setBookings] = useState<AdminBooking[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [bookings, setBookings] = useState<AdminBooking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchJobs = useCallback(async () => {
     try {
-      setLoading(true)
-      setError(null)
-      const res = await getGroomerMyJobs({ limit: 200 })
-      setBookings(res.bookings)
+      setLoading(true);
+      setError(null);
+      const res = await getGroomerMyJobs({ limit: 200 });
+      setBookings(res.bookings);
     } catch (err: any) {
-      setError(err.message || "Gagal memuat data")
+      setError(err.message || "Gagal memuat data");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    fetchJobs()
-  }, [fetchJobs])
+    fetchJobs();
+  }, [fetchJobs]);
 
-  const today = useMemo(() => getToday(), [])
+  const today = useMemo(() => getToday(), []);
 
-  const isActive = (b: AdminBooking) => b.booking_status !== "completed" && b.booking_status !== "cancelled"
+  const isActive = (b: AdminBooking) =>
+    b.booking_status !== "completed" && b.booking_status !== "cancelled";
 
   const todayJobs = useMemo(
     () => bookings.filter((b) => getBookingDateStr(b) === today && isActive(b)),
     [bookings, today],
-  )
+  );
   const upcomingJobs = useMemo(
     () => bookings.filter((b) => getBookingDateStr(b) > today && isActive(b)),
     [bookings, today],
-  )
+  );
   const incompleteJobs = useMemo(
     () => bookings.filter((b) => getBookingDateStr(b) < today && isActive(b)),
     [bookings, today],
-  )
+  );
   const completedJobs = useMemo(
-    () => bookings.filter((b) => b.booking_status === "completed" || b.booking_status === "cancelled"),
+    () =>
+      bookings.filter(
+        (b) =>
+          b.booking_status === "completed" || b.booking_status === "cancelled",
+      ),
     [bookings],
-  )
+  );
 
   if (loading) {
     return (
@@ -212,26 +241,32 @@ export default function GroomerDashboard() {
           ))}
         </div>
       </div>
-    )
+    );
   }
 
   if (error) {
     return (
       <div className="flex flex-col items-center gap-4 py-20 text-center">
         <p className="text-destructive">{error}</p>
-        <button onClick={fetchJobs} className="text-sm font-medium text-primary underline">
+        <button
+          onClick={fetchJobs}
+          className="text-sm font-medium text-primary underline"
+        >
           Coba lagi
         </button>
       </div>
-    )
+    );
   }
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-2xl font-bold text-foreground">My Jobs</h1>
+        <h1 className="font-display text-2xl font-bold text-foreground">
+          My Jobs
+        </h1>
         <p className="text-sm text-muted-foreground">
-          {todayJobs.length} today, {upcomingJobs.length} upcoming{incompleteJobs.length > 0 && `, ${incompleteJobs.length} incomplete`}
+          {todayJobs.length} today, {upcomingJobs.length} upcoming
+          {incompleteJobs.length > 0 && `, ${incompleteJobs.length} incomplete`}
         </p>
       </div>
 
@@ -265,7 +300,9 @@ export default function GroomerDashboard() {
           {todayJobs.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16 text-center">
               <Calendar className="h-10 w-10 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">Tidak ada job untuk hari ini</p>
+              <p className="text-sm text-muted-foreground">
+                Tidak ada job untuk hari ini
+              </p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -280,7 +317,9 @@ export default function GroomerDashboard() {
           {upcomingJobs.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16 text-center">
               <Calendar className="h-10 w-10 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">Tidak ada job yang akan datang</p>
+              <p className="text-sm text-muted-foreground">
+                Tidak ada job yang akan datang
+              </p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -295,7 +334,9 @@ export default function GroomerDashboard() {
           {completedJobs.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16 text-center">
               <Calendar className="h-10 w-10 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">Belum ada job yang selesai</p>
+              <p className="text-sm text-muted-foreground">
+                Belum ada job yang selesai
+              </p>
             </div>
           ) : (
             <div className="flex flex-col gap-3">
@@ -307,5 +348,5 @@ export default function GroomerDashboard() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

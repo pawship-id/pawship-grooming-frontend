@@ -7,7 +7,11 @@ import { Calendar, Truck, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDate } from "@/lib/format";
+import {
+  computeHotelNights,
+  formatDate,
+  isHotelServiceType,
+} from "@/lib/format";
 import { getAdminBookingById } from "@/lib/api/bookings";
 import type { AdminBooking } from "@/lib/api/bookings";
 import { getStoreById } from "@/lib/api/stores";
@@ -119,11 +123,34 @@ export default function BookingDetailPage({
             <CardContent className="flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <span className="text-xs text-muted-foreground">Tanggal</span>
+                  <span className="text-xs text-muted-foreground">
+                    {isHotelServiceType(
+                      booking.service_snapshot?.service_type?.title,
+                    )
+                      ? "Check-in"
+                      : "Tanggal"}
+                  </span>
                   <p className="font-medium text-foreground">
                     {formatDate(booking.date)}
                   </p>
                 </div>
+                {isHotelServiceType(
+                  booking.service_snapshot?.service_type?.title,
+                ) &&
+                  booking.end_date && (
+                    <div>
+                      <span className="text-xs text-muted-foreground">
+                        Check-out
+                      </span>
+                      <p className="font-medium text-foreground">
+                        {formatDate(booking.end_date)}
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          ({computeHotelNights(booking.date, booking.end_date)}{" "}
+                          malam)
+                        </span>
+                      </p>
+                    </div>
+                  )}
                 <div>
                   <span className="text-xs text-muted-foreground">Waktu</span>
                   <p className="font-medium text-foreground">
