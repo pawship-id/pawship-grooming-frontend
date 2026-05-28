@@ -3,6 +3,7 @@
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -11,13 +12,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Plus, Trash2 } from "lucide-react";
+import type { ParentItem } from "@/lib/api/bookings";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface StepNotesPaymentProps {
   form: {
     note: string;
-    brought_items_note: string;
+    parent_items: ParentItem[];
     payment_method: string;
     referal_code: string;
   };
@@ -34,6 +37,36 @@ export function StepNotesPayment({
   customPaymentMethod,
   setCustomPaymentMethod,
 }: StepNotesPaymentProps) {
+  const parentItems = form.parent_items ?? [];
+
+  const updateItemAt = (idx: number, patch: Partial<ParentItem>) => {
+    setForm((p: any) => ({
+      ...p,
+      parent_items: (p.parent_items ?? []).map((it: ParentItem, i: number) =>
+        i === idx ? { ...it, ...patch } : it,
+      ),
+    }));
+  };
+
+  const addItem = () => {
+    setForm((p: any) => ({
+      ...p,
+      parent_items: [
+        ...(p.parent_items ?? []),
+        { item: "", item_in: false, item_out: false },
+      ],
+    }));
+  };
+
+  const removeItem = (idx: number) => {
+    setForm((p: any) => ({
+      ...p,
+      parent_items: (p.parent_items ?? []).filter(
+        (_: ParentItem, i: number) => i !== idx,
+      ),
+    }));
+  };
+
   return (
     <Card className="border-border/50">
       <CardContent className="flex flex-col gap-4 pt-6">
@@ -51,27 +84,43 @@ export function StepNotesPayment({
         </div>
 
         <div className="flex flex-col gap-2">
-          <Label htmlFor="brought_items_note">
-            List Barang Bawaan Pawrents (opsional)
-          </Label>
+          <Label>List Barang Bawaan Pawrents (opsional)</Label>
           <p className="text-xs text-muted-foreground">
-            Tulis tiap barang di baris baru (tekan Enter) supaya daftarnya
-            lebih rapi dan mudah dibaca groomer.
+            Tambahkan tiap barang yang dibawa supaya groomer mudah mencocokkan
+            saat anabul masuk & keluar.
           </p>
-          <Textarea
-            id="brought_items_note"
-            placeholder={
-              "Contoh:\nTas carrier biru\nObat vitamin\nMakanan khusus\nBaju ganti\nMainan"
-            }
-            rows={5}
-            value={form.brought_items_note}
-            onChange={(e) =>
-              setForm((p: any) => ({
-                ...p,
-                brought_items_note: e.target.value,
-              }))
-            }
-          />
+          <div className="flex flex-col gap-2">
+            {parentItems.map((it, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <Input
+                  placeholder="Nama barang (contoh: Tas carrier biru)"
+                  value={it.item}
+                  onChange={(e) =>
+                    updateItemAt(idx, { item: e.target.value })
+                  }
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => removeItem(idx)}
+                  aria-label="Hapus barang"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full gap-2 border-dashed text-primary hover:text-primary"
+            onClick={addItem}
+          >
+            <Plus className="h-4 w-4" />
+            Tambah Barang Titipan
+          </Button>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">

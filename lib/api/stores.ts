@@ -796,6 +796,7 @@ export async function createPublicBooking(
     selected_promotion_ids?: string[];
     note?: string;
     brought_items_note?: string;
+    parent_items?: { item: string; item_in: boolean; item_out: boolean }[];
   },
   authToken?: string,
 ) {

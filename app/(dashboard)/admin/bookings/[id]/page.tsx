@@ -253,6 +253,7 @@ export default function BookingDetailPage({
             {/* List Barang Bawaan Pawrents */}
             <BroughtItemsCard
               bookingId={id}
+              parentItems={booking.parent_items}
               broughtItemsNote={booking.brought_items_note}
               onSaved={refreshBooking}
               readOnly={isReturned}

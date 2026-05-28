@@ -52,7 +52,7 @@ const DEFAULT_FORM = {
   referal_code: "",
   payment_method: "",
   note: "",
-  brought_items_note: "",
+  parent_items: [] as { item: string; item_in: boolean; item_out: boolean }[],
 };
 
 // ── Page Component ─────────────────────────────────────────────────────────────
@@ -571,6 +571,14 @@ export default function NewBookingPage() {
     try {
       const isInHomeService = form.type === "in home";
 
+      const cleanedParentItems = form.parent_items
+        .map((it) => ({
+          item: (it.item ?? "").trim(),
+          item_in: !!it.item_in,
+          item_out: !!it.item_out,
+        }))
+        .filter((it) => it.item.length > 0);
+
       const result = await createAdminBooking({
         service_type_id: form.service_type_id,
         customer_id: form.customer_id,
@@ -595,7 +603,9 @@ export default function NewBookingPage() {
             ? customPaymentMethod.trim() || undefined
             : form.payment_method || undefined,
         note: form.note || undefined,
-        brought_items_note: form.brought_items_note || undefined,
+        parent_items: cleanedParentItems.length > 0
+          ? cleanedParentItems
+          : undefined,
       });
       toast.success("Booking berhasil dibuat");
       router.push(
@@ -773,7 +783,7 @@ export default function NewBookingPage() {
               done={
                 !!(
                   form.note ||
-                  form.brought_items_note ||
+                  form.parent_items.some((it) => it.item.trim().length > 0) ||
                   form.payment_method ||
                   form.referal_code
                 )

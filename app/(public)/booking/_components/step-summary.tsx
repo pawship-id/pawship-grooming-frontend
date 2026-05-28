@@ -1,13 +1,14 @@
 "use client"
 
-import { MapPin, User, PawPrint, Clock, CalendarDays, Truck, Home, Store, CheckCircle2, MessageCircle, Loader2 } from "lucide-react"
+import { MapPin, User, PawPrint, Clock, CalendarDays, Truck, Home, Store, CheckCircle2, MessageCircle, Loader2, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatPrice } from "@/lib/format"
 import type { PublicStore, PublicService, PublicServiceType, PublicUser, PublicPreviewResult, PublicApplyBenefitResult, PublicApplyPromotionResult } from "@/lib/api/stores"
+import type { ParentItem } from "@/lib/api/bookings"
 
 interface StepSummaryProps {
   selectedStore: PublicStore
@@ -36,8 +37,8 @@ interface StepSummaryProps {
   bookingCreated: boolean
   submittingBooking: boolean
   formError: string
-  broughtItemsNote: string
-  setBroughtItemsNote: (v: string) => void
+  parentItems: ParentItem[]
+  setParentItems: (items: ParentItem[]) => void
   handleCreateBooking: () => void
 }
 
@@ -66,8 +67,8 @@ export function StepSummary({
   bookingCreated,
   submittingBooking,
   formError,
-  broughtItemsNote,
-  setBroughtItemsNote,
+  parentItems,
+  setParentItems,
   handleCreateBooking,
 }: StepSummaryProps) {
   const grandTotal = previewData?.pricing_breakdown.grand_total ?? 0
@@ -186,22 +187,54 @@ export function StepSummary({
         {/* Barang Bawaan dari Pawrents */}
         {!bookingCreated && (
           <div className="px-6 py-4 flex flex-col gap-2">
-            <Label htmlFor="brought_items_note">
-              List Barang Bawaan Pawrents (opsional)
-            </Label>
+            <Label>List Barang Bawaan Pawrents (opsional)</Label>
             <p className="text-xs text-muted-foreground">
-              Tulis tiap barang di baris baru (tekan Enter) supaya daftarnya
-              lebih rapi dan mudah dibaca groomer.
+              Tambahkan tiap barang yang dibawa supaya groomer mudah
+              mencocokkan saat anabul masuk & keluar.
             </p>
-            <Textarea
-              id="brought_items_note"
-              placeholder={
-                "Contoh:\nTas carrier biru\nObat vitamin\nMakanan khusus\nBaju ganti\nMainan"
+            <div className="flex flex-col gap-2">
+              {parentItems.map((it, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <Input
+                    placeholder="Nama barang (contoh: Tas carrier biru)"
+                    value={it.item}
+                    onChange={(e) =>
+                      setParentItems(
+                        parentItems.map((p, i) =>
+                          i === idx ? { ...p, item: e.target.value } : p,
+                        ),
+                      )
+                    }
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={() =>
+                      setParentItems(parentItems.filter((_, i) => i !== idx))
+                    }
+                    aria-label="Hapus barang"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2 border-dashed text-primary hover:text-primary"
+              onClick={() =>
+                setParentItems([
+                  ...parentItems,
+                  { item: "", item_in: false, item_out: false },
+                ])
               }
-              rows={4}
-              value={broughtItemsNote}
-              onChange={(e) => setBroughtItemsNote(e.target.value)}
-            />
+            >
+              <Plus className="h-4 w-4" />
+              Tambah Barang Titipan
+            </Button>
           </div>
         )}
 

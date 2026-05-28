@@ -593,16 +593,61 @@ export default function GroomerJobDetailPage({
                 </p>
               </div>
             )}
-            {booking.brought_items_note && (
-              <div>
-                <span className="text-xs text-muted-foreground">
-                  List Barang Bawaan Pawrents
-                </span>
-                <p className="mt-1 rounded-md bg-muted/50 p-2 text-sm text-foreground whitespace-pre-wrap break-words">
-                  {booking.brought_items_note}
-                </p>
-              </div>
-            )}
+            {(() => {
+              const items =
+                Array.isArray(booking.parent_items) &&
+                booking.parent_items.length > 0
+                  ? booking.parent_items
+                  : booking.brought_items_note
+                    ? booking.brought_items_note
+                        .split(/\r?\n/)
+                        .map((line) => line.trim())
+                        .filter((line) => line.length > 0)
+                        .map((line) => ({
+                          item: line,
+                          item_in: false,
+                          item_out: false,
+                        }))
+                    : [];
+
+              if (items.length === 0) return null;
+
+              return (
+                <div>
+                  <span className="text-xs text-muted-foreground">
+                    List Barang Bawaan Pawrents
+                  </span>
+                  <ul className="mt-1 flex flex-col divide-y divide-border/40 rounded-md bg-muted/50 p-2">
+                    {items.map((it, idx) => (
+                      <li
+                        key={idx}
+                        className="grid grid-cols-[1fr_auto_auto] items-center gap-3 py-1.5 text-sm text-foreground"
+                      >
+                        <span className="break-words">{it.item}</span>
+                        <span
+                          className={`text-[10px] font-medium uppercase tracking-wide ${
+                            it.item_in
+                              ? "text-emerald-600"
+                              : "text-muted-foreground/60"
+                          }`}
+                        >
+                          Masuk {it.item_in ? "✓" : "—"}
+                        </span>
+                        <span
+                          className={`text-[10px] font-medium uppercase tracking-wide ${
+                            it.item_out
+                              ? "text-emerald-600"
+                              : "text-muted-foreground/60"
+                          }`}
+                        >
+                          Keluar {it.item_out ? "✓" : "—"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
       </div>
