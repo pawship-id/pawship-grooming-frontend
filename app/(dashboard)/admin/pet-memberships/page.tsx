@@ -329,29 +329,43 @@ function AllPetMembershipsPageInner() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="font-display text-2xl font-bold text-foreground flex items-center gap-2">
-          <CreditCard className="h-6 w-6 text-purple-600" />
+        <h1 className="font-display text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2">
+          <CreditCard className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
           Membership Pet
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
           Daftar membership semua pet — aktif, pending, expired, atau
           cancelled. Klik baris untuk mengelola membership per pet.
         </p>
       </div>
 
       <Card className="border-border/50">
-        <CardHeader>
-          <CardTitle className="text-base">Filter & Pencarian</CardTitle>
+        <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-3">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-base">Filter & Pencarian</CardTitle>
+            {hasAnyFilter ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 shrink-0 -mr-2"
+                onClick={resetAllFilters}
+              >
+                <Filter className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Reset filter</span>
+                <span className="sm:hidden">Reset</span>
+              </Button>
+            ) : null}
+          </div>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[220px] flex-1 sm:flex-none sm:basis-[280px]">
+        <CardContent className="flex flex-col gap-3 p-4 sm:p-6 pt-0 sm:pt-0">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
+            <div className="relative w-full sm:w-auto sm:flex-1 sm:min-w-[220px] sm:basis-[280px]">
               <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Cari pet, owner, atau tier..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-8 pl-9 text-sm"
+                className="h-9 pl-9 text-sm"
               />
               {search ? (
                 <button
@@ -369,7 +383,7 @@ function AllPetMembershipsPageInner() {
 
             <div className="flex flex-wrap items-center gap-1.5">
               <CalendarClock
-                className="h-3.5 w-3.5 text-muted-foreground"
+                className="h-3.5 w-3.5 text-muted-foreground shrink-0"
                 aria-label="Filter tanggal berakhir"
               />
               {DATE_PRESETS.map((p) => (
@@ -390,87 +404,75 @@ function AllPetMembershipsPageInner() {
                 </Badge>
               ) : null}
             </div>
-
-            {hasAnyFilter ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-auto h-8 gap-1.5"
-                onClick={resetAllFilters}
-              >
-                <Filter className="h-3.5 w-3.5" />
-                Reset filter
-              </Button>
-            ) : null}
           </div>
 
           {datePreset === "custom" ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <Popover open={calFromOpen} onOpenChange={setCalFromOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={cn(
-                        "h-8 w-[180px] justify-start text-xs gap-1.5",
-                        !dateFrom && "text-muted-foreground",
-                      )}
-                    >
-                      <CalendarIcon className="h-3 w-3" />
-                      {dateFrom
-                        ? format(new Date(dateFrom), "dd MMM yyyy")
-                        : "Dari tanggal"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dateFrom ? new Date(dateFrom) : undefined}
-                      onSelect={(d) => {
-                        if (d) setDateFrom(toYMD(d));
-                        setCalFromOpen(false);
-                      }}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+            <div className="flex flex-wrap items-center gap-2">
+              <Popover open={calFromOpen} onOpenChange={setCalFromOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "h-8 flex-1 sm:flex-none sm:w-[180px] justify-start text-xs gap-1.5",
+                      !dateFrom && "text-muted-foreground",
+                    )}
+                  >
+                    <CalendarIcon className="h-3 w-3" />
+                    {dateFrom
+                      ? format(new Date(dateFrom), "dd MMM yyyy")
+                      : "Dari tanggal"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dateFrom ? new Date(dateFrom) : undefined}
+                    onSelect={(d) => {
+                      if (d) setDateFrom(toYMD(d));
+                      setCalFromOpen(false);
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
 
-                <span className="text-xs text-muted-foreground">s/d</span>
+              <span className="text-xs text-muted-foreground">s/d</span>
 
-                <Popover open={calToOpen} onOpenChange={setCalToOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={cn(
-                        "h-8 w-[180px] justify-start text-xs gap-1.5",
-                        !dateTo && "text-muted-foreground",
-                      )}
-                    >
-                      <CalendarIcon className="h-3 w-3" />
-                      {dateTo
-                        ? format(new Date(dateTo), "dd MMM yyyy")
-                        : "Sampai tanggal"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={dateTo ? new Date(dateTo) : undefined}
-                      onSelect={(d) => {
-                        if (d) setDateTo(toYMD(d));
-                        setCalToOpen(false);
-                      }}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+              <Popover open={calToOpen} onOpenChange={setCalToOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn(
+                      "h-8 flex-1 sm:flex-none sm:w-[180px] justify-start text-xs gap-1.5",
+                      !dateTo && "text-muted-foreground",
+                    )}
+                  >
+                    <CalendarIcon className="h-3 w-3" />
+                    {dateTo
+                      ? format(new Date(dateTo), "dd MMM yyyy")
+                      : "Sampai tanggal"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={dateTo ? new Date(dateTo) : undefined}
+                    onSelect={(d) => {
+                      if (d) setDateTo(toYMD(d));
+                      setCalToOpen(false);
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
 
               {(dateFrom || dateTo) && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground shrink-0"
                   onClick={() => {
                     setDateFrom("");
                     setDateTo("");
@@ -484,7 +486,7 @@ function AllPetMembershipsPageInner() {
           ) : null}
 
           <Tabs value={tab} onValueChange={(v) => setTab(v as FilterTab)}>
-            <TabsList className="flex-wrap justify-start">
+            <TabsList className="flex-wrap justify-start h-auto">
               {STATUS_TABS.map((t) => (
                 <TabsTrigger key={t.value} value={t.value} className="gap-1.5">
                   {t.label}
@@ -499,14 +501,140 @@ function AllPetMembershipsPageInner() {
       </Card>
 
       <Card className="border-border/50">
-        <CardContent className="pt-6">
+        <CardContent className="p-4 sm:p-6 sm:pt-6">
           {error ? (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
               {error}
             </div>
           ) : null}
 
-          <div className="rounded-md border border-border/50 overflow-hidden">
+          {/* Mobile: card list */}
+          <div className="flex flex-col gap-2 md:hidden">
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-28 rounded-lg" />
+              ))
+            ) : items.length === 0 ? (
+              <div className="rounded-md border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
+                {total === 0
+                  ? "Tidak ada membership yang cocok dengan filter ini."
+                  : "Halaman ini kosong — coba pindah ke halaman sebelumnya."}
+              </div>
+            ) : (
+              items.map((m) => {
+                const end = new Date(m.end_date);
+                const days = daysBetween(today, end);
+                const href = rowHref(m);
+                const daysClass = cn(
+                  "text-xs whitespace-nowrap font-medium",
+                  m.status === "active" && days <= 7 && "text-red-600",
+                  m.status === "active" &&
+                    days > 7 &&
+                    days <= 30 &&
+                    "text-amber-600",
+                );
+                return (
+                  <div
+                    key={m._id}
+                    className={cn(
+                      "rounded-lg border border-border bg-card p-3 transition-colors",
+                      href && "cursor-pointer active:bg-muted/50",
+                    )}
+                    onClick={() => {
+                      if (href) router.push(href);
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <PawPrint className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className="text-sm font-medium truncate">
+                            {m.pet?.name ? (
+                              <Highlight
+                                text={m.pet.name}
+                                query={debouncedSearch}
+                              />
+                            ) : (
+                              "-"
+                            )}
+                          </span>
+                          {m.pet?.pet_type?.name ? (
+                            <span className="text-xs text-muted-foreground">
+                              · {m.pet.pet_type.name}
+                            </span>
+                          ) : null}
+                        </div>
+                        {m.pet?.owner ? (
+                          <Link
+                            href={`/admin/users/${m.pet.owner._id}/pets`}
+                            className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground hover:underline w-fit"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <UserRound className="h-3 w-3" />
+                            <Highlight
+                              text={m.pet.owner.username}
+                              query={debouncedSearch}
+                            />
+                          </Link>
+                        ) : null}
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[10px] font-medium shrink-0",
+                          STATUS_BADGE[m.status as MembershipStatus] ?? "",
+                        )}
+                      >
+                        {STATUS_LABEL[m.status as MembershipStatus] ?? m.status}
+                      </Badge>
+                    </div>
+
+                    <div className="mt-2 flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                      <span className="text-xs font-medium truncate">
+                        {m.membership?.name ? (
+                          <Highlight
+                            text={m.membership.name}
+                            query={debouncedSearch}
+                          />
+                        ) : (
+                          "-"
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <div className="col-span-2 flex items-center gap-1.5">
+                        <CalendarClock className="h-3 w-3 shrink-0" />
+                        <span className="truncate">
+                          {formatDate(m.start_date)} → {formatDate(m.end_date)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-foreground/60">Sisa: </span>
+                        <span className={daysClass}>
+                          {m.status === "active"
+                            ? days > 0
+                              ? `${days} hari`
+                              : "Berakhir hari ini"
+                            : "—"}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-foreground/60">Harga: </span>
+                        <span className="font-medium text-foreground">
+                          {formatPrice(m.purchase_price)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden md:block rounded-md border border-border/50 overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -649,8 +777,8 @@ function AllPetMembershipsPageInner() {
           </div>
 
           {!loading ? (
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2 text-muted-foreground">
+            <div className="mt-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-3 text-xs">
+              <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
                 <span>
                   {total === 0 ? 0 : (safePage - 1) * pageSize + 1}–
                   {Math.min(safePage * pageSize, total)} dari {total} hasil
@@ -674,7 +802,7 @@ function AllPetMembershipsPageInner() {
                 </Select>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 self-end sm:self-auto">
                 <Button
                   variant="outline"
                   size="sm"
