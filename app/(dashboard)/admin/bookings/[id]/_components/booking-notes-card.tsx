@@ -60,8 +60,8 @@ export function BookingNotesCard({
 
   return (
     <Card className="border-border/50 h-full">
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <CardTitle className="flex items-center gap-2 font-display text-lg">
+      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-3">
+        <CardTitle className="flex items-center gap-2 font-display text-base sm:text-lg">
           <FileText className="h-5 w-5 text-primary" />
           Catatan Booking
         </CardTitle>

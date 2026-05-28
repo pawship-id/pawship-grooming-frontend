@@ -15,7 +15,7 @@ export function StatusLogsCard({ booking }: StatusLogsCardProps) {
   return (
     <Card className="border-border/50">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 font-display text-lg">
+        <CardTitle className="flex items-center gap-2 font-display text-base sm:text-lg">
           <ClipboardList className="h-5 w-5 text-primary" />
           Riwayat Status
         </CardTitle>

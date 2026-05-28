@@ -147,8 +147,8 @@ export function BroughtItemsCard({
   return (
     <Card className="border-border/50 h-full">
       <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
-        <div className="flex flex-col gap-0.5">
-          <CardTitle className="flex items-center gap-2 font-display text-lg">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <CardTitle className="flex items-center gap-2 font-display text-base sm:text-lg">
             <PackageOpen className="h-5 w-5 text-primary" />
             Titipan Owner
           </CardTitle>
@@ -171,7 +171,7 @@ export function BroughtItemsCard({
       <CardContent className="flex flex-col gap-4">
         {isEditing ? (
           <>
-            <div className="hidden grid-cols-[1fr_64px_64px_36px] gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:grid">
+            <div className="hidden grid-cols-[1fr_56px_56px_32px] gap-2 px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:grid sm:grid-cols-[1fr_64px_64px_36px]">
               <span>Barang</span>
               <span className="text-center">Masuk</span>
               <span className="text-center">Keluar</span>
@@ -181,7 +181,7 @@ export function BroughtItemsCard({
               {draft.map((it, idx) => (
                 <div
                   key={idx}
-                  className="grid grid-cols-[1fr_64px_64px_36px] items-center gap-2 rounded-md border border-border/40 bg-background px-2 py-2"
+                  className="grid grid-cols-[1fr_44px_44px_32px] items-center gap-1.5 rounded-md border border-border/40 bg-background px-2 py-2 sm:grid-cols-[1fr_64px_64px_36px] sm:gap-2"
                 >
                   <Input
                     placeholder="Nama barang"
@@ -255,7 +255,7 @@ export function BroughtItemsCard({
           </>
         ) : displayItems.length > 0 ? (
           <div className="flex flex-col">
-            <div className="grid grid-cols-[1fr_64px_64px] gap-2 px-2 pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            <div className="grid grid-cols-[1fr_48px_48px] gap-1.5 px-2 pb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:grid-cols-[1fr_64px_64px] sm:gap-2">
               <span>Barang</span>
               <span className="text-center">Masuk</span>
               <span className="text-center">Keluar</span>
@@ -264,7 +264,7 @@ export function BroughtItemsCard({
               {displayItems.map((it, idx) => (
                 <li
                   key={idx}
-                  className="grid grid-cols-[1fr_64px_64px] items-center gap-2 px-2 py-2.5"
+                  className="grid grid-cols-[1fr_48px_48px] items-center gap-1.5 px-2 py-2.5 sm:grid-cols-[1fr_64px_64px] sm:gap-2"
                 >
                   <span className="text-sm text-foreground">{it.item}</span>
                   <div className="flex justify-center">

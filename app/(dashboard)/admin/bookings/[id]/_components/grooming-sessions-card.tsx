@@ -335,7 +335,7 @@ export function GroomingSessionsCard({
     <>
       <Card className="border-border/50">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 font-display text-lg">
+          <CardTitle className="flex items-center gap-2 font-display text-base sm:text-lg">
             <Clock className="h-5 w-5 text-primary" />
             Sesi Grooming
           </CardTitle>
@@ -375,7 +375,7 @@ export function GroomingSessionsCard({
               >
                 {/* Header */}
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium capitalize text-foreground">
                       {session.type}
                     </span>
@@ -397,7 +397,7 @@ export function GroomingSessionsCard({
                     </Badge>
                   </div>
                   {session._id && !readOnly && (
-                    <div className="flex shrink-0 gap-2">
+                    <div className="flex shrink-0 flex-wrap gap-2">
                       {session.status === "not started" && (
                         <>
                           <Button
