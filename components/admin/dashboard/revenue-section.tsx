@@ -352,7 +352,7 @@ function ByGroomingServiceBlock({
               key={r.service_id ?? r.service_name}
               className="text-xs"
             >
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
                 <span className="truncate font-medium">{r.service_name}</span>
                 <span className="text-muted-foreground whitespace-nowrap">
                   {formatPrice(r.revenue)} · {r.pct_of_total}% ·{" "}
@@ -409,7 +409,7 @@ function ByLayananCategoryBlock({
         <ul className="mt-3 space-y-2">
           {rows.map((r) => (
             <li key={r.category} className="text-xs">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
                 <span className="truncate font-medium">{r.label}</span>
                 <span className="text-muted-foreground whitespace-nowrap">
                   {formatPrice(r.revenue)} · {r.pct_of_total}%
