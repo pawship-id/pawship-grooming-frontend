@@ -12,6 +12,7 @@ import {
   ChevronRight,
   ChevronDown,
   GripVertical,
+  ArrowLeft,
 } from "lucide-react";
 import {
   DndContext,
@@ -1961,10 +1962,14 @@ export default function ServicesPage() {
           </p>
         </div>
 
-        {/* Two-panel layout */}
-        <div className="flex gap-4 min-h-[calc(100vh-200px)]">
+        {/* Two-panel layout (stacked on mobile, side-by-side on md+) */}
+        <div className="flex flex-col md:flex-row md:gap-4 md:min-h-[calc(100vh-200px)]">
           {/* ── Left panel: Service Types ───────────────────────────────── */}
-          <div className="w-72 shrink-0 flex flex-col gap-3">
+          <div
+            className={`w-full md:w-72 md:shrink-0 flex-col gap-3 ${
+              selectedTypeId ? "hidden md:flex" : "flex"
+            }`}
+          >
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold">Tipe Layanan</p>
               <Button
@@ -1986,7 +1991,7 @@ export default function ServicesPage() {
                 className="pl-8 h-8 text-sm"
               />
             </div>
-            <div className="flex flex-col gap-1 overflow-y-auto">
+            <div className="flex flex-col gap-1 md:overflow-y-auto">
               {stypeLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <Skeleton key={i} className="h-12 rounded-md" />
@@ -2022,9 +2027,13 @@ export default function ServicesPage() {
           </div>
 
           {/* ── Right panel: Services ───────────────────────────────────── */}
-          <div className="flex-1 flex flex-col gap-3 min-w-0">
+          <div
+            className={`flex-1 flex-col gap-3 min-w-0 ${
+              selectedType ? "flex" : "hidden md:flex"
+            }`}
+          >
             {!selectedType ? (
-              <div className="flex-1 flex items-center justify-center rounded-lg border border-dashed border-border">
+              <div className="flex-1 hidden md:flex items-center justify-center rounded-lg border border-dashed border-border">
                 <div className="text-center text-muted-foreground">
                   <ChevronRight className="mx-auto mb-2 h-8 w-8 opacity-30" />
                   <p className="text-sm">Pilih tipe layanan di sebelah kiri</p>
@@ -2034,21 +2043,33 @@ export default function ServicesPage() {
             ) : (
               <>
                 {/* Right header */}
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="md:hidden h-8 w-8 shrink-0 -ml-2"
+                      onClick={() => setSelectedTypeId(null)}
+                      aria-label="Kembali ke daftar tipe"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    <p className="text-sm font-semibold truncate">
                       Layanan —{" "}
                       <span className="text-primary">{selectedType.title}</span>
                     </p>
                   </div>
                   <Button
                     size="sm"
+                    className="shrink-0"
                     onClick={() => {
                       setServiceForm(DEFAULT_SERVICE_FORM);
                       setServiceAddOpen(true);
                     }}
                   >
-                    <Plus className="mr-1 h-3.5 w-3.5" /> Tambah Layanan
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Tambah Layanan</span>
+                    <span className="sm:hidden">Tambah</span>
                   </Button>
                 </div>
 
@@ -2069,7 +2090,7 @@ export default function ServicesPage() {
                       setServiceActiveFilter(v as "all" | "true" | "false")
                     }
                   >
-                    <SelectTrigger className="w-32 h-8 text-sm">
+                    <SelectTrigger className="w-28 sm:w-32 h-8 text-sm">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -2086,8 +2107,127 @@ export default function ServicesPage() {
                   </div>
                 )}
 
-                {/* Table */}
-                <Card className="border-border/50 flex-1">
+                {/* Mobile: card list */}
+                <div className="flex flex-col gap-2 md:hidden">
+                  {serviceLoading ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <Skeleton key={i} className="h-24 rounded-lg" />
+                    ))
+                  ) : services.length === 0 && !serviceError ? (
+                    <div className="rounded-lg border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
+                      Belum ada layanan untuk tipe ini
+                    </div>
+                  ) : (
+                    services.map((svc) => (
+                      <div
+                        key={svc._id}
+                        className="rounded-lg border border-border bg-card p-3 active:bg-muted/50 transition-colors cursor-pointer"
+                        onClick={() => setViewService(svc)}
+                      >
+                        <div className="flex items-start gap-3">
+                          {svc.image_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={svc.image_url}
+                              alt={svc.name}
+                              className="h-12 w-12 rounded object-cover shrink-0"
+                            />
+                          ) : (
+                            <div className="h-12 w-12 rounded bg-muted flex items-center justify-center shrink-0">
+                              <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="font-medium text-sm leading-tight">
+                                {svc.name}
+                              </p>
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 -mt-1 -mr-1 shrink-0"
+                                    >
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuLabel>Aksi</DropdownMenuLabel>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => toggleServiceStatus(svc)}
+                                    >
+                                      <Switch
+                                        checked={svc.is_active}
+                                        className="mr-2 scale-75 pointer-events-none"
+                                        aria-hidden
+                                      />
+                                      {svc.is_active
+                                        ? "Nonaktifkan"
+                                        : "Aktifkan"}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => openEditService(svc)}
+                                    >
+                                      <Pencil className="mr-2 h-4 w-4" />
+                                      Edit Layanan
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="text-destructive focus:text-destructive"
+                                      onClick={() => setDeleteService(svc)}
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4" />
+                                      Hapus Layanan
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+                            </div>
+                            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                              <Badge
+                                variant="outline"
+                                className="font-mono text-[10px] px-1.5 py-0"
+                              >
+                                {svc.code}
+                              </Badge>
+                              <Badge
+                                variant="outline"
+                                className={`text-[10px] px-1.5 py-0 ${svc.is_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-gray-100 text-gray-500 border-gray-200"}`}
+                              >
+                                {svc.is_active ? "Aktif" : "Nonaktif"}
+                              </Badge>
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                              <span>
+                                <span className="text-foreground/60">
+                                  Durasi:{" "}
+                                </span>
+                                {svc.duration} menit
+                              </span>
+                              <span>
+                                <span className="text-foreground/60">
+                                  Harga:{" "}
+                                </span>
+                                {svc.price_type === "single" &&
+                                svc.price != null
+                                  ? formatRupiah(svc.price)
+                                  : (svc.prices?.length ?? 0) > 0
+                                    ? `${svc.prices!.length} varian`
+                                    : "—"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Desktop: table */}
+                <Card className="border-border/50 flex-1 hidden md:block">
                   <CardContent className="p-0">
                     <div className="overflow-x-auto">
                       <Table>
