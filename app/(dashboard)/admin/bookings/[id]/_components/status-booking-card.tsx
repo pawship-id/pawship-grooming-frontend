@@ -296,14 +296,14 @@ export function StatusBookingCard({
     <>
       <Card className="border-border/50 lg:col-span-2">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 font-display text-lg">
+          <CardTitle className="flex items-center gap-2 font-display text-base sm:text-lg">
             <ClipboardList className="h-5 w-5 text-primary" />
             Status Booking
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
           {/* Status stepper */}
-          <div className="flex items-center overflow-x-auto p-1">
+          <div className="flex min-w-0 items-center overflow-x-auto p-1">
             {MAIN_FLOW.map((status, idx) => {
               // For pickup+delivery flow, "driver on the way (delivery)" is used as stepper label
               // but the actual booking_status is "driver on the way". We need to find the correct idx.
@@ -365,9 +365,9 @@ export function StatusBookingCard({
           </div>
 
           {/* Update status form */}
-          <div className="flex flex-col gap-3 rounded-lg border border-border/50 bg-muted/30 p-4">
+          <div className="flex flex-col gap-3 rounded-lg border border-border/50 bg-muted/30 p-3 sm:p-4">
             <p className="text-sm font-medium text-foreground">Ubah Status</p>
-            <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs text-muted-foreground">
                   Status baru
@@ -382,7 +382,7 @@ export function StatusBookingCard({
                     updatingStatus || allowedNextStatuses.length === 0
                   }
                 >
-                  <SelectTrigger className="w-[220px]">
+                  <SelectTrigger className="w-full sm:w-[220px]">
                     <SelectValue placeholder="Pilih status baru..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -407,7 +407,7 @@ export function StatusBookingCard({
                     </Label>
                     <Input
                       type="date"
-                      className="h-9 w-[160px] text-sm"
+                      className="h-9 w-full text-sm sm:w-[160px]"
                       value={rescheduledDate}
                       onChange={(e) => {
                         setRescheduledDate(e.target.value);
@@ -429,7 +429,7 @@ export function StatusBookingCard({
                       </Label>
                       <Input
                         type="date"
-                        className="h-9 w-[160px] text-sm"
+                        className="h-9 w-full text-sm sm:w-[160px]"
                         value={rescheduledEndDate}
                         min={rescheduledDate || undefined}
                         disabled={!rescheduledDate}
@@ -448,7 +448,7 @@ export function StatusBookingCard({
                         value={rescheduledTimeRange}
                         onValueChange={setRescheduledTimeRange}
                       >
-                        <SelectTrigger className="h-9 w-[160px] text-sm">
+                        <SelectTrigger className="h-9 w-full text-sm sm:w-[160px]">
                           <SelectValue placeholder="Pilih sesi" />
                         </SelectTrigger>
                         <SelectContent>
@@ -461,7 +461,7 @@ export function StatusBookingCard({
                       </Select>
                     ) : (
                       <Input
-                        className="h-9 w-[160px] text-sm"
+                        className="h-9 w-full text-sm sm:w-[160px]"
                         placeholder="mis. 08:00 - 10:00"
                         value={rescheduledTimeRange}
                         onChange={(e) =>
@@ -481,6 +481,7 @@ export function StatusBookingCard({
                   (isRescheduled && isHotelBooking && !hotelEndDateValid)
                 }
                 size="sm"
+                className="w-full sm:w-auto"
               >
                 Simpan Status
               </Button>

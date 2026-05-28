@@ -12,7 +12,7 @@ export function CustomerPetCard({ booking }: CustomerPetCardProps) {
   return (
     <Card className="border-border/50">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 font-display text-lg">
+        <CardTitle className="flex items-center gap-2 font-display text-base sm:text-lg">
           <User className="h-5 w-5 text-primary" />
           Customer &amp; Hewan
         </CardTitle>

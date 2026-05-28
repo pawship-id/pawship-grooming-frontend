@@ -493,24 +493,25 @@ export default function BookingsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">
+        <div className="min-w-0">
+          <h1 className="font-display text-xl font-bold text-foreground sm:text-2xl">
             Bookings
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground sm:text-sm">
             Manage all grooming appointments
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Button
             variant="outline"
             onClick={handleExport}
             disabled={exporting || loading}
+            className="w-full sm:w-auto"
           >
             <Download className="mr-2 h-4 w-4" />
             {exporting ? "Exporting..." : "Download Data Booking"}
           </Button>
-          <Button asChild>
+          <Button asChild className="w-full sm:w-auto">
             <Link href="/admin/bookings/new">
               <Plus className="mr-2 h-4 w-4" />
               New Booking
@@ -520,8 +521,8 @@ export default function BookingsPage() {
       </div>
 
       <Card className="border-border/50">
-        <CardHeader className="pb-4">
-          <div className="rounded-lg border bg-muted/30 p-3 flex flex-col gap-3">
+        <CardHeader className="p-3 pb-3 sm:p-6 sm:pb-4">
+          <div className="rounded-lg border bg-muted/30 p-2 flex flex-col gap-3 sm:p-3">
             {/* Row 1: Search + Tanggal */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               {/* Search */}
@@ -570,8 +571,8 @@ export default function BookingsPage() {
             </div>
 
             {/* Row 2: Dropdown Filters */}
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <div className="flex flex-col gap-1">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-4 [&>*]:min-w-0">
+              <div className="flex flex-col gap-1 min-w-0">
                 <label className="text-xs font-medium text-muted-foreground">
                   Status
                 </label>
@@ -581,14 +582,14 @@ export default function BookingsPage() {
                       variant="outline"
                       role="combobox"
                       aria-expanded={statusOpen}
-                      className="w-full justify-between font-normal"
+                      className="w-full min-w-0 justify-between font-normal"
                     >
                       <span
-                        className={
+                        className={`min-w-0 truncate text-left ${
                           statusFilter.length === 0
                             ? "text-muted-foreground"
                             : ""
-                        }
+                        }`}
                       >
                         {statusFilter.length === 0
                           ? "Semua Status"
@@ -742,7 +743,7 @@ export default function BookingsPage() {
               storeFilter !== "all" ||
               serviceFilter !== "all" ||
               datePreset !== "") && (
-              <div className="flex items-center justify-between border-t pt-2">
+              <div className="flex flex-col gap-2 border-t pt-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap gap-1">
                   {statusFilter.map((s) => (
                     <Badge
@@ -818,8 +819,9 @@ export default function BookingsPage() {
             )}
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
+        <CardContent className="p-3 sm:p-6 sm:pt-0">
+          {/* Desktop / tablet: table view */}
+          <div className="hidden overflow-x-auto md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -968,12 +970,160 @@ export default function BookingsPage() {
             </Table>
           </div>
 
+          {/* Mobile: card list view */}
+          <div className="flex flex-col gap-3 md:hidden">
+            {loading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-32 w-full rounded-lg" />
+              ))
+            ) : bookings.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                Tidak ada booking ditemukan
+              </p>
+            ) : (
+              bookings.map((booking) => (
+                <button
+                  key={booking._id}
+                  type="button"
+                  onClick={() =>
+                    router.push(`/admin/bookings/${booking._id}`)
+                  }
+                  className="flex flex-col gap-2 rounded-lg border border-border/50 bg-card p-3 text-left transition-colors hover:bg-muted/50"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      {booking.code && (
+                        <span className="font-mono text-[10px] font-medium text-muted-foreground">
+                          {booking.code}
+                        </span>
+                      )}
+                      <span className="text-sm font-medium text-foreground">
+                        <Highlight
+                          text={booking.customer?.username ?? "-"}
+                          query={debouncedSearch}
+                        />
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        <Highlight
+                          text={booking.pet_snapshot.name}
+                          query={debouncedSearch}
+                        />
+                      </span>
+                    </div>
+                    <Badge
+                      className={`shrink-0 text-[10px] ${
+                        statusColors[booking.booking_status] ??
+                        "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      <span className="capitalize">
+                        {booking.booking_status}
+                      </span>
+                    </Badge>
+                  </div>
+
+                  <div className="flex flex-col gap-1 border-t border-border/40 pt-2">
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-muted-foreground">Tanggal</span>
+                      <span className="text-right text-foreground">
+                        {formatDate(booking.date)}
+                        <span className="ml-1 text-muted-foreground">
+                          · {booking.time_range}
+                        </span>
+                      </span>
+                    </div>
+                    <div className="flex items-start justify-between gap-2 text-xs">
+                      <span className="shrink-0 text-muted-foreground">
+                        Layanan
+                      </span>
+                      <span className="text-right text-foreground">
+                        {booking.service_snapshot.name}
+                      </span>
+                    </div>
+                    {booking.store?.name && (
+                      <div className="flex items-start justify-between gap-2 text-xs">
+                        <span className="shrink-0 text-muted-foreground">
+                          Store
+                        </span>
+                        <span className="text-right text-foreground">
+                          {booking.store.name}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-muted-foreground">Harga</span>
+                      <span className="font-semibold text-foreground">
+                        {booking.final_total_price != null
+                          ? formatPrice(booking.final_total_price)
+                          : "-"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {(booking.pick_up ||
+                    booking.delivery ||
+                    (booking.service_addon_ids?.length ?? 0) > 0 ||
+                    booking.created_by_role) && (
+                    <div className="flex flex-wrap items-center gap-1 border-t border-border/40 pt-2">
+                      <span className="flex items-center gap-0.5 text-[10px] capitalize text-muted-foreground">
+                        <MapPin className="h-3 w-3" />
+                        {booking.type}
+                      </span>
+                      {(booking.service_addon_ids?.length ?? 0) > 0 && (
+                        <Badge
+                          variant="outline"
+                          className="h-4 px-1 py-0 text-[10px]"
+                        >
+                          +{booking.service_addon_ids!.length} addon
+                        </Badge>
+                      )}
+                      {booking.pick_up && (
+                        <Badge
+                          variant="secondary"
+                          className="h-4 gap-0.5 px-1 py-0 text-[10px]"
+                        >
+                          <Truck className="h-2.5 w-2.5" />
+                          Pickup
+                        </Badge>
+                      )}
+                      {booking.delivery && (
+                        <Badge
+                          variant="secondary"
+                          className="h-4 gap-0.5 px-1 py-0 text-[10px]"
+                        >
+                          <Truck className="h-2.5 w-2.5" />
+                          Delivery
+                        </Badge>
+                      )}
+                      {booking.created_by_role === "admin" && (
+                        <Badge
+                          variant="secondary"
+                          className="ml-auto h-4 px-1 py-0 text-[10px]"
+                        >
+                          Admin
+                        </Badge>
+                      )}
+                      {booking.created_by_role === "customer" && (
+                        <Badge
+                          variant="outline"
+                          className="ml-auto h-4 px-1 py-0 text-[10px]"
+                        >
+                          Customer
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+
           {/* Pagination */}
-          <div className="mt-4 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">
+          <div className="mt-4 flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
+            <span className="text-xs text-muted-foreground sm:text-sm">
               {totalCount} booking
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center justify-between gap-2 sm:w-auto">
               <Button
                 variant="outline"
                 size="sm"
@@ -983,8 +1133,8 @@ export default function BookingsPage() {
                 <ChevronLeft className="h-4 w-4" />
                 Prev
               </Button>
-              <span className="text-sm">
-                Halaman {currentPage} dari {totalPages}
+              <span className="text-xs sm:text-sm">
+                Hal. {currentPage} / {totalPages}
               </span>
               <Button
                 variant="outline"

@@ -11,6 +11,14 @@ export interface BookingOptionRef {
   name: string;
 }
 
+// ── Parent items (List Barang Bawaan Pawrents) ──────────────────────────────
+
+export interface ParentItem {
+  item: string;
+  item_in: boolean;
+  item_out: boolean;
+}
+
 // ── Pet Snapshot ─────────────────────────────────────────────────────────────
 
 export interface CustomerSnapshot {
@@ -211,6 +219,7 @@ export interface AdminBooking {
   referal_code?: string;
   note?: string;
   brought_items_note?: string | null;
+  parent_items?: ParentItem[];
   cancellation_reason?: string | null;
   payment_method?: string;
   created_by_role?: "customer" | "admin" | null;
@@ -386,6 +395,7 @@ export interface CreateBookingPayload {
   referal_code?: string;
   note?: string;
   brought_items_note?: string;
+  parent_items?: ParentItem[];
   payment_method?: string;
   code?: string;
 }
@@ -628,15 +638,15 @@ export async function updateBookingNote(id: string, note?: string) {
   });
 }
 
-export async function updateBookingBroughtItemsNote(
+export async function updateBookingParentItems(
   id: string,
-  brought_items_note?: string,
+  parent_items: ParentItem[],
 ) {
   return apiAuthRequest<{ message: string }>(
     `/bookings/${id}/brought-items`,
     {
       method: "PATCH",
-      body: JSON.stringify({ brought_items_note }),
+      body: JSON.stringify({ parent_items }),
     },
   );
 }

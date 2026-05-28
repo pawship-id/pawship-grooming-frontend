@@ -78,7 +78,7 @@ export default function BookingDetailPage({
     return (
       <div className="flex flex-col gap-6">
         <Skeleton className="h-10 w-64" />
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 [&>*]:min-w-0">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-48 w-full rounded-xl" />
           ))}
@@ -103,7 +103,7 @@ export default function BookingDetailPage({
       <div className="flex flex-col gap-6">
         <BookingHeader bookingId={booking._id} createdAt={booking.createdAt} bookingCode={booking.code} />
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 [&>*]:min-w-0">
           {/* Status Booking */}
           <StatusBookingCard
             booking={booking}
@@ -115,13 +115,13 @@ export default function BookingDetailPage({
           {/* Appointment Details */}
           <Card className="border-border/50">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="flex items-center gap-2 font-display text-lg">
+              <CardTitle className="flex items-center gap-2 font-display text-base sm:text-lg">
                 <Calendar className="h-5 w-5 text-primary" />
                 Detail Appointment
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                 <div>
                   <span className="text-xs text-muted-foreground">
                     {isHotelServiceType(
@@ -172,7 +172,7 @@ export default function BookingDetailPage({
                   </div>
                 )}
                 {booking.type === "in store" && (
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <span className="text-xs text-muted-foreground">
                       Pickup & Delivery
                     </span>
@@ -253,6 +253,7 @@ export default function BookingDetailPage({
             {/* List Barang Bawaan Pawrents */}
             <BroughtItemsCard
               bookingId={id}
+              parentItems={booking.parent_items}
               broughtItemsNote={booking.brought_items_note}
               onSaved={refreshBooking}
               readOnly={isReturned}

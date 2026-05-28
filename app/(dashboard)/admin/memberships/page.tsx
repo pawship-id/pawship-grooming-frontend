@@ -1519,8 +1519,8 @@ function MembershipsTab() {
   return (
     <div className="flex flex-col gap-4">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3">
+        <div className="relative w-full sm:flex-1 sm:min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-9"
@@ -1529,27 +1529,139 @@ function MembershipsTab() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Select
-          value={filterActive}
-          onValueChange={(v) => setFilterActive(v as typeof filterActive)}
-        >
-          <SelectTrigger className="w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua Status</SelectItem>
-            <SelectItem value="active">Aktif</SelectItem>
-            <SelectItem value="inactive">Nonaktif</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-2" />
-          Tambah Paket
-        </Button>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Select
+            value={filterActive}
+            onValueChange={(v) => setFilterActive(v as typeof filterActive)}
+          >
+            <SelectTrigger className="flex-1 sm:flex-none sm:w-36">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Status</SelectItem>
+              <SelectItem value="active">Aktif</SelectItem>
+              <SelectItem value="inactive">Nonaktif</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={openCreate} className="shrink-0">
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Tambah Paket</span>
+            <span className="sm:hidden">Tambah</span>
+          </Button>
+        </div>
       </div>
 
-      {/* Table */}
-      <Card className="border-border/50">
+      {/* Mobile: card list */}
+      <div className="flex flex-col gap-2 md:hidden">
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-lg" />
+          ))
+        ) : filtered.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
+            {search || filterActive !== "all"
+              ? "Tidak ada hasil yang sesuai"
+              : "Belum ada paket membership"}
+          </div>
+        ) : (
+          filtered.map((m) => (
+            <div
+              key={m._id}
+              className="rounded-lg border border-border bg-card p-3 active:bg-muted/50 transition-colors cursor-pointer"
+              onClick={() => openDetail(m)}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {m.code && (
+                      <span className="font-mono text-[10px] font-medium text-muted-foreground">
+                        {m.code}
+                      </span>
+                    )}
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] px-1.5 py-0 ${
+                        m.is_active
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-gray-100 text-gray-500 border-gray-200"
+                      }`}
+                    >
+                      {m.is_active ? "Aktif" : "Nonaktif"}
+                    </Badge>
+                    {m.show_on_website && (
+                      <Badge
+                        variant="outline"
+                        className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] px-1.5 py-0"
+                      >
+                        Tampil
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 font-medium text-sm leading-tight">
+                    {m.name}
+                  </p>
+                  {m.description && (
+                    <p className="mt-0.5 text-xs text-muted-foreground line-clamp-1">
+                      {m.description}
+                    </p>
+                  )}
+                </div>
+                <div onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 -mt-1 -mr-1 shrink-0"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Aksi</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => openDetail(m)}>
+                        <Eye className="h-4 w-4 mr-2" />
+                        Lihat Detail
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openEdit(m)}>
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => setDeleteTarget(m)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Hapus
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                <span>
+                  <span className="text-foreground/60">Durasi: </span>
+                  {m.duration_months} bulan
+                </span>
+                <span>
+                  <span className="text-foreground/60">Harga: </span>
+                  <span className="font-medium text-foreground">
+                    {formatRupiah(m.price)}
+                  </span>
+                </span>
+                <span>
+                  <span className="text-foreground/60">Benefit: </span>
+                  {m.benefits.length}
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop: table */}
+      <Card className="border-border/50 hidden md:block">
         <Table>
           <TableHeader>
             <TableRow>
@@ -1817,15 +1929,15 @@ export default function MembershipsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <CreditCard className="h-6 w-6 text-primary" />
-          <div>
-            <h1 className="font-display text-2xl font-bold text-foreground">
+    <div className="flex flex-col gap-4 sm:gap-6">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <CreditCard className="h-6 w-6 text-primary shrink-0" />
+          <div className="min-w-0">
+            <h1 className="font-display text-xl sm:text-2xl font-bold text-foreground">
               Memberships
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Kelola paket membership
             </p>
           </div>
@@ -1834,10 +1946,13 @@ export default function MembershipsPage() {
           variant="outline"
           onClick={handleExport}
           disabled={isExporting}
-          className="flex items-center gap-2"
+          className="shrink-0 h-9 px-3 sm:h-10 sm:px-4"
+          aria-label="Export Pembelian"
         >
-          <FileDown className="h-4 w-4" />
-          {isExporting ? "Mengekspor..." : "Export Pembelian"}
+          <FileDown className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">
+            {isExporting ? "Mengekspor..." : "Export Pembelian"}
+          </span>
         </Button>
       </div>
       <MembershipsTab />

@@ -206,8 +206,10 @@ function BookingContent() {
   const [bookingCreated, setBookingCreated] = useState(false);
   const [submittingBooking, setSubmittingBooking] = useState(false);
 
-  // Barang Bawaan note state (list of items pawrents bring)
-  const [broughtItemsNote, setBroughtItemsNote] = useState("");
+  // Barang Bawaan items (list of items pawrents bring)
+  const [parentItems, setParentItems] = useState<
+    { item: string; item_in: boolean; item_out: boolean }[]
+  >([]);
 
   // Closed dates from store daily capacities (total_capacity_minutes = 0)
   const [closedDates, setClosedDates] = useState<string[]>([]);
@@ -677,7 +679,13 @@ function BookingContent() {
         selected_benefit_ids: selectedBenefitIds,
         selected_promotion_ids: selectedPromotionIds,
         note: "",
-        brought_items_note: broughtItemsNote.trim() || undefined,
+        parent_items: parentItems
+          .map((it) => ({
+            item: (it.item ?? "").trim(),
+            item_in: !!it.item_in,
+            item_out: !!it.item_out,
+          }))
+          .filter((it) => it.item.length > 0),
       };
       if (existingUser) {
         payload.customer_id = existingUser._id;
@@ -1605,8 +1613,8 @@ function BookingContent() {
               bookingCreated={bookingCreated}
               submittingBooking={submittingBooking}
               formError={formError}
-              broughtItemsNote={broughtItemsNote}
-              setBroughtItemsNote={setBroughtItemsNote}
+              parentItems={parentItems}
+              setParentItems={setParentItems}
               handleCreateBooking={handleCreateBooking}
             />
           </section>

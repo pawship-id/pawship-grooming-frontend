@@ -905,7 +905,7 @@ export function PriceEditPanel({
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-primary/30 bg-primary/5 p-4">
+    <div className="flex flex-col gap-4 rounded-xl border border-primary/30 bg-primary/5 p-3 sm:p-4">
       {/* Main Service Selector */}
       {availableServices.length > 1 && (
         <div className="flex flex-col gap-2">
@@ -1465,7 +1465,7 @@ export function PriceEditPanel({
                       className="mt-0.5 shrink-0"
                     />
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                         <span className="text-sm font-medium text-foreground">
                           {promo.name}
                         </span>
@@ -1637,7 +1637,7 @@ function ItemPriceEditor({
         {labelIcon}
         {label}
       </span>
-      <div className="flex items-end gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex flex-1 flex-col gap-1">
           <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             Harga Dasar
@@ -1651,7 +1651,7 @@ function ItemPriceEditor({
             onChange={(e) => onBaseChange(e.target.value)}
           />
         </div>
-        <span className="mb-1.5 shrink-0 text-sm text-muted-foreground">−</span>
+        <span className="hidden shrink-0 pb-1.5 text-sm text-muted-foreground sm:inline">−</span>
         <div className="flex flex-1 flex-col gap-1">
           <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             Diskon Item
@@ -1684,12 +1684,12 @@ function ItemPriceEditor({
             </div>
           </div>
         </div>
-        <span className="mb-1.5 shrink-0 text-sm text-muted-foreground">=</span>
-        <div className="flex flex-col items-end gap-1">
+        <span className="hidden shrink-0 pb-1.5 text-sm text-muted-foreground sm:inline">=</span>
+        <div className="flex items-center justify-between gap-2 border-t border-border/50 pt-2 sm:flex-col sm:items-end sm:gap-1 sm:border-t-0 sm:pt-0">
           <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             Efektif
           </span>
-          <span className="mb-0.5 text-sm font-semibold text-primary">
+          <span className="text-sm font-semibold text-primary sm:mb-0.5">
             {formatPrice(effectivePrice)}
           </span>
         </div>

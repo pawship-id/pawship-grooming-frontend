@@ -368,17 +368,23 @@ export default function PromotionsPage() {
   });
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-4 sm:gap-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Promotions</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+            Promotions
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
             Kelola kode promosi dan diskon
           </p>
         </div>
-        <Button onClick={openCreate} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
+        <Button
+          onClick={openCreate}
+          size="sm"
+          className="shrink-0"
+        >
+          <Plus className="h-3.5 w-3.5 mr-1.5" />
           Tambah Promosi
         </Button>
       </div>

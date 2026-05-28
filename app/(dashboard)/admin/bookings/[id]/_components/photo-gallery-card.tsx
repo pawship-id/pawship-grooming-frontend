@@ -294,7 +294,7 @@ export function PhotoGalleryCard({
     <>
       <Card className="border-border/50 lg:col-span-2">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 font-display text-lg">
+          <CardTitle className="flex items-center gap-2 font-display text-base sm:text-lg">
             <ImagePlus className="h-5 w-5 text-primary" />
             Foto Grooming
           </CardTitle>
@@ -302,7 +302,7 @@ export function PhotoGalleryCard({
         <CardContent className="flex flex-col gap-6">
           {/* Before photos */}
           <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-medium text-foreground">Foto Before</p>
               {!readOnly && renderUploadButton("before", "Upload Before")}
             </div>
@@ -323,7 +323,7 @@ export function PhotoGalleryCard({
 
           {/* After photos */}
           <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-medium text-foreground">Foto After</p>
               {!readOnly && renderUploadButton("after", "Upload After")}
             </div>
@@ -344,7 +344,7 @@ export function PhotoGalleryCard({
 
           {/* Other photos — uploaded via per-session upload */}
           <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-medium text-foreground">
                 Foto Lainnya
               </p>
