@@ -33,6 +33,13 @@ export function isHotelServiceType(title?: string | null): boolean {
   return (title ?? "").trim().toLowerCase() === "hotel";
 }
 
+// Grooming detection — service type title equals "grooming" (case-insensitive).
+// Daily store capacity (and the capacity-driven "closed date" calendar markers)
+// only apply to grooming bookings.
+export function isGroomingServiceType(title?: string | null): boolean {
+  return (title ?? "").trim().toLowerCase() === "grooming";
+}
+
 // Number of nights between two YYYY-MM-DD strings or Date inputs. Returns at
 // least 1 (a single-night stay) so hotel pricing never falls to zero.
 export function computeHotelNights(

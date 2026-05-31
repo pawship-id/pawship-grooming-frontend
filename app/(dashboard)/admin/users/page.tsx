@@ -106,7 +106,7 @@ type CreateUserForm = CreateUserPayload;
 type EditUserForm = UpdateUserPayload & {
   full_name?: string;
   gender?: "Male" | "Female";
-  placement?: string;
+  placements?: string[];
   groomer_skills?: string[];
   groomer_rating?: number;
   customer_category_id?: string;
@@ -274,6 +274,13 @@ export default function UsersPage() {
       })
       .filter((id): id is string => id !== undefined);
 
+    // Normalize legacy single `placement` into the `placements` array so the
+    // multi-select pre-populates correctly for old groomer profiles.
+    const placementsInit = Array.isArray(user.profile?.placements)
+      ? (user.profile?.placements ?? [])
+      : user.profile?.placement
+        ? [user.profile.placement]
+        : [];
     setEditForm({
       username: user.username,
       email: user.email || "",
@@ -282,7 +289,7 @@ export default function UsersPage() {
       code: user.code,
       full_name: user.profile?.full_name ?? "",
       gender: user.profile?.gender,
-      placement: user.profile?.placement,
+      placements: placementsInit,
       groomer_skills: skillIds,
       groomer_rating: user.profile?.groomer_rating || 0,
       customer_category_id: user.profile?.customer_category_id,
@@ -294,13 +301,19 @@ export default function UsersPage() {
     setEditingAddressIdx(null);
     setMapOpen(false);
 
-    // Fetch full user detail to get addresses with _id
+    // Fetch full user detail to get addresses with _id and authoritative placements
     try {
       const detail = await getUser(user._id);
-      if (detail.user?.profile?.addresses) {
+      if (detail.user?.profile) {
+        const detailPlacements = Array.isArray(detail.user.profile.placements)
+          ? detail.user.profile.placements
+          : detail.user.profile.placement
+            ? [detail.user.profile.placement]
+            : undefined;
         setEditForm((f) => ({
           ...f,
           addresses: detail.user.profile?.addresses ?? f.addresses,
+          placements: detailPlacements ?? f.placements,
         }));
       }
     } catch {}
@@ -432,7 +445,12 @@ export default function UsersPage() {
       const profilePayload: any = {};
       if (editForm.full_name) profilePayload.full_name = editForm.full_name;
       if (editForm.gender) profilePayload.gender = editForm.gender;
-      if (editForm.placement) profilePayload.placement = editForm.placement;
+      if (
+        ["admin", "ops", "groomer"].includes(editForm.role) &&
+        editForm.placements !== undefined
+      ) {
+        profilePayload.placements = editForm.placements;
+      }
       // Convert option IDs back to skill names
       if (editForm.groomer_skills) {
         profilePayload.groomer_skills = editForm.groomer_skills
@@ -823,6 +841,115 @@ export default function UsersPage() {
         </DropdownMenu>
 
         {/* Selected Items as Badges */}
+        {selectedItems.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {selectedItems.map((item) => (
+              <Badge
+                key={item._id}
+                variant="secondary"
+                className="px-2 py-1 text-xs"
+              >
+                {item.name}
+                <button
+                  type="button"
+                  onClick={() => handleRemove(item._id)}
+                  className="ml-1.5 hover:bg-secondary-foreground/20 rounded-full p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PlacementMultiSelect — pick one or more stores as groomer/admin placement.
+  // ─────────────────────────────────────────────────────────────────────────────
+  function PlacementMultiSelect({
+    stores,
+    selected,
+    onChange,
+  }: {
+    stores: ApiStore[];
+    selected: string[];
+    onChange: (ids: string[]) => void;
+  }) {
+    const [open, setOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const selectedItems = stores.filter((s) => selected.includes(s._id));
+    const displayText =
+      selectedItems.length > 0
+        ? `${selectedItems.length} store dipilih`
+        : "Pilih store";
+
+    const filteredStores = stores.filter((s) =>
+      s.name.toLowerCase().includes(searchQuery.toLowerCase()),
+    );
+
+    const handleRemove = (id: string) => {
+      onChange(selected.filter((selectedId) => selectedId !== id));
+    };
+
+    return (
+      <div className="flex flex-col gap-2">
+        <DropdownMenu open={open} onOpenChange={setOpen}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              id="e-placements"
+              variant="outline"
+              role="combobox"
+              className="w-full justify-between font-normal"
+            >
+              <span className="truncate">{displayText}</span>
+              <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-full min-w-[var(--radix-dropdown-menu-trigger-width)] max-h-[300px] p-0">
+            <div className="p-2 border-b">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Cari store..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 h-8"
+                />
+              </div>
+            </div>
+            <div className="max-h-[200px] overflow-y-auto">
+              {filteredStores.length === 0 && (
+                <div className="px-2 py-6 text-center text-sm text-muted-foreground">
+                  Tidak ada store yang cocok
+                </div>
+              )}
+              {filteredStores.map((store) => (
+                <DropdownMenuCheckboxItem
+                  key={store._id}
+                  checked={selected.includes(store._id)}
+                  onCheckedChange={(checked) => {
+                    onChange(
+                      checked
+                        ? [...selected, store._id]
+                        : selected.filter((id) => id !== store._id),
+                    );
+                  }}
+                >
+                  <span>{store.name}</span>
+                  {!store.is_active && (
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      Inactive
+                    </Badge>
+                  )}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         {selectedItems.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {selectedItems.map((item) => (
@@ -1815,34 +1942,19 @@ export default function UsersPage() {
                   </Select>
                 </div>
 
-                {/* Placement Store (visible for admin/ops/groomer) */}
+                {/* Placement Store (visible for admin/ops/groomer) — multi-select */}
                 {["admin", "ops", "groomer"].includes(editForm.role) && (
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="e-placement">
+                    <Label htmlFor="e-placements">
                       Placement Store (opsional)
                     </Label>
-                    <Select
-                      value={editForm.placement || undefined}
-                      onValueChange={(v) =>
-                        setEditForm((p) => ({ ...p, placement: v }))
+                    <PlacementMultiSelect
+                      stores={stores}
+                      selected={editForm.placements ?? []}
+                      onChange={(ids) =>
+                        setEditForm((p) => ({ ...p, placements: ids }))
                       }
-                    >
-                      <SelectTrigger id="e-placement">
-                        <SelectValue placeholder="Pilih store" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {stores.map((store) => (
-                          <SelectItem key={store._id} value={store._id}>
-                            {store.name}
-                            {!store.is_active && (
-                              <Badge variant="outline" className="ml-2 text-xs">
-                                Inactive
-                              </Badge>
-                            )}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    />
                   </div>
                 )}
 

@@ -47,6 +47,12 @@ interface StepScheduleProps {
   setSelectedEndDate: (v: string) => void
   /** True when the chosen service type is "hotel" — toggles end_date UI + validation. */
   isHotelBooking: boolean
+  /**
+   * True when the chosen service type is "grooming". Daily store capacity (and
+   * the closed-date markers derived from it) only constrains grooming bookings,
+   * so non-grooming bookings ignore `closedDates`.
+   */
+  isGroomingBooking?: boolean
   selectedTimeRange: string
   setSelectedTimeRange: (v: string) => void
   selectedStore: PublicStore
@@ -75,6 +81,7 @@ export function StepSchedule({
   selectedEndDate,
   setSelectedEndDate,
   isHotelBooking,
+  isGroomingBooking = false,
   selectedTimeRange,
   setSelectedTimeRange,
   selectedStore,
@@ -101,7 +108,10 @@ export function StepSchedule({
     (selectedStore.operational?.operational_days ?? []).map((d) => DAY_NAME_TO_NUM[d] ?? -1)
   )
 
-  const closedDateSet = new Set<string>(closedDates)
+  // Capacity-driven closed dates (total_capacity_minutes = 0) only block the
+  // calendar for grooming bookings. Non-grooming service types do not consume
+  // daily store capacity, so they should remain bookable on those dates.
+  const closedDateSet = new Set<string>(isGroomingBooking ? closedDates : [])
 
   const isDateDisabled = (date: Date) => {
     if (date < today) return true

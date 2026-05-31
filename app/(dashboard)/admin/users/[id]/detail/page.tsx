@@ -95,9 +95,7 @@ export default function AdminUserDetailPage() {
   const [customerCategoryName, setCustomerCategoryName] = useState<
     string | null
   >(null);
-  const [placementStoreName, setPlacementStoreName] = useState<string | null>(
-    null,
-  );
+  const [placementStoreNames, setPlacementStoreNames] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -126,18 +124,34 @@ export default function AdminUserDetailPage() {
           setCustomerCategoryName(null);
         }
 
-        const placementId = res.user?.profile?.placement;
-        if (placementId && res.user?.role !== "customer") {
+        // Resolve placement store names. Prefer `placements` (array). Falls
+        // back to legacy single `placement` for old documents.
+        const profile = res.user?.profile;
+        const placementIds: string[] =
+          Array.isArray(profile?.placements) && profile.placements.length > 0
+            ? profile.placements
+            : profile?.placement
+              ? [profile.placement]
+              : [];
+        if (placementIds.length > 0 && res.user?.role !== "customer") {
           try {
-            const storeRes = await getStoreById(placementId);
+            const stores = await Promise.all(
+              placementIds.map((id) =>
+                getStoreById(id)
+                  .then((r) => r.store?.name ?? null)
+                  .catch(() => null),
+              ),
+            );
             if (!cancelled) {
-              setPlacementStoreName(storeRes.store?.name ?? null);
+              setPlacementStoreNames(
+                stores.filter((n): n is string => Boolean(n)),
+              );
             }
           } catch {
-            if (!cancelled) setPlacementStoreName(null);
+            if (!cancelled) setPlacementStoreNames([]);
           }
         } else if (!cancelled) {
-          setPlacementStoreName(null);
+          setPlacementStoreNames([]);
         }
 
         if (res.user?.role === "customer") {
@@ -458,9 +472,19 @@ export default function AdminUserDetailPage() {
             <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field
                 label="Lokasi Penempatan"
-                value={renderValue(
-                  placementStoreName ?? profile?.placement_store?.name,
-                )}
+                value={
+                  placementStoreNames.length > 0 ? (
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {placementStoreNames.map((name) => (
+                        <Badge key={name} variant="secondary">
+                          {name}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    renderValue(profile?.placement_store?.name)
+                  )
+                }
               />
               {user.role === "groomer" && (
                 <>

@@ -4,30 +4,35 @@ import Image from "next/image";
 import { ImageIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SessionMedia } from "@/lib/api/bookings";
+import { isGroomingServiceType } from "@/lib/format";
 
 interface BeforeAfterPhotosProps {
   media: SessionMedia[];
+  serviceTypeTitle?: string | null;
 }
 
-const SECTIONS: { type: "before" | "after" | "other"; label: string }[] = [
-  { type: "before", label: "Before" },
-  { type: "after", label: "After" },
-  { type: "other", label: "Other" },
-];
-
-export function BeforeAfterPhotos({ media }: BeforeAfterPhotosProps) {
+export function BeforeAfterPhotos({
+  media,
+  serviceTypeTitle,
+}: BeforeAfterPhotosProps) {
   const safeMedia = media ?? [];
   const hasOther = safeMedia.some((m) => m.type === "other");
+  const isGrooming = isGroomingServiceType(serviceTypeTitle);
+  const sectionsBase: { type: "before" | "after" | "other"; label: string }[] = [
+    { type: "before", label: isGrooming ? "Before" : "Check-in" },
+    { type: "after", label: isGrooming ? "After" : "Check-out" },
+    { type: "other", label: "Other" },
+  ];
   const sections = hasOther
-    ? SECTIONS
-    : SECTIONS.filter((s) => s.type !== "other");
+    ? sectionsBase
+    : sectionsBase.filter((s) => s.type !== "other");
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <ImageIcon className="h-4 w-4" />
-          Grooming Photos
+          Photos
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
