@@ -41,7 +41,7 @@ import { MessageCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getCurrentUser, updateMyProfile } from "@/lib/api/users";
 import { getPublicClosedDates } from "@/lib/api/store-daily-capacity";
-import { isHotelServiceType } from "@/lib/format";
+import { isGroomingServiceType, isHotelServiceType } from "@/lib/format";
 
 import { ServiceTypeCard } from "./_components/service-type-card";
 import { StoreCard } from "./_components/store-card";
@@ -227,6 +227,9 @@ function BookingContent() {
 
   // Derived: hotel state — drives end_date input + validation gating
   const isHotelBooking = isHotelServiceType(selectedServiceType?.title);
+  // Derived: grooming state — daily store capacity (and capacity-driven closed
+  // dates) only apply when the chosen service type is "grooming".
+  const isGroomingBooking = isGroomingServiceType(selectedServiceType?.title);
   const hotelEndDateValid =
     !isHotelBooking ||
     (!!selectedEndDate && !!selectedDate && selectedEndDate >= selectedDate);
@@ -1440,6 +1443,7 @@ function BookingContent() {
                 selectedEndDate={selectedEndDate}
                 setSelectedEndDate={setSelectedEndDate}
                 isHotelBooking={isHotelBooking}
+                isGroomingBooking={isGroomingBooking}
                 selectedTimeRange={selectedTimeRange}
                 setSelectedTimeRange={setSelectedTimeRange}
                 selectedStore={selectedStore!}
