@@ -31,6 +31,7 @@ import {
 } from "@/lib/api/bookings";
 import type { AdminBooking, SessionMedia } from "@/lib/api/bookings";
 import { applyGroomingFrame } from "@/lib/frame-compositor";
+import { isGroomingServiceType } from "@/lib/format";
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -154,6 +155,12 @@ export function PhotoGalleryCard({
     }
   };
 
+  const isGrooming = isGroomingServiceType(
+    booking.service_snapshot?.service_type?.title,
+  );
+  const beforeLabel = isGrooming ? "Foto Before" : "Foto Check-in";
+  const afterLabel = isGrooming ? "Foto After" : "Foto Check-out";
+
   // Get session type label from session_id for "other" photos
   const getSessionLabel = (sessionId?: string) => {
     if (!sessionId) return null;
@@ -162,7 +169,8 @@ export function PhotoGalleryCard({
   };
 
   const renderMediaItem = (m: SessionMedia, key: string | number) => {
-    const sessionLabel = m.type === "other" ? getSessionLabel(m.session_id) : null;
+    const sessionLabel =
+      m.type === "other" ? getSessionLabel(m.session_id) : null;
     const notes = getMediaNotes(m);
     const isEditing = !!m.public_id && editingNotesPublicId === m.public_id;
 
@@ -296,22 +304,22 @@ export function PhotoGalleryCard({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 font-display text-base sm:text-lg">
             <ImagePlus className="h-5 w-5 text-primary" />
-            Foto Grooming
+            Photos
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
           {/* Before photos */}
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-medium text-foreground">Foto Before</p>
+              <p className="text-sm font-medium text-foreground">
+                {beforeLabel}
+              </p>
               {!readOnly && renderUploadButton("before", "Upload Before")}
             </div>
             <div className="flex flex-wrap gap-3">
               {(booking.media ?? [])
                 .filter((m) => m.type === "before")
-                .map((m, i) =>
-                  renderMediaItem(m, m.public_id ?? m._id ?? i),
-                )}
+                .map((m, i) => renderMediaItem(m, m.public_id ?? m._id ?? i))}
               {(booking.media ?? []).filter((m) => m.type === "before")
                 .length === 0 && (
                 <p className="text-sm italic text-muted-foreground">
@@ -324,15 +332,15 @@ export function PhotoGalleryCard({
           {/* After photos */}
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-medium text-foreground">Foto After</p>
+              <p className="text-sm font-medium text-foreground">
+                {afterLabel}
+              </p>
               {!readOnly && renderUploadButton("after", "Upload After")}
             </div>
             <div className="flex flex-wrap gap-3">
               {(booking.media ?? [])
                 .filter((m) => m.type === "after")
-                .map((m, i) =>
-                  renderMediaItem(m, m.public_id ?? m._id ?? i),
-                )}
+                .map((m, i) => renderMediaItem(m, m.public_id ?? m._id ?? i))}
               {(booking.media ?? []).filter((m) => m.type === "after")
                 .length === 0 && (
                 <p className="text-sm italic text-muted-foreground">
@@ -353,9 +361,7 @@ export function PhotoGalleryCard({
             <div className="flex flex-wrap gap-3">
               {(booking.media ?? [])
                 .filter((m) => m.type === "other")
-                .map((m, i) =>
-                  renderMediaItem(m, m.public_id ?? m._id ?? i),
-                )}
+                .map((m, i) => renderMediaItem(m, m.public_id ?? m._id ?? i))}
               {(booking.media ?? []).filter((m) => m.type === "other")
                 .length === 0 && (
                 <p className="text-sm italic text-muted-foreground">

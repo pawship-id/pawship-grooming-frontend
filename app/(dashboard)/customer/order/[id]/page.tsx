@@ -92,7 +92,10 @@ export default function CustomerOrderDetailPage() {
         <div className="space-y-6 lg:col-span-2">
           <ServiceInfo booking={booking} />
           <PaymentSummary booking={booking} />
-          <BeforeAfterPhotos media={allMedia} />
+          <BeforeAfterPhotos
+            media={allMedia}
+            serviceTypeTitle={booking.service_snapshot?.service_type?.title}
+          />
           {booking.booking_status === "completed" && (
             <SessionReviews
               bookingId={booking._id}
