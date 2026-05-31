@@ -125,8 +125,17 @@ export function GroomingSessionsCard({
   const [pendingSessionNotes, setPendingSessionNotes] = useState("");
 
   // Derived values
+  // Groomers may be placed at multiple stores; match if the booking's store
+  // is in their `placements` array. Falls back to legacy single `placement`
+  // for groomers whose profile hasn't been migrated yet.
   const storeGroomers = booking.store_id
-    ? groomers.filter((g) => g.profile?.placement === booking.store_id)
+    ? groomers.filter((g) => {
+        const placements = g.profile?.placements;
+        if (Array.isArray(placements) && placements.length > 0) {
+          return placements.includes(booking.store_id as string);
+        }
+        return g.profile?.placement === booking.store_id;
+      })
     : groomers;
   const hasInProgressSession = booking.sessions.some(
     (s) => s.status === "in progress",

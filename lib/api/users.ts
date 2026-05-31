@@ -26,6 +26,12 @@ export interface UserProfile {
   customer_category_id?: string;
   tags?: string[];
   addresses?: UserAddress[];
+  /** Array of Store IDs the user is placed at (multi-placement). */
+  placements?: string[];
+  /**
+   * @deprecated Legacy single placement (Store ID). Read-only fallback for
+   * documents written before multi-placement. Prefer `placements`.
+   */
   placement?: string;
   placement_store?: {
     _id: string;
@@ -106,6 +112,9 @@ export type UpdateMyProfilePayload = {
   customer_category_id?: string;
   tags?: string[];
   addresses?: UserAddress[];
+  /** Array of Store IDs (multi-placement). */
+  placements?: string[];
+  /** @deprecated Legacy single placement. Prefer `placements`. */
   placement?: string;
   groomer_skills?: string[];
   groomer_rating?: number;
