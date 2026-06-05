@@ -62,6 +62,7 @@ export function exportBookingsToExcel(bookings: AdminBooking[]): void {
 
   // Build column headers
   const baseHeaders = [
+    "Kode",
     "Date",
     "Time Slot",
     "Customer Name",
@@ -104,6 +105,7 @@ export function exportBookingsToExcel(bookings: AdminBooking[]): void {
     const row: any = {};
 
     // Basic info
+    row["Kode"] = booking.code || "-";
     row["Date"] = formatDate(booking.date);
     row["Time Slot"] = booking.time_range || "-";
     row["Customer Name"] = booking.customer?.username || "-";

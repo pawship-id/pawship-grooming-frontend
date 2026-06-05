@@ -262,7 +262,8 @@ export default function BookingsPage() {
 
   // Modal filter state
   const [modalSearch, setModalSearch] = useState("");
-  const [modalStatusFilter, setModalStatusFilter] = useState<string>("all");
+  const [modalStatusFilter, setModalStatusFilter] = useState<string[]>([]);
+  const [modalStatusOpen, setModalStatusOpen] = useState(false);
   const [modalCreatedByFilter, setModalCreatedByFilter] =
     useState<string>("all");
   const [modalDateFrom, setModalDateFrom] = useState("");
@@ -419,6 +420,7 @@ export default function BookingsPage() {
         description: `${filteredData.length} booking berhasil diexport ke Excel.`,
       });
 
+      resetModalFilters();
       setShowExportModal(false);
     } catch (error) {
       toast({
@@ -448,8 +450,8 @@ export default function BookingsPage() {
 
       // Status filter
       if (
-        modalStatusFilter !== "all" &&
-        booking.booking_status !== modalStatusFilter
+        modalStatusFilter.length > 0 &&
+        !modalStatusFilter.includes(booking.booking_status)
       ) {
         return false;
       }
@@ -479,7 +481,7 @@ export default function BookingsPage() {
 
   function resetModalFilters() {
     setModalSearch("");
-    setModalStatusFilter("all");
+    setModalStatusFilter([]);
     setModalCreatedByFilter("all");
     setModalDateFrom("");
     setModalDateTo("");
@@ -1176,7 +1178,7 @@ export default function BookingsPage() {
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-sm">Filter Data</h3>
                     {(modalSearch ||
-                      modalStatusFilter !== "all" ||
+                      modalStatusFilter.length > 0 ||
                       modalCreatedByFilter !== "all" ||
                       modalDateFrom ||
                       modalDateTo) && (
@@ -1204,40 +1206,98 @@ export default function BookingsPage() {
                     </div>
 
                     {/* Status Filter */}
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-1 min-w-0">
                       <label className="text-xs font-medium text-muted-foreground">
                         Status
                       </label>
-                      <Select
-                        value={modalStatusFilter}
-                        onValueChange={setModalStatusFilter}
+                      <Popover
+                        open={modalStatusOpen}
+                        onOpenChange={setModalStatusOpen}
                       >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="Semua status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Semua Status</SelectItem>
-                          <SelectItem value="requested">Requested</SelectItem>
-                          <SelectItem value="waitlist">Waitlist</SelectItem>
-                          <SelectItem value="confirmed">Confirmed</SelectItem>
-                          <SelectItem value="driver on the way">
-                            Driver on the Way
-                          </SelectItem>
-                          <SelectItem value="groomer on the way">
-                            Groomer on the Way
-                          </SelectItem>
-                          <SelectItem value="arrived">Arrived</SelectItem>
-                          <SelectItem value="in progress">
-                            In Progress
-                          </SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
-                          <SelectItem value="returned">Returned</SelectItem>
-                          <SelectItem value="rescheduled">
-                            Rescheduled
-                          </SelectItem>
-                          <SelectItem value="cancelled">Cancelled</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={modalStatusOpen}
+                            className="h-9 w-full min-w-0 justify-between font-normal"
+                          >
+                            <span
+                              className={`min-w-0 truncate text-left ${
+                                modalStatusFilter.length === 0
+                                  ? "text-muted-foreground"
+                                  : ""
+                              }`}
+                            >
+                              {modalStatusFilter.length === 0
+                                ? "Semua Status"
+                                : modalStatusFilter.length === 1
+                                  ? (STATUS_OPTIONS.find(
+                                      (o) => o.value === modalStatusFilter[0],
+                                    )?.label ?? modalStatusFilter[0])
+                                  : `${modalStatusFilter.length} status dipilih`}
+                            </span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-[var(--radix-popover-trigger-width)] p-0"
+                          align="start"
+                          sideOffset={4}
+                        >
+                          <Command>
+                            <CommandInput
+                              placeholder="Cari status..."
+                              className="h-9"
+                            />
+                            <CommandList>
+                              <CommandEmpty>
+                                Status tidak ditemukan.
+                              </CommandEmpty>
+                              <CommandGroup>
+                                {STATUS_OPTIONS.map((option) => {
+                                  const checked = modalStatusFilter.includes(
+                                    option.value,
+                                  );
+                                  return (
+                                    <CommandItem
+                                      key={option.value}
+                                      value={option.label}
+                                      onSelect={() => {
+                                        setModalStatusFilter((prev) =>
+                                          prev.includes(option.value)
+                                            ? prev.filter(
+                                                (v) => v !== option.value,
+                                              )
+                                            : [...prev, option.value],
+                                        );
+                                      }}
+                                      className="gap-2"
+                                    >
+                                      <Checkbox
+                                        checked={checked}
+                                        className="pointer-events-none"
+                                      />
+                                      <span>{option.label}</span>
+                                    </CommandItem>
+                                  );
+                                })}
+                              </CommandGroup>
+                            </CommandList>
+                            {modalStatusFilter.length > 0 && (
+                              <div className="border-t p-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="w-full h-8 text-xs"
+                                  onClick={() => setModalStatusFilter([])}
+                                >
+                                  Bersihkan pilihan
+                                </Button>
+                              </div>
+                            )}
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
                     </div>
 
                     {/* Created By Filter */}
@@ -1318,6 +1378,9 @@ export default function BookingsPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead className="whitespace-nowrap">
+                            Kode
+                          </TableHead>
+                          <TableHead className="whitespace-nowrap">
                             Tanggal
                           </TableHead>
                           <TableHead className="whitespace-nowrap">
@@ -1344,7 +1407,7 @@ export default function BookingsPage() {
                         {getFilteredModalData().length === 0 ? (
                           <TableRow>
                             <TableCell
-                              colSpan={7}
+                              colSpan={8}
                               className="text-center py-8 text-muted-foreground"
                             >
                               Tidak ada data yang sesuai dengan filter
@@ -1355,6 +1418,17 @@ export default function BookingsPage() {
                             .slice(0, 10)
                             .map((booking) => (
                               <TableRow key={booking._id}>
+                                <TableCell className="whitespace-nowrap">
+                                  {booking.code ? (
+                                    <span className="font-mono text-xs font-medium">
+                                      {booking.code}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">
+                                      —
+                                    </span>
+                                  )}
+                                </TableCell>
                                 <TableCell className="whitespace-nowrap">
                                   {formatDate(booking.date)}
                                 </TableCell>

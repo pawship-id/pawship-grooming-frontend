@@ -80,6 +80,8 @@ function groomerName(
   sess: AdminBooking["sessions"][number] | undefined,
 ): string {
   if (!sess) return "-";
+  // Backend toJSON renames the populated groomer_id → groomer_detail.
+  if (sess.groomer_detail?.username) return sess.groomer_detail.username;
   const g = sess.groomer_id;
   if (g && typeof g === "object") return g.username ?? "-";
   return "-";

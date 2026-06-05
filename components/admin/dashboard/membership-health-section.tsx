@@ -275,7 +275,7 @@ function TierBreakdown({
         </div>
       ) : !data || data.tier_breakdown.length === 0 ? (
         <p className="mt-3 text-xs text-muted-foreground">
-          Belum ada membership aktif.
+          Belum ada membership di periode ini.
         </p>
       ) : (
         <ul className="mt-3 space-y-2 text-xs">
