@@ -394,6 +394,8 @@ interface DetailFilters {
   startTo: string;
   endFrom: string;
   endTo: string;
+  createdFrom: string;
+  createdTo: string;
   earlyRenewal: string;
 }
 
@@ -406,6 +408,8 @@ const EMPTY_DETAIL_FILTERS: DetailFilters = {
   startTo: "",
   endFrom: "",
   endTo: "",
+  createdFrom: "",
+  createdTo: "",
   earlyRenewal: "all",
 };
 
@@ -419,6 +423,8 @@ function isDetailFilterActive(f: DetailFilters): boolean {
     f.startTo !== "" ||
     f.endFrom !== "" ||
     f.endTo !== "" ||
+    f.createdFrom !== "" ||
+    f.createdTo !== "" ||
     f.earlyRenewal !== "all"
   );
 }
@@ -472,7 +478,7 @@ function MembershipDetailTab({
   // ── Client-side filtering ────────────────────────────────────────────────
   const data = useMemo(() => {
     let d = rawData;
-    const { search, status, planName, urgency, startFrom, startTo, endFrom, endTo, earlyRenewal } = filters;
+    const { search, status, planName, urgency, startFrom, startTo, endFrom, endTo, createdFrom, createdTo, earlyRenewal } = filters;
 
     if (search) {
       const s = search.toLowerCase();
@@ -491,6 +497,8 @@ function MembershipDetailTab({
     if (startTo) d = d.filter((r) => r.start_date && r.start_date.slice(0, 10) <= startTo);
     if (endFrom) d = d.filter((r) => r.end_date && r.end_date.slice(0, 10) >= endFrom);
     if (endTo) d = d.filter((r) => r.end_date && r.end_date.slice(0, 10) <= endTo);
+    if (createdFrom) d = d.filter((r) => r.created_at && r.created_at.slice(0, 10) >= createdFrom);
+    if (createdTo) d = d.filter((r) => r.created_at && r.created_at.slice(0, 10) <= createdTo);
     if (earlyRenewal === "yes") d = d.filter((r) => r.is_early_renewal);
     if (earlyRenewal === "no") d = d.filter((r) => !r.is_early_renewal);
 
@@ -888,7 +896,17 @@ function MembershipDetailTab({
             </div>
           </div>
 
+          {/* Row 3 — Tanggal beli (purchase date) range + urgency + early renewal */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Tgl Beli Dari</label>
+              <Input type="date" value={filters.createdFrom} onChange={(e) => setF("createdFrom", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Tgl Beli Sampai</label>
+              <Input type="date" value={filters.createdTo} onChange={(e) => setF("createdTo", e.target.value)} />
+            </div>
+
             {/* Urgency */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Urgensi Expiry</label>
