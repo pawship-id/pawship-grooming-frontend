@@ -31,11 +31,10 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useDashboardFilters } from "@/hooks/use-dashboard-filters";
 import {
@@ -65,6 +64,46 @@ function formatShortDate(iso: string) {
     day: "2-digit",
     month: "short",
   });
+}
+
+/**
+ * Definisi metric. Desktop: muncul saat hover (mouse). Mobile/touch: tap icon
+ * untuk buka, tap di luar untuk tutup (ditangani Popover secara native).
+ */
+function InfoHint({ label, text }: { label: string; text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Definisi ${label}`}
+          // p-2 gives a ~32px touch target; -my-2 cancels the vertical growth so
+          // the label row height stays the same, and -ml-2 pulls the icon back
+          // next to the label so the left padding doesn't add visible gap.
+          className="-my-2 -ml-2 inline-flex shrink-0 items-center justify-center rounded p-2 text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
+          onPointerEnter={(e) => {
+            if (e.pointerType === "mouse") setOpen(true);
+          }}
+          onPointerLeave={(e) => {
+            if (e.pointerType === "mouse") setOpen(false);
+          }}
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="start"
+        sideOffset={6}
+        collisionPadding={12}
+        className="w-[min(16rem,calc(100vw-2rem))] p-3 text-xs leading-relaxed"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        {text}
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export function RevenueSection() {
@@ -145,24 +184,37 @@ export function RevenueSection() {
           <DiscountStreamCard
             loading={loading}
             label="Membership Benefit"
+            info="Total potongan harga dari benefit membership (mis. free/diskon grooming) yang dipakai pada periode ini. Angka order di bawah = jumlah booking yang memakai benefit membership."
             value={data?.discount_breakdown.membership_benefit_total ?? 0}
+            orderCount={
+              data?.discount_breakdown.membership_benefit_order_count ?? null
+            }
             tone="purple"
           />
           <DiscountStreamCard
             loading={loading}
             label="Promo Discount"
+            info="Total potongan harga dari kode/promo yang diterapkan pada periode ini. Angka order di bawah = jumlah booking yang memakai promo."
             value={data?.discount_breakdown.promotion_discount_total ?? 0}
+            orderCount={
+              data?.discount_breakdown.promotion_discount_order_count ?? null
+            }
             tone="blue"
           />
           <DiscountStreamCard
             loading={loading}
             label="Admin Discount"
+            info="Total potongan manual oleh admin (edit harga layanan, biaya travel, atau add-on). Angka order di bawah = jumlah booking yang diberi diskon admin."
             value={data?.discount_breakdown.admin_discount_total ?? 0}
+            orderCount={
+              data?.discount_breakdown.admin_discount_order_count ?? null
+            }
             tone="amber"
           />
           <DiscountStreamCard
             loading={loading}
             label="Total Discount"
+            info="Penjumlahan seluruh diskon: membership benefit + promo + diskon admin. Catatan: satu order bisa kena lebih dari satu jenis diskon, jadi jumlah order tiap kartu bisa tumpang tindih."
             value={data?.discount_breakdown.total_attributed ?? 0}
             tone="rose"
           />
@@ -187,8 +239,7 @@ function KpiGrid({
 }) {
   const kpis = data?.kpis;
   return (
-    <TooltipProvider delayDuration={100}>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiTile
           icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
           label="Gross Revenue"
@@ -237,8 +288,7 @@ function KpiGrid({
           delta={kpis?.delta.avg_order_value_pct ?? null}
           tone="amber"
         />
-      </div>
-    </TooltipProvider>
+    </div>
   );
 }
 
@@ -280,20 +330,7 @@ function KpiTile({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1">
           <p className="text-xs text-muted-foreground">{label}</p>
-          {info ? (
-            <Tooltip>
-              <TooltipTrigger
-                type="button"
-                className="text-muted-foreground/70 transition-colors hover:text-foreground"
-                aria-label={`Definisi ${label}`}
-              >
-                <Info className="h-3 w-3" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-[240px] text-xs leading-relaxed">
-                {info}
-              </TooltipContent>
-            </Tooltip>
-          ) : null}
+          {info ? <InfoHint label={label} text={info} /> : null}
         </div>
         {value === null ? (
           <Skeleton className="mt-1 h-6 w-24" />
@@ -512,12 +549,16 @@ function MembershipCard({
 function DiscountStreamCard({
   loading,
   label,
+  info,
   value,
+  orderCount,
   tone,
 }: {
   loading: boolean;
   label: string;
+  info?: string;
   value: number;
+  orderCount?: number | null;
   tone: "purple" | "blue" | "amber" | "rose";
 }) {
   const iconBg =
@@ -540,6 +581,7 @@ function DiscountStreamCard({
           <TrendingDown className="h-3.5 w-3.5" />
         </div>
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        {info ? <InfoHint label={label} text={info} /> : null}
       </div>
       {loading ? (
         <Skeleton className="mt-2 h-6 w-20" />
@@ -548,6 +590,15 @@ function DiscountStreamCard({
           {formatPrice(value)}
         </p>
       )}
+      {orderCount !== undefined ? (
+        loading ? (
+          <Skeleton className="mt-1 h-3 w-16" />
+        ) : (
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            {orderCount ?? 0} order
+          </p>
+        )
+      ) : null}
     </div>
   );
 }
@@ -571,6 +622,10 @@ function DiscountLeakageCard({
       <div className="flex items-center gap-2">
         <TrendingDown className="h-4 w-4" />
         <p className="text-xs font-medium">Discount leakage rate</p>
+        <InfoHint
+          label="Discount leakage rate"
+          text="Persentase total diskon terhadap gross revenue (total diskon ÷ gross revenue × 100). Makin tinggi makin banyak revenue yang 'bocor' jadi diskon. Target sehat < 15%."
+        />
       </div>
       {loading || !breakdown ? (
         <Skeleton className="mt-2 h-6 w-16" />

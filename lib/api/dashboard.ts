@@ -116,8 +116,11 @@ export interface RevenueByLayananCategoryItem {
 
 export interface DiscountBreakdown {
   membership_benefit_total: number;
+  membership_benefit_order_count: number;
   promotion_discount_total: number;
+  promotion_discount_order_count: number;
   admin_discount_total: number;
+  admin_discount_order_count: number;
   total_attributed: number;
   leakage_pct: number;
 }
