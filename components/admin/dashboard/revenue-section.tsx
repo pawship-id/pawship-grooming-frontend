@@ -399,9 +399,15 @@ function ByGroomingServiceBlock({
   return (
     <div className="rounded-lg border border-border/50 p-4">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground">
-          Per Service (grooming only)
-        </p>
+        <div className="flex items-center gap-1">
+          <p className="text-xs font-medium text-muted-foreground">
+            Per Service (grooming only)
+          </p>
+          <InfoHint
+            label="Per Service (grooming only)"
+            text="Rincian revenue per layanan grooming (berdasarkan harga layanan), beserta persentase terhadap total grooming dan jumlah order. Tidak termasuk booking cancelled & rescheduled."
+          />
+        </div>
       </div>
       {loading ? (
         <div className="mt-3 space-y-2">
@@ -460,9 +466,15 @@ function ByLayananCategoryBlock({
 }) {
   return (
     <div className="rounded-lg border border-border/50 p-4">
-      <p className="text-xs font-medium text-muted-foreground">
-        Per Service Category (all services)
-      </p>
+      <div className="flex items-center gap-1">
+        <p className="text-xs font-medium text-muted-foreground">
+          Per Service Category (all services)
+        </p>
+        <InfoHint
+          label="Per Service Category (all services)"
+          text="Revenue dikelompokkan per kategori layanan (grooming, hotel, daycare, spa, add-on, pickup, lainnya) beserta persentasenya terhadap total. Tidak termasuk booking cancelled & rescheduled."
+        />
+      </div>
       {loading ? (
         <div className="mt-3 space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -514,6 +526,10 @@ function MembershipCard({
         <p className="text-xs font-medium text-muted-foreground">
           Membership Revenue
         </p>
+        <InfoHint
+          label="Membership Revenue"
+          text="Total nilai pembelian membership (purchase price) pada periode terpilih. Tidak termasuk membership yang dibatalkan (cancelled). Jika tidak ada filter periode, dihitung sepanjang waktu (all time)."
+        />
       </div>
       {loading || !membership ? (
         <Skeleton className="mt-3 h-6 w-24" />
@@ -524,7 +540,13 @@ function MembershipCard({
       )}
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
         <div>
-          <p className="text-muted-foreground">New Members</p>
+          <div className="flex items-center gap-1">
+            <p className="text-muted-foreground">No of purchase</p>
+            <InfoHint
+              label="No of purchase"
+              text="Jumlah pembelian membership pada periode terpilih (tidak termasuk yang dibatalkan). Tanpa filter periode = total sepanjang waktu."
+            />
+          </div>
           {loading || !membership ? (
             <Skeleton className="mt-0.5 h-4 w-10" />
           ) : (
@@ -532,7 +554,13 @@ function MembershipCard({
           )}
         </div>
         <div>
-          <p className="text-muted-foreground">Average</p>
+          <div className="flex items-center gap-1">
+            <p className="text-muted-foreground">Average Value</p>
+            <InfoHint
+              label="Average Value"
+              text="Rata-rata nilai per pembelian membership (Membership Revenue ÷ No of purchase), tidak termasuk yang dibatalkan."
+            />
+          </div>
           {loading || !membership ? (
             <Skeleton className="mt-0.5 h-4 w-16" />
           ) : (
@@ -654,9 +682,15 @@ function TrendChart({
 }) {
   return (
     <div className="rounded-lg border border-border/50 p-4">
-      <p className="text-xs font-medium text-muted-foreground">
-        Last 7 Days Trend (Gross vs Net)
-      </p>
+      <div className="flex items-center gap-1">
+        <p className="text-xs font-medium text-muted-foreground">
+          Last 7 Days Trend (Gross vs Net)
+        </p>
+        <InfoHint
+          label="Last 7 Days Trend"
+          text="Tren gross revenue vs net revenue selama 7 hari terakhir. Gross = sebelum diskon, Net = setelah diskon. Tidak termasuk booking cancelled & rescheduled."
+        />
+      </div>
       {loading ? (
         <Skeleton className="mt-3 h-44 w-full" />
       ) : (
