@@ -5,6 +5,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   CircleDollarSign,
+  Info,
   Minus,
   Receipt,
   ShoppingBag,
@@ -18,7 +19,7 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -29,6 +30,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useDashboardFilters } from "@/hooks/use-dashboard-filters";
 import {
@@ -180,58 +187,65 @@ function KpiGrid({
 }) {
   const kpis = data?.kpis;
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <KpiTile
-        icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
-        label="Gross Revenue"
-        value={loading || !kpis ? null : formatPrice(kpis.gross_revenue)}
-        subtext={
-          loading || !kpis ? null : (
-            <RevenueBreakdown
-              confirmed={kpis.gross_revenue_confirmed}
-              pending={kpis.gross_revenue_pending}
-            />
-          )
-        }
-        delta={kpis?.delta.gross_revenue_pct ?? null}
-        tone="emerald"
-      />
-      <KpiTile
-        icon={<CircleDollarSign className="h-4 w-4 text-primary" />}
-        label="Net Revenue"
-        value={loading || !kpis ? null : formatPrice(kpis.net_revenue)}
-        subtext={
-          loading || !kpis ? null : (
-            <RevenueBreakdown
-              confirmed={kpis.net_revenue_confirmed}
-              pending={kpis.net_revenue_pending}
-            />
-          )
-        }
-        delta={kpis?.delta.net_revenue_pct ?? null}
-        tone="primary"
-      />
-      <KpiTile
-        icon={<ShoppingBag className="h-4 w-4 text-blue-600" />}
-        label="Completed Orders"
-        value={loading || !kpis ? null : kpis.total_orders.toString()}
-        delta={kpis?.delta.total_orders_pct ?? null}
-        tone="blue"
-      />
-      <KpiTile
-        icon={<Receipt className="h-4 w-4 text-amber-600" />}
-        label="Avg Order Value"
-        value={loading || !kpis ? null : formatPrice(kpis.avg_order_value)}
-        delta={kpis?.delta.avg_order_value_pct ?? null}
-        tone="amber"
-      />
-    </div>
+    <TooltipProvider delayDuration={100}>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiTile
+          icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
+          label="Gross Revenue"
+          info="Total nilai order (harga asli sebelum diskon) dari seluruh booking pada periode ini. Tidak termasuk booking berstatus cancelled & rescheduled."
+          value={loading || !kpis ? null : formatPrice(kpis.gross_revenue)}
+          subtext={
+            loading || !kpis ? null : (
+              <RevenueBreakdown
+                confirmed={kpis.gross_revenue_confirmed}
+                pending={kpis.gross_revenue_pending}
+              />
+            )
+          }
+          delta={kpis?.delta.gross_revenue_pct ?? null}
+          tone="emerald"
+        />
+        <KpiTile
+          icon={<CircleDollarSign className="h-4 w-4 text-primary" />}
+          label="Net Revenue"
+          info="Gross revenue dikurangi total diskon (membership benefit, promo, dan diskon admin). Tidak termasuk booking berstatus cancelled & rescheduled."
+          value={loading || !kpis ? null : formatPrice(kpis.net_revenue)}
+          subtext={
+            loading || !kpis ? null : (
+              <RevenueBreakdown
+                confirmed={kpis.net_revenue_confirmed}
+                pending={kpis.net_revenue_pending}
+              />
+            )
+          }
+          delta={kpis?.delta.net_revenue_pct ?? null}
+          tone="primary"
+        />
+        <KpiTile
+          icon={<ShoppingBag className="h-4 w-4 text-blue-600" />}
+          label="Completed Orders"
+          info="Jumlah order yang sudah selesai (status completed atau returned) pada periode ini. Tidak termasuk booking cancelled & rescheduled."
+          value={loading || !kpis ? null : kpis.total_orders.toString()}
+          delta={kpis?.delta.total_orders_pct ?? null}
+          tone="blue"
+        />
+        <KpiTile
+          icon={<Receipt className="h-4 w-4 text-amber-600" />}
+          label="Avg Order Value"
+          info="Rata-rata nilai net per order yang selesai (net revenue completed ÷ jumlah completed orders). Tidak termasuk booking cancelled & rescheduled."
+          value={loading || !kpis ? null : formatPrice(kpis.avg_order_value)}
+          delta={kpis?.delta.avg_order_value_pct ?? null}
+          tone="amber"
+        />
+      </div>
+    </TooltipProvider>
   );
 }
 
 function KpiTile({
   icon,
   label,
+  info,
   value,
   subtext,
   delta,
@@ -239,6 +253,7 @@ function KpiTile({
 }: {
   icon: React.ReactNode;
   label: string;
+  info?: string;
   value: string | null;
   subtext?: React.ReactNode;
   delta: number | null;
@@ -263,7 +278,23 @@ function KpiTile({
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-muted-foreground">{label}</p>
+        <div className="flex items-center gap-1">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          {info ? (
+            <Tooltip>
+              <TooltipTrigger
+                type="button"
+                className="text-muted-foreground/70 transition-colors hover:text-foreground"
+                aria-label={`Definisi ${label}`}
+              >
+                <Info className="h-3 w-3" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-[240px] text-xs leading-relaxed">
+                {info}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
+        </div>
         {value === null ? (
           <Skeleton className="mt-1 h-6 w-24" />
         ) : (
@@ -587,7 +618,7 @@ function TrendChart({
                 tickFormatter={(v: number) => formatCompactPrice(v)}
                 width={56}
               />
-              <Tooltip
+              <RechartsTooltip
                 formatter={(v: number) => formatPrice(v)}
                 labelClassName="text-xs"
               />
