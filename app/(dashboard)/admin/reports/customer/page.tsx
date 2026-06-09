@@ -324,16 +324,25 @@ function MasterDataTab({
     if (DATE_COLS_MASTER.has(key)) return fmtDate(val as string);
     if (key === "membership_status") {
       const v = String(val);
+      const cfg: Record<string, { label: string; cls: string }> = {
+        active: {
+          label: "Aktif",
+          cls: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800",
+        },
+        pending: {
+          label: "Menunggu",
+          cls: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800",
+        },
+        expired: {
+          label: "Berakhir",
+          cls: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800",
+        },
+      };
+      const entry = cfg[v];
+      if (!entry) return <span className="text-muted-foreground/40">—</span>;
       return (
-        <Badge
-          variant="outline"
-          className={
-            v === "active"
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
-              : "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800"
-          }
-        >
-          {v === "active" ? "Aktif" : "Expired"}
+        <Badge variant="outline" className={entry.cls}>
+          {entry.label}
         </Badge>
       );
     }
