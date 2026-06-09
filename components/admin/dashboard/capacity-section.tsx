@@ -99,9 +99,9 @@ export function CapacitySection() {
 
   return (
     <Card className="border-border/50">
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle className="font-display text-lg font-bold flex items-center gap-2">
-          <Gauge className="h-4 w-4 text-emerald-600" />
+      <CardHeader className="flex flex-col items-start gap-1 space-y-0 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+        <CardTitle className="font-display text-lg font-bold flex items-center gap-2 min-w-0">
+          <Gauge className="h-4 w-4 shrink-0 text-emerald-600" />
           Kapasitas hari ini
         </CardTitle>
         <span className="text-xs text-muted-foreground">Today only</span>

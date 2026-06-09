@@ -78,9 +78,9 @@ export function GroomerPerformanceSection() {
 
   return (
     <Card className="border-border/50">
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle className="font-display text-lg font-bold flex items-center gap-2">
-          <Scissors className="h-4 w-4 text-pink-600" />
+      <CardHeader className="flex flex-col items-start gap-1 space-y-0 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+        <CardTitle className="font-display text-lg font-bold flex items-center gap-2 min-w-0">
+          <Scissors className="h-4 w-4 shrink-0 text-pink-600" />
           Performa groomer
         </CardTitle>
         <span className="text-xs text-muted-foreground">Today only</span>
@@ -143,7 +143,7 @@ export function GroomerPerformanceSection() {
           </div>
           <div className="rounded-lg border border-border/50 p-4">
             <div className="flex items-center gap-2">
-              <CircleDollarSign className="h-4 w-4 text-purple-600" />
+              <CircleDollarSign className="h-4 w-4 shrink-0 text-purple-600" />
               <p className="text-xs font-medium text-muted-foreground">
                 Revenue / team
               </p>

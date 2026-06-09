@@ -83,9 +83,9 @@ export function MembershipHealthSection() {
 
   return (
     <Card className="border-border/50">
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle className="font-display text-lg font-bold flex items-center gap-2">
-          <CreditCard className="h-4 w-4 text-purple-600" />
+      <CardHeader className="flex flex-col items-start gap-1 space-y-0 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+        <CardTitle className="font-display text-lg font-bold flex items-center gap-2 min-w-0">
+          <CreditCard className="h-4 w-4 shrink-0 text-purple-600" />
           Membership Health
         </CardTitle>
         <span className="text-xs text-muted-foreground">
@@ -318,7 +318,7 @@ function ExpiringBlock({
   return (
     <div className="rounded-lg border border-border/50 p-4">
       <div className="flex items-center gap-2">
-        <CalendarClock className="h-4 w-4 text-amber-600" />
+        <CalendarClock className="h-4 w-4 shrink-0 text-amber-600" />
         <p className="text-xs font-medium text-muted-foreground">
           Membership will expire
         </p>
@@ -368,7 +368,7 @@ function TierBreakdown({
   return (
     <div className="rounded-lg border border-border/50 p-4">
       <div className="flex items-center gap-2">
-        <Layers className="h-4 w-4 text-purple-600" />
+        <Layers className="h-4 w-4 shrink-0 text-purple-600" />
         <p className="text-xs font-medium text-muted-foreground">
           Distribusi tier
         </p>
@@ -428,8 +428,8 @@ function CustomerClassification({
 }) {
   return (
     <div className="rounded-lg border border-border/50 p-4">
-      <div className="flex items-center gap-2">
-        <Users className="h-4 w-4 text-purple-600" />
+      <div className="flex flex-wrap items-center gap-2">
+        <Users className="h-4 w-4 shrink-0 text-purple-600" />
         <p className="text-xs font-medium text-muted-foreground">
           Classify all customers
         </p>
@@ -461,7 +461,7 @@ function CustomerClassification({
           </div>
         </InfoHint>
         {data ? (
-          <span className="ml-auto whitespace-nowrap text-[11px] text-muted-foreground">
+          <span className="w-full whitespace-nowrap text-[11px] text-muted-foreground sm:ml-auto sm:w-auto">
             Total Customer:{" "}
             <span className="font-display font-bold text-foreground">
               {(data.total_customers ?? 0).toLocaleString("id-ID")}

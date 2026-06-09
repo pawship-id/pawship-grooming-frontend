@@ -126,8 +126,8 @@ export function BookingsSection() {
   return (
     <Card className="border-border/50">
       <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
-        <CardTitle className="font-display text-lg font-bold flex items-center gap-2">
-          <CalendarDays className="h-4 w-4 text-blue-600" />
+        <CardTitle className="font-display text-lg font-bold flex items-center gap-2 min-w-0">
+          <CalendarDays className="h-4 w-4 shrink-0 text-blue-600" />
           Bookings
         </CardTitle>
         <div className="flex items-center gap-2">
@@ -304,7 +304,7 @@ function ByDayBlock({
   return (
     <div className="rounded-lg border border-border/50 p-4">
       <div className="flex items-center gap-2">
-        <CalendarDays className="h-4 w-4 text-emerald-600" />
+        <CalendarDays className="h-4 w-4 shrink-0 text-emerald-600" />
         <p className="text-xs font-medium text-muted-foreground">
           Bookings per Day (Mon–Sun)
         </p>

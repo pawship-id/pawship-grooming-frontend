@@ -372,7 +372,7 @@ export function DailyCapacitySection() {
     <>
       <Card className="border-border/50">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="font-display text-lg font-bold">
               Daily Capacity Usage
             </CardTitle>
@@ -381,9 +381,9 @@ export function DailyCapacitySection() {
               disabled={!selectedStoreId || isLoadingStores}
               size="sm"
               variant="outline"
-              className="gap-2"
+              className="w-full shrink-0 gap-2 sm:w-auto"
             >
-              <Settings className="h-4 w-4" />
+              <Settings className="h-4 w-4 shrink-0" />
               Override Capacity
             </Button>
           </div>
