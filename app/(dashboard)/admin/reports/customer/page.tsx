@@ -448,12 +448,15 @@ function MasterDataTab({
               <span className="font-medium text-foreground">
                 Kunjungan Terakhir
               </span>{" "}
-              dan{" "}
+              diambil dari booking terakhir (tipe layanan apapun), sedangkan{" "}
               <span className="font-medium text-foreground">
                 Grooming Terakhir
               </span>{" "}
-              dihitung hanya dari booking berstatus{" "}
-              <span className="font-medium text-foreground">Completed</span>.
+              khusus layanan Grooming. Keduanya dihitung dari booking berstatus{" "}
+              <span className="font-medium text-foreground">
+                Completed/Returned
+              </span>
+              .
             </p>
           </div>
           <div className="flex items-center gap-2">
