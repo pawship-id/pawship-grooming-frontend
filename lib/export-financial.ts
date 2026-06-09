@@ -181,6 +181,10 @@ export function buildFinancialRow(
     // booking_id → booking code (not MongoDB _id)
     booking_code: b.code ?? "-",
     booking_date: fmtDate(b.date),
+    // start_date → the booking's start (`date`); falls back to booking date.
+    // end_date → falls back to start date when absent.
+    start_date: fmtDate(b.date),
+    end_date: fmtDate(b.end_date ?? b.date),
     time_slot: b.time_range ?? "-",
     booking_type: b.type ?? "-",
     booking_status: b.booking_status ?? "-",
@@ -290,6 +294,8 @@ export function buildSessionRows(
 export const FINANCIAL_COLUMN_LABELS: Partial<Record<keyof FinancialRow, string>> = {
   booking_code: "Kode Booking",
   booking_date: "Tanggal Booking",
+  start_date: "Tanggal Mulai",
+  end_date: "Tanggal Selesai",
   time_slot: "Time Slot",
   booking_type: "Tipe (In Store/In Home)",
   booking_status: "Status Booking",
@@ -334,6 +340,8 @@ const COL_WIDTHS: Partial<Record<keyof FinancialRow, number>> = {
   booking_id: 28,
   booking_code: 18,
   booking_date: 14,
+  start_date: 14,
+  end_date: 14,
   time_slot: 12,
   booking_type: 18,
   booking_status: 16,

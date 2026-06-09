@@ -90,6 +90,8 @@ const TABLE_COLUMNS: {
   // Transaction Identity
   { key: "booking_code", group: "Transaksi", defaultVisible: true },
   { key: "booking_date", group: "Transaksi", defaultVisible: true },
+  { key: "start_date", group: "Transaksi", defaultVisible: true },
+  { key: "end_date", group: "Transaksi", defaultVisible: true },
   { key: "time_slot", group: "Transaksi", defaultVisible: true },
   { key: "booking_type", group: "Transaksi", defaultVisible: true },
   { key: "booking_status", group: "Transaksi", defaultVisible: true },
