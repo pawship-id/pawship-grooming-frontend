@@ -31,6 +31,7 @@ export interface CustomerMasterDataRow {
   last_visit_at: string | null;
   last_grooming_at: string | null;
   pet_registered_at: string | null;
+  total_transactions: number;
   has_booked: boolean;
 }
 

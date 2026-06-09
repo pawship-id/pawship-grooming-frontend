@@ -217,6 +217,11 @@ const MASTER_COLS: {
     defaultVisible: false,
   },
   { key: "pet_registered_at", label: "Tgl Daftar Pet", defaultVisible: false },
+  {
+    key: "total_transactions",
+    label: "Total Transaksi",
+    defaultVisible: true,
+  },
 ];
 
 const MASTER_DEFAULT_VISIBLE = new Set(
