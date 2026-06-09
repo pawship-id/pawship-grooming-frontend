@@ -382,11 +382,10 @@ function TierBreakdown({
             Distribusi tier
           </p>
           <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-            Distribusi dari populasi yang sama dengan kartu &quot;Active
-            member&quot; (membership berlaku — status aktif + pending),
-            dikelompokkan menurut nama paket (membership plan). Bukan per-periode
-            — tidak terpengaruh filter tanggal. Persentase = jumlah per tier ÷
-            total active member.
+            Distribusi dari pembelian membership pada periode terpilih (sama
+            dengan &quot;No of Purchase&quot; di kartu Period Income),
+            dikelompokkan menurut nama paket (membership plan). Mengikuti filter
+            tanggal. Persentase = jumlah per tier ÷ total pembelian pada periode.
           </p>
         </InfoHint>
       </div>
