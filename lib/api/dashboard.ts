@@ -340,6 +340,10 @@ export interface MembershipHealthResponse {
   expiring_30_days: number;
   penetration_rate_pct: number;
   tier_breakdown: MembershipTierItem[];
+  total_customers: number;
+  active_member_customers: number;
+  non_member_customers: number;
+  ex_member_customers: number;
 }
 
 export async function getMembershipHealth(params?: {

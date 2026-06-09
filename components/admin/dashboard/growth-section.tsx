@@ -147,8 +147,8 @@ export function GrowthSection() {
                     Total Customer
                   </p>
                   <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                    Jumlah seluruh customer yang pernah terdaftar di sistem
-                    (all-time), tidak mengikuti filter tanggal.
+                    Jumlah customer aktif & belum dihapus (all-time), tidak
+                    mengikuti filter tanggal.
                   </p>
                 </div>
                 <div>
@@ -223,8 +223,8 @@ export function GrowthSection() {
                 </p>
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                   Rumus: (pet daftar ≤30 hari yang sudah pernah booking selesai)
-                  ÷ (total pet daftar ≤30 hari) × 100%. Selalu memakai jendela 30
-                  hari terakhir, tidak mengikuti filter tanggal.
+                  ÷ (total pet daftar ≤30 hari) × 100%. Selalu memakai jendela
+                  30 hari terakhir, tidak mengikuti filter tanggal.
                 </p>
               </div>
             }
@@ -251,15 +251,18 @@ export function GrowthSection() {
                   Pertumbuhan bersih populasi pet = Registered − Lapsed.
                 </p>
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  <span className="font-medium text-foreground">Registered</span>{" "}
-                  = jumlah pet baru terdaftar (sama dengan &quot;New Pets&quot; di
-                  kartu Total Pet; mengikuti filter, tanpa filter = all-time).
+                  <span className="font-medium text-foreground">
+                    Registered
+                  </span>{" "}
+                  = jumlah pet baru terdaftar (sama dengan &quot;New Pets&quot;
+                  di kartu Total Pet; mengikuti filter, tanpa filter =
+                  all-time).
                 </p>
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                   <span className="font-medium text-foreground">Lapsed</span> =
                   jumlah pet berstatus Lapsed pada snapshot di bawah (kunjungan
-                  terakhir &gt;31 hari lalu &amp; total kunjungan &gt;1). Snapshot
-                  bersifat live all-time.
+                  terakhir &gt;31 hari lalu &amp; total kunjungan &gt;1).
+                  Snapshot bersifat live all-time.
                 </p>
               </div>
             }
@@ -419,7 +422,11 @@ function PetStatusBlock({
               key={key}
               className={cn("relative rounded-md p-3 text-center", meta.bg)}
             >
-              <StatusInfo label={meta.label} desc={meta.desc} tone={meta.tone} />
+              <StatusInfo
+                label={meta.label}
+                desc={meta.desc}
+                tone={meta.tone}
+              />
               <p className={cn("text-[10px] font-medium", meta.tone)}>
                 {meta.label}
               </p>
@@ -484,8 +491,7 @@ function InfoHint({
     </button>
   );
 
-  const contentClassName =
-    "w-64 max-w-[calc(100vw-2rem)] p-3 text-left";
+  const contentClassName = "w-64 max-w-[calc(100vw-2rem)] p-3 text-left";
 
   if (hasHover) {
     return (

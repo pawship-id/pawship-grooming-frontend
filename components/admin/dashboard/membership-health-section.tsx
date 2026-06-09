@@ -10,6 +10,9 @@ import {
   Layers,
   RefreshCcw,
   Sparkles,
+  UserCheck,
+  Users,
+  UserX,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -236,7 +239,10 @@ export function MembershipHealthSection() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <ExpiringBlock loading={loading} data={data} />
+          <div className="flex flex-col gap-4">
+            <ExpiringBlock loading={loading} data={data} />
+            <CustomerClassification loading={loading} data={data} />
+          </div>
           <TierBreakdown loading={loading} data={data} />
         </div>
       </CardContent>
@@ -418,6 +424,98 @@ function TierBreakdown({
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+function CustomerClassification({
+  loading,
+  data,
+}: {
+  loading: boolean;
+  data: MembershipHealthResponse | null;
+}) {
+  return (
+    <div className="rounded-lg border border-border/50 p-4">
+      <div className="flex items-center gap-2">
+        <Users className="h-4 w-4 text-purple-600" />
+        <p className="text-xs font-medium text-muted-foreground">
+          Classify all customers
+        </p>
+        <InfoHint ariaLabel="Sumber data klasifikasi customer">
+          <p className="text-xs font-semibold text-foreground">
+            Classify all customers
+          </p>
+          <div className="mt-1 space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            <p>
+              Klasifikasi seluruh customer (user role customer yang aktif &
+              belum dihapus) menurut status membership saat ini. Global — tidak
+              terpengaruh filter tanggal.
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Active member</span>
+              : customer yang punya membership berlaku — status aktif atau
+              pending (ongoing / akan mulai).
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Non member</span>:
+              customer yang tidak punya membership aktif/pending = total customer
+              − active member.
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Ex member</span>:
+              bagian dari non member yang pernah punya membership tapi sudah
+              expired dan kini tidak ada yang aktif/pending.
+            </p>
+          </div>
+        </InfoHint>
+        {data ? (
+          <span className="ml-auto whitespace-nowrap text-[11px] text-muted-foreground">
+            Total Customer:{" "}
+            <span className="font-display font-bold text-foreground">
+              {(data.total_customers ?? 0).toLocaleString("id-ID")}
+            </span>
+          </span>
+        ) : null}
+      </div>
+      {loading || !data ? (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+      ) : (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="flex items-start gap-3 rounded-md bg-emerald-50 p-3">
+            <UserCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-muted-foreground">
+                Active member
+              </p>
+              <p className="font-display text-lg font-bold text-emerald-700">
+                {(data.active_member_customers ?? 0).toLocaleString("id-ID")}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                ada membership ongoing / pending
+              </p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3 rounded-md bg-muted/40 p-3">
+            <UserX className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-muted-foreground">
+                Non member
+              </p>
+              <p className="font-display text-lg font-bold text-foreground">
+                {(data.non_member_customers ?? 0).toLocaleString("id-ID")}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                tidak ada membership aktif · Ex member:{" "}
+                {(data.ex_member_customers ?? 0).toLocaleString("id-ID")}
+              </p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
