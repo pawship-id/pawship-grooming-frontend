@@ -164,17 +164,47 @@ export function MembershipHealthSection() {
           />
           <KpiTile
             icon={<CircleDollarSign className="h-4 w-4 text-emerald-600" />}
-            label="Pendapatan periode"
+            label="Period Income"
             value={
               loading || !data ? null : formatPrice(data.membership_revenue)
             }
             sublabel={
-              data && data.new_memberships > 0
-                ? `${data.new_memberships} member baru · rata-rata ${formatPrice(data.avg_membership_value)}`
-                : undefined
+              data && data.new_memberships > 0 ? (
+                <>
+                  <span className="block truncate">
+                    No of Purchase : {data.new_memberships.toLocaleString("id-ID")}
+                  </span>
+                  <span className="block truncate">
+                    Average Value : {formatPrice(data.avg_membership_value)}
+                  </span>
+                </>
+              ) : undefined
             }
             tone="emerald"
-            info="Total purchase_price dari pembelian membership yang dibuat (createdAt) dalam rentang tanggal terpilih, tidak termasuk yang dibatalkan. 'Member baru' = jumlah pembelian di periode itu; rata-rata = pendapatan ÷ member baru. Rumus sama dengan kartu 'Membership Revenue' di tab Ringkasan."
+            info={
+              <>
+                <p>
+                  Total purchase_price dari pembelian membership yang dibuat
+                  (createdAt) dalam rentang tanggal terpilih, tidak termasuk yang
+                  dibatalkan. Rumus sama dengan kartu &quot;Membership
+                  Revenue&quot; di tab Ringkasan.
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">
+                    No of purchase
+                  </span>
+                  : jumlah pembelian membership pada periode terpilih (tidak
+                  termasuk yang dibatalkan).
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">
+                    Average Value
+                  </span>
+                  : rata-rata nilai per pembelian = Period Income ÷ No of
+                  purchase.
+                </p>
+              </>
+            }
           />
           <KpiTile
             icon={<RefreshCcw className="h-4 w-4 text-blue-600" />}
