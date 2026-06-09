@@ -124,7 +124,7 @@ export function GrowthSection() {
           </div>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <KpiTile
             icon={<UserPlus className="h-4 w-4 text-primary" />}
             label="Total Customer"
@@ -212,6 +212,22 @@ export function GrowthSection() {
             delta={null}
             tone="pink"
             sublabel="Daftar 30 hari → booking selesai"
+            info={
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-foreground">
+                  First booking conversion
+                </p>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Persentase pet yang terdaftar dalam 30 hari terakhir dan sudah
+                  punya minimal 1 booking berstatus selesai (completed).
+                </p>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Rumus: (pet daftar ≤30 hari yang sudah pernah booking selesai)
+                  ÷ (total pet daftar ≤30 hari) × 100%. Selalu memakai jendela 30
+                  hari terakhir, tidak mengikuti filter tanggal.
+                </p>
+              </div>
+            }
           />
           <KpiTile
             icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
@@ -226,18 +242,27 @@ export function GrowthSection() {
             delta={null}
             tone="emerald"
             sublabel="Registered − lapsed"
-          />
-          <KpiTile
-            icon={<PawPrint className="h-4 w-4 text-amber-600" />}
-            label="Total pet aktif"
-            value={
-              loading || !data
-                ? null
-                : data.pet_status.total.toLocaleString("id-ID")
+            info={
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-foreground">
+                  Net pet growth
+                </p>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Pertumbuhan bersih populasi pet = Registered − Lapsed.
+                </p>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  <span className="font-medium text-foreground">Registered</span>{" "}
+                  = jumlah pet baru terdaftar (sama dengan &quot;New Pets&quot; di
+                  kartu Total Pet; mengikuti filter, tanpa filter = all-time).
+                </p>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  <span className="font-medium text-foreground">Lapsed</span> =
+                  jumlah pet berstatus Lapsed pada snapshot di bawah (kunjungan
+                  terakhir &gt;31 hari lalu &amp; total kunjungan &gt;1). Snapshot
+                  bersifat live all-time.
+                </p>
+              </div>
             }
-            delta={null}
-            tone="amber"
-            sublabel="Live snapshot"
           />
         </div>
 
