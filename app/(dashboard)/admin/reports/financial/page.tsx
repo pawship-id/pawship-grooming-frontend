@@ -129,7 +129,7 @@ const TABLE_COLUMNS: {
   { key: "membership_benefit", group: "Revenue", defaultVisible: false },
   { key: "total_discount", group: "Revenue", defaultVisible: false },
   { key: "net_total", group: "Revenue", defaultVisible: true },
-  { key: "commission_base_groomer", group: "Revenue", defaultVisible: false, missing: true },
+  { key: "commission_base_groomer", group: "Revenue", defaultVisible: false },
 ];
 
 const DEFAULT_VISIBLE = new Set(

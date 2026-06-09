@@ -139,12 +139,18 @@ export function onTimeInfo(booking: AdminBooking): {
   };
 }
 
-// ─── Commission base (from Formula & Status spec) ─────────────────────────────
-// Formula: gross_total * groomer_tier_rate (solo) or gross_total * 0.5 * rate (shared).
-// groomer_tier_rate does NOT exist in the User model yet → return "?" until implemented.
+// ─── Commission base ──────────────────────────────────────────────────────────
+// Per-session commission base:
+//   (Sub Total Layanan + travel fee [only when booking type is "in home"])
+//   ÷ jumlah session
+// The same value is shown on every session row of the booking.
 
-export function commissionBase(_booking: AdminBooking): number | string {
-  return "?";
+export function commissionBase(booking: AdminBooking): number {
+  const subTotal = booking.sub_total_service ?? 0;
+  const travelFee =
+    booking.type === "in home" ? (booking.travel_fee ?? 0) : 0;
+  const sessionCount = Math.max(1, (booking.sessions ?? []).length);
+  return (subTotal + travelFee) / sessionCount;
 }
 
 // ─── Row builder — single source of truth used by both table & export ─────────
