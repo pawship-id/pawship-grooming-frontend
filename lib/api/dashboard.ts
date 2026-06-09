@@ -328,6 +328,10 @@ export interface MembershipHealthResponse {
   message: string;
   range: { from: string; to: string };
   active_memberships: number;
+  active_count: number;
+  pending_count: number;
+  member_pet_count: number;
+  member_customer_count: number;
   new_memberships: number;
   membership_revenue: number;
   avg_membership_value: number;

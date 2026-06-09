@@ -107,12 +107,60 @@ export function MembershipHealthSection() {
                 : data.active_memberships.toLocaleString("id-ID")
             }
             sublabel={
-              data
-                ? `Penetrasi ${data.penetration_rate_pct.toFixed(1)}%`
-                : undefined
+              data ? (
+                <>
+                  <span className="block truncate">
+                    {(data.active_count ?? 0).toLocaleString("id-ID")} active ·{" "}
+                    {(data.pending_count ?? 0).toLocaleString("id-ID")} pending
+                  </span>
+                  <span className="block truncate">
+                    {(data.member_pet_count ?? 0).toLocaleString("id-ID")} pets ·{" "}
+                    {(data.member_customer_count ?? 0).toLocaleString("id-ID")}{" "}
+                    customer
+                  </span>
+                  <span className="block truncate">
+                    Penetrasi {(data.penetration_rate_pct ?? 0).toFixed(1)}%
+                  </span>
+                </>
+              ) : undefined
             }
             tone="purple"
-            info="Jumlah pet-membership yang masih aktif. Global — tidak terpengaruh filter tanggal. Penetrasi = member aktif ÷ total pet aktif."
+            info={
+              <>
+                <p>
+                  Jumlah membership yang masih berlaku (status{" "}
+                  <span className="font-medium text-foreground">aktif</span> +{" "}
+                  <span className="font-medium text-foreground">pending</span>),
+                  dari koleksi pet-membership yang belum dibatalkan & belum
+                  dihapus dengan tanggal berakhir ≥ hari ini. Global — tidak
+                  terpengaruh filter tanggal.
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Aktif</span>:
+                  membership yang sudah berjalan — tanggal mulai ≤ hari ini dan
+                  belum melewati tanggal berakhir.
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Pending</span>:
+                  membership yang sudah dibeli tapi belum mulai — tanggal mulai
+                  masih di masa depan.
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">
+                    n pets · n customer
+                  </span>
+                  : jumlah pet dan pemilik (customer) unik yang punya membership
+                  berlaku (di-distinct, satu pet/customer dihitung sekali).
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">
+                    Penetration rate
+                  </span>
+                  : pet terdaftar yang punya membership berlaku ÷ total pet
+                  terdaftar. Memakai jumlah pet unik sehingga maksimal 100%.
+                </p>
+              </>
+            }
           />
           <KpiTile
             icon={<CircleDollarSign className="h-4 w-4 text-emerald-600" />}
@@ -178,10 +226,10 @@ function KpiTile({
   icon: React.ReactNode;
   label: string;
   value: string | null;
-  sublabel?: string;
+  sublabel?: React.ReactNode;
   tone: "purple" | "emerald" | "blue" | "amber";
   valueClassName?: string;
-  info?: string;
+  info?: React.ReactNode;
 }) {
   const iconBg =
     tone === "purple"
@@ -207,9 +255,9 @@ function KpiTile({
           {info ? (
             <InfoHint ariaLabel={`Sumber data ${label}`}>
               <p className="text-xs font-semibold text-foreground">{label}</p>
-              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              <div className="mt-1 space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
                 {info}
-              </p>
+              </div>
             </InfoHint>
           ) : null}
         </div>
@@ -226,9 +274,9 @@ function KpiTile({
           </p>
         )}
         {sublabel ? (
-          <p className="mt-0.5 text-[11px] text-muted-foreground truncate">
+          <div className="mt-0.5 text-[11px] text-muted-foreground">
             {sublabel}
-          </p>
+          </div>
         ) : null}
       </div>
     </div>
