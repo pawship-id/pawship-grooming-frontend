@@ -641,6 +641,7 @@ function AllPetMembershipsPageInner() {
                   <TableHead className="text-xs">Pet</TableHead>
                   <TableHead className="text-xs">Owner</TableHead>
                   <TableHead className="text-xs">Tier</TableHead>
+                  <TableHead className="text-xs">Tanggal beli</TableHead>
                   <TableHead className="text-xs">Periode</TableHead>
                   <TableHead className="text-xs text-right">
                     Sisa hari
@@ -653,7 +654,7 @@ function AllPetMembershipsPageInner() {
                 {loading ? (
                   Array.from({ length: 6 }).map((_, i) => (
                     <TableRow key={i}>
-                      {Array.from({ length: 7 }).map((_, j) => (
+                      {Array.from({ length: 8 }).map((_, j) => (
                         <TableCell key={j}>
                           <Skeleton className="h-4 w-full" />
                         </TableCell>
@@ -663,7 +664,7 @@ function AllPetMembershipsPageInner() {
                 ) : items.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={8}
                       className="text-center text-sm text-muted-foreground py-10"
                     >
                       {total === 0
@@ -730,6 +731,9 @@ function AllPetMembershipsPageInner() {
                               "-"
                             )}
                           </div>
+                        </TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">
+                          {formatDate(m.createdAt)}
                         </TableCell>
                         <TableCell className="text-xs whitespace-nowrap">
                           {formatDate(m.start_date)} →{" "}

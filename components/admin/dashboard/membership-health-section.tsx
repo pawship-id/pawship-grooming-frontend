@@ -10,12 +10,7 @@ import {
   RefreshCcw,
   Sparkles,
 } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useDashboardFilters } from "@/hooks/use-dashboard-filters";
@@ -77,7 +72,7 @@ export function MembershipHealthSection() {
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="font-display text-lg font-bold flex items-center gap-2">
           <CreditCard className="h-4 w-4 text-purple-600" />
-          Kesehatan Membership
+          Membership Health
         </CardTitle>
         <span className="text-xs text-muted-foreground">
           Global · Tanggal sebagian
