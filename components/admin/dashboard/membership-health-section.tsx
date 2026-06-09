@@ -6,12 +6,24 @@ import {
   CalendarClock,
   CircleDollarSign,
   CreditCard,
+  Info,
   Layers,
   RefreshCcw,
   Sparkles,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useDashboardFilters } from "@/hooks/use-dashboard-filters";
 import {
@@ -100,6 +112,7 @@ export function MembershipHealthSection() {
                 : undefined
             }
             tone="purple"
+            info="Jumlah pet-membership yang masih aktif. Global — tidak terpengaruh filter tanggal. Penetrasi = member aktif ÷ total pet aktif."
           />
           <KpiTile
             icon={<CircleDollarSign className="h-4 w-4 text-emerald-600" />}
@@ -113,6 +126,7 @@ export function MembershipHealthSection() {
                 : undefined
             }
             tone="emerald"
+            info="Total purchase_price dari pembelian membership yang dibuat (createdAt) dalam rentang tanggal terpilih, tidak termasuk yang dibatalkan. 'Member baru' = jumlah pembelian di periode itu; rata-rata = pendapatan ÷ member baru. Rumus sama dengan kartu 'Membership Revenue' di tab Ringkasan."
           />
           <KpiTile
             icon={<RefreshCcw className="h-4 w-4 text-blue-600" />}
@@ -127,6 +141,7 @@ export function MembershipHealthSection() {
             sublabel="Target ≥ 70%"
             tone="blue"
             valueClassName={renewalTone(data?.renewal_rate_pct ?? null)}
+            info="Rolling 30 hari. Penyebut = pet yang membership-nya berakhir dalam 30 hari terakhir; pembilang = pet tersebut yang kini punya membership aktif/berlaku. Global — tidak terpengaruh filter tanggal."
           />
           <KpiTile
             icon={<AlarmClock className="h-4 w-4 text-amber-600" />}
@@ -138,6 +153,7 @@ export function MembershipHealthSection() {
                 : undefined
             }
             tone="amber"
+            info="Membership aktif yang tanggal berakhirnya jatuh antara hari ini dan 7 (atau 30) hari ke depan. Global — tidak terpengaruh filter tanggal."
           />
         </div>
 
@@ -157,6 +173,7 @@ function KpiTile({
   sublabel,
   tone,
   valueClassName,
+  info,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -164,6 +181,7 @@ function KpiTile({
   sublabel?: string;
   tone: "purple" | "emerald" | "blue" | "amber";
   valueClassName?: string;
+  info?: string;
 }) {
   const iconBg =
     tone === "purple"
@@ -184,7 +202,17 @@ function KpiTile({
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-muted-foreground">{label}</p>
+        <div className="flex items-center gap-1">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          {info ? (
+            <InfoHint ariaLabel={`Sumber data ${label}`}>
+              <p className="text-xs font-semibold text-foreground">{label}</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                {info}
+              </p>
+            </InfoHint>
+          ) : null}
+        </div>
         {value === null ? (
           <Skeleton className="mt-1 h-6 w-20" />
         ) : (
@@ -221,6 +249,16 @@ function ExpiringBlock({
         <p className="text-xs font-medium text-muted-foreground">
           Membership akan berakhir
         </p>
+        <InfoHint ariaLabel="Sumber data membership akan berakhir">
+          <p className="text-xs font-semibold text-foreground">
+            Membership akan berakhir
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+            Jumlah membership aktif (is_active = true, belum dihapus) yang
+            tanggal berakhirnya jatuh antara hari ini dan 7 atau 30 hari ke
+            depan. Global — tidak terpengaruh filter tanggal.
+          </p>
+        </InfoHint>
       </div>
       {loading || !data ? (
         <div className="mt-3 space-y-2">
@@ -261,6 +299,16 @@ function TierBreakdown({
         <p className="text-xs font-medium text-muted-foreground">
           Distribusi tier
         </p>
+        <InfoHint ariaLabel="Sumber data distribusi tier">
+          <p className="text-xs font-semibold text-foreground">
+            Distribusi tier
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+            Membership yang dibuat (createdAt) dalam rentang tanggal terpilih,
+            dikelompokkan menurut nama paket (membership plan). Persentase =
+            jumlah per tier ÷ total membership di periode itu.
+          </p>
+        </InfoHint>
       </div>
       {loading ? (
         <div className="mt-3 space-y-2">
@@ -293,5 +341,81 @@ function TierBreakdown({
         </ul>
       )}
     </div>
+  );
+}
+
+function useHasHover() {
+  const [hasHover, setHasHover] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    setHasHover(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setHasHover(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return hasHover;
+}
+
+/**
+ * Info hint generik. Desktop (punya hover) → tooltip muncul saat hover.
+ * Mobile / touch → popover muncul saat di-tap (klik).
+ */
+function InfoHint({
+  ariaLabel,
+  triggerClassName,
+  children,
+}: {
+  ariaLabel: string;
+  triggerClassName?: string;
+  children: React.ReactNode;
+}) {
+  const hasHover = useHasHover();
+
+  const trigger = (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      className={cn(
+        "rounded-full opacity-60 transition hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        triggerClassName,
+      )}
+    >
+      <Info className="h-3.5 w-3.5" />
+    </button>
+  );
+
+  const contentClassName = "w-64 max-w-[calc(100vw-2rem)] p-3 text-left";
+
+  if (hasHover) {
+    return (
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+          <TooltipContent
+            side="top"
+            align="center"
+            collisionPadding={12}
+            className={contentClassName}
+          >
+            {children}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="center"
+        collisionPadding={12}
+        className={contentClassName}
+      >
+        {children}
+      </PopoverContent>
+    </Popover>
   );
 }
