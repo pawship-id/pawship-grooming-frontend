@@ -5,18 +5,25 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Heart,
+  Info,
   Minus,
   PawPrint,
   TrendingUp,
   UserPlus,
 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useDashboardFilters } from "@/hooks/use-dashboard-filters";
 import {
@@ -27,21 +34,38 @@ import {
 
 const STATUS_META: Record<
   PetStatusKey,
-  { label: string; tone: string; bg: string }
+  { label: string; tone: string; bg: string; desc: string }
 > = {
   idle: {
     label: "Idle",
     tone: "text-slate-700",
     bg: "bg-slate-200",
+    desc: "Terdaftar tapi belum pernah booking layanan apa pun (0 kunjungan selesai).",
   },
-  new: { label: "New", tone: "text-blue-700", bg: "bg-blue-200" },
+  new: {
+    label: "New",
+    tone: "text-blue-700",
+    bg: "bg-blue-200",
+    desc: "Sudah ≥1 kunjungan selesai dan booking pertamanya dalam 14 hari terakhir.",
+  },
   active: {
     label: "Active",
     tone: "text-emerald-700",
     bg: "bg-emerald-200",
+    desc: "Kunjungan terakhir ≤14 hari lalu (dan bukan termasuk pet baru).",
   },
-  at_risk: { label: "At Risk", tone: "text-amber-700", bg: "bg-amber-200" },
-  lapsed: { label: "Lapsed", tone: "text-red-700", bg: "bg-red-200" },
+  at_risk: {
+    label: "At Risk",
+    tone: "text-amber-700",
+    bg: "bg-amber-200",
+    desc: "Kunjungan terakhir 15–31 hari lalu dan sudah lebih dari 1 kali kunjungan.",
+  },
+  lapsed: {
+    label: "Lapsed",
+    tone: "text-red-700",
+    bg: "bg-red-200",
+    desc: "Kunjungan terakhir lebih dari 31 hari lalu dan sudah lebih dari 1 kali kunjungan.",
+  },
 };
 
 const STATUS_BAR: Record<PetStatusKey, string> = {
@@ -87,7 +111,7 @@ export function GrowthSection() {
       <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
         <CardTitle className="font-display text-lg font-bold flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-emerald-600" />
-          Pertumbuhan Customer & Pet
+          Customer & Pets Growth
         </CardTitle>
         <span className="text-xs text-muted-foreground">
           Global · Tanggal sebagian
@@ -135,9 +159,7 @@ export function GrowthSection() {
             sublabel="Daftar 30 hari → booking selesai"
           />
           <KpiTile
-            icon={
-              <TrendingUp className="h-4 w-4 text-emerald-600" />
-            }
+            icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
             label="Net pet growth"
             value={
               loading || !data
@@ -303,30 +325,111 @@ function PetStatusBlock({
           return (
             <div
               key={key}
-              className={cn("rounded-md p-3 text-center", meta.bg)}
+              className={cn("relative rounded-md p-3 text-center", meta.bg)}
             >
+              <StatusInfo label={meta.label} desc={meta.desc} tone={meta.tone} />
               <p className={cn("text-[10px] font-medium", meta.tone)}>
                 {meta.label}
               </p>
               {loading ? (
                 <Skeleton className="mx-auto mt-1 h-6 w-10" />
               ) : (
-                <p
-                  className={cn(
-                    "font-display text-xl font-bold",
-                    meta.tone,
-                  )}
-                >
+                <p className={cn("font-display text-xl font-bold", meta.tone)}>
                   {count}
                 </p>
               )}
-              <p className={cn("text-[10px]", meta.tone)}>
-                {pct.toFixed(1)}%
-              </p>
+              <p className={cn("text-[10px]", meta.tone)}>{pct.toFixed(1)}%</p>
             </div>
           );
         })}
       </div>
     </div>
+  );
+}
+
+/**
+ * Deteksi apakah device punya kemampuan hover (desktop) atau touch (mobile).
+ * Default false (anggap touch) sampai ter-mount, lalu pakai media query.
+ */
+function useHasHover() {
+  const [hasHover, setHasHover] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    setHasHover(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setHasHover(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return hasHover;
+}
+
+/**
+ * Info status pet. Desktop (punya hover) → tooltip muncul saat hover.
+ * Mobile / touch → popover muncul saat di-tap (klik).
+ */
+function StatusInfo({
+  label,
+  desc,
+  tone,
+}: {
+  label: string;
+  desc: string;
+  tone: string;
+}) {
+  const hasHover = useHasHover();
+
+  const trigger = (
+    <button
+      type="button"
+      aria-label={`Penjelasan status ${label}`}
+      className={cn(
+        "absolute right-1 top-1 rounded-full p-1 opacity-60 transition hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        tone,
+      )}
+    >
+      <Info className="h-3.5 w-3.5" />
+    </button>
+  );
+
+  const body = (
+    <>
+      <p className="text-xs font-semibold text-foreground">{label}</p>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+        {desc}
+      </p>
+    </>
+  );
+
+  if (hasHover) {
+    return (
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+          <TooltipContent
+            side="top"
+            align="center"
+            collisionPadding={12}
+            className="w-60 max-w-[calc(100vw-2rem)] p-3 text-left"
+          >
+            {body}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="center"
+        collisionPadding={12}
+        className="w-60 max-w-[calc(100vw-2rem)] p-3 text-left"
+      >
+        {body}
+      </PopoverContent>
+    </Popover>
   );
 }
