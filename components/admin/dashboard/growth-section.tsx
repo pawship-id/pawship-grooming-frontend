@@ -127,10 +127,41 @@ export function GrowthSection() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <KpiTile
             icon={<UserPlus className="h-4 w-4 text-primary" />}
-            label="Customer baru"
-            value={loading || !data ? null : data.new_customers.toString()}
-            delta={data?.delta.new_customers_pct ?? null}
+            label="Total Customer"
+            value={
+              loading || !data
+                ? null
+                : (data.total_customers ?? 0).toLocaleString("id-ID")
+            }
+            delta={null}
             tone="primary"
+            sublabel={
+              data
+                ? `New Customer: ${(data.new_customers ?? 0).toLocaleString("id-ID")}`
+                : undefined
+            }
+            info={
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs font-semibold text-foreground">
+                    Total Customer
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                    Jumlah seluruh customer yang pernah terdaftar di sistem
+                    (all-time), tidak mengikuti filter tanggal.
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-foreground">
+                    New Customer
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                    Jumlah customer baru yang registrasi pada periode filter
+                    terpilih. Tanpa filter dihitung all-time.
+                  </p>
+                </div>
+              </div>
+            }
           />
           <KpiTile
             icon={<PawPrint className="h-4 w-4 text-emerald-600" />}
@@ -199,6 +230,7 @@ function KpiTile({
   delta,
   tone,
   sublabel,
+  info,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -206,6 +238,7 @@ function KpiTile({
   delta: number | null;
   tone: "primary" | "emerald" | "pink" | "amber";
   sublabel?: string;
+  info?: React.ReactNode;
 }) {
   const iconBg =
     tone === "primary"
@@ -226,7 +259,17 @@ function KpiTile({
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-muted-foreground">{label}</p>
+        <div className="flex items-center gap-1">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          {info ? (
+            <InfoHint
+              ariaLabel={`Penjelasan ${label}`}
+              triggerClassName="p-0.5 text-muted-foreground"
+            >
+              {info}
+            </InfoHint>
+          ) : null}
+        </div>
         {value === null ? (
           <Skeleton className="mt-1 h-6 w-16" />
         ) : (
@@ -365,41 +408,35 @@ function useHasHover() {
 }
 
 /**
- * Info status pet. Desktop (punya hover) → tooltip muncul saat hover.
+ * Info hint generik. Desktop (punya hover) → tooltip muncul saat hover.
  * Mobile / touch → popover muncul saat di-tap (klik).
  */
-function StatusInfo({
-  label,
-  desc,
-  tone,
+function InfoHint({
+  ariaLabel,
+  triggerClassName,
+  children,
 }: {
-  label: string;
-  desc: string;
-  tone: string;
+  ariaLabel: string;
+  triggerClassName?: string;
+  children: React.ReactNode;
 }) {
   const hasHover = useHasHover();
 
   const trigger = (
     <button
       type="button"
-      aria-label={`Penjelasan status ${label}`}
+      aria-label={ariaLabel}
       className={cn(
-        "absolute right-1 top-1 rounded-full p-1 opacity-60 transition hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        tone,
+        "rounded-full opacity-60 transition hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        triggerClassName,
       )}
     >
       <Info className="h-3.5 w-3.5" />
     </button>
   );
 
-  const body = (
-    <>
-      <p className="text-xs font-semibold text-foreground">{label}</p>
-      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-        {desc}
-      </p>
-    </>
-  );
+  const contentClassName =
+    "w-64 max-w-[calc(100vw-2rem)] p-3 text-left";
 
   if (hasHover) {
     return (
@@ -410,9 +447,9 @@ function StatusInfo({
             side="top"
             align="center"
             collisionPadding={12}
-            className="w-60 max-w-[calc(100vw-2rem)] p-3 text-left"
+            className={contentClassName}
           >
-            {body}
+            {children}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -426,10 +463,33 @@ function StatusInfo({
         side="top"
         align="center"
         collisionPadding={12}
-        className="w-60 max-w-[calc(100vw-2rem)] p-3 text-left"
+        className={contentClassName}
       >
-        {body}
+        {children}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** Info untuk tiap kartu status pet. */
+function StatusInfo({
+  label,
+  desc,
+  tone,
+}: {
+  label: string;
+  desc: string;
+  tone: string;
+}) {
+  return (
+    <InfoHint
+      ariaLabel={`Penjelasan status ${label}`}
+      triggerClassName={cn("absolute right-1 top-1 p-1", tone)}
+    >
+      <p className="text-xs font-semibold text-foreground">{label}</p>
+      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+        {desc}
+      </p>
+    </InfoHint>
   );
 }

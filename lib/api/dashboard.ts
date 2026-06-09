@@ -367,6 +367,7 @@ export interface PetStatusSnapshot {
 export interface GrowthResponse {
   message: string;
   range: { from: string; to: string };
+  total_customers: number;
   new_customers: number;
   new_pets_registered: number;
   pets_from_existing_owners: number;
