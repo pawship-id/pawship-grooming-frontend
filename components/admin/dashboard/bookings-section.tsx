@@ -8,6 +8,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock4,
+  Info,
   Minus,
   PawPrint,
   Repeat,
@@ -18,12 +19,18 @@ import {
   BarChart,
   CartesianGrid,
   ResponsiveContainer,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -124,6 +131,7 @@ export function BookingsSection() {
   const kpis = data?.kpis;
 
   return (
+    <TooltipProvider delayDuration={150}>
     <Card className="border-border/50">
       <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
         <CardTitle className="font-display text-lg font-bold flex items-center gap-2 min-w-0">
@@ -160,13 +168,14 @@ export function BookingsSection() {
           </div>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <KpiTile
             icon={<CalendarDays className="h-4 w-4 text-primary" />}
             label="Total Bookings"
             value={loading || !kpis ? null : kpis.total_bookings.toString()}
             delta={kpis?.delta.total_bookings_pct ?? null}
             tone="primary"
+            tooltip="Jumlah seluruh booking yang dibuat pada periode terpilih, mencakup semua status. Persentase membandingkannya dengan periode sebelumnya."
           />
           <KpiTile
             icon={<PawPrint className="h-4 w-4 text-emerald-600" />}
@@ -174,6 +183,7 @@ export function BookingsSection() {
             value={loading || !kpis ? null : kpis.new_pets.toString()}
             delta={kpis?.delta.new_pets_pct ?? null}
             tone="emerald"
+            tooltip="Jumlah booking dari hewan yang baru pertama kali datang (belum pernah booking sebelumnya) pada periode ini."
           />
           <KpiTile
             icon={<Repeat className="h-4 w-4 text-blue-600" />}
@@ -181,6 +191,7 @@ export function BookingsSection() {
             value={loading || !kpis ? null : kpis.returning_pets.toString()}
             delta={kpis?.delta.returning_pets_pct ?? null}
             tone="blue"
+            tooltip="Jumlah booking dari hewan yang sudah pernah datang sebelumnya (pelanggan berulang) pada periode ini."
           />
           <KpiTile
             icon={<CheckCircle2 className="h-4 w-4 text-emerald-600" />}
@@ -188,6 +199,7 @@ export function BookingsSection() {
             value={loading || !kpis ? null : kpis.completed.toString()}
             delta={null}
             tone="emerald"
+            tooltip="Jumlah booking yang berhasil diselesaikan (status Completed), beserta persentasenya terhadap total booking."
             sublabel={
               kpis && kpis.total_bookings
                 ? `${Math.round((kpis.completed / kpis.total_bookings) * 100)}% of total`
@@ -200,6 +212,7 @@ export function BookingsSection() {
             value={loading || !kpis ? null : kpis.cancelled.toString()}
             delta={null}
             tone="red"
+            tooltip="Jumlah booking yang dibatalkan (status Cancelled), beserta tingkat pembatalan (cancellation rate) terhadap total booking."
             sublabel={
               kpis
                 ? `${kpis.cancellation_rate_pct.toFixed(1)}% rate${kpis.cancellation_rate_pct > 15 ? " · high" : ""}`
@@ -212,6 +225,7 @@ export function BookingsSection() {
             value={loading || !kpis ? null : kpis.rescheduled.toString()}
             delta={null}
             tone="slate"
+            tooltip="Jumlah booking yang dijadwalkan ulang (status Rescheduled), beserta tingkat reschedule terhadap total booking."
             sublabel={
               kpis
                 ? `${kpis.reschedule_rate_pct.toFixed(1)}% rate${kpis.reschedule_rate_pct > 15 ? " · high" : ""}`
@@ -242,6 +256,7 @@ export function BookingsSection() {
         </div>
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
 }
 
@@ -263,6 +278,7 @@ function PeakHourBlock({
         <p className="text-xs font-medium text-muted-foreground">
           Peak Hour Booking
         </p>
+        <InfoTip text="Jam tersibuk — jumlah booking dikelompokkan per jam dalam sehari, untuk melihat waktu paling ramai. Hanya tampil saat periode = Hari Ini." />
       </div>
       {loading ? (
         <Skeleton className="mt-3 h-32 w-full" />
@@ -280,7 +296,7 @@ function PeakHourBlock({
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
               <XAxis dataKey="label" tick={{ fontSize: 10 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={28} />
-              <Tooltip labelClassName="text-xs" />
+              <RechartsTooltip labelClassName="text-xs" />
               <Bar
                 dataKey="count"
                 fill="hsl(var(--primary))"
@@ -308,6 +324,7 @@ function ByDayBlock({
         <p className="text-xs font-medium text-muted-foreground">
           Bookings per Day (Mon–Sun)
         </p>
+        <InfoTip text="Jumlah booking per hari dalam seminggu (Senin–Minggu), untuk melihat hari paling ramai. Hanya tampil saat periode = Minggu Ini." />
       </div>
       {loading ? (
         <Skeleton className="mt-3 h-32 w-full" />
@@ -321,7 +338,7 @@ function ByDayBlock({
               <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
               <XAxis dataKey="label" tick={{ fontSize: 10 }} />
               <YAxis allowDecimals={false} tick={{ fontSize: 10 }} width={28} />
-              <Tooltip labelClassName="text-xs" />
+              <RechartsTooltip labelClassName="text-xs" />
               <Bar
                 dataKey="count"
                 fill="rgb(16 185 129)"
@@ -357,6 +374,25 @@ function PeakHourPreviewHint({ preset }: { preset: string }) {
   );
 }
 
+function InfoTip({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label="Penjelasan data"
+          className="text-muted-foreground/60 transition-colors hover:text-muted-foreground focus:outline-none focus-visible:text-foreground"
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[240px] text-xs leading-relaxed">
+        {text}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function KpiTile({
   icon,
   label,
@@ -364,6 +400,7 @@ function KpiTile({
   delta,
   tone,
   sublabel,
+  tooltip,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -371,6 +408,7 @@ function KpiTile({
   delta: number | null;
   tone: "primary" | "emerald" | "red" | "blue" | "slate";
   sublabel?: string;
+  tooltip?: string;
 }) {
   const iconBg =
     tone === "primary"
@@ -393,7 +431,10 @@ function KpiTile({
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-muted-foreground">{label}</p>
+        <div className="flex items-center gap-1">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          {tooltip ? <InfoTip text={tooltip} /> : null}
+        </div>
         {value === null ? (
           <Skeleton className="mt-1 h-6 w-16" />
         ) : (
@@ -448,9 +489,12 @@ function ByStatusBlock({
   const total = rows.reduce((s, r) => s + r.count, 0);
   return (
     <div className="rounded-lg border border-border/50 p-4">
-      <p className="text-xs font-medium text-muted-foreground">
-        Status Distribution
-      </p>
+      <div className="flex items-center gap-1.5">
+        <p className="text-xs font-medium text-muted-foreground">
+          Status Distribution
+        </p>
+        <InfoTip text="Sebaran jumlah booking berdasarkan statusnya (Requested, Confirmed, In Progress, Completed, Cancelled, dll) beserta persentasenya terhadap total booking pada periode ini." />
+      </div>
       {loading ? (
         <div className="mt-3 space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -501,9 +545,12 @@ function ByServiceBlock({
   const total = rows.reduce((s, r) => s + r.count, 0);
   return (
     <div className="rounded-lg border border-border/50 p-4">
-      <p className="text-xs font-medium text-muted-foreground">
-        Service Type Distribution
-      </p>
+      <div className="flex items-center gap-1.5">
+        <p className="text-xs font-medium text-muted-foreground">
+          Service Type Distribution
+        </p>
+        <InfoTip text="Sebaran jumlah booking berdasarkan jenis layanan yang dipesan beserta persentasenya terhadap total booking pada periode ini." />
+      </div>
       {loading ? (
         <div className="mt-3 space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
