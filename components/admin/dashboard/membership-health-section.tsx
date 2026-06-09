@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import {
-  AlarmClock,
   CalendarClock,
   CircleDollarSign,
   CreditCard,
@@ -100,7 +99,7 @@ export function MembershipHealthSection() {
           </div>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <KpiTile
             icon={<Sparkles className="h-4 w-4 text-purple-600" />}
             label="Active member"
@@ -117,7 +116,8 @@ export function MembershipHealthSection() {
                     {(data.pending_count ?? 0).toLocaleString("id-ID")} pending
                   </span>
                   <span className="block truncate">
-                    {(data.member_pet_count ?? 0).toLocaleString("id-ID")} pets ·{" "}
+                    {(data.member_pet_count ?? 0).toLocaleString("id-ID")} pets
+                    ·{" "}
                     {(data.member_customer_count ?? 0).toLocaleString("id-ID")}{" "}
                     customer
                   </span>
@@ -175,7 +175,8 @@ export function MembershipHealthSection() {
               data && data.new_memberships > 0 ? (
                 <>
                   <span className="block truncate">
-                    No of Purchase : {data.new_memberships.toLocaleString("id-ID")}
+                    No of Purchase :{" "}
+                    {data.new_memberships.toLocaleString("id-ID")}
                   </span>
                   <span className="block truncate">
                     Average Value : {formatPrice(data.avg_membership_value)}
@@ -188,8 +189,8 @@ export function MembershipHealthSection() {
               <>
                 <p>
                   Total purchase_price dari pembelian membership yang dibuat
-                  (createdAt) dalam rentang tanggal terpilih, tidak termasuk yang
-                  dibatalkan. Rumus sama dengan kartu &quot;Membership
+                  (createdAt) dalam rentang tanggal terpilih, tidak termasuk
+                  yang dibatalkan. Rumus sama dengan kartu &quot;Membership
                   Revenue&quot; di tab Ringkasan.
                 </p>
                 <p>
@@ -223,18 +224,6 @@ export function MembershipHealthSection() {
             tone="blue"
             valueClassName={renewalTone(data?.renewal_rate_pct ?? null)}
             info="Rolling 30 hari. Penyebut = pet yang membership-nya berakhir dalam 30 hari terakhir; pembilang = pet tersebut yang kini punya membership aktif/berlaku. Global — tidak terpengaruh filter tanggal."
-          />
-          <KpiTile
-            icon={<AlarmClock className="h-4 w-4 text-amber-600" />}
-            label="Akan habis"
-            value={loading || !data ? null : `${data.expiring_7_days}`}
-            sublabel={
-              data
-                ? `dalam 7 hari · ${data.expiring_30_days} dalam 30 hari`
-                : undefined
-            }
-            tone="amber"
-            info="Membership aktif yang tanggal berakhirnya jatuh antara hari ini dan 7 (atau 30) hari ke depan. Global — tidak terpengaruh filter tanggal."
           />
         </div>
 
@@ -331,11 +320,11 @@ function ExpiringBlock({
       <div className="flex items-center gap-2">
         <CalendarClock className="h-4 w-4 text-amber-600" />
         <p className="text-xs font-medium text-muted-foreground">
-          Membership akan berakhir
+          Membership will expire
         </p>
-        <InfoHint ariaLabel="Sumber data membership akan berakhir">
+        <InfoHint ariaLabel="Data source membership will expire">
           <p className="text-xs font-semibold text-foreground">
-            Membership akan berakhir
+            Membership will expire
           </p>
           <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
             Jumlah membership aktif (is_active = true, belum dihapus) yang
@@ -391,7 +380,8 @@ function TierBreakdown({
             Distribusi dari pembelian membership pada periode terpilih (sama
             dengan &quot;No of Purchase&quot; di kartu Period Income),
             dikelompokkan menurut nama paket (membership plan). Mengikuti filter
-            tanggal. Persentase = jumlah per tier ÷ total pembelian pada periode.
+            tanggal. Persentase = jumlah per tier ÷ total pembelian pada
+            periode.
           </p>
         </InfoHint>
       </div>
@@ -460,8 +450,8 @@ function CustomerClassification({
             </p>
             <p>
               <span className="font-medium text-foreground">Non member</span>:
-              customer yang tidak punya membership aktif/pending = total customer
-              − active member.
+              customer yang tidak punya membership aktif/pending = total
+              customer − active member.
             </p>
             <p>
               <span className="font-medium text-foreground">Ex member</span>:
