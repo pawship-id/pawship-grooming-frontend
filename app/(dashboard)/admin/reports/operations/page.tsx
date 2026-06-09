@@ -304,6 +304,7 @@ const TABLE_COLUMNS: {
   { key: "overrun_mins", group: "Waktu & Performa", defaultVisible: false },
   // Pembayaran (booking-level — merged)
   { key: "net_total", group: "Pembayaran", defaultVisible: true },
+  { key: "membership_usage", group: "Pembayaran", defaultVisible: true },
   { key: "payment_method", group: "Pembayaran", defaultVisible: false },
   { key: "cancellation_reason", group: "Pembayaran", defaultVisible: false },
 ];
