@@ -24,6 +24,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -35,6 +36,7 @@ import {
   Loader2,
   AlertCircle,
   Columns,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -136,6 +138,116 @@ const DEFAULT_VISIBLE = new Set(
 
 const PAGE_SIZE = 20;
 
+// ─── Multiselect filter options ───────────────────────────────────────────────
+
+const BOOKING_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "in store", label: "In Store" },
+  { value: "in home", label: "In Home" },
+];
+
+const BOOKING_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "requested", label: "Requested" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "waitlist", label: "Waitlist" },
+  { value: "driver on the way", label: "Driver on the Way" },
+  { value: "groomer on the way", label: "Groomer on the Way" },
+  { value: "arrived", label: "Arrived" },
+  { value: "in progress", label: "In Progress" },
+  { value: "completed", label: "Completed" },
+  { value: "returned", label: "Returned" },
+  { value: "rescheduled", label: "Rescheduled" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
+// ─── Multiselect dropdown filter ──────────────────────────────────────────────
+
+/** Radio-style "buletan": outlined circle, filled with a dot when selected. */
+function CircleIndicator({ selected }: { selected: boolean }) {
+  return (
+    <span
+      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+        selected ? "border-primary" : "border-primary/40"
+      }`}
+    >
+      {selected && <span className="h-2 w-2 rounded-full bg-primary" />}
+    </span>
+  );
+}
+
+function MultiSelectFilter({
+  options,
+  selected,
+  onChange,
+  allLabel,
+}: {
+  options: { value: string; label: string }[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  allLabel: string;
+}) {
+  const toggle = (value: string) => {
+    onChange(
+      selected.includes(value)
+        ? selected.filter((v) => v !== value)
+        : [...selected, value],
+    );
+  };
+
+  const triggerLabel =
+    selected.length === 0
+      ? allLabel
+      : selected.length === 1
+        ? (options.find((o) => o.value === selected[0])?.label ?? selected[0])
+        : `${selected.length} dipilih`;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          className="w-full justify-between font-normal"
+        >
+          <span
+            className={selected.length === 0 ? "text-muted-foreground" : ""}
+          >
+            {triggerLabel}
+          </span>
+          <ChevronDown className="h-4 w-4 opacity-50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="max-h-[320px] w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
+      >
+        <DropdownMenuItem
+          onSelect={(e) => {
+            e.preventDefault();
+            onChange([]);
+          }}
+          className="gap-2 text-xs font-semibold"
+        >
+          <CircleIndicator selected={selected.length === 0} />
+          {allLabel}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {options.map((o) => (
+          <DropdownMenuItem
+            key={o.value}
+            onSelect={(e) => {
+              e.preventDefault();
+              toggle(o.value);
+            }}
+            className="gap-2 text-xs"
+          >
+            <CircleIndicator selected={selected.includes(o.value)} />
+            {o.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export default function FinancialReportPage() {
@@ -143,8 +255,9 @@ export default function FinancialReportPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [storeId, setStoreId] = useState("all");
-  const [bookingType, setBookingType] = useState("all");
-  const [bookingStatus, setBookingStatus] = useState("all");
+  // Empty array = "Semua" (no filter); multiselect supported.
+  const [bookingTypes, setBookingTypes] = useState<string[]>([]);
+  const [bookingStatuses, setBookingStatuses] = useState<string[]>([]);
 
   // ── Data state ──────────────────────────────────────────────────────────────
   const [stores, setStores] = useState<ApiStore[]>([]);
@@ -158,8 +271,8 @@ export default function FinancialReportPage() {
 
   // Keep a stable ref to active filter values so the live handler can read them
   // without needing to be re-subscribed every time filters change.
-  const filtersRef = useRef({ dateFrom, dateTo, storeId, bookingType, bookingStatus });
-  filtersRef.current = { dateFrom, dateTo, storeId, bookingType, bookingStatus };
+  const filtersRef = useRef({ dateFrom, dateTo, storeId, bookingTypes, bookingStatuses });
+  filtersRef.current = { dateFrom, dateTo, storeId, bookingTypes, bookingStatuses };
 
   // ── Column visibility ───────────────────────────────────────────────────────
   const [visibleCols, setVisibleCols] =
@@ -204,8 +317,8 @@ export default function FinancialReportPage() {
 
       // Apply the same filters the batch stream uses
       if (f.storeId !== "all" && booking.store_id !== f.storeId) return;
-      if (f.bookingStatus !== "all" && booking.booking_status !== f.bookingStatus) return;
-      if (f.bookingType !== "all" && booking.type !== f.bookingType) return;
+      if (f.bookingStatuses.length > 0 && !f.bookingStatuses.includes(booking.booking_status)) return;
+      if (f.bookingTypes.length > 0 && !f.bookingTypes.includes(booking.type)) return;
       if (f.dateFrom) {
         const bookingDate = booking.date ? booking.date.slice(0, 10) : "";
         if (bookingDate < f.dateFrom) return;
@@ -249,8 +362,8 @@ export default function FinancialReportPage() {
           date_from: dateFrom || undefined,
           date_to: dateTo || undefined,
           store_id: storeId !== "all" ? storeId : undefined,
-          booking_status: bookingStatus !== "all" ? bookingStatus : undefined,
-          booking_type: bookingType !== "all" ? bookingType : undefined,
+          booking_status: bookingStatuses.length > 0 ? bookingStatuses.join(",") : undefined,
+          booking_type: bookingTypes.length > 0 ? bookingTypes.join(",") : undefined,
         },
         (chunk) => setAllBookings((prev) => [...prev, ...chunk]),
         () => setLoading(false),
@@ -268,7 +381,7 @@ export default function FinancialReportPage() {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [dateFrom, dateTo, storeId, bookingType, bookingStatus]);
+  }, [dateFrom, dateTo, storeId, bookingTypes, bookingStatuses]);
 
   // booking_type is server-side filtered — allBookings is already filtered
   const filteredBookings = allBookings;
@@ -350,15 +463,15 @@ export default function FinancialReportPage() {
     dateFrom !== "" ||
     dateTo !== "" ||
     storeId !== "all" ||
-    bookingType !== "all" ||
-    bookingStatus !== "all";
+    bookingTypes.length > 0 ||
+    bookingStatuses.length > 0;
 
   function resetFilters() {
     setDateFrom("");
     setDateTo("");
     setStoreId("all");
-    setBookingType("all");
-    setBookingStatus("all");
+    setBookingTypes([]);
+    setBookingStatuses([]);
   }
 
   function selectAllCols() {
@@ -453,40 +566,23 @@ export default function FinancialReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Tipe Booking
                 </label>
-                <Select value={bookingType} onValueChange={setBookingType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Tipe" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Tipe</SelectItem>
-                    <SelectItem value="in store">In Store</SelectItem>
-                    <SelectItem value="in home">In Home</SelectItem>
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={BOOKING_TYPE_OPTIONS}
+                  selected={bookingTypes}
+                  onChange={setBookingTypes}
+                  allLabel="Semua Tipe"
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">
                   Status Booking
                 </label>
-                <Select value={bookingStatus} onValueChange={setBookingStatus}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Status</SelectItem>
-                    <SelectItem value="requested">Requested</SelectItem>
-                    <SelectItem value="confirmed">Confirmed</SelectItem>
-                    <SelectItem value="waitlist">Waitlist</SelectItem>
-                    <SelectItem value="driver on the way">Driver on the Way</SelectItem>
-                    <SelectItem value="groomer on the way">Groomer on the Way</SelectItem>
-                    <SelectItem value="arrived">Arrived</SelectItem>
-                    <SelectItem value="in progress">In Progress</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="returned">Returned</SelectItem>
-                    <SelectItem value="rescheduled">Rescheduled</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={BOOKING_STATUS_OPTIONS}
+                  selected={bookingStatuses}
+                  onChange={setBookingStatuses}
+                  allLabel="Semua Status"
+                />
               </div>
             </CardContent>
           </Card>
