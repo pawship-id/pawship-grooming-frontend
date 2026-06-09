@@ -369,6 +369,7 @@ export interface GrowthResponse {
   range: { from: string; to: string };
   total_customers: number;
   new_customers: number;
+  total_pets: number;
   new_pets_registered: number;
   pets_from_existing_owners: number;
   first_booking_conversion_pct: number;

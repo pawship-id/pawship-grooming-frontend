@@ -165,16 +165,40 @@ export function GrowthSection() {
           />
           <KpiTile
             icon={<PawPrint className="h-4 w-4 text-emerald-600" />}
-            label="Pet baru terdaftar"
+            label="Total Pet"
             value={
-              loading || !data ? null : data.new_pets_registered.toString()
+              loading || !data
+                ? null
+                : (data.total_pets ?? 0).toLocaleString("id-ID")
             }
-            delta={data?.delta.new_pets_registered_pct ?? null}
+            delta={null}
             tone="emerald"
             sublabel={
               data
-                ? `${data.pets_from_existing_owners} dari owner existing`
+                ? `New Pets: ${(data.new_pets_registered ?? 0).toLocaleString("id-ID")}`
                 : undefined
+            }
+            info={
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs font-semibold text-foreground">
+                    Total Pet
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                    Jumlah seluruh pet yang pernah terdaftar di sistem
+                    (all-time), tidak mengikuti filter tanggal.
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-foreground">
+                    New Pets
+                  </p>
+                  <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+                    Jumlah pet baru yang terdaftar pada periode filter terpilih.
+                    Tanpa filter dihitung all-time.
+                  </p>
+                </div>
+              </div>
             }
           />
           <KpiTile
