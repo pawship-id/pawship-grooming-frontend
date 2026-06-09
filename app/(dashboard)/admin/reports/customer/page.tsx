@@ -1720,6 +1720,11 @@ const VIP_COLS: { key: VipKey; label: string; defaultVisible: boolean }[] = [
   { key: "total_visits", label: "Total Kunjungan", defaultVisible: true },
   { key: "lifetime_revenue", label: "Revenue Lifetime", defaultVisible: true },
   {
+    key: "membership_revenue",
+    label: "Revenue Membership",
+    defaultVisible: true,
+  },
+  {
     key: "last_booking_date",
     label: "Kunjungan Terakhir",
     defaultVisible: true,
@@ -1817,6 +1822,10 @@ function VipCustomerTab({
       );
     }
 
+    if (key === "membership_revenue") {
+      return <span>{fmtRupiah((val ?? 0) as number)}</span>;
+    }
+
     if (key === "last_booking_date") {
       return fmtDate(val as string | null);
     }
@@ -1847,7 +1856,8 @@ function VipCustomerTab({
         const v = r[c.key];
         if (c.key === "pet_status")
           return STATUS_CONFIG[String(v)]?.label ?? String(v);
-        if (c.key === "lifetime_revenue") return v as number;
+        if (c.key === "lifetime_revenue" || c.key === "membership_revenue")
+          return v as number;
         if (c.key === "last_booking_date") return fmtDate(v as string | null);
         if (v === null || v === undefined) return "";
         return v;

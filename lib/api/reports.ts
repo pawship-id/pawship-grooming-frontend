@@ -133,6 +133,7 @@ export interface VipCustomerRow {
   membership_tier: string;
   total_visits: number;
   lifetime_revenue: number;
+  membership_revenue: number;
   last_booking_date: string | null;
   days_since_last_visit: number | null;
   pet_status: "idle" | "new" | "active" | "at_risk" | "lapsed";
