@@ -2298,7 +2298,14 @@ function BenefitUtilisationTab({
               Benefit Utilisation Report
             </CardTitle>
             <p className="text-xs text-muted-foreground">
-              Setiap baris adalah satu event pemakaian benefit membership.
+              Setiap baris adalah satu event pemakaian benefit membership. Data
+              dihitung dari booking dengan{" "}
+              <span className="font-medium text-foreground">semua status</span>{" "}
+              <span className="font-medium text-foreground">
+                kecuali booking yang dibatalkan
+              </span>{" "}
+              (Cancelled) — benefit dari booking cancel tidak ikut dihitung,
+              termasuk pada kolom Cumulative Used &amp; % vs Harga.
             </p>
           </div>
           <div className="flex items-center gap-2">
