@@ -202,6 +202,8 @@ function PetCard({
   onViewHistory: (pet: ApiPet) => void;
 }) {
   const initials = pet.name.slice(0, 2).toUpperCase();
+  const activeMemberships =
+    pet.memberships?.filter((m) => m.status === "active") ?? [];
 
   return (
     <Card className="border-border/50">
@@ -320,6 +322,20 @@ function PetCard({
           )}
         </div>
         {pet.hair && <span className="text-xs">Bulu: {pet.hair.name}</span>}
+        {activeMemberships.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1">
+            {activeMemberships.map((membership) => (
+              <Badge
+                key={membership.membership_id}
+                variant="outline"
+                className="text-xs gap-1 bg-amber-50 text-amber-700 border-amber-200"
+              >
+                <CreditCard className="h-3 w-3" />
+                {membership.name ?? "Membership"}
+              </Badge>
+            ))}
+          </div>
+        )}
         {pet.tags && pet.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-1">
             {pet.tags.map((tag) => (
