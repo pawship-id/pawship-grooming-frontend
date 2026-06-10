@@ -461,9 +461,7 @@ function CustomerTrendBlock() {
   }, [storeId, fromKey, toKey, granularity]);
 
   const chartData = useMemo(() => data?.points ?? [], [data]);
-  const hasData = chartData.some(
-    (p) => p.registered > 0 || p.transacting > 0,
-  );
+  const hasData = chartData.some((p) => p.registered > 0 || p.transacting > 0);
 
   return (
     <div className="rounded-lg border border-border/50 p-4">
@@ -471,11 +469,11 @@ function CustomerTrendBlock() {
         <div className="flex items-center gap-1">
           <LineChartIcon className="h-4 w-4 text-primary" />
           <p className="text-xs font-medium text-muted-foreground">
-            Registrasi vs Transaksi Customer
+            Customer Registrations vs Transactions
           </p>
-          <InfoHint ariaLabel="Penjelasan grafik registrasi vs transaksi customer">
+          <InfoHint ariaLabel="Penjelasan grafik customer registrations vs transactions">
             <p className="text-xs font-semibold text-foreground">
-              Registrasi vs Transaksi Customer
+              Customer Registrations vs Transactions
             </p>
             <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
               <span className="font-medium text-foreground">Registrasi</span> =
@@ -520,7 +518,7 @@ function CustomerTrendBlock() {
               <Line
                 type="monotone"
                 dataKey="registered"
-                name="Registrasi / Masuk Sistem"
+                name="Registered"
                 stroke="hsl(var(--primary))"
                 strokeWidth={2}
                 dot={{ r: 3 }}
@@ -528,7 +526,7 @@ function CustomerTrendBlock() {
               <Line
                 type="monotone"
                 dataKey="transacting"
-                name="Bertransaksi"
+                name="Transacted"
                 stroke="#10b981"
                 strokeWidth={2}
                 dot={{ r: 3 }}
