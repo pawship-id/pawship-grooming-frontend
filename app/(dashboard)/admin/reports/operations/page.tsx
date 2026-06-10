@@ -7,13 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -93,6 +86,33 @@ const SESSION_STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "in progress", label: "In Progress" },
   { value: "finished", label: "Finished" },
 ];
+
+const CAP_UTIL_OPTIONS: { value: string; label: string }[] = [
+  { value: "green", label: "Hijau — <70%" },
+  { value: "amber", label: "Kuning — 70–90%" },
+  { value: "red", label: "Merah — >90%" },
+  { value: "overbooked", label: "Overbooked" },
+];
+
+/** True when a capacity row matches a single utilisation-status filter value. */
+function matchesCapUtil(row: CapacityReportRow, filter: string): boolean {
+  switch (filter) {
+    case "green":
+      return !row.is_overbooked && row.utilisation_pct < 70;
+    case "amber":
+      return (
+        !row.is_overbooked &&
+        row.utilisation_pct >= 70 &&
+        row.utilisation_pct <= 90
+      );
+    case "red":
+      return !row.is_overbooked && row.utilisation_pct > 90;
+    case "overbooked":
+      return row.is_overbooked;
+    default:
+      return true;
+  }
+}
 
 // ─── Multiselect dropdown filter ──────────────────────────────────────────────
 
@@ -540,7 +560,7 @@ export default function OperationsReportPage() {
   const [capLive, setCapLive] = useState(false);
   const [capError, setCapError] = useState<string | null>(null);
   const [capPage, setCapPage] = useState(1);
-  const [capUtilFilter, setCapUtilFilter] = useState("all");
+  const [capUtilFilters, setCapUtilFilters] = useState<string[]>([]);
   const [capVisibleCols, setCapVisibleCols] = useState<Set<keyof CapacityReportRow>>(CAP_DEFAULT_VISIBLE);
   const capStreamAbortRef = useRef<AbortController | null>(null);
 
@@ -712,20 +732,11 @@ export default function OperationsReportPage() {
     if (activeTab !== "capacity-utilisation") return [];
     return capData.filter((row) => {
       if (row.total_bookings < 1) return false;
-      if (capUtilFilter === "green")
-        return !row.is_overbooked && row.utilisation_pct < 70;
-      if (capUtilFilter === "amber")
-        return (
-          !row.is_overbooked &&
-          row.utilisation_pct >= 70 &&
-          row.utilisation_pct <= 90
-        );
-      if (capUtilFilter === "red")
-        return !row.is_overbooked && row.utilisation_pct > 90;
-      if (capUtilFilter === "overbooked") return row.is_overbooked;
-      return true;
+      // Empty selection = no utilisation filter; otherwise match ANY selected.
+      if (capUtilFilters.length === 0) return true;
+      return capUtilFilters.some((f) => matchesCapUtil(row, f));
     });
-  }, [activeTab, capData, capUtilFilter]);
+  }, [activeTab, capData, capUtilFilters]);
 
   const capTotalPages = Math.max(
     1,
@@ -845,7 +856,7 @@ export default function OperationsReportPage() {
     bookingStatuses.length > 0 ||
     sessionStatuses.length > 0 ||
     serviceTypeFilters.length > 0 ||
-    capUtilFilter !== "all";
+    capUtilFilters.length > 0;
 
   function resetFilters() {
     setDateFrom("");
@@ -855,7 +866,7 @@ export default function OperationsReportPage() {
     setBookingStatuses([]);
     setSessionStatuses([]);
     setServiceTypeFilters([]);
-    setCapUtilFilter("all");
+    setCapUtilFilters([]);
   }
 
   const reportTabs = (
@@ -1725,24 +1736,15 @@ export default function OperationsReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Status Utilisasi
                 </label>
-                <Select
-                  value={capUtilFilter}
-                  onValueChange={(v) => {
-                    setCapUtilFilter(v);
+                <MultiSelectFilter
+                  options={CAP_UTIL_OPTIONS}
+                  selected={capUtilFilters}
+                  onChange={(next) => {
+                    setCapUtilFilters(next);
                     setCapPage(1);
                   }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Status</SelectItem>
-                    <SelectItem value="green">Hijau — &lt;70%</SelectItem>
-                    <SelectItem value="amber">Kuning — 70–90%</SelectItem>
-                    <SelectItem value="red">Merah — &gt;90%</SelectItem>
-                    <SelectItem value="overbooked">Overbooked</SelectItem>
-                  </SelectContent>
-                </Select>
+                  allLabel="Semua Status"
+                />
               </div>
             </CardContent>
           </Card>
