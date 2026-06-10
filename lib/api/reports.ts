@@ -32,6 +32,7 @@ export interface CustomerMasterDataRow {
   last_grooming_at: string | null;
   pet_registered_at: string | null;
   total_transactions: number;
+  total_revenue_lifetime: number;
   has_booked: boolean;
 }
 

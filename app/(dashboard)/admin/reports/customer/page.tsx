@@ -192,6 +192,11 @@ const MASTER_COLS: {
   { key: "customer_tags", label: "Tag Customer", defaultVisible: false },
   { key: "customer_address", label: "Alamat", defaultVisible: false },
   { key: "registered_at", label: "Tgl Daftar", defaultVisible: false },
+  {
+    key: "total_revenue_lifetime",
+    label: "Total Revenue Lifetime",
+    defaultVisible: true,
+  },
   { key: "pet_code", label: "Kode Pet", defaultVisible: true },
   { key: "pet_name", label: "Nama Pet", defaultVisible: true },
   { key: "pet_type", label: "Jenis Hewan", defaultVisible: true },
@@ -228,9 +233,9 @@ const MASTER_DEFAULT_VISIBLE = new Set(
   MASTER_COLS.filter((c) => c.defaultVisible).map((c) => c.key),
 );
 
-// First 8 entries in MASTER_COLS are customer-level → merged across pet rows
+// First 9 entries in MASTER_COLS are customer-level → merged across pet rows
 const CUSTOMER_KEYS = new Set<MasterKey>(
-  MASTER_COLS.slice(0, 8).map((c) => c.key),
+  MASTER_COLS.slice(0, 9).map((c) => c.key),
 );
 
 const DATE_COLS_MASTER = new Set<MasterKey>([
@@ -280,6 +285,20 @@ function MasterDataTab({
     return [...map.values()];
   }, [data]);
 
+  // Total Revenue Lifetime per customer = jumlah revenue lifetime semua pet-nya.
+  // Backend mengembalikan nilai per pet; di sini dijumlahkan & ditampilkan
+  // sebagai satu sel ter-merge per customer.
+  const customerRevenueMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of data) {
+      map.set(
+        row.customer_id,
+        (map.get(row.customer_id) ?? 0) + (row.total_revenue_lifetime ?? 0),
+      );
+    }
+    return map;
+  }, [data]);
+
   const totalPages = Math.max(1, Math.ceil(groupedData.length / PAGE_SIZE));
   const pageGroups = useMemo(
     () => groupedData.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
@@ -324,6 +343,8 @@ function MasterDataTab({
     key: MasterKey,
   ): React.ReactNode {
     const val = row[key];
+    if (key === "total_revenue_lifetime")
+      return fmtRupiah(customerRevenueMap.get(row.customer_id) ?? 0);
     if (val === null || val === undefined || val === "")
       return <span className="text-muted-foreground/40">—</span>;
     if (DATE_COLS_MASTER.has(key)) return fmtDate(val as string);
@@ -377,6 +398,9 @@ function MasterDataTab({
           MASTER_COLS.map((c) => {
             // Customer-level columns: only write on first pet row
             if (CUSTOMER_KEYS.has(c.key) && petIdx > 0) return null;
+            // Revenue lifetime ditampilkan sebagai total per customer.
+            if (c.key === "total_revenue_lifetime")
+              return customerRevenueMap.get(row.customer_id) ?? 0;
             const v = row[c.key];
             if (v === null || v === undefined) return null;
             if (Array.isArray(v)) return (v as string[]).join(", ") || null;
@@ -513,7 +537,7 @@ function MasterDataTab({
                 <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
                   Customer
                 </DropdownMenuLabel>
-                {MASTER_COLS.slice(0, 8).map((c) => (
+                {MASTER_COLS.slice(0, 9).map((c) => (
                   <DropdownMenuCheckboxItem
                     key={c.key}
                     checked={visibleCols.has(c.key)}
@@ -527,7 +551,7 @@ function MasterDataTab({
                 <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
                   Pet
                 </DropdownMenuLabel>
-                {MASTER_COLS.slice(8, 18).map((c) => (
+                {MASTER_COLS.slice(9, 19).map((c) => (
                   <DropdownMenuCheckboxItem
                     key={c.key}
                     checked={visibleCols.has(c.key)}
@@ -541,7 +565,7 @@ function MasterDataTab({
                 <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
                   Membership &amp; Visit
                 </DropdownMenuLabel>
-                {MASTER_COLS.slice(18).map((c) => (
+                {MASTER_COLS.slice(19).map((c) => (
                   <DropdownMenuCheckboxItem
                     key={c.key}
                     checked={visibleCols.has(c.key)}
