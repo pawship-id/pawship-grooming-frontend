@@ -6,13 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -256,8 +249,8 @@ export default function FinancialReportPage() {
   // ── Filter state ────────────────────────────────────────────────────────────
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [storeId, setStoreId] = useState("all");
   // Empty array = "Semua" (no filter); multiselect supported.
+  const [storeIds, setStoreIds] = useState<string[]>([]);
   const [bookingTypes, setBookingTypes] = useState<string[]>([]);
   const [bookingStatuses, setBookingStatuses] = useState<string[]>([]);
 
@@ -273,8 +266,8 @@ export default function FinancialReportPage() {
 
   // Keep a stable ref to active filter values so the live handler can read them
   // without needing to be re-subscribed every time filters change.
-  const filtersRef = useRef({ dateFrom, dateTo, storeId, bookingTypes, bookingStatuses });
-  filtersRef.current = { dateFrom, dateTo, storeId, bookingTypes, bookingStatuses };
+  const filtersRef = useRef({ dateFrom, dateTo, storeIds, bookingTypes, bookingStatuses });
+  filtersRef.current = { dateFrom, dateTo, storeIds, bookingTypes, bookingStatuses };
 
   // ── Column visibility ───────────────────────────────────────────────────────
   const [visibleCols, setVisibleCols] =
@@ -292,6 +285,12 @@ export default function FinancialReportPage() {
     for (const s of stores) map[s._id] = s.code;
     return map;
   }, [stores]);
+
+  // ── Store options for the multiselect filter ────────────────────────────────
+  const storeOptions = useMemo(
+    () => stores.map((s) => ({ value: s._id, label: s.name })),
+    [stores],
+  );
 
   // ── Fetch stores for filter dropdown ────────────────────────────────────────
   useEffect(() => {
@@ -318,7 +317,7 @@ export default function FinancialReportPage() {
       const f = filtersRef.current;
 
       // Apply the same filters the batch stream uses
-      if (f.storeId !== "all" && booking.store_id !== f.storeId) return;
+      if (f.storeIds.length > 0 && !f.storeIds.includes(booking.store_id)) return;
       if (f.bookingStatuses.length > 0 && !f.bookingStatuses.includes(booking.booking_status)) return;
       if (f.bookingTypes.length > 0 && !f.bookingTypes.includes(booking.type)) return;
       if (f.dateFrom) {
@@ -363,7 +362,7 @@ export default function FinancialReportPage() {
         {
           date_from: dateFrom || undefined,
           date_to: dateTo || undefined,
-          store_id: storeId !== "all" ? storeId : undefined,
+          store_id: storeIds.length > 0 ? storeIds.join(",") : undefined,
           booking_status: bookingStatuses.length > 0 ? bookingStatuses.join(",") : undefined,
           booking_type: bookingTypes.length > 0 ? bookingTypes.join(",") : undefined,
         },
@@ -383,7 +382,7 @@ export default function FinancialReportPage() {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [dateFrom, dateTo, storeId, bookingTypes, bookingStatuses]);
+  }, [dateFrom, dateTo, storeIds, bookingTypes, bookingStatuses]);
 
   // booking_type is server-side filtered — allBookings is already filtered
   const filteredBookings = allBookings;
@@ -464,14 +463,14 @@ export default function FinancialReportPage() {
   const isFiltered =
     dateFrom !== "" ||
     dateTo !== "" ||
-    storeId !== "all" ||
+    storeIds.length > 0 ||
     bookingTypes.length > 0 ||
     bookingStatuses.length > 0;
 
   function resetFilters() {
     setDateFrom("");
     setDateTo("");
-    setStoreId("all");
+    setStoreIds([]);
     setBookingTypes([]);
     setBookingStatuses([]);
   }
@@ -550,19 +549,12 @@ export default function FinancialReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Cabang
                 </label>
-                <Select value={storeId} onValueChange={setStoreId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Cabang" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Cabang</SelectItem>
-                    {stores.map((s) => (
-                      <SelectItem key={s._id} value={s._id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={storeOptions}
+                  selected={storeIds}
+                  onChange={setStoreIds}
+                  allLabel="Semua Cabang"
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">
