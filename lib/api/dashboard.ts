@@ -403,3 +403,36 @@ export async function getGrowth(params?: { from?: string; to?: string }) {
     `/admin/dashboard/growth${s ? `?${s}` : ""}`,
   );
 }
+
+export type TrendGranularity = "week" | "month";
+
+export interface CustomerTrendPoint {
+  bucket: string;
+  label: string;
+  registered: number;
+  transacting: number;
+}
+
+export interface CustomerTrendResponse {
+  message: string;
+  range: { from: string; to: string };
+  granularity: TrendGranularity;
+  points: CustomerTrendPoint[];
+}
+
+export async function getCustomerTrend(params?: {
+  store_id?: string;
+  from?: string;
+  to?: string;
+  granularity?: TrendGranularity;
+}) {
+  const qs = new URLSearchParams();
+  if (params?.store_id) qs.set("store_id", params.store_id);
+  if (params?.from) qs.set("from", params.from);
+  if (params?.to) qs.set("to", params.to);
+  if (params?.granularity) qs.set("granularity", params.granularity);
+  const s = qs.toString();
+  return apiAuthRequest<CustomerTrendResponse>(
+    `/admin/dashboard/customer-trend${s ? `?${s}` : ""}`,
+  );
+}

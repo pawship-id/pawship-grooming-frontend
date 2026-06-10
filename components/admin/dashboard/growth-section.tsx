@@ -1,16 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
   Heart,
   Info,
+  LineChart as LineChartIcon,
   Minus,
   PawPrint,
   TrendingUp,
   UserPlus,
 } from "lucide-react";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Popover,
@@ -27,9 +38,12 @@ import {
 import { cn } from "@/lib/utils";
 import { useDashboardFilters } from "@/hooks/use-dashboard-filters";
 import {
+  getCustomerTrend,
   getGrowth,
+  type CustomerTrendResponse,
   type GrowthResponse,
   type PetStatusKey,
+  type TrendGranularity,
 } from "@/lib/api/dashboard";
 
 const STATUS_META: Record<
@@ -124,7 +138,7 @@ export function GrowthSection() {
           </div>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <KpiTile
             icon={<UserPlus className="h-4 w-4 text-primary" />}
             label="Total Customer"
@@ -229,47 +243,11 @@ export function GrowthSection() {
               </div>
             }
           />
-          <KpiTile
-            icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
-            label="Net pet growth"
-            value={
-              loading || !data
-                ? null
-                : data.net_pet_growth >= 0
-                  ? `+${data.net_pet_growth}`
-                  : `${data.net_pet_growth}`
-            }
-            delta={null}
-            tone="emerald"
-            sublabel="Registered − lapsed"
-            info={
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-foreground">
-                  Net pet growth
-                </p>
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Pertumbuhan bersih populasi pet = Registered − Lapsed.
-                </p>
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  <span className="font-medium text-foreground">
-                    Registered
-                  </span>{" "}
-                  = jumlah pet baru terdaftar (sama dengan &quot;New Pets&quot;
-                  di kartu Total Pet; mengikuti filter, tanpa filter =
-                  all-time).
-                </p>
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  <span className="font-medium text-foreground">Lapsed</span> =
-                  jumlah pet berstatus Lapsed pada snapshot di bawah (kunjungan
-                  terakhir &gt;31 hari lalu &amp; total kunjungan &gt;1).
-                  Snapshot bersifat live all-time.
-                </p>
-              </div>
-            }
-          />
         </div>
 
         <PetStatusBlock loading={loading} data={data} />
+
+        <CustomerTrendBlock />
       </CardContent>
     </Card>
   );
@@ -442,6 +420,155 @@ function PetStatusBlock({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function CustomerTrendBlock() {
+  const { storeId, resolvedRange } = useDashboardFilters();
+  const [granularity, setGranularity] = useState<TrendGranularity>("month");
+  const [data, setData] = useState<CustomerTrendResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const range = resolvedRange();
+  const fromKey = range?.from ?? "";
+  const toKey = range?.to ?? "";
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getCustomerTrend({
+      store_id: storeId,
+      from: fromKey || undefined,
+      to: toKey || undefined,
+      granularity,
+    })
+      .then((res) => {
+        if (!cancelled) setData(res);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled)
+          setError(err instanceof Error ? err.message : "Gagal memuat data");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [storeId, fromKey, toKey, granularity]);
+
+  const chartData = useMemo(() => data?.points ?? [], [data]);
+  const hasData = chartData.some(
+    (p) => p.registered > 0 || p.transacting > 0,
+  );
+
+  return (
+    <div className="rounded-lg border border-border/50 p-4">
+      <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-1">
+          <LineChartIcon className="h-4 w-4 text-primary" />
+          <p className="text-xs font-medium text-muted-foreground">
+            Registrasi vs Transaksi Customer
+          </p>
+          <InfoHint ariaLabel="Penjelasan grafik registrasi vs transaksi customer">
+            <p className="text-xs font-semibold text-foreground">
+              Registrasi vs Transaksi Customer
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              <span className="font-medium text-foreground">Registrasi</span> =
+              jumlah customer yang masuk sistem (berdasarkan tanggal daftar)
+              pada tiap periode.
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              <span className="font-medium text-foreground">Transaksi</span> =
+              jumlah customer unik yang melakukan booking (selain
+              cancelled/rescheduled) pada tiap periode.
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+              Mengikuti filter global (rentang tanggal &amp; cabang).
+            </p>
+          </InfoHint>
+        </div>
+        <GranularityToggle value={granularity} onChange={setGranularity} />
+      </div>
+
+      {error ? (
+        <div className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+          {error}
+        </div>
+      ) : loading ? (
+        <Skeleton className="mt-3 h-64 w-full" />
+      ) : !hasData ? (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Belum ada data pada periode ini.
+        </p>
+      ) : (
+        <div className="mt-3 h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={chartData}
+              margin={{ top: 8, right: 12, bottom: 8, left: 0 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={36} />
+              <RechartsTooltip labelClassName="text-xs" />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line
+                type="monotone"
+                dataKey="registered"
+                name="Registrasi / Masuk Sistem"
+                stroke="hsl(var(--primary))"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="transacting"
+                name="Bertransaksi"
+                stroke="#10b981"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GranularityToggle({
+  value,
+  onChange,
+}: {
+  value: TrendGranularity;
+  onChange: (next: TrendGranularity) => void;
+}) {
+  const options: { key: TrendGranularity; label: string }[] = [
+    { key: "week", label: "Mingguan" },
+    { key: "month", label: "Bulanan" },
+  ];
+  return (
+    <div className="inline-flex items-center rounded-md border border-border/60 p-0.5">
+      {options.map((opt) => (
+        <button
+          key={opt.key}
+          type="button"
+          onClick={() => onChange(opt.key)}
+          className={cn(
+            "rounded px-2.5 py-1 text-xs font-medium transition-colors",
+            value === opt.key
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   );
 }
