@@ -25,6 +25,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -37,6 +38,7 @@ import {
   Loader2,
   AlertCircle,
   Columns,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   X,
@@ -132,41 +134,169 @@ const MEMBERSHIP_STATUS_CONFIG: Record<
   },
 };
 
+// ─── Multiselect dropdown filter ──────────────────────────────────────────────
+
+const MEMBERSHIP_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "active", label: "Aktif" },
+  { value: "menunggu", label: "Menunggu" },
+  { value: "expired", label: "Expired" },
+  { value: "cancelled", label: "Dibatalkan" },
+];
+
+const DETAIL_URGENCY_OPTIONS: { value: string; label: string }[] = [
+  { value: "expired", label: "Sudah Expired" },
+  { value: "7days", label: "Expired ≤ 7 hari" },
+  { value: "30days", label: "Expired ≤ 30 hari" },
+];
+
+const EARLY_RENEWAL_OPTIONS: { value: string; label: string }[] = [
+  { value: "yes", label: "Ya (early renewal)" },
+  { value: "no", label: "Tidak" },
+];
+
+const EXPIRY_URGENCY_OPTIONS: { value: string; label: string }[] = [
+  { value: "critical", label: "Kritis (≤7 hari)" },
+  { value: "warning", label: "Peringatan (8–14 hari)" },
+  { value: "upcoming", label: "Akan Datang (15–30 hari)" },
+];
+
+/** Whether a detail row matches a single "Urgensi Expiry" filter value. */
+function matchesDetailUrgency(daysUntilExpiry: number | null, value: string): boolean {
+  if (daysUntilExpiry === null) return false;
+  if (value === "expired") return daysUntilExpiry < 0;
+  if (value === "7days") return daysUntilExpiry >= 0 && daysUntilExpiry <= 7;
+  if (value === "30days") return daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
+  return true;
+}
+
+/** Build {value,label} options from a plain string list. */
+function toOptions(values: string[]): { value: string; label: string }[] {
+  return values.map((v) => ({ value: v, label: v }));
+}
+
+/** Radio-style "buletan": outlined circle, filled with a dot when selected. */
+function CircleIndicator({ selected }: { selected: boolean }) {
+  return (
+    <span
+      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+        selected ? "border-primary" : "border-primary/40"
+      }`}
+    >
+      {selected && <span className="h-2 w-2 rounded-full bg-primary" />}
+    </span>
+  );
+}
+
+function MultiSelectFilter({
+  options,
+  selected,
+  onChange,
+  allLabel,
+}: {
+  options: { value: string; label: string }[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  allLabel: string;
+}) {
+  const toggle = (value: string) => {
+    onChange(
+      selected.includes(value)
+        ? selected.filter((v) => v !== value)
+        : [...selected, value],
+    );
+  };
+
+  const triggerLabel =
+    selected.length === 0
+      ? allLabel
+      : selected.length === 1
+        ? (options.find((o) => o.value === selected[0])?.label ?? selected[0])
+        : `${selected.length} dipilih`;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          className="w-full justify-between font-normal"
+        >
+          <span
+            className={selected.length === 0 ? "text-muted-foreground" : ""}
+          >
+            {triggerLabel}
+          </span>
+          <ChevronDown className="h-4 w-4 opacity-50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="max-h-[320px] w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
+      >
+        <DropdownMenuItem
+          onSelect={(e) => {
+            e.preventDefault();
+            onChange([]);
+          }}
+          className="gap-2 text-xs font-semibold"
+        >
+          <CircleIndicator selected={selected.length === 0} />
+          {allLabel}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {options.map((o) => (
+          <DropdownMenuItem
+            key={o.value}
+            onSelect={(e) => {
+              e.preventDefault();
+              toggle(o.value);
+            }}
+            className="gap-2 text-xs"
+          >
+            <CircleIndicator selected={selected.includes(o.value)} />
+            {o.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 // ─── Filter types ─────────────────────────────────────────────────────────────
 
 interface MembershipFilters {
   search: string;
-  planTier: string;
-  planName: string;
-  status: string;
+  // Empty array = "Semua" (no filter); multiselect supported.
+  planTier: string[];
+  planName: string[];
+  status: string[];
   expiryFrom: string;
   expiryTo: string;
-  /** Expiry tab: filter by expiry_urgency value (critical|warning|upcoming). */
-  expiryUrgency: string;
-  /** Revenue tab: membership-log grouping granularity. */
+  /** Expiry tab: filter by expiry_urgency values (critical|warning|upcoming). */
+  expiryUrgency: string[];
+  /** Revenue tab: membership-log grouping granularity (single mode). */
   periodGrouping: "month" | "week";
 }
 
 const EMPTY_FILTERS: MembershipFilters = {
   search: "",
-  planTier: "",
-  planName: "",
-  status: "",
+  planTier: [],
+  planName: [],
+  status: [],
   expiryFrom: "",
   expiryTo: "",
-  expiryUrgency: "",
+  expiryUrgency: [],
   periodGrouping: "month",
 };
 
 function isFilterActive(f: MembershipFilters): boolean {
   return (
     f.search !== "" ||
-    f.planTier !== "" ||
-    f.planName !== "" ||
-    f.status !== "" ||
+    f.planTier.length > 0 ||
+    f.planName.length > 0 ||
+    f.status.length > 0 ||
     f.expiryFrom !== "" ||
     f.expiryTo !== "" ||
-    f.expiryUrgency !== ""
+    f.expiryUrgency.length > 0
   );
 }
 
@@ -387,45 +517,46 @@ function renderBenefitCell(benefit: BenefitSnapshotItem, key: DetailKey): React.
 
 interface DetailFilters {
   search: string;
-  status: string;
-  planName: string;
-  urgency: string;
+  // Empty array = "Semua" (no filter); multiselect supported.
+  status: string[];
+  planName: string[];
+  urgency: string[];
   startFrom: string;
   startTo: string;
   endFrom: string;
   endTo: string;
   createdFrom: string;
   createdTo: string;
-  earlyRenewal: string;
+  earlyRenewal: string[];
 }
 
 const EMPTY_DETAIL_FILTERS: DetailFilters = {
   search: "",
-  status: "",
-  planName: "",
-  urgency: "all",
+  status: [],
+  planName: [],
+  urgency: [],
   startFrom: "",
   startTo: "",
   endFrom: "",
   endTo: "",
   createdFrom: "",
   createdTo: "",
-  earlyRenewal: "all",
+  earlyRenewal: [],
 };
 
 function isDetailFilterActive(f: DetailFilters): boolean {
   return (
     f.search !== "" ||
-    f.status !== "" ||
-    f.planName !== "" ||
-    f.urgency !== "all" ||
+    f.status.length > 0 ||
+    f.planName.length > 0 ||
+    f.urgency.length > 0 ||
     f.startFrom !== "" ||
     f.startTo !== "" ||
     f.endFrom !== "" ||
     f.endTo !== "" ||
     f.createdFrom !== "" ||
     f.createdTo !== "" ||
-    f.earlyRenewal !== "all"
+    f.earlyRenewal.length > 0
   );
 }
 
@@ -491,23 +622,21 @@ function MembershipDetailTab({
           (r.order_number ?? "").toLowerCase().includes(s),
       );
     }
-    if (status) d = d.filter((r) => r.membership_status === status);
-    if (planName) d = d.filter((r) => r.membership_name === planName);
+    if (status.length) d = d.filter((r) => status.includes(r.membership_status));
+    if (planName.length) d = d.filter((r) => planName.includes(r.membership_name));
     if (startFrom) d = d.filter((r) => r.start_date && r.start_date.slice(0, 10) >= startFrom);
     if (startTo) d = d.filter((r) => r.start_date && r.start_date.slice(0, 10) <= startTo);
     if (endFrom) d = d.filter((r) => r.end_date && r.end_date.slice(0, 10) >= endFrom);
     if (endTo) d = d.filter((r) => r.end_date && r.end_date.slice(0, 10) <= endTo);
     if (createdFrom) d = d.filter((r) => r.created_at && r.created_at.slice(0, 10) >= createdFrom);
     if (createdTo) d = d.filter((r) => r.created_at && r.created_at.slice(0, 10) <= createdTo);
-    if (earlyRenewal === "yes") d = d.filter((r) => r.is_early_renewal);
-    if (earlyRenewal === "no") d = d.filter((r) => !r.is_early_renewal);
+    if (earlyRenewal.length)
+      d = d.filter((r) => earlyRenewal.includes(r.is_early_renewal ? "yes" : "no"));
 
-    if (urgency === "expired")
-      d = d.filter((r) => r.days_until_expiry !== null && r.days_until_expiry < 0);
-    else if (urgency === "7days")
-      d = d.filter((r) => r.days_until_expiry !== null && r.days_until_expiry >= 0 && r.days_until_expiry <= 7);
-    else if (urgency === "30days")
-      d = d.filter((r) => r.days_until_expiry !== null && r.days_until_expiry >= 0 && r.days_until_expiry <= 30);
+    if (urgency.length)
+      d = d.filter((r) =>
+        urgency.some((u) => matchesDetailUrgency(r.days_until_expiry, u)),
+      );
 
     return d;
   }, [rawData, filters]);
@@ -839,40 +968,23 @@ function MembershipDetailTab({
             {/* Status */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Status</label>
-              <Select
-                value={filters.status || "__all__"}
-                onValueChange={(v) => setF("status", v === "__all__" ? "" : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Semua Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Semua Status</SelectItem>
-                  <SelectItem value="active">Aktif</SelectItem>
-                  <SelectItem value="menunggu">Menunggu</SelectItem>
-                  <SelectItem value="expired">Expired</SelectItem>
-                  <SelectItem value="cancelled">Dibatalkan</SelectItem>
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                options={MEMBERSHIP_STATUS_OPTIONS}
+                selected={filters.status}
+                onChange={(next) => setF("status", next)}
+                allLabel="Semua Status"
+              />
             </div>
 
             {/* Plan */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Plan Membership</label>
-              <Select
-                value={filters.planName || "__all__"}
-                onValueChange={(v) => setF("planName", v === "__all__" ? "" : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Semua Plan" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__all__">Semua Plan</SelectItem>
-                  {planOptions.map((v) => (
-                    <SelectItem key={v} value={v}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                options={toOptions(planOptions)}
+                selected={filters.planName}
+                onChange={(next) => setF("planName", next)}
+                allLabel="Semua Plan"
+              />
             </div>
           </div>
 
@@ -910,38 +1022,23 @@ function MembershipDetailTab({
             {/* Urgency */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Urgensi Expiry</label>
-              <Select
-                value={filters.urgency}
-                onValueChange={(v) => setF("urgency", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua</SelectItem>
-                  <SelectItem value="expired">Sudah Expired</SelectItem>
-                  <SelectItem value="7days">Expired ≤ 7 hari</SelectItem>
-                  <SelectItem value="30days">Expired ≤ 30 hari</SelectItem>
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                options={DETAIL_URGENCY_OPTIONS}
+                selected={filters.urgency}
+                onChange={(next) => setF("urgency", next)}
+                allLabel="Semua"
+              />
             </div>
 
             {/* Early Renewal */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Early Renewal</label>
-              <Select
-                value={filters.earlyRenewal}
-                onValueChange={(v) => setF("earlyRenewal", v)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Semua</SelectItem>
-                  <SelectItem value="yes">Ya (early renewal)</SelectItem>
-                  <SelectItem value="no">Tidak</SelectItem>
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                options={EARLY_RENEWAL_OPTIONS}
+                selected={filters.earlyRenewal}
+                onChange={(next) => setF("earlyRenewal", next)}
+                allLabel="Semua"
+              />
             </div>
           </div>
         </CardContent>
@@ -2602,8 +2699,9 @@ function MembershipReportPage() {
           r.pet_name.toLowerCase().includes(s),
       );
     }
-    if (planName) d = d.filter((r) => r.membership_name === planName);
-    if (expiryUrgency) d = d.filter((r) => r.expiry_urgency === expiryUrgency);
+    if (planName.length) d = d.filter((r) => planName.includes(r.membership_name));
+    if (expiryUrgency.length)
+      d = d.filter((r) => expiryUrgency.includes(r.expiry_urgency));
     if (expiryFrom)
       d = d.filter(
         (r) => r.end_date && r.end_date.slice(0, 10) >= expiryFrom,
@@ -2633,7 +2731,7 @@ function MembershipReportPage() {
           (r.pet_membership_id ?? "").toLowerCase().includes(s),
       );
     }
-    if (planName) d = d.filter((r) => r.membership_name === planName);
+    if (planName.length) d = d.filter((r) => planName.includes(r.membership_name));
     return d;
   }, [benefitRaw, filters]);
 
@@ -2741,24 +2839,12 @@ function MembershipReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Tier Membership
                 </label>
-                <Select
-                  value={filters.planTier || "__all__"}
-                  onValueChange={(v) =>
-                    setFilter("planTier", v === "__all__" ? "" : v)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Tier" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Semua Tier</SelectItem>
-                    {planTierOptions.map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {v}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={toOptions(planTierOptions)}
+                  selected={filters.planTier}
+                  onChange={(next) => setFilter("planTier", next)}
+                  allLabel="Semua Tier"
+                />
               </div>
             )}
 
@@ -2770,27 +2856,16 @@ function MembershipReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Plan Membership
                 </label>
-                <Select
-                  value={filters.planName || "__all__"}
-                  onValueChange={(v) =>
-                    setFilter("planName", v === "__all__" ? "" : v)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Plan" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Semua Plan</SelectItem>
-                    {(activeTab === "expiry"
+                <MultiSelectFilter
+                  options={toOptions(
+                    activeTab === "expiry"
                       ? expiryPlanNameOptions
-                      : planNameOptions
-                    ).map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {v}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      : planNameOptions,
+                  )}
+                  selected={filters.planName}
+                  onChange={(next) => setFilter("planName", next)}
+                  allLabel="Semua Plan"
+                />
               </div>
             )}
 
@@ -2800,22 +2875,12 @@ function MembershipReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Urgensi Expiry
                 </label>
-                <Select
-                  value={filters.expiryUrgency || "__all__"}
-                  onValueChange={(v) =>
-                    setFilter("expiryUrgency", v === "__all__" ? "" : v)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Urgensi" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Semua Urgensi</SelectItem>
-                    <SelectItem value="critical">Kritis (≤7 hari)</SelectItem>
-                    <SelectItem value="warning">Peringatan (8–14 hari)</SelectItem>
-                    <SelectItem value="upcoming">Akan Datang (15–30 hari)</SelectItem>
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={EXPIRY_URGENCY_OPTIONS}
+                  selected={filters.expiryUrgency}
+                  onChange={(next) => setFilter("expiryUrgency", next)}
+                  allLabel="Semua Urgensi"
+                />
               </div>
             )}
 
@@ -2825,26 +2890,14 @@ function MembershipReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Status Membership
                 </label>
-                <Select
-                  value={filters.status || "__all__"}
-                  onValueChange={(v) =>
-                    setFilter("status", v === "__all__" ? "" : v)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Semua Status</SelectItem>
-                    {Object.entries(MEMBERSHIP_STATUS_CONFIG).map(
-                      ([key, cfg]) => (
-                        <SelectItem key={key} value={key}>
-                          {cfg.label}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={Object.entries(MEMBERSHIP_STATUS_CONFIG).map(
+                    ([key, cfg]) => ({ value: key, label: cfg.label }),
+                  )}
+                  selected={filters.status}
+                  onChange={(next) => setFilter("status", next)}
+                  allLabel="Semua Status"
+                />
               </div>
             )}
 
