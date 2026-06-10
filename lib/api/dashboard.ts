@@ -79,6 +79,11 @@ export interface RevenueKpis {
   total_discount: number;
   discount_leakage_pct: number;
   total_orders: number;
+  gross_order_count: number;
+  gross_order_membership_count: number;
+  gross_order_onetime_count: number;
+  gross_order_inhome_count: number;
+  gross_order_instore_count: number;
   avg_order_value: number;
   delta: RevenueKpiDelta;
 }

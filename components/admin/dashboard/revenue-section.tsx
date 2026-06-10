@@ -247,10 +247,19 @@ function KpiGrid({
           value={loading || !kpis ? null : formatPrice(kpis.gross_revenue)}
           subtext={
             loading || !kpis ? null : (
-              <RevenueBreakdown
-                confirmed={kpis.gross_revenue_confirmed}
-                pending={kpis.gross_revenue_pending}
-              />
+              <div className="flex flex-col gap-1">
+                <RevenueBreakdown
+                  confirmed={kpis.gross_revenue_confirmed}
+                  pending={kpis.gross_revenue_pending}
+                />
+                <OrderTypeBreakdown
+                  total={kpis.gross_order_count}
+                  onetime={kpis.gross_order_onetime_count}
+                  membership={kpis.gross_order_membership_count}
+                  inhome={kpis.gross_order_inhome_count}
+                  instore={kpis.gross_order_instore_count}
+                />
+              </div>
             )
           }
           delta={kpis?.delta.gross_revenue_pct ?? null}
@@ -361,6 +370,46 @@ function RevenueBreakdown({
     <div className="flex flex-col leading-tight">
       <span className="truncate">Confirmed {formatPrice(confirmed)}</span>
       <span className="truncate">Pending {formatPrice(pending)}</span>
+    </div>
+  );
+}
+
+function OrderTypeBreakdown({
+  total,
+  onetime,
+  membership,
+  inhome,
+  instore,
+}: {
+  total: number;
+  onetime: number;
+  membership: number;
+  inhome: number;
+  instore: number;
+}) {
+  return (
+    <div className="mt-2 flex flex-col gap-1.5 border-t border-border/40 pt-2 text-xs">
+      <p className="text-sm font-semibold text-foreground">
+        {total} <span className="font-normal text-muted-foreground">order masuk</span>
+      </p>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">One-time</span>
+          <span className="font-medium text-foreground">{onetime}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">Membership</span>
+          <span className="font-medium text-foreground">{membership}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">In-home</span>
+          <span className="font-medium text-foreground">{inhome}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">In-store</span>
+          <span className="font-medium text-foreground">{instore}</span>
+        </div>
+      </div>
     </div>
   );
 }
