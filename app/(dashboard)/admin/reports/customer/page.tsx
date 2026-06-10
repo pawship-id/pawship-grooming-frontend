@@ -7,13 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -25,6 +18,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -37,6 +31,7 @@ import {
   Loader2,
   AlertCircle,
   Columns,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   X,
@@ -104,11 +99,12 @@ interface CustomerFilters {
   search: string;
   dateFrom: string;
   dateTo: string;
-  petType: string;
-  customerCategory: string;
-  membershipTier: string;
-  petStatus: string;
-  hasBooked: string; // "all" | "yes" | "no"
+  // Empty array = "Semua" (no filter); multiselect supported.
+  petType: string[];
+  customerCategory: string[];
+  membershipTier: string[];
+  petStatus: string[];
+  hasBooked: string[]; // values: "yes" | "no"; empty = all
   registeredFrom: string;
   registeredTo: string;
 }
@@ -117,11 +113,11 @@ const EMPTY_FILTERS: CustomerFilters = {
   search: "",
   dateFrom: "",
   dateTo: "",
-  petType: "",
-  customerCategory: "",
-  membershipTier: "",
-  petStatus: "",
-  hasBooked: "all",
+  petType: [],
+  customerCategory: [],
+  membershipTier: [],
+  petStatus: [],
+  hasBooked: [],
   registeredFrom: "",
   registeredTo: "",
 };
@@ -131,13 +127,125 @@ function isFilterActive(f: CustomerFilters): boolean {
     f.search !== "" ||
     f.dateFrom !== "" ||
     f.dateTo !== "" ||
-    f.petType !== "" ||
-    f.customerCategory !== "" ||
-    f.membershipTier !== "" ||
-    f.petStatus !== "" ||
-    f.hasBooked !== "all" ||
+    f.petType.length > 0 ||
+    f.customerCategory.length > 0 ||
+    f.membershipTier.length > 0 ||
+    f.petStatus.length > 0 ||
+    f.hasBooked.length > 0 ||
     f.registeredFrom !== "" ||
     f.registeredTo !== ""
+  );
+}
+
+// ─── Multiselect dropdown filter ──────────────────────────────────────────────
+
+const PET_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "idle", label: "Idle" },
+  { value: "new", label: "New" },
+  { value: "active", label: "Active" },
+  { value: "at_risk", label: "At Risk" },
+  { value: "lapsed", label: "Lapsed" },
+];
+
+const LAPSED_PET_STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "at_risk", label: "At Risk" },
+  { value: "lapsed", label: "Lapsed" },
+];
+
+const HAS_BOOKED_OPTIONS: { value: string; label: string }[] = [
+  { value: "yes", label: "Sudah booking" },
+  { value: "no", label: "Belum booking" },
+];
+
+/** Build {value,label} options from a plain string list. */
+function toOptions(values: string[]): { value: string; label: string }[] {
+  return values.map((v) => ({ value: v, label: v }));
+}
+
+/** Radio-style "buletan": outlined circle, filled with a dot when selected. */
+function CircleIndicator({ selected }: { selected: boolean }) {
+  return (
+    <span
+      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+        selected ? "border-primary" : "border-primary/40"
+      }`}
+    >
+      {selected && <span className="h-2 w-2 rounded-full bg-primary" />}
+    </span>
+  );
+}
+
+function MultiSelectFilter({
+  options,
+  selected,
+  onChange,
+  allLabel,
+}: {
+  options: { value: string; label: string }[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  allLabel: string;
+}) {
+  const toggle = (value: string) => {
+    onChange(
+      selected.includes(value)
+        ? selected.filter((v) => v !== value)
+        : [...selected, value],
+    );
+  };
+
+  const triggerLabel =
+    selected.length === 0
+      ? allLabel
+      : selected.length === 1
+        ? (options.find((o) => o.value === selected[0])?.label ?? selected[0])
+        : `${selected.length} dipilih`;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          className="w-full justify-between font-normal"
+        >
+          <span
+            className={selected.length === 0 ? "text-muted-foreground" : ""}
+          >
+            {triggerLabel}
+          </span>
+          <ChevronDown className="h-4 w-4 opacity-50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="max-h-[320px] w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
+      >
+        <DropdownMenuItem
+          onSelect={(e) => {
+            e.preventDefault();
+            onChange([]);
+          }}
+          className="gap-2 text-xs font-semibold"
+        >
+          <CircleIndicator selected={selected.length === 0} />
+          {allLabel}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        {options.map((o) => (
+          <DropdownMenuItem
+            key={o.value}
+            onSelect={(e) => {
+              e.preventDefault();
+              toggle(o.value);
+            }}
+            className="gap-2 text-xs"
+          >
+            <CircleIndicator selected={selected.includes(o.value)} />
+            {o.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -2322,13 +2430,13 @@ function CustomerReportPage() {
       d = d.filter(
         (r) => r.last_visit_at && r.last_visit_at.slice(0, 10) <= dateTo,
       );
-    if (petType) d = d.filter((r) => r.pet_type === petType);
-    if (customerCategory)
-      d = d.filter((r) => r.customer_category === customerCategory);
-    if (membershipTier)
-      d = d.filter((r) => r.membership_tier === membershipTier);
-    if (hasBooked === "yes") d = d.filter((r) => r.has_booked);
-    if (hasBooked === "no") d = d.filter((r) => !r.has_booked);
+    if (petType.length) d = d.filter((r) => petType.includes(r.pet_type));
+    if (customerCategory.length)
+      d = d.filter((r) => customerCategory.includes(r.customer_category));
+    if (membershipTier.length)
+      d = d.filter((r) => membershipTier.includes(r.membership_tier));
+    if (hasBooked.length)
+      d = d.filter((r) => hasBooked.includes(r.has_booked ? "yes" : "no"));
     return d;
   }, [masterRaw, filters]);
 
@@ -2364,14 +2472,14 @@ function CustomerReportPage() {
         (r) =>
           r.last_booking_date && r.last_booking_date.slice(0, 10) <= dateTo,
       );
-    if (petType) d = d.filter((r) => r.pet_type === petType);
-    if (customerCategory)
-      d = d.filter((r) => r.customer_category === customerCategory);
-    if (membershipTier)
-      d = d.filter((r) => r.membership_tier === membershipTier);
-    if (petStatus) d = d.filter((r) => r.pet_status === petStatus);
-    if (hasBooked === "yes") d = d.filter((r) => r.has_booked);
-    if (hasBooked === "no") d = d.filter((r) => !r.has_booked);
+    if (petType.length) d = d.filter((r) => petType.includes(r.pet_type));
+    if (customerCategory.length)
+      d = d.filter((r) => customerCategory.includes(r.customer_category));
+    if (membershipTier.length)
+      d = d.filter((r) => membershipTier.includes(r.membership_tier));
+    if (petStatus.length) d = d.filter((r) => petStatus.includes(r.pet_status));
+    if (hasBooked.length)
+      d = d.filter((r) => hasBooked.includes(r.has_booked ? "yes" : "no"));
     return d;
   }, [retentionRaw, filters]);
 
@@ -2390,10 +2498,9 @@ function CustomerReportPage() {
           r.pet_name.toLowerCase().includes(s),
       );
     }
-    if (membershipTier)
-      d = d.filter((r) => r.membership_tier === membershipTier);
-    if (petStatus === "at_risk" || petStatus === "lapsed")
-      d = d.filter((r) => r.pet_status === petStatus);
+    if (membershipTier.length)
+      d = d.filter((r) => membershipTier.includes(r.membership_tier));
+    if (petStatus.length) d = d.filter((r) => petStatus.includes(r.pet_status));
 
     return [...d].sort((a, b) => {
       const daysDiff =
@@ -2465,11 +2572,11 @@ function CustomerReportPage() {
           r.pet_registered_at &&
           r.pet_registered_at.slice(0, 10) <= registeredTo,
       );
-    if (petType) d = d.filter((r) => r.pet_type === petType);
-    if (customerCategory)
-      d = d.filter((r) => r.customer_category === customerCategory);
-    if (hasBooked === "yes") d = d.filter((r) => r.has_booked);
-    if (hasBooked === "no") d = d.filter((r) => !r.has_booked);
+    if (petType.length) d = d.filter((r) => petType.includes(r.pet_type));
+    if (customerCategory.length)
+      d = d.filter((r) => customerCategory.includes(r.customer_category));
+    if (hasBooked.length)
+      d = d.filter((r) => hasBooked.includes(r.has_booked ? "yes" : "no"));
 
     return [...d].sort((a, b) => {
       if (a.has_booked !== b.has_booked) return a.has_booked ? 1 : -1;
@@ -2507,11 +2614,11 @@ function CustomerReportPage() {
         (r) =>
           r.last_booking_date && r.last_booking_date.slice(0, 10) <= dateTo,
       );
-    if (customerCategory)
-      d = d.filter((r) => r.customer_category === customerCategory);
-    if (membershipTier)
-      d = d.filter((r) => r.membership_tier === membershipTier);
-    if (petStatus) d = d.filter((r) => r.pet_status === petStatus);
+    if (customerCategory.length)
+      d = d.filter((r) => customerCategory.includes(r.customer_category));
+    if (membershipTier.length)
+      d = d.filter((r) => membershipTier.includes(r.membership_tier));
+    if (petStatus.length) d = d.filter((r) => petStatus.includes(r.pet_status));
 
     return [...d].sort((a, b) => b.lifetime_revenue - a.lifetime_revenue);
   }, [vipRaw, filters]);
@@ -2645,24 +2752,12 @@ function CustomerReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Kategori Customer
                 </label>
-                <Select
-                  value={filters.customerCategory || "__all__"}
-                  onValueChange={(v) =>
-                    set("customerCategory", v === "__all__" ? "" : v)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Kategori" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Semua Kategori</SelectItem>
-                    {vipCategoryOptions.map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {v}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={toOptions(vipCategoryOptions)}
+                  selected={filters.customerCategory}
+                  onChange={(next) => set("customerCategory", next)}
+                  allLabel="Semua Kategori"
+                />
               </div>
 
               {/* Membership Tier */}
@@ -2670,24 +2765,12 @@ function CustomerReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Tier Membership
                 </label>
-                <Select
-                  value={filters.membershipTier || "__all__"}
-                  onValueChange={(v) =>
-                    set("membershipTier", v === "__all__" ? "" : v)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Tier" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Semua Tier</SelectItem>
-                    {vipMembershipTierOptions.map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {v}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={toOptions(vipMembershipTierOptions)}
+                  selected={filters.membershipTier}
+                  onChange={(next) => set("membershipTier", next)}
+                  allLabel="Semua Tier"
+                />
               </div>
 
               {/* Pet Status */}
@@ -2695,24 +2778,12 @@ function CustomerReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Pet Status
                 </label>
-                <Select
-                  value={filters.petStatus || "__all__"}
-                  onValueChange={(v) =>
-                    set("petStatus", v === "__all__" ? "" : v)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Semua Status</SelectItem>
-                    <SelectItem value="idle">Idle</SelectItem>
-                    <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="at_risk">At Risk</SelectItem>
-                    <SelectItem value="lapsed">Lapsed</SelectItem>
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={PET_STATUS_OPTIONS}
+                  selected={filters.petStatus}
+                  onChange={(next) => set("petStatus", next)}
+                  allLabel="Semua Status"
+                />
               </div>
             </div>
           ) : activeTab === "new-conversion" ? (
@@ -2722,24 +2793,12 @@ function CustomerReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Jenis Hewan
                 </label>
-                <Select
-                  value={filters.petType || "__all__"}
-                  onValueChange={(v) =>
-                    set("petType", v === "__all__" ? "" : v)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Jenis" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Semua Jenis</SelectItem>
-                    {conversionPetTypeOptions.map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {v}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={toOptions(conversionPetTypeOptions)}
+                  selected={filters.petType}
+                  onChange={(next) => set("petType", next)}
+                  allLabel="Semua Jenis"
+                />
               </div>
 
               {/* Customer Category */}
@@ -2747,24 +2806,12 @@ function CustomerReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Kategori Customer
                 </label>
-                <Select
-                  value={filters.customerCategory || "__all__"}
-                  onValueChange={(v) =>
-                    set("customerCategory", v === "__all__" ? "" : v)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Kategori" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Semua Kategori</SelectItem>
-                    {conversionCategoryOptions.map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {v}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={toOptions(conversionCategoryOptions)}
+                  selected={filters.customerCategory}
+                  onChange={(next) => set("customerCategory", next)}
+                  allLabel="Semua Kategori"
+                />
               </div>
 
               {/* Has Booked */}
@@ -2772,19 +2819,12 @@ function CustomerReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Status Konversi
                 </label>
-                <Select
-                  value={filters.hasBooked}
-                  onValueChange={(v) => set("hasBooked", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua</SelectItem>
-                    <SelectItem value="yes">Sudah booking</SelectItem>
-                    <SelectItem value="no">Belum booking</SelectItem>
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={HAS_BOOKED_OPTIONS}
+                  selected={filters.hasBooked}
+                  onChange={(next) => set("hasBooked", next)}
+                  allLabel="Semua"
+                />
               </div>
             </div>
           ) : (
@@ -2794,24 +2834,12 @@ function CustomerReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Jenis Hewan
                 </label>
-                <Select
-                  value={filters.petType || "__all__"}
-                  onValueChange={(v) =>
-                    set("petType", v === "__all__" ? "" : v)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Jenis" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Semua Jenis</SelectItem>
-                    {petTypeOptions.map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {v}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={toOptions(petTypeOptions)}
+                  selected={filters.petType}
+                  onChange={(next) => set("petType", next)}
+                  allLabel="Semua Jenis"
+                />
               </div>
 
               {/* Customer Category */}
@@ -2819,24 +2847,12 @@ function CustomerReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Kategori Customer
                 </label>
-                <Select
-                  value={filters.customerCategory || "__all__"}
-                  onValueChange={(v) =>
-                    set("customerCategory", v === "__all__" ? "" : v)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Kategori" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Semua Kategori</SelectItem>
-                    {customerCategoryOptions.map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {v}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={toOptions(customerCategoryOptions)}
+                  selected={filters.customerCategory}
+                  onChange={(next) => set("customerCategory", next)}
+                  allLabel="Semua Kategori"
+                />
               </div>
 
               {/* Membership Tier */}
@@ -2844,24 +2860,12 @@ function CustomerReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Tier Membership
                 </label>
-                <Select
-                  value={filters.membershipTier || "__all__"}
-                  onValueChange={(v) =>
-                    set("membershipTier", v === "__all__" ? "" : v)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Tier" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Semua Tier</SelectItem>
-                    {membershipTierOptions.map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {v}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={toOptions(membershipTierOptions)}
+                  selected={filters.membershipTier}
+                  onChange={(next) => set("membershipTier", next)}
+                  allLabel="Semua Tier"
+                />
               </div>
 
               {/* Has Booked */}
@@ -2869,19 +2873,12 @@ function CustomerReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Sudah Booking?
                 </label>
-                <Select
-                  value={filters.hasBooked}
-                  onValueChange={(v) => set("hasBooked", v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua</SelectItem>
-                    <SelectItem value="yes">Ya (pernah booking)</SelectItem>
-                    <SelectItem value="no">Belum booking</SelectItem>
-                  </SelectContent>
-                </Select>
+                <MultiSelectFilter
+                  options={HAS_BOOKED_OPTIONS}
+                  selected={filters.hasBooked}
+                  onChange={(next) => set("hasBooked", next)}
+                  allLabel="Semua"
+                />
               </div>
             </div>
           )}
@@ -2893,32 +2890,20 @@ function CustomerReportPage() {
                 <label className="text-xs font-medium text-muted-foreground">
                   Pet Status
                 </label>
-                <Select
-                  value={filters.petStatus || "__all__"}
-                  onValueChange={(v) =>
-                    set("petStatus", v === "__all__" ? "" : v)
+                <MultiSelectFilter
+                  options={
+                    activeTab === "lapsed-at-risk"
+                      ? LAPSED_PET_STATUS_OPTIONS
+                      : PET_STATUS_OPTIONS
                   }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">
-                      {activeTab === "lapsed-at-risk"
-                        ? "At Risk + Lapsed"
-                        : "Semua Status"}
-                    </SelectItem>
-                    {activeTab === "retention" && (
-                      <>
-                        <SelectItem value="idle">Idle</SelectItem>
-                        <SelectItem value="new">New</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                      </>
-                    )}
-                    <SelectItem value="at_risk">At Risk</SelectItem>
-                    <SelectItem value="lapsed">Lapsed</SelectItem>
-                  </SelectContent>
-                </Select>
+                  selected={filters.petStatus}
+                  onChange={(next) => set("petStatus", next)}
+                  allLabel={
+                    activeTab === "lapsed-at-risk"
+                      ? "At Risk + Lapsed"
+                      : "Semua Status"
+                  }
+                />
               </div>
             </div>
           )}
