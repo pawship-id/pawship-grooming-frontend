@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 
-export type DashboardPeriod = "today" | "week" | "month" | "custom";
+export type DashboardPeriod = "today" | "week" | "month" | "custom" | "all";
 
 export interface DashboardFiltersState {
   storeId: string; // "all" or store _id
@@ -40,6 +40,9 @@ export function presetRange(
   customFrom: string,
   customTo: string,
 ): { from: string; to: string } | null {
+  // "all" (Semua) = tanpa filter periode → null agar konsumen mengirim
+  // from/to undefined (backend memperlakukannya sebagai all time).
+  if (preset === "all") return null;
   const now = new Date();
   if (preset === "today") {
     const d = toYMD(now);
