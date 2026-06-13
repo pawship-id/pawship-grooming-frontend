@@ -85,7 +85,15 @@ function LoginPageInner() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-primary hover:underline"
+                >
+                  Lupa Password?
+                </Link>
+              </div>
               <div className="relative">
                 <Input
                   id="password"

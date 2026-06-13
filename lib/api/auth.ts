@@ -129,3 +129,55 @@ export async function setPasswordRequest(
     body: JSON.stringify(payload),
   });
 }
+
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
+export interface ForgotPasswordResponse {
+  message: string;
+}
+
+export async function forgotPasswordRequest(
+  payload: ForgotPasswordPayload,
+): Promise<ForgotPasswordResponse> {
+  return apiRequest<ForgotPasswordResponse>("/auth/forgot-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface VerifyResetTokenResponse {
+  valid: boolean;
+  user: {
+    username: string;
+    email?: string;
+  };
+}
+
+export async function verifyResetTokenRequest(
+  token: string,
+): Promise<VerifyResetTokenResponse> {
+  return apiRequest<VerifyResetTokenResponse>("/auth/verify-reset-token", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+export interface ResetPasswordPayload {
+  token: string;
+  password: string;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
+}
+
+export async function resetPasswordRequest(
+  payload: ResetPasswordPayload,
+): Promise<ResetPasswordResponse> {
+  return apiRequest<ResetPasswordResponse>("/auth/reset-password", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
