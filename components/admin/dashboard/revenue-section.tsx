@@ -5,6 +5,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   CircleDollarSign,
+  Info,
   Minus,
   Receipt,
   ShoppingBag,
@@ -18,7 +19,7 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
 } from "recharts";
@@ -29,6 +30,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useDashboardFilters } from "@/hooks/use-dashboard-filters";
 import {
@@ -58,6 +64,46 @@ function formatShortDate(iso: string) {
     day: "2-digit",
     month: "short",
   });
+}
+
+/**
+ * Definisi metric. Desktop: muncul saat hover (mouse). Mobile/touch: tap icon
+ * untuk buka, tap di luar untuk tutup (ditangani Popover secara native).
+ */
+function InfoHint({ label, text }: { label: string; text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Definisi ${label}`}
+          // p-2 gives a ~32px touch target; -my-2 cancels the vertical growth so
+          // the label row height stays the same, and -ml-2 pulls the icon back
+          // next to the label so the left padding doesn't add visible gap.
+          className="-my-2 -ml-2 inline-flex shrink-0 items-center justify-center rounded p-2 text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:outline-none"
+          onPointerEnter={(e) => {
+            if (e.pointerType === "mouse") setOpen(true);
+          }}
+          onPointerLeave={(e) => {
+            if (e.pointerType === "mouse") setOpen(false);
+          }}
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="start"
+        sideOffset={6}
+        collisionPadding={12}
+        className="w-[min(16rem,calc(100vw-2rem))] p-3 text-xs leading-relaxed"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        {text}
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export function RevenueSection() {
@@ -105,9 +151,9 @@ export function RevenueSection() {
 
   return (
     <Card className="border-border/50">
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle className="font-display text-lg font-bold flex items-center gap-2">
-          <CircleDollarSign className="h-4 w-4 text-primary" />
+      <CardHeader className="flex flex-col items-start gap-1 space-y-0 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+        <CardTitle className="font-display text-lg font-bold flex items-center gap-2 min-w-0">
+          <CircleDollarSign className="h-4 w-4 shrink-0 text-primary" />
           Revenue
         </CardTitle>
         <span className="text-xs text-muted-foreground">Branch · Date</span>
@@ -138,24 +184,37 @@ export function RevenueSection() {
           <DiscountStreamCard
             loading={loading}
             label="Membership Benefit"
+            info="Total potongan harga dari benefit membership (mis. free/diskon grooming) yang dipakai pada periode ini. Angka order di bawah = jumlah booking yang memakai benefit membership."
             value={data?.discount_breakdown.membership_benefit_total ?? 0}
+            orderCount={
+              data?.discount_breakdown.membership_benefit_order_count ?? null
+            }
             tone="purple"
           />
           <DiscountStreamCard
             loading={loading}
             label="Promo Discount"
+            info="Total potongan harga dari kode/promo yang diterapkan pada periode ini. Angka order di bawah = jumlah booking yang memakai promo."
             value={data?.discount_breakdown.promotion_discount_total ?? 0}
+            orderCount={
+              data?.discount_breakdown.promotion_discount_order_count ?? null
+            }
             tone="blue"
           />
           <DiscountStreamCard
             loading={loading}
             label="Admin Discount"
+            info="Total potongan manual oleh admin (edit harga layanan, biaya travel, atau add-on). Angka order di bawah = jumlah booking yang diberi diskon admin."
             value={data?.discount_breakdown.admin_discount_total ?? 0}
+            orderCount={
+              data?.discount_breakdown.admin_discount_order_count ?? null
+            }
             tone="amber"
           />
           <DiscountStreamCard
             loading={loading}
             label="Total Discount"
+            info="Penjumlahan seluruh diskon: membership benefit + promo + diskon admin. Catatan: satu order bisa kena lebih dari satu jenis diskon, jadi jumlah order tiap kartu bisa tumpang tindih."
             value={data?.discount_breakdown.total_attributed ?? 0}
             tone="rose"
           />
@@ -181,50 +240,63 @@ function KpiGrid({
   const kpis = data?.kpis;
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <KpiTile
-        icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
-        label="Gross Revenue"
-        value={loading || !kpis ? null : formatPrice(kpis.gross_revenue)}
-        subtext={
-          loading || !kpis ? null : (
-            <RevenueBreakdown
-              confirmed={kpis.gross_revenue_confirmed}
-              pending={kpis.gross_revenue_pending}
-            />
-          )
-        }
-        delta={kpis?.delta.gross_revenue_pct ?? null}
-        tone="emerald"
-      />
-      <KpiTile
-        icon={<CircleDollarSign className="h-4 w-4 text-primary" />}
-        label="Net Revenue"
-        value={loading || !kpis ? null : formatPrice(kpis.net_revenue)}
-        subtext={
-          loading || !kpis ? null : (
-            <RevenueBreakdown
-              confirmed={kpis.net_revenue_confirmed}
-              pending={kpis.net_revenue_pending}
-            />
-          )
-        }
-        delta={kpis?.delta.net_revenue_pct ?? null}
-        tone="primary"
-      />
-      <KpiTile
-        icon={<ShoppingBag className="h-4 w-4 text-blue-600" />}
-        label="Completed Orders"
-        value={loading || !kpis ? null : kpis.total_orders.toString()}
-        delta={kpis?.delta.total_orders_pct ?? null}
-        tone="blue"
-      />
-      <KpiTile
-        icon={<Receipt className="h-4 w-4 text-amber-600" />}
-        label="Avg Order Value"
-        value={loading || !kpis ? null : formatPrice(kpis.avg_order_value)}
-        delta={kpis?.delta.avg_order_value_pct ?? null}
-        tone="amber"
-      />
+        <KpiTile
+          icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
+          label="Gross Revenue"
+          info="Total nilai order (harga asli sebelum diskon) dari seluruh booking pada periode ini. Tidak termasuk booking berstatus cancelled & rescheduled."
+          value={loading || !kpis ? null : formatPrice(kpis.gross_revenue)}
+          subtext={
+            loading || !kpis ? null : (
+              <div className="flex flex-col gap-1">
+                <RevenueBreakdown
+                  confirmed={kpis.gross_revenue_confirmed}
+                  pending={kpis.gross_revenue_pending}
+                />
+                <OrderTypeBreakdown
+                  total={kpis.gross_order_count}
+                  onetime={kpis.gross_order_onetime_count}
+                  membership={kpis.gross_order_membership_count}
+                  inhome={kpis.gross_order_inhome_count}
+                  instore={kpis.gross_order_instore_count}
+                />
+              </div>
+            )
+          }
+          delta={kpis?.delta.gross_revenue_pct ?? null}
+          tone="emerald"
+        />
+        <KpiTile
+          icon={<CircleDollarSign className="h-4 w-4 text-primary" />}
+          label="Net Revenue"
+          info="Gross revenue dikurangi total diskon (membership benefit, promo, dan diskon admin). Tidak termasuk booking berstatus cancelled & rescheduled."
+          value={loading || !kpis ? null : formatPrice(kpis.net_revenue)}
+          subtext={
+            loading || !kpis ? null : (
+              <RevenueBreakdown
+                confirmed={kpis.net_revenue_confirmed}
+                pending={kpis.net_revenue_pending}
+              />
+            )
+          }
+          delta={kpis?.delta.net_revenue_pct ?? null}
+          tone="primary"
+        />
+        <KpiTile
+          icon={<ShoppingBag className="h-4 w-4 text-blue-600" />}
+          label="Completed Orders"
+          info="Jumlah order yang sudah selesai (status completed atau returned) pada periode ini. Tidak termasuk booking cancelled & rescheduled."
+          value={loading || !kpis ? null : kpis.total_orders.toString()}
+          delta={kpis?.delta.total_orders_pct ?? null}
+          tone="blue"
+        />
+        <KpiTile
+          icon={<Receipt className="h-4 w-4 text-amber-600" />}
+          label="Avg Order Value"
+          info="Rata-rata nilai net per order yang selesai (net revenue completed ÷ jumlah completed orders). Tidak termasuk booking cancelled & rescheduled."
+          value={loading || !kpis ? null : formatPrice(kpis.avg_order_value)}
+          delta={kpis?.delta.avg_order_value_pct ?? null}
+          tone="amber"
+        />
     </div>
   );
 }
@@ -232,6 +304,7 @@ function KpiGrid({
 function KpiTile({
   icon,
   label,
+  info,
   value,
   subtext,
   delta,
@@ -239,6 +312,7 @@ function KpiTile({
 }: {
   icon: React.ReactNode;
   label: string;
+  info?: string;
   value: string | null;
   subtext?: React.ReactNode;
   delta: number | null;
@@ -263,7 +337,10 @@ function KpiTile({
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-muted-foreground">{label}</p>
+        <div className="flex items-center gap-1">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          {info ? <InfoHint label={label} text={info} /> : null}
+        </div>
         {value === null ? (
           <Skeleton className="mt-1 h-6 w-24" />
         ) : (
@@ -293,6 +370,46 @@ function RevenueBreakdown({
     <div className="flex flex-col leading-tight">
       <span className="truncate">Confirmed {formatPrice(confirmed)}</span>
       <span className="truncate">Pending {formatPrice(pending)}</span>
+    </div>
+  );
+}
+
+function OrderTypeBreakdown({
+  total,
+  onetime,
+  membership,
+  inhome,
+  instore,
+}: {
+  total: number;
+  onetime: number;
+  membership: number;
+  inhome: number;
+  instore: number;
+}) {
+  return (
+    <div className="mt-2 flex flex-col gap-1.5 border-t border-border/40 pt-2 text-xs">
+      <p className="text-sm font-semibold text-foreground">
+        {total} <span className="font-normal text-muted-foreground">order masuk</span>
+      </p>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">One-time</span>
+          <span className="font-medium text-foreground">{onetime}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">Membership</span>
+          <span className="font-medium text-foreground">{membership}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">In-home</span>
+          <span className="font-medium text-foreground">{inhome}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-muted-foreground">In-store</span>
+          <span className="font-medium text-foreground">{instore}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -331,9 +448,15 @@ function ByGroomingServiceBlock({
   return (
     <div className="rounded-lg border border-border/50 p-4">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-muted-foreground">
-          Per Service (grooming only)
-        </p>
+        <div className="flex items-center gap-1">
+          <p className="text-xs font-medium text-muted-foreground">
+            Per Service (grooming only)
+          </p>
+          <InfoHint
+            label="Per Service (grooming only)"
+            text="Rincian revenue per layanan grooming (berdasarkan harga layanan), beserta persentase terhadap total grooming dan jumlah order. Tidak termasuk booking cancelled & rescheduled."
+          />
+        </div>
       </div>
       {loading ? (
         <div className="mt-3 space-y-2">
@@ -392,9 +515,15 @@ function ByLayananCategoryBlock({
 }) {
   return (
     <div className="rounded-lg border border-border/50 p-4">
-      <p className="text-xs font-medium text-muted-foreground">
-        Per Service Category (all services)
-      </p>
+      <div className="flex items-center gap-1">
+        <p className="text-xs font-medium text-muted-foreground">
+          Per Service Category (all services)
+        </p>
+        <InfoHint
+          label="Per Service Category (all services)"
+          text="Revenue dikelompokkan per kategori layanan (grooming, hotel, daycare, spa, add-on, pickup, lainnya) beserta persentasenya terhadap total. Tidak termasuk booking cancelled & rescheduled."
+        />
+      </div>
       {loading ? (
         <div className="mt-3 space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -446,6 +575,10 @@ function MembershipCard({
         <p className="text-xs font-medium text-muted-foreground">
           Membership Revenue
         </p>
+        <InfoHint
+          label="Membership Revenue"
+          text="Total nilai pembelian membership (purchase price) pada periode terpilih. Tidak termasuk membership yang dibatalkan (cancelled). Jika tidak ada filter periode, dihitung sepanjang waktu (all time)."
+        />
       </div>
       {loading || !membership ? (
         <Skeleton className="mt-3 h-6 w-24" />
@@ -456,7 +589,13 @@ function MembershipCard({
       )}
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
         <div>
-          <p className="text-muted-foreground">New Members</p>
+          <div className="flex items-center gap-1">
+            <p className="text-muted-foreground">No of purchase</p>
+            <InfoHint
+              label="No of purchase"
+              text="Jumlah pembelian membership pada periode terpilih (tidak termasuk yang dibatalkan). Tanpa filter periode = total sepanjang waktu."
+            />
+          </div>
           {loading || !membership ? (
             <Skeleton className="mt-0.5 h-4 w-10" />
           ) : (
@@ -464,7 +603,13 @@ function MembershipCard({
           )}
         </div>
         <div>
-          <p className="text-muted-foreground">Average</p>
+          <div className="flex items-center gap-1">
+            <p className="text-muted-foreground">Average Value</p>
+            <InfoHint
+              label="Average Value"
+              text="Rata-rata nilai per pembelian membership (Membership Revenue ÷ No of purchase), tidak termasuk yang dibatalkan."
+            />
+          </div>
           {loading || !membership ? (
             <Skeleton className="mt-0.5 h-4 w-16" />
           ) : (
@@ -481,12 +626,16 @@ function MembershipCard({
 function DiscountStreamCard({
   loading,
   label,
+  info,
   value,
+  orderCount,
   tone,
 }: {
   loading: boolean;
   label: string;
+  info?: string;
   value: number;
+  orderCount?: number | null;
   tone: "purple" | "blue" | "amber" | "rose";
 }) {
   const iconBg =
@@ -509,6 +658,7 @@ function DiscountStreamCard({
           <TrendingDown className="h-3.5 w-3.5" />
         </div>
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        {info ? <InfoHint label={label} text={info} /> : null}
       </div>
       {loading ? (
         <Skeleton className="mt-2 h-6 w-20" />
@@ -517,6 +667,15 @@ function DiscountStreamCard({
           {formatPrice(value)}
         </p>
       )}
+      {orderCount !== undefined ? (
+        loading ? (
+          <Skeleton className="mt-1 h-3 w-16" />
+        ) : (
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            {orderCount ?? 0} order
+          </p>
+        )
+      ) : null}
     </div>
   );
 }
@@ -540,6 +699,10 @@ function DiscountLeakageCard({
       <div className="flex items-center gap-2">
         <TrendingDown className="h-4 w-4" />
         <p className="text-xs font-medium">Discount leakage rate</p>
+        <InfoHint
+          label="Discount leakage rate"
+          text="Persentase total diskon terhadap gross revenue (total diskon ÷ gross revenue × 100). Makin tinggi makin banyak revenue yang 'bocor' jadi diskon. Target sehat < 15%."
+        />
       </div>
       {loading || !breakdown ? (
         <Skeleton className="mt-2 h-6 w-16" />
@@ -568,9 +731,15 @@ function TrendChart({
 }) {
   return (
     <div className="rounded-lg border border-border/50 p-4">
-      <p className="text-xs font-medium text-muted-foreground">
-        Last 7 Days Trend (Gross vs Net)
-      </p>
+      <div className="flex items-center gap-1">
+        <p className="text-xs font-medium text-muted-foreground">
+          Last 7 Days Trend (Gross vs Net)
+        </p>
+        <InfoHint
+          label="Last 7 Days Trend"
+          text="Tren gross revenue vs net revenue selama 7 hari terakhir. Gross = sebelum diskon, Net = setelah diskon. Tidak termasuk booking cancelled & rescheduled."
+        />
+      </div>
       {loading ? (
         <Skeleton className="mt-3 h-44 w-full" />
       ) : (
@@ -587,7 +756,7 @@ function TrendChart({
                 tickFormatter={(v: number) => formatCompactPrice(v)}
                 width={56}
               />
-              <Tooltip
+              <RechartsTooltip
                 formatter={(v: number) => formatPrice(v)}
                 labelClassName="text-xs"
               />

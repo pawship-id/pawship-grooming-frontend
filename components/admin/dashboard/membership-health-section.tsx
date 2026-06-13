@@ -2,21 +2,30 @@
 
 import { useEffect, useState } from "react";
 import {
-  AlarmClock,
   CalendarClock,
   CircleDollarSign,
   CreditCard,
+  Info,
   Layers,
   RefreshCcw,
   Sparkles,
+  UserCheck,
+  Users,
+  UserX,
 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useDashboardFilters } from "@/hooks/use-dashboard-filters";
 import {
@@ -74,10 +83,10 @@ export function MembershipHealthSection() {
 
   return (
     <Card className="border-border/50">
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle className="font-display text-lg font-bold flex items-center gap-2">
-          <CreditCard className="h-4 w-4 text-purple-600" />
-          Kesehatan Membership
+      <CardHeader className="flex flex-col items-start gap-1 space-y-0 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+        <CardTitle className="font-display text-lg font-bold flex items-center gap-2 min-w-0">
+          <CreditCard className="h-4 w-4 shrink-0 text-purple-600" />
+          Membership Health
         </CardTitle>
         <span className="text-xs text-muted-foreground">
           Global · Tanggal sebagian
@@ -90,7 +99,7 @@ export function MembershipHealthSection() {
           </div>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <KpiTile
             icon={<Sparkles className="h-4 w-4 text-purple-600" />}
             label="Active member"
@@ -100,24 +109,106 @@ export function MembershipHealthSection() {
                 : data.active_memberships.toLocaleString("id-ID")
             }
             sublabel={
-              data
-                ? `Penetrasi ${data.penetration_rate_pct.toFixed(1)}%`
-                : undefined
+              data ? (
+                <>
+                  <span className="block truncate">
+                    {(data.active_count ?? 0).toLocaleString("id-ID")} active ·{" "}
+                    {(data.pending_count ?? 0).toLocaleString("id-ID")} pending
+                  </span>
+                  <span className="block truncate">
+                    {(data.member_pet_count ?? 0).toLocaleString("id-ID")} pets
+                    ·{" "}
+                    {(data.member_customer_count ?? 0).toLocaleString("id-ID")}{" "}
+                    customer
+                  </span>
+                  <span className="block truncate">
+                    Penetrasi {(data.penetration_rate_pct ?? 0).toFixed(1)}%
+                  </span>
+                </>
+              ) : undefined
             }
             tone="purple"
+            info={
+              <>
+                <p>
+                  Jumlah membership yang masih berlaku (status{" "}
+                  <span className="font-medium text-foreground">aktif</span> +{" "}
+                  <span className="font-medium text-foreground">pending</span>),
+                  dari koleksi pet-membership yang belum dibatalkan & belum
+                  dihapus dengan tanggal berakhir ≥ hari ini. Global — tidak
+                  terpengaruh filter tanggal.
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Aktif</span>:
+                  membership yang sudah berjalan — tanggal mulai ≤ hari ini dan
+                  belum melewati tanggal berakhir.
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Pending</span>:
+                  membership yang sudah dibeli tapi belum mulai — tanggal mulai
+                  masih di masa depan.
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">
+                    n pets · n customer
+                  </span>
+                  : jumlah pet dan pemilik (customer) unik yang punya membership
+                  berlaku (di-distinct, satu pet/customer dihitung sekali).
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">
+                    Penetration rate
+                  </span>
+                  : pet terdaftar yang punya membership berlaku ÷ total pet
+                  terdaftar. Memakai jumlah pet unik sehingga maksimal 100%.
+                </p>
+              </>
+            }
           />
           <KpiTile
             icon={<CircleDollarSign className="h-4 w-4 text-emerald-600" />}
-            label="Pendapatan periode"
+            label="Period Income"
             value={
               loading || !data ? null : formatPrice(data.membership_revenue)
             }
             sublabel={
-              data && data.new_memberships > 0
-                ? `${data.new_memberships} member baru · rata-rata ${formatPrice(data.avg_membership_value)}`
-                : undefined
+              data && data.new_memberships > 0 ? (
+                <>
+                  <span className="block truncate">
+                    No of Purchase :{" "}
+                    {data.new_memberships.toLocaleString("id-ID")}
+                  </span>
+                  <span className="block truncate">
+                    Average Value : {formatPrice(data.avg_membership_value)}
+                  </span>
+                </>
+              ) : undefined
             }
             tone="emerald"
+            info={
+              <>
+                <p>
+                  Total purchase_price dari pembelian membership yang dibuat
+                  (createdAt) dalam rentang tanggal terpilih, tidak termasuk
+                  yang dibatalkan. Rumus sama dengan kartu &quot;Membership
+                  Revenue&quot; di tab Ringkasan.
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">
+                    No of purchase
+                  </span>
+                  : jumlah pembelian membership pada periode terpilih (tidak
+                  termasuk yang dibatalkan).
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">
+                    Average Value
+                  </span>
+                  : rata-rata nilai per pembelian = Period Income ÷ No of
+                  purchase.
+                </p>
+              </>
+            }
           />
           <KpiTile
             icon={<RefreshCcw className="h-4 w-4 text-blue-600" />}
@@ -132,22 +223,15 @@ export function MembershipHealthSection() {
             sublabel="Target ≥ 70%"
             tone="blue"
             valueClassName={renewalTone(data?.renewal_rate_pct ?? null)}
-          />
-          <KpiTile
-            icon={<AlarmClock className="h-4 w-4 text-amber-600" />}
-            label="Akan habis"
-            value={loading || !data ? null : `${data.expiring_7_days}`}
-            sublabel={
-              data
-                ? `dalam 7 hari · ${data.expiring_30_days} dalam 30 hari`
-                : undefined
-            }
-            tone="amber"
+            info="Rolling 30 hari. Penyebut = pet yang membership-nya berakhir dalam 30 hari terakhir; pembilang = pet tersebut yang kini punya membership aktif/berlaku. Global — tidak terpengaruh filter tanggal."
           />
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <ExpiringBlock loading={loading} data={data} />
+          <div className="flex flex-col gap-4">
+            <ExpiringBlock loading={loading} data={data} />
+            <CustomerClassification loading={loading} data={data} />
+          </div>
           <TierBreakdown loading={loading} data={data} />
         </div>
       </CardContent>
@@ -162,13 +246,15 @@ function KpiTile({
   sublabel,
   tone,
   valueClassName,
+  info,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string | null;
-  sublabel?: string;
+  sublabel?: React.ReactNode;
   tone: "purple" | "emerald" | "blue" | "amber";
   valueClassName?: string;
+  info?: React.ReactNode;
 }) {
   const iconBg =
     tone === "purple"
@@ -189,7 +275,17 @@ function KpiTile({
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-muted-foreground">{label}</p>
+        <div className="flex items-center gap-1">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          {info ? (
+            <InfoHint ariaLabel={`Sumber data ${label}`}>
+              <p className="text-xs font-semibold text-foreground">{label}</p>
+              <div className="mt-1 space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                {info}
+              </div>
+            </InfoHint>
+          ) : null}
+        </div>
         {value === null ? (
           <Skeleton className="mt-1 h-6 w-20" />
         ) : (
@@ -203,9 +299,9 @@ function KpiTile({
           </p>
         )}
         {sublabel ? (
-          <p className="mt-0.5 text-[11px] text-muted-foreground truncate">
+          <div className="mt-0.5 text-[11px] text-muted-foreground">
             {sublabel}
-          </p>
+          </div>
         ) : null}
       </div>
     </div>
@@ -222,10 +318,20 @@ function ExpiringBlock({
   return (
     <div className="rounded-lg border border-border/50 p-4">
       <div className="flex items-center gap-2">
-        <CalendarClock className="h-4 w-4 text-amber-600" />
+        <CalendarClock className="h-4 w-4 shrink-0 text-amber-600" />
         <p className="text-xs font-medium text-muted-foreground">
-          Membership akan berakhir
+          Membership will expire
         </p>
+        <InfoHint ariaLabel="Data source membership will expire">
+          <p className="text-xs font-semibold text-foreground">
+            Membership will expire
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+            Jumlah membership aktif (is_active = true, belum dihapus) yang
+            tanggal berakhirnya jatuh antara hari ini dan 7 atau 30 hari ke
+            depan. Global — tidak terpengaruh filter tanggal.
+          </p>
+        </InfoHint>
       </div>
       {loading || !data ? (
         <div className="mt-3 space-y-2">
@@ -262,10 +368,22 @@ function TierBreakdown({
   return (
     <div className="rounded-lg border border-border/50 p-4">
       <div className="flex items-center gap-2">
-        <Layers className="h-4 w-4 text-purple-600" />
+        <Layers className="h-4 w-4 shrink-0 text-purple-600" />
         <p className="text-xs font-medium text-muted-foreground">
           Distribusi tier
         </p>
+        <InfoHint ariaLabel="Sumber data distribusi tier">
+          <p className="text-xs font-semibold text-foreground">
+            Distribusi tier
+          </p>
+          <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+            Distribusi dari pembelian membership pada periode terpilih (sama
+            dengan &quot;No of Purchase&quot; di kartu Period Income),
+            dikelompokkan menurut nama paket (membership plan). Mengikuti filter
+            tanggal. Persentase = jumlah per tier ÷ total pembelian pada
+            periode.
+          </p>
+        </InfoHint>
       </div>
       {loading ? (
         <div className="mt-3 space-y-2">
@@ -298,5 +416,173 @@ function TierBreakdown({
         </ul>
       )}
     </div>
+  );
+}
+
+function CustomerClassification({
+  loading,
+  data,
+}: {
+  loading: boolean;
+  data: MembershipHealthResponse | null;
+}) {
+  return (
+    <div className="rounded-lg border border-border/50 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Users className="h-4 w-4 shrink-0 text-purple-600" />
+        <p className="text-xs font-medium text-muted-foreground">
+          Classify all customers
+        </p>
+        <InfoHint ariaLabel="Sumber data klasifikasi customer">
+          <p className="text-xs font-semibold text-foreground">
+            Classify all customers
+          </p>
+          <div className="mt-1 space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+            <p>
+              Klasifikasi seluruh customer (user role customer yang aktif &
+              belum dihapus) menurut status membership saat ini. Global — tidak
+              terpengaruh filter tanggal.
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Active member</span>
+              : customer yang punya membership berlaku — status aktif atau
+              pending (ongoing / akan mulai).
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Non member</span>:
+              customer yang tidak punya membership aktif/pending = total
+              customer − active member.
+            </p>
+            <p>
+              <span className="font-medium text-foreground">Ex member</span>:
+              bagian dari non member yang pernah punya membership tapi sudah
+              expired dan kini tidak ada yang aktif/pending.
+            </p>
+          </div>
+        </InfoHint>
+        {data ? (
+          <span className="w-full whitespace-nowrap text-[11px] text-muted-foreground sm:ml-auto sm:w-auto">
+            Total Customer:{" "}
+            <span className="font-display font-bold text-foreground">
+              {(data.total_customers ?? 0).toLocaleString("id-ID")}
+            </span>
+          </span>
+        ) : null}
+      </div>
+      {loading || !data ? (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+      ) : (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="flex items-start gap-3 rounded-md bg-emerald-50 p-3">
+            <UserCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-muted-foreground">
+                Active member
+              </p>
+              <p className="font-display text-lg font-bold text-emerald-700">
+                {(data.active_member_customers ?? 0).toLocaleString("id-ID")}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                ada membership ongoing / pending
+              </p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3 rounded-md bg-muted/40 p-3">
+            <UserX className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium text-muted-foreground">
+                Non member
+              </p>
+              <p className="font-display text-lg font-bold text-foreground">
+                {(data.non_member_customers ?? 0).toLocaleString("id-ID")}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                tidak ada membership aktif · Ex member:{" "}
+                {(data.ex_member_customers ?? 0).toLocaleString("id-ID")}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function useHasHover() {
+  const [hasHover, setHasHover] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(hover: hover) and (pointer: fine)");
+    setHasHover(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setHasHover(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return hasHover;
+}
+
+/**
+ * Info hint generik. Desktop (punya hover) → tooltip muncul saat hover.
+ * Mobile / touch → popover muncul saat di-tap (klik).
+ */
+function InfoHint({
+  ariaLabel,
+  triggerClassName,
+  children,
+}: {
+  ariaLabel: string;
+  triggerClassName?: string;
+  children: React.ReactNode;
+}) {
+  const hasHover = useHasHover();
+
+  const trigger = (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      className={cn(
+        "rounded-full opacity-60 transition hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        triggerClassName,
+      )}
+    >
+      <Info className="h-3.5 w-3.5" />
+    </button>
+  );
+
+  const contentClassName = "w-64 max-w-[calc(100vw-2rem)] p-3 text-left";
+
+  if (hasHover) {
+    return (
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+          <TooltipContent
+            side="top"
+            align="center"
+            collisionPadding={12}
+            className={contentClassName}
+          >
+            {children}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="center"
+        collisionPadding={12}
+        className={contentClassName}
+      >
+        {children}
+      </PopoverContent>
+    </Popover>
   );
 }

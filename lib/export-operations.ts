@@ -54,6 +54,10 @@ export function buildOperationsRow(b: AdminBooking) {
     is_on_time,
     overrun_mins,
     net_total: b.final_total_price ?? 0,
+    // Indicates whether the booking consumed a membership benefit
+    // (any applied benefit — discount or quota) vs a one-time purchase.
+    membership_usage:
+      (b.applied_benefits ?? []).length > 0 ? "Membership" : "One Time Purchase",
     payment_method: b.payment_method ?? "-",
     cancellation_reason: b.cancellation_reason ?? "-",
 
@@ -150,6 +154,7 @@ export const OPERATIONS_COLUMN_LABELS: Record<keyof OperationsRow, string> = {
   is_on_time: "Tepat Waktu?",
   overrun_mins: "Overrun (menit)",
   net_total: "Net Total (Dibayar)",
+  membership_usage: "Tipe Pembayaran",
   payment_method: "Metode Pembayaran",
   cancellation_reason: "Alasan Pembatalan",
 };
@@ -182,6 +187,7 @@ const COL_WIDTHS: Partial<Record<keyof OperationsRow, number>> = {
   is_on_time: 12,
   overrun_mins: 14,
   net_total: 18,
+  membership_usage: 20,
   payment_method: 16,
   cancellation_reason: 30,
 };

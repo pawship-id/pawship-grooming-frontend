@@ -21,6 +21,7 @@ const PRESETS: { value: DashboardPeriod; label: string }[] = [
   { value: "week", label: "Minggu Ini" },
   { value: "month", label: "Bulan Ini" },
   { value: "custom", label: "Custom" },
+  { value: "all", label: "Semua" },
 ];
 
 function toYMD(d: Date) {

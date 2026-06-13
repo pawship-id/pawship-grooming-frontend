@@ -139,12 +139,18 @@ export function onTimeInfo(booking: AdminBooking): {
   };
 }
 
-// ─── Commission base (from Formula & Status spec) ─────────────────────────────
-// Formula: gross_total * groomer_tier_rate (solo) or gross_total * 0.5 * rate (shared).
-// groomer_tier_rate does NOT exist in the User model yet → return "?" until implemented.
+// ─── Commission base ──────────────────────────────────────────────────────────
+// Per-session commission base:
+//   (Sub Total Layanan + travel fee [only when booking type is "in home"])
+//   ÷ jumlah session
+// The same value is shown on every session row of the booking.
 
-export function commissionBase(_booking: AdminBooking): number | string {
-  return "?";
+export function commissionBase(booking: AdminBooking): number {
+  const subTotal = booking.sub_total_service ?? 0;
+  const travelFee =
+    booking.type === "in home" ? (booking.travel_fee ?? 0) : 0;
+  const sessionCount = Math.max(1, (booking.sessions ?? []).length);
+  return (subTotal + travelFee) / sessionCount;
 }
 
 // ─── Row builder — single source of truth used by both table & export ─────────
@@ -175,6 +181,10 @@ export function buildFinancialRow(
     // booking_id → booking code (not MongoDB _id)
     booking_code: b.code ?? "-",
     booking_date: fmtDate(b.date),
+    // start_date → the booking's start (`date`); falls back to booking date.
+    // end_date → falls back to start date when absent.
+    start_date: fmtDate(b.date),
+    end_date: fmtDate(b.end_date ?? b.date),
     time_slot: b.time_range ?? "-",
     booking_type: b.type ?? "-",
     booking_status: b.booking_status ?? "-",
@@ -284,6 +294,8 @@ export function buildSessionRows(
 export const FINANCIAL_COLUMN_LABELS: Partial<Record<keyof FinancialRow, string>> = {
   booking_code: "Kode Booking",
   booking_date: "Tanggal Booking",
+  start_date: "Tanggal Mulai",
+  end_date: "Tanggal Selesai",
   time_slot: "Time Slot",
   booking_type: "Tipe (In Store/In Home)",
   booking_status: "Status Booking",
@@ -328,6 +340,8 @@ const COL_WIDTHS: Partial<Record<keyof FinancialRow, number>> = {
   booking_id: 28,
   booking_code: 18,
   booking_date: 14,
+  start_date: 14,
+  end_date: 14,
   time_slot: 12,
   booking_type: 18,
   booking_status: 16,

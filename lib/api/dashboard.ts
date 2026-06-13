@@ -79,6 +79,11 @@ export interface RevenueKpis {
   total_discount: number;
   discount_leakage_pct: number;
   total_orders: number;
+  gross_order_count: number;
+  gross_order_membership_count: number;
+  gross_order_onetime_count: number;
+  gross_order_inhome_count: number;
+  gross_order_instore_count: number;
   avg_order_value: number;
   delta: RevenueKpiDelta;
 }
@@ -116,8 +121,11 @@ export interface RevenueByLayananCategoryItem {
 
 export interface DiscountBreakdown {
   membership_benefit_total: number;
+  membership_benefit_order_count: number;
   promotion_discount_total: number;
+  promotion_discount_order_count: number;
   admin_discount_total: number;
+  admin_discount_order_count: number;
   total_attributed: number;
   leakage_pct: number;
 }
@@ -325,6 +333,10 @@ export interface MembershipHealthResponse {
   message: string;
   range: { from: string; to: string };
   active_memberships: number;
+  active_count: number;
+  pending_count: number;
+  member_pet_count: number;
+  member_customer_count: number;
   new_memberships: number;
   membership_revenue: number;
   avg_membership_value: number;
@@ -333,6 +345,10 @@ export interface MembershipHealthResponse {
   expiring_30_days: number;
   penetration_rate_pct: number;
   tier_breakdown: MembershipTierItem[];
+  total_customers: number;
+  active_member_customers: number;
+  non_member_customers: number;
+  ex_member_customers: number;
 }
 
 export async function getMembershipHealth(params?: {
@@ -364,7 +380,9 @@ export interface PetStatusSnapshot {
 export interface GrowthResponse {
   message: string;
   range: { from: string; to: string };
+  total_customers: number;
   new_customers: number;
+  total_pets: number;
   new_pets_registered: number;
   pets_from_existing_owners: number;
   first_booking_conversion_pct: number;
@@ -383,5 +401,38 @@ export async function getGrowth(params?: { from?: string; to?: string }) {
   const s = qs.toString();
   return apiAuthRequest<GrowthResponse>(
     `/admin/dashboard/growth${s ? `?${s}` : ""}`,
+  );
+}
+
+export type TrendGranularity = "week" | "month";
+
+export interface CustomerTrendPoint {
+  bucket: string;
+  label: string;
+  registered: number;
+  transacting: number;
+}
+
+export interface CustomerTrendResponse {
+  message: string;
+  range: { from: string; to: string };
+  granularity: TrendGranularity;
+  points: CustomerTrendPoint[];
+}
+
+export async function getCustomerTrend(params?: {
+  store_id?: string;
+  from?: string;
+  to?: string;
+  granularity?: TrendGranularity;
+}) {
+  const qs = new URLSearchParams();
+  if (params?.store_id) qs.set("store_id", params.store_id);
+  if (params?.from) qs.set("from", params.from);
+  if (params?.to) qs.set("to", params.to);
+  if (params?.granularity) qs.set("granularity", params.granularity);
+  const s = qs.toString();
+  return apiAuthRequest<CustomerTrendResponse>(
+    `/admin/dashboard/customer-trend${s ? `?${s}` : ""}`,
   );
 }

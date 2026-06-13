@@ -8,12 +8,7 @@ import {
   MessageCircle,
   Sparkles,
 } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -34,12 +29,12 @@ const MAX_ITEMS = {
 function formatRelativeTime(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const minutes = Math.floor(diff / 60000);
-  if (minutes < 1) return "Baru saja";
-  if (minutes < 60) return `${minutes} menit lalu`;
+  if (minutes < 1) return "recently";
+  if (minutes < 60) return `${minutes} minutes ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} jam lalu`;
+  if (hours < 24) return `${hours} hours ago`;
   const days = Math.floor(hours / 24);
-  return `${days} hari lalu`;
+  return `${days} days ago`;
 }
 
 function formatDate(iso: string) {
@@ -65,7 +60,7 @@ export function NeedsActionSection() {
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Gagal memuat data");
+          setError(err instanceof Error ? err.message : "Failed to load data");
         }
       })
       .finally(() => {
@@ -78,10 +73,10 @@ export function NeedsActionSection() {
 
   return (
     <Card className="border-border/50">
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <CardTitle className="font-display text-lg font-bold flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
-          Perlu Tindakan
+      <CardHeader className="flex flex-col items-start gap-1 space-y-0 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
+        <CardTitle className="font-display text-lg font-bold flex items-center gap-2 min-w-0">
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+          Needs Action
         </CardTitle>
         <span className="text-xs text-muted-foreground">Global</span>
       </CardHeader>
@@ -180,7 +175,7 @@ function MembershipEndingBlock({
   return (
     <SectionFrame
       icon={<CalendarClock className="h-4 w-4 text-amber-600" />}
-      title="Membership berakhir bulan ini"
+      title="Membership ends this month"
       count={total}
       tone="amber"
     >
@@ -204,7 +199,7 @@ function MembershipEndingBlock({
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {it.tier} · exp {formatDate(it.expiry_date)} ·{" "}
-                  {it.days_remaining} hari
+                  {it.days_remaining} day
                 </p>
               </div>
               <Badge
@@ -224,7 +219,7 @@ function MembershipEndingBlock({
                 href="/admin/pet-memberships?status=active&expiring=this-month"
                 className="text-primary hover:underline"
               >
-                +{remaining} lainnya — Lihat semua
+                +{remaining} other — Show More
               </Link>
             </li>
           ) : null}
@@ -249,14 +244,14 @@ function IdlePetsBlock({
   return (
     <SectionFrame
       icon={<AlertTriangle className="h-4 w-4 text-red-600" />}
-      title="Idle — tidak ada kunjungan 30+ hari"
+      title="Idle — No visit in 30+ days"
       count={total}
       tone="red"
     >
       {loading ? (
         <SkeletonRows />
       ) : items.length === 0 ? (
-        <EmptyRow label="Tidak ada pet yang idle." />
+        <EmptyRow label="There are no idle pets." />
       ) : (
         <ul className="space-y-2">
           {shown.map((it) => (
@@ -291,7 +286,7 @@ function IdlePetsBlock({
                 href="/admin/users?filter=idle-pets"
                 className="text-primary hover:underline"
               >
-                +{remaining} lainnya — Lihat semua
+                +{remaining} other — Show More
               </Link>
             </li>
           ) : null}
@@ -316,14 +311,14 @@ function NeedFollowUpBlock({
   return (
     <SectionFrame
       icon={<MessageCircle className="h-4 w-4 text-primary" />}
-      title="Follow-up — kunjungan ke-1 atau ke-2 selesai (24 jam)"
+      title="Need Follow-up — 1st or 2nd visit just completed (24 hour)"
       count={total}
       tone="primary"
     >
       {loading ? (
         <SkeletonRows count={4} />
       ) : items.length === 0 ? (
-        <EmptyRow label="Belum ada follow-up dalam 24 jam terakhir." />
+        <EmptyRow label="There has been no follow-up in the last 24 hours." />
       ) : (
         <ul className="space-y-2">
           {shown.map((it) => (
@@ -355,7 +350,7 @@ function NeedFollowUpBlock({
           ))}
           {remaining > 0 ? (
             <li className="text-right text-xs text-muted-foreground">
-              +{remaining} lainnya
+              +{remaining} other
             </li>
           ) : null}
         </ul>
