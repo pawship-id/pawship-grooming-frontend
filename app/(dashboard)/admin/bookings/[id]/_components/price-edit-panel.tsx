@@ -143,9 +143,7 @@ export function PriceEditPanel({
       const override = (booking.edited_addon_prices ?? []).find(
         (a) => a.addon_id === addon._id,
       );
-      addonPriceMap[addon._id!] = String(
-        override ? override.price : addon.price,
-      );
+      addonPriceMap[addon._id!] = String(override?.price ?? addon.price);
       addonDiscountMap[addon._id!] = String(override?.discount ?? 0);
     });
     setEditAddonPrices(addonPriceMap);
@@ -787,15 +785,19 @@ export function PriceEditPanel({
           ? Math.min(tFeeBase, (rawTFeeDisc / 100) * tFeeBase)
           : Math.min(tFeeBase, rawTFeeDisc);
 
-      const addonPricesPayload = selectedAddonIds.map((addonId) => {
+      const svcSnapshotPrice = booking.service_snapshot.price || 0;
+      // For hotel, service_price is stored per-night; compare unit price vs snapshot unit price
+      const svcPriceChanged = !isNaN(svcPriceNum) && svcUnit !== svcSnapshotPrice;
+
+      const addonPricesPayload = selectedAddonIds.flatMap((addonId) => {
         const snapshotAddon = (booking.service_snapshot.addons ?? []).find(
           (a) => a._id === addonId,
         );
         const liveAddon = allServiceAddons.find((a) => a._id === addonId);
-        const defaultPrice = snapshotAddon?.price ?? liveAddon?.price ?? 0;
+        const snapshotPrice = snapshotAddon?.price ?? liveAddon?.price ?? 0;
         const base =
-          parseFloat(editAddonPrices[addonId] ?? String(defaultPrice)) ||
-          defaultPrice ||
+          parseFloat(editAddonPrices[addonId] ?? String(snapshotPrice)) ||
+          snapshotPrice ||
           0;
         const rawDisc = parseFloat(editAddonDiscounts[addonId] ?? "0") || 0;
         const discType = editAddonDiscountTypes[addonId] ?? "nominal";
@@ -803,8 +805,16 @@ export function PriceEditPanel({
           discType === "pct"
             ? Math.min(base, (rawDisc / 100) * base)
             : Math.min(base, rawDisc);
-        return { addon_id: addonId, price: base, discount: discNominal };
+        const priceChanged = base !== snapshotPrice;
+        // Only include addon if price changed from snapshot or has non-zero discount
+        if (!priceChanged && discNominal === 0) return [];
+        return [{ addon_id: addonId, price: priceChanged ? base : undefined, discount: discNominal || undefined }];
       });
+
+      const tFeeSnapshotPrice = booking.travel_fee || 0;
+      const hasTravelFeeContext = editPickup || editDelivery || booking.type === "in home";
+      const tFeePriceChanged = hasTravelFeeContext && !isNaN(tFeeNum) && tFeeBase !== tFeeSnapshotPrice;
+
       await updateBookingPricing(bookingId, {
         service_id:
           editServiceId !== booking.service_snapshot._id
@@ -816,18 +826,11 @@ export function PriceEditPanel({
         selected_benefit_ids: editBenefitIds,
         selected_promotion_ids:
           editPromotionIds.length > 0 ? editPromotionIds : undefined,
-        service_price: !isNaN(svcPriceNum) ? svcPriceNum : undefined,
+        service_price: svcPriceChanged ? svcUnit : undefined,
         service_discount: svcDiscNominal > 0 ? svcDiscNominal : undefined,
-        travel_fee:
-          (editPickup || editDelivery || booking.type === "in home") &&
-          !isNaN(tFeeNum)
-            ? tFeeNum
-            : undefined,
+        travel_fee: tFeePriceChanged ? tFeeNum : undefined,
         travel_fee_discount:
-          (editPickup || editDelivery || booking.type === "in home") &&
-          tFeeDiscNominal > 0
-            ? tFeeDiscNominal
-            : undefined,
+          hasTravelFeeContext && tFeeDiscNominal > 0 ? tFeeDiscNominal : undefined,
         addon_prices:
           addonPricesPayload.length > 0 ? addonPricesPayload : undefined,
       });

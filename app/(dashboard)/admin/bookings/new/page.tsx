@@ -650,6 +650,8 @@ export default function NewBookingPage() {
               ? Math.min(svcBase, (svcDiscRaw / 100) * svcBase)
               : Math.min(svcBase, svcDiscRaw)
             : 0;
+        // Send service_price only if it actually differs from snapshot
+        const svcPriceChanged = svcBase !== svcBaseSnapshot;
 
         const addonPricesPayload = previewData.pricing_breakdown.addons
           .filter((a) => selectedAddonIds.includes(a._id))
@@ -665,10 +667,10 @@ export default function NewBookingPage() {
                   ? Math.min(addonBase, (raw / 100) * addonBase)
                   : Math.min(addonBase, raw)
                 : 0;
-            const hasPrice = !!editAddonPrices[a._id];
-            const hasDiscount = disc > 0;
-            if (!hasPrice && !hasDiscount) return [];
-            return [{ addon_id: a._id, price: hasPrice ? addonBase : undefined, discount: hasDiscount ? disc : undefined }];
+            const priceChanged = addonBase !== a.price;
+            // Only include addon if price changed from snapshot or has a non-zero discount
+            if (!priceChanged && disc === 0) return [];
+            return [{ addon_id: a._id, price: priceChanged ? addonBase : undefined, discount: disc || undefined }];
           });
 
         const tFeeSnapshot = previewData.pricing_breakdown.travel_fee ?? 0;
@@ -682,14 +684,26 @@ export default function NewBookingPage() {
               ? Math.min(tFeeBase, (tFeeDiscRaw / 100) * tFeeBase)
               : Math.min(tFeeBase, tFeeDiscRaw)
             : 0;
+        const tFeePriceChanged = tFeeBase !== tFeeSnapshot;
 
-        await updateBookingPricing(result._id, {
-          service_price: editServicePrice ? svcBase : undefined,
+        const pricingPayload = {
+          service_price: svcPriceChanged ? svcBase : undefined,
           service_discount: svcDiscount || undefined,
           addon_prices: addonPricesPayload.length ? addonPricesPayload : undefined,
-          travel_fee: editTravelFeePrice ? tFeeBase : undefined,
+          travel_fee: tFeePriceChanged ? tFeeBase : undefined,
           travel_fee_discount: tFeeDiscount || undefined,
-        });
+        };
+
+        const hasMeaningfulEdit =
+          pricingPayload.service_price !== undefined ||
+          pricingPayload.service_discount !== undefined ||
+          pricingPayload.addon_prices !== undefined ||
+          pricingPayload.travel_fee !== undefined ||
+          pricingPayload.travel_fee_discount !== undefined;
+
+        if (hasMeaningfulEdit) {
+          await updateBookingPricing(result._id, pricingPayload);
+        }
       }
 
       toast.success("Booking berhasil dibuat");
