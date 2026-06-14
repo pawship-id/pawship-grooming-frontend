@@ -40,7 +40,7 @@ export async function getPublicMemberships(): Promise<PublicMembershipsResponse>
 
 export type BenefitType = "discount" | "quota";
 export type BenefitAppliesTo = "service" | "addon" | "pickup";
-export type BenefitPeriod = "weekly" | "monthly" | "unlimited";
+export type BenefitPeriod = "weekly" | "monthly" | "unlimited" | "once";
 
 export interface BenefitServiceRef {
   _id: string;

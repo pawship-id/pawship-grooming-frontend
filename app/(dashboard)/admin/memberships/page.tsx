@@ -128,6 +128,7 @@ const PERIOD_LABEL: Record<BenefitPeriod, string> = {
   weekly: "Mingguan",
   monthly: "Bulanan",
   unlimited: "Tidak terbatas",
+  once: "Hanya Sekali",
 };
 
 const APPLIES_TO_LABEL: Record<BenefitAppliesTo, string> = {
@@ -482,7 +483,11 @@ function BenefitFormFields({
         <Select
           value={value.period ?? "monthly"}
           onValueChange={(v) =>
-            onFieldChange((p) => ({ ...p, period: v as BenefitPeriod }))
+            onFieldChange((p) => ({
+              ...p,
+              period: v as BenefitPeriod,
+              limit: v === "once" ? 1 : v === "unlimited" ? undefined : p.limit,
+            }))
           }
         >
           <SelectTrigger className="h-8 text-xs">
@@ -492,12 +497,13 @@ function BenefitFormFields({
             <SelectItem value="monthly">Bulanan</SelectItem>
             <SelectItem value="weekly">Mingguan</SelectItem>
             <SelectItem value="unlimited">Tidak terbatas</SelectItem>
+            <SelectItem value="once">Hanya Sekali</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      {/* 7. Batas Penggunaan — for non-unlimited period */}
-      {value.period !== "unlimited" && (
+      {/* 7. Batas Penggunaan — for non-unlimited, non-once period */}
+      {value.period !== "unlimited" && value.period !== "once" && (
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">Batas Penggunaan</Label>
           <Input
@@ -537,7 +543,7 @@ function validateBenefit(
     return "Label benefit harus diisi";
   if (b.type === "discount" && (b.value === undefined || b.value === null))
     return "Nilai diskon harus diisi";
-  if (b.period !== "unlimited" && (b.limit === undefined || b.limit === null))
+  if (b.period !== "unlimited" && b.period !== "once" && (b.limit === undefined || b.limit === null))
     return "Batas penggunaan harus diisi";
   return null;
 }
