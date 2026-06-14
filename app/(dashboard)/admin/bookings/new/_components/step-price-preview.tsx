@@ -190,7 +190,9 @@ export function StepPricePreview({
             editTravelFeeDiscount={editTravelFeeDiscount}
             onEditTravelFeeDiscountChange={onEditTravelFeeDiscountChange}
             editTravelFeeDiscountType={editTravelFeeDiscountType}
-            onEditTravelFeeDiscountTypeChange={onEditTravelFeeDiscountTypeChange}
+            onEditTravelFeeDiscountTypeChange={
+              onEditTravelFeeDiscountTypeChange
+            }
           />
         </div>
       )}
@@ -837,7 +839,11 @@ function PricingBreakdown({
 
   const tFeeBase = hasTravelFee
     ? editTravelFeePrice
-      ? Math.max(0, parseFloat(editTravelFeePrice) || previewData.pricing_breakdown.travel_fee!)
+      ? Math.max(
+          0,
+          parseFloat(editTravelFeePrice) ||
+            previewData.pricing_breakdown.travel_fee!,
+        )
       : previewData.pricing_breakdown.travel_fee!
     : 0;
   const tFeeDiscRaw = parseFloat(editTravelFeeDiscount) || 0;
@@ -848,7 +854,8 @@ function PricingBreakdown({
         : Math.min(tFeeBase, tFeeDiscRaw)
       : 0;
 
-  const totalAdminDiscount = svcDiscount + addonAdminDiscountTotal + tFeeDiscount;
+  const totalAdminDiscount =
+    svcDiscount + addonAdminDiscountTotal + tFeeDiscount;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -1115,7 +1122,8 @@ function PricingBreakdown({
             selectedPromotionIds.length > 0 && applyPromotionResult != null
               ? applyPromotionResult.total_discount
               : 0;
-          const displayTotal = grandTotal - totalAdminDiscount - benefitDiscount - promoDiscount;
+          const displayTotal =
+            grandTotal - totalAdminDiscount - benefitDiscount - promoDiscount;
           const showSkeleton =
             (selectedBenefitIds.length > 0 && loadingApplyBenefit) ||
             (selectedPromotionIds.length > 0 && loadingApplyPromotion);
@@ -1342,7 +1350,11 @@ function AdminPriceSection({
 
   // Compute effective prices for display
   const svcBase = editServicePrice
-    ? Math.max(0, parseFloat(editServicePrice) || previewData.pricing_breakdown.service.price)
+    ? Math.max(
+        0,
+        parseFloat(editServicePrice) ||
+          previewData.pricing_breakdown.service.price,
+      )
     : previewData.pricing_breakdown.service.price;
   const svcDiscRaw = parseFloat(editServiceDiscount) || 0;
   const svcDiscount =
@@ -1354,7 +1366,11 @@ function AdminPriceSection({
 
   const tFeeRaw = hasTravelFee
     ? editTravelFeePrice
-      ? Math.max(0, parseFloat(editTravelFeePrice) || previewData.pricing_breakdown.travel_fee!)
+      ? Math.max(
+          0,
+          parseFloat(editTravelFeePrice) ||
+            previewData.pricing_breakdown.travel_fee!,
+        )
       : previewData.pricing_breakdown.travel_fee!
     : 0;
   const tFeeDiscRaw = parseFloat(editTravelFeeDiscount) || 0;
@@ -1374,7 +1390,7 @@ function AdminPriceSection({
       >
         <span className="flex items-center gap-2 text-sm font-semibold text-orange-700 dark:text-orange-400">
           <Tag className="h-4 w-4" />
-          Edit Harga Admin
+          Edit Harga Layanan
         </span>
         {expanded ? (
           <ChevronUp className="h-4 w-4 text-orange-500" />
@@ -1388,7 +1404,10 @@ function AdminPriceSection({
           {/* Service */}
           <ItemPriceEditor
             label={previewData.pricing_breakdown.service.name}
-            baseValue={editServicePrice || String(previewData.pricing_breakdown.service.price)}
+            baseValue={
+              editServicePrice ||
+              String(previewData.pricing_breakdown.service.price)
+            }
             onBaseChange={onEditServicePriceChange}
             discountValue={editServiceDiscount}
             onDiscountChange={onEditServiceDiscountChange}
@@ -1400,10 +1419,15 @@ function AdminPriceSection({
           {/* Addons */}
           {selectedAddons.map((addon) => {
             const addonBase = editAddonPrices[addon._id]
-              ? Math.max(0, parseFloat(editAddonPrices[addon._id]) || addon.price)
+              ? Math.max(
+                  0,
+                  parseFloat(editAddonPrices[addon._id]) || addon.price,
+                )
               : addon.price;
-            const addonDiscRaw = parseFloat(editAddonDiscounts[addon._id] ?? "") || 0;
-            const addonDiscType = editAddonDiscountTypes[addon._id] ?? "nominal";
+            const addonDiscRaw =
+              parseFloat(editAddonDiscounts[addon._id] ?? "") || 0;
+            const addonDiscType =
+              editAddonDiscountTypes[addon._id] ?? "nominal";
             const addonDiscount =
               addonDiscRaw > 0
                 ? addonDiscType === "pct"
@@ -1417,9 +1441,13 @@ function AdminPriceSection({
                 baseValue={editAddonPrices[addon._id] || String(addon.price)}
                 onBaseChange={(v) => onEditAddonPriceChange(addon._id, v)}
                 discountValue={editAddonDiscounts[addon._id] ?? ""}
-                onDiscountChange={(v) => onEditAddonDiscountChange(addon._id, v)}
+                onDiscountChange={(v) =>
+                  onEditAddonDiscountChange(addon._id, v)
+                }
                 discountType={editAddonDiscountTypes[addon._id] ?? "nominal"}
-                onDiscountTypeChange={(t) => onEditAddonDiscountTypeChange(addon._id, t)}
+                onDiscountTypeChange={(t) =>
+                  onEditAddonDiscountTypeChange(addon._id, t)
+                }
                 effectivePrice={Math.max(0, addonBase - addonDiscount)}
               />
             );
@@ -1430,7 +1458,10 @@ function AdminPriceSection({
             <ItemPriceEditor
               label={travelLabel}
               labelIcon={<Truck className="h-3.5 w-3.5" />}
-              baseValue={editTravelFeePrice || String(previewData.pricing_breakdown.travel_fee)}
+              baseValue={
+                editTravelFeePrice ||
+                String(previewData.pricing_breakdown.travel_fee)
+              }
               onBaseChange={onEditTravelFeePriceChange}
               discountValue={editTravelFeeDiscount}
               onDiscountChange={onEditTravelFeeDiscountChange}
