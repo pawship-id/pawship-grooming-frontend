@@ -117,6 +117,63 @@ export function StepPreview({
   );
 }
 
+function buildBenefitTitle(benefit: {
+  label?: string | null;
+  service?: { name?: string } | null;
+  type: string;
+  value?: number | null;
+  effective_value?: number | null;
+  discount_type?: string | null;
+  variant_mode?: string | null;
+  can_apply?: boolean;
+  amount_discount?: number | null;
+}): string {
+  const nameLabel = benefit.label || benefit.service?.name || null;
+
+  if (benefit.type !== "discount") {
+    return nameLabel ? `Kuota Sesi: ${nameLabel}` : "Kuota Gratis";
+  }
+
+  const variantMode = benefit.variant_mode ?? "all";
+  const discountType = benefit.discount_type ?? "percentage";
+
+  // effective_value = matched variant's raw value (% for percentage, Rp for fixed) from server
+  const effectiveValue = benefit.effective_value ?? benefit.value ?? null;
+
+  let discountValueStr: string;
+  if (variantMode === "per_variant") {
+    if (discountType === "fixed") {
+      discountValueStr =
+        effectiveValue != null && !isNaN(effectiveValue)
+          ? `Rp${effectiveValue.toLocaleString("id-ID")}`
+          : "Diskon";
+    } else {
+      // percentage per_variant — show % not Rp
+      discountValueStr =
+        effectiveValue != null && !isNaN(effectiveValue)
+          ? `${effectiveValue}%`
+          : "Diskon";
+    }
+  } else if (discountType === "fixed") {
+    discountValueStr =
+      benefit.value != null && !isNaN(benefit.value)
+        ? `Rp${benefit.value.toLocaleString("id-ID")}`
+        : "Diskon";
+  } else {
+    discountValueStr =
+      benefit.value != null && !isNaN(benefit.value)
+        ? `${benefit.value}%`
+        : "Diskon";
+  }
+
+  const variantLabel =
+    variantMode === "per_variant" ? "Per Variant" : "All Variant";
+
+  return nameLabel
+    ? `Diskon: ${nameLabel} - ${discountValueStr} - ${variantLabel}`
+    : `${discountValueStr} - ${variantLabel}`;
+}
+
 // ── Preview Error Display ──────────────────────────────────────────────────
 function PreviewError({
   error,
@@ -283,7 +340,7 @@ function BenefitSection({
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-foreground">
-                    {benefit.label || benefit.description}
+                    {buildBenefitTitle(benefit)}
                   </span>
                   <span
                     className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
@@ -293,7 +350,15 @@ function BenefitSection({
                     }`}
                   >
                     {benefit.type === "discount"
-                      ? `${benefit.value}% off`
+                      ? benefit.variant_mode === "per_variant"
+                        ? "Diskon per varian"
+                        : benefit.discount_type === "fixed"
+                          ? benefit.value != null
+                            ? `Rp${benefit.value.toLocaleString("id-ID")} off`
+                            : "Diskon"
+                          : benefit.value != null
+                            ? `${benefit.value}% off`
+                            : "Diskon"
                       : "Kuota gratis"}
                   </span>
                 </div>
@@ -702,7 +767,14 @@ function ServicePriceRow({
             </span>
           )}
         </span>
-        {b && <BenefitBadge isQuota={!!isQuota} value={b.value} />}
+        {b && (
+          <BenefitBadge
+            isQuota={!!isQuota}
+            value={b.value}
+            discountType={b.discount_type}
+            variantMode={b.variant_mode}
+          />
+        )}
       </div>
       {b ? (
         <PriceWithDiscount
@@ -746,12 +818,21 @@ function AddonPriceRow({
       ? (b.amount_discount ?? 0)
       : isQuota
         ? addon.price
-        : (addon.price * (b.value ?? 0)) / 100;
+        : b.discount_type === "fixed"
+          ? Math.min(b.value ?? 0, addon.price)
+          : (addon.price * (b.value ?? 0)) / 100;
   return (
     <div className="flex items-center justify-between border-t border-border/40 px-4 py-2.5 text-sm">
       <div className="flex items-center gap-2">
         <span className="text-muted-foreground">+ {addon.name}</span>
-        {b && <BenefitBadge isQuota={!!isQuota} value={b.value} />}
+        {b && (
+          <BenefitBadge
+            isQuota={!!isQuota}
+            value={b.value}
+            discountType={b.discount_type}
+            variantMode={b.variant_mode}
+          />
+        )}
       </div>
       {b ? (
         <PriceWithDiscount
@@ -795,7 +876,14 @@ function FeeRow({
           <Truck className="h-3.5 w-3.5" />
           {label}
         </span>
-        {b && <BenefitBadge isQuota={!!isQuota} value={b.value} />}
+        {b && (
+          <BenefitBadge
+            isQuota={!!isQuota}
+            value={b.value}
+            discountType={b.discount_type}
+            variantMode={b.variant_mode}
+          />
+        )}
       </div>
       {b ? (
         <PriceWithDiscount
@@ -814,10 +902,24 @@ function FeeRow({
 function BenefitBadge({
   isQuota,
   value,
+  discountType,
+  variantMode,
 }: {
   isQuota: boolean;
   value?: number | null;
+  discountType?: string | null;
+  variantMode?: string | null;
 }) {
+  let label: string;
+  if (isQuota) {
+    label = "Gratis";
+  } else if (variantMode === "per_variant") {
+    label = "Diskon";
+  } else if (discountType === "fixed") {
+    label = value != null ? `-Rp${value.toLocaleString("id-ID")}` : "Diskon";
+  } else {
+    label = value != null ? `-${value}%` : "Diskon";
+  }
   return (
     <span
       className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
@@ -826,7 +928,7 @@ function BenefitBadge({
           : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
       }`}
     >
-      {isQuota ? "Gratis" : value != null ? `-${value}%` : "Diskon"}
+      {label}
     </span>
   );
 }

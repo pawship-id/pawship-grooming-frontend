@@ -41,6 +41,15 @@ export async function getPublicMemberships(): Promise<PublicMembershipsResponse>
 export type BenefitType = "discount" | "quota";
 export type BenefitAppliesTo = "service" | "addon" | "pickup";
 export type BenefitPeriod = "weekly" | "monthly" | "unlimited" | "once";
+export type BenefitDiscountType = "percentage" | "fixed";
+export type BenefitVariantMode = "all" | "per_variant";
+
+export interface BenefitVariantDiscount {
+  pet_type_id?: string;
+  size_id?: string;
+  hair_id?: string;
+  value: number;
+}
 
 export interface BenefitServiceRef {
   _id: string;
@@ -58,6 +67,9 @@ export interface Benefit {
   label?: string | null;
   service?: BenefitServiceRef | null;
   limit?: number | null;
+  discount_type?: BenefitDiscountType | null;
+  variant_mode?: BenefitVariantMode | null;
+  variant_discounts?: BenefitVariantDiscount[];
 }
 
 export interface BenefitPayload {
@@ -68,6 +80,9 @@ export interface BenefitPayload {
   label?: string;
   service_id?: string;
   limit?: number | null;
+  discount_type?: BenefitDiscountType;
+  variant_mode?: BenefitVariantMode;
+  variant_discounts?: BenefitVariantDiscount[];
 }
 
 // ── Membership Plan ────────────────────────────────────────────────────────
@@ -191,6 +206,9 @@ export interface BenefitSnapshot {
   limit?: number | null;
   used: number;
   period_reset_date: string | null;
+  discount_type?: BenefitDiscountType | null;
+  variant_mode?: BenefitVariantMode | null;
+  variant_discounts?: BenefitVariantDiscount[];
 }
 
 // ── Pet Membership ─────────────────────────────────────────────────────────
@@ -316,6 +334,9 @@ export interface BenefitSummaryItem {
   can_apply: boolean;
   period_reset_date: string | null;
   next_reset_date: string | null;
+  discount_type?: BenefitDiscountType | null;
+  variant_mode?: BenefitVariantMode | null;
+  variant_discounts?: BenefitVariantDiscount[];
 }
 
 export interface BenefitsSummaryData {

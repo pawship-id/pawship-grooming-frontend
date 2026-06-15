@@ -220,9 +220,12 @@ export function PriceEditPanel({
                 }
                 const effectiveCanApply =
                   b.can_apply || currentBenefitIdsFb.has(b._id);
+                const discountType = (b as any).discount_type ?? "percentage";
                 const effectiveAmount = effectiveCanApply
                   ? b.type === "discount"
-                    ? ((b.value ?? 0) / 100) * discountBase
+                    ? discountType === "fixed"
+                      ? Math.min(b.value ?? 0, discountBase)
+                      : ((b.value ?? 0) / 100) * discountBase
                     : discountBase
                   : 0;
                 return {
@@ -1327,9 +1330,15 @@ export function PriceEditPanel({
                       >
                         {isQuotaBenefit
                           ? "Quota gratis"
-                          : benefit.value != null
-                            ? `${benefit.value}% off`
-                            : "Diskon"}
+                          : (benefit as any).variant_mode === "per_variant"
+                            ? "Diskon per varian"
+                            : (benefit as any).discount_type === "fixed"
+                              ? benefit.value != null
+                                ? `Rp${benefit.value.toLocaleString("id-ID")} off`
+                                : "Diskon"
+                              : benefit.value != null
+                                ? `${benefit.value}% off`
+                                : "Diskon"}
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -2033,7 +2042,13 @@ function LivePreviewSection({
                               </span>
                             ) : (
                               <span className="shrink-0 rounded bg-green-100 px-1 py-px text-[9px] font-bold text-green-700 dark:bg-green-950/50 dark:text-green-400">
-                                {b.value != null ? `${b.value}%` : "DISC"}
+                                {(b as any).discount_type === "fixed"
+                                  ? b.value != null
+                                    ? `Rp${b.value.toLocaleString("id-ID")}`
+                                    : "DISC"
+                                  : b.value != null
+                                    ? `${b.value}%`
+                                    : "DISC"}
                               </span>
                             )}
                             {displayLabel}

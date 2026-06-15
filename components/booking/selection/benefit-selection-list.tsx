@@ -20,6 +20,54 @@ export interface BenefitSelectionListProps {
   loadingApply?: boolean;
 }
 
+function buildBenefitTitle(benefit: SelectableBenefit): string {
+  const nameLabel = benefit.label || benefit.serviceName || null;
+
+  if (benefit.type !== "discount") {
+    return nameLabel ? `Kuota Sesi: ${nameLabel}` : "Kuota Gratis";
+  }
+
+  // backward compat: absence of fields = legacy percentage / all-variant
+  const variantMode = benefit.variant_mode ?? "all";
+  const discountType = benefit.discount_type ?? "percentage";
+
+  // effective_value = matched variant's raw value (% or Rp) from server
+  const effectiveValue = benefit.effective_value ?? benefit.value ?? null;
+
+  let discountValueStr: string;
+  if (variantMode === "per_variant") {
+    if (discountType === "fixed") {
+      discountValueStr =
+        effectiveValue != null && !isNaN(effectiveValue)
+          ? `Rp${effectiveValue.toLocaleString("id-ID")}`
+          : "Diskon";
+    } else {
+      // percentage per_variant — show % not Rp
+      discountValueStr =
+        effectiveValue != null && !isNaN(effectiveValue)
+          ? `${effectiveValue}%`
+          : "Diskon";
+    }
+  } else if (discountType === "fixed") {
+    discountValueStr =
+      benefit.value != null && !isNaN(benefit.value)
+        ? `Rp${benefit.value.toLocaleString("id-ID")}`
+        : "Diskon";
+  } else {
+    discountValueStr =
+      benefit.value != null && !isNaN(benefit.value)
+        ? `${benefit.value}%`
+        : "Diskon";
+  }
+
+  const variantLabel =
+    variantMode === "per_variant" ? "Per Variant" : "All Variant";
+
+  return nameLabel
+    ? `Diskon: ${nameLabel} - ${discountValueStr} - ${variantLabel}`
+    : `${discountValueStr} - ${variantLabel}`;
+}
+
 /**
  * Reusable benefit selection list with conflict detection
  * (quota vs discount on the same service/addon target).
@@ -72,12 +120,12 @@ export function BenefitSelectionList({
           // Determine display discount
           const liveDiscount =
             appliedDiscounts && selected
-              ? appliedDiscounts[benefit._id] ?? 0
+              ? (appliedDiscounts[benefit._id] ?? 0)
               : 0;
           const displayDiscount =
             appliedDiscounts && selected
               ? liveDiscount
-              : benefit.amount_discount ?? 0;
+              : (benefit.amount_discount ?? 0);
 
           return (
             <label
@@ -103,7 +151,7 @@ export function BenefitSelectionList({
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm font-medium text-foreground">
-                    {benefit.label || benefit.description}
+                    {buildBenefitTitle(benefit)}
                   </span>
                   <span
                     className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
@@ -113,9 +161,15 @@ export function BenefitSelectionList({
                     }`}
                   >
                     {benefit.type === "discount"
-                      ? benefit.value != null
-                        ? `${benefit.value}% off`
-                        : "Diskon"
+                      ? benefit.variant_mode === "per_variant"
+                        ? "Diskon per varian"
+                        : benefit.discount_type === "fixed"
+                          ? benefit.value != null
+                            ? `Rp${benefit.value.toLocaleString("id-ID")} off`
+                            : "Diskon"
+                          : benefit.value != null
+                            ? `${benefit.value}% off`
+                            : "Diskon"
                       : "Kuota gratis"}
                   </span>
                 </div>
@@ -221,9 +275,7 @@ function computeBlockedByQuota(
       const hasAllCoverQuota = selectedQuotas.some((x) => !x.service_id);
       if (hasAllCoverQuota) return true;
       const coveredIds = new Set(
-        selectedQuotas
-          .filter((x) => x.service_id)
-          .map((x) => x.service_id),
+        selectedQuotas.filter((x) => x.service_id).map((x) => x.service_id),
       );
       return addonIds.every((id) => coveredIds.has(id));
     }
