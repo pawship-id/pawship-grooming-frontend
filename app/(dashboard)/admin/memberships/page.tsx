@@ -787,10 +787,12 @@ function BenefitEditor({
   benefits,
   onChange,
   services,
+  onPendingChange,
 }: {
   benefits: BenefitForm[];
   onChange: (benefits: BenefitForm[]) => void;
   services: AdminService[];
+  onPendingChange?: (hasPending: boolean) => void;
 }) {
   const [newBenefit, setNewBenefit] = useState<Omit<BenefitForm, "_localId">>({
     ...DEFAULT_BENEFIT_FORM,
@@ -801,6 +803,10 @@ function BenefitEditor({
   const [newError, setNewError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingLocalId, setEditingLocalId] = useState<string | null>(null);
+
+  useEffect(() => {
+    onPendingChange?.(showAddForm || editingLocalId !== null);
+  }, [showAddForm, editingLocalId, onPendingChange]);
   const [editBenefit, setEditBenefit] = useState<Omit<BenefitForm, "_localId">>(
     { ...DEFAULT_BENEFIT_FORM },
   );
@@ -1290,6 +1296,12 @@ function MembershipFormDialog({
   isLoading: boolean;
   mode: "create" | "edit";
 }) {
+  const [hasPendingBenefit, setHasPendingBenefit] = useState(false);
+
+  useEffect(() => {
+    if (!open) setHasPendingBenefit(false);
+  }, [open]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
@@ -1563,6 +1575,7 @@ function MembershipFormDialog({
               benefits={form.benefits}
               onChange={(benefits) => setForm((p) => ({ ...p, benefits }))}
               services={services}
+              onPendingChange={setHasPendingBenefit}
             />
           </div>
 
@@ -1574,7 +1587,7 @@ function MembershipFormDialog({
             >
               Batal
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading || hasPendingBenefit} title={hasPendingBenefit ? "Konfirmasi benefit yang sedang diedit terlebih dahulu" : undefined}>
               {isLoading ? "Menyimpan..." : "Simpan"}
             </Button>
           </div>
