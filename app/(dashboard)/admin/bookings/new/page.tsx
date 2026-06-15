@@ -692,6 +692,9 @@ export default function NewBookingPage() {
           addon_prices: addonPricesPayload.length ? addonPricesPayload : undefined,
           travel_fee: tFeePriceChanged ? tFeeBase : undefined,
           travel_fee_discount: tFeeDiscount || undefined,
+          // Must carry selected benefits so updatePricing doesn't wipe them out
+          selected_benefit_ids: selectedBenefitIds.length > 0 ? selectedBenefitIds : undefined,
+          selected_promotion_ids: selectedPromotionIds.length > 0 ? selectedPromotionIds : undefined,
         };
 
         const hasMeaningfulEdit =
