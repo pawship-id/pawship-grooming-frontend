@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Truck, Gift, Sparkles, Pencil, Tag } from "lucide-react";
+import { Info, Loader2, Truck, Gift, Sparkles, Pencil, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -908,6 +908,60 @@ export function PriceEditPanel({
     }
   };
 
+  // ── Lock computations (benefit/promo selected → price input disabled) ────────
+  const buildDetailLockReason = (benefit: any, promo: any): string => {
+    if (benefit && promo)
+      return `Sudah menggunakan benefit membership & promo "${promo.code}" — diskon admin tidak dapat ditambahkan`;
+    if (benefit)
+      return `Sudah menggunakan benefit membership — diskon admin tidak dapat ditambahkan`;
+    if (promo)
+      return `Sudah menggunakan promo "${promo.code}" — diskon admin tidak dapat ditambahkan`;
+    return "";
+  };
+
+  const activeBenefitsForLock = (
+    pricePreviewData?.pricing?.available_benefits ?? []
+  ).filter((b: any) => editBenefitIds.includes(b._id) && b.can_apply);
+  const activePromosForLock = (
+    pricePreviewData?.pricing?.available_promotions ?? []
+  ).filter((p: any) => editPromotionIds.includes(p._id) && p.can_use !== false);
+
+  const svcLockedBenefit = activeBenefitsForLock.find(
+    (b: any) =>
+      b.applies_to === "service" &&
+      (!b.service_id || b.service_id === editServiceId),
+  );
+  const svcLockedPromo = activePromosForLock.find(
+    (p: any) =>
+      p.applies_to === "service" &&
+      (!p.service_id || p.service_id === editServiceId),
+  );
+  const svcLocked = !!(svcLockedBenefit || svcLockedPromo);
+  const svcLockReason = buildDetailLockReason(svcLockedBenefit, svcLockedPromo);
+
+  const tFeeLockedBenefit = activeBenefitsForLock.find(
+    (b: any) => b.applies_to === "pickup",
+  );
+  const tFeeLockedPromo = activePromosForLock.find(
+    (p: any) => p.applies_to === "pickup",
+  );
+  const tFeeLocked = !!(tFeeLockedBenefit || tFeeLockedPromo);
+  const tFeeLockReason = buildDetailLockReason(tFeeLockedBenefit, tFeeLockedPromo);
+
+  const getAddonLockDetail = (addonId: string) => {
+    const b = activeBenefitsForLock.find(
+      (x: any) =>
+        x.applies_to === "addon" &&
+        (!x.service_id || x.service_id === addonId),
+    );
+    const p = activePromosForLock.find(
+      (x: any) =>
+        x.applies_to === "addon" &&
+        (!x.service_id || x.service_id === addonId),
+    );
+    return { locked: !!(b || p), reason: buildDetailLockReason(b, p) };
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -1017,6 +1071,8 @@ export function PriceEditPanel({
                   setEditServiceDiscount("");
                 }}
                 effectivePrice={svcEff}
+                locked={svcLocked}
+                lockReason={svcLockReason}
               />
             );
           })()}
@@ -1149,6 +1205,8 @@ export function PriceEditPanel({
                 ? Math.min(addonBase, (rawDisc / 100) * addonBase)
                 : Math.min(addonBase, rawDisc);
             const addonEff = Math.max(0, addonBase - addonDiscNominal);
+            const { locked: addonLocked, reason: addonLockReason } =
+              getAddonLockDetail(addonId);
             return (
               <ItemPriceEditor
                 key={addonId}
@@ -1170,6 +1228,8 @@ export function PriceEditPanel({
                   setEditAddonDiscounts((prev) => ({ ...prev, [addonId]: "" }));
                 }}
                 effectivePrice={addonEff}
+                locked={addonLocked}
+                lockReason={addonLockReason}
               />
             );
           })}
@@ -1208,6 +1268,8 @@ export function PriceEditPanel({
                     setEditTravelFeeDiscount("");
                   }}
                   effectivePrice={tFeeEff}
+                  locked={tFeeLocked}
+                  lockReason={tFeeLockReason}
                 />
               );
             })()}
@@ -1281,7 +1343,34 @@ export function PriceEditPanel({
                   }
                   return false;
                 })();
-              const isDisabled = !canApply || blockedByQuota;
+              const blockedByAdminDiscount =
+                canApply &&
+                !isSelected &&
+                (() => {
+                  const applies = benefit.applies_to as string;
+                  if (applies === "service")
+                    return parseFloat(editServiceDiscount) > 0;
+                  if (applies === "addon") {
+                    const targetId = (benefit as any).service_id || null;
+                    if (targetId)
+                      return parseFloat(editAddonDiscounts[targetId] ?? "") > 0;
+                    return selectedAddonIds.some(
+                      (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+                    );
+                  }
+                  if (applies === "pickup")
+                    return parseFloat(editTravelFeeDiscount) > 0;
+                  if (applies === "booking")
+                    return (
+                      parseFloat(editServiceDiscount) > 0 ||
+                      parseFloat(editTravelFeeDiscount) > 0 ||
+                      selectedAddonIds.some(
+                        (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+                      )
+                    );
+                  return false;
+                })();
+              const isDisabled = !canApply || blockedByQuota || blockedByAdminDiscount;
               const appliedBreakdown =
                 isSelected && priceApplyResult?.breakdown
                   ? priceApplyResult.breakdown.filter(
@@ -1388,6 +1477,12 @@ export function PriceEditPanel({
                         Tidak dapat digabung — sudah ada benefit kuota
                       </span>
                     )}
+                    {blockedByAdminDiscount && (
+                      <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                        Benefit tidak bisa dipakai — hapus diskon admin untuk
+                        menggunakan benefit ini
+                      </span>
+                    )}
                   </div>
                 </label>
               );
@@ -1438,8 +1533,32 @@ export function PriceEditPanel({
                 // Promo is unusable if limit reached AND it's not already selected for this booking
                 const limitReached =
                   !selected && promo.can_use === false;
+                const blockedByAdminDiscount = !selected && (() => {
+                  const applies: string = promo.applies_to;
+                  if (applies === "service")
+                    return parseFloat(editServiceDiscount) > 0;
+                  if (applies === "addon") {
+                    const targetId: string | null = promo.service_id || null;
+                    if (targetId)
+                      return parseFloat(editAddonDiscounts[targetId] ?? "") > 0;
+                    return selectedAddonIds.some(
+                      (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+                    );
+                  }
+                  if (applies === "pickup")
+                    return parseFloat(editTravelFeeDiscount) > 0;
+                  if (applies === "booking")
+                    return (
+                      parseFloat(editServiceDiscount) > 0 ||
+                      parseFloat(editTravelFeeDiscount) > 0 ||
+                      selectedAddonIds.some(
+                        (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+                      )
+                    );
+                  return false;
+                })();
                 const isDisabled =
-                  blockedByStacking || blockedByBenefit || limitReached;
+                  blockedByStacking || blockedByBenefit || limitReached || blockedByAdminDiscount;
                 const hasLimit =
                   promo.limit_type &&
                   promo.limit_type !== "none" &&
@@ -1554,6 +1673,12 @@ export function PriceEditPanel({
                           yang sama sudah dipilih
                         </span>
                       )}
+                      {blockedByAdminDiscount && (
+                        <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                          Promo tidak bisa dipakai — hapus diskon admin untuk
+                          menggunakan promo ini
+                        </span>
+                      )}
                       {limitReached && promo.limit_message && (
                         <span className="text-[11px] text-destructive">
                           {promo.limit_message}
@@ -1632,6 +1757,8 @@ function ItemPriceEditor({
   discountType,
   onDiscountTypeChange,
   effectivePrice,
+  locked,
+  lockReason,
 }: {
   label: string;
   labelIcon?: React.ReactNode;
@@ -1642,6 +1769,8 @@ function ItemPriceEditor({
   discountType: "nominal" | "pct";
   onDiscountTypeChange: (t: "nominal" | "pct") => void;
   effectivePrice: number;
+  locked?: boolean;
+  lockReason?: string;
 }) {
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border border-border/50 bg-card p-3">
@@ -1649,7 +1778,15 @@ function ItemPriceEditor({
         {labelIcon}
         {label}
       </span>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+      {locked && lockReason && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{lockReason}</span>
+        </div>
+      )}
+      <div
+        className={`flex flex-col gap-2 sm:flex-row sm:items-end${locked ? " pointer-events-none opacity-40" : ""}`}
+      >
         <div className="flex flex-1 flex-col gap-1">
           <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             Harga Dasar
@@ -1661,6 +1798,8 @@ function ItemPriceEditor({
             placeholder="Harga dasar"
             value={baseValue}
             onChange={(e) => onBaseChange(e.target.value)}
+            disabled={locked}
+            tabIndex={locked ? -1 : undefined}
           />
         </div>
         <span className="hidden shrink-0 pb-1.5 text-sm text-muted-foreground sm:inline">−</span>
@@ -1677,11 +1816,15 @@ function ItemPriceEditor({
               placeholder={discountType === "pct" ? "0–100" : "0"}
               value={discountValue}
               onChange={(e) => onDiscountChange(e.target.value)}
+              disabled={locked}
+              tabIndex={locked ? -1 : undefined}
             />
             <div className="flex h-8 shrink-0 overflow-hidden rounded-md border border-border">
               <button
                 type="button"
                 onClick={() => onDiscountTypeChange("nominal")}
+                disabled={locked}
+                tabIndex={locked ? -1 : undefined}
                 className={`px-1.5 text-xs font-semibold transition-colors ${discountType === "nominal" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
               >
                 Rp
@@ -1689,6 +1832,8 @@ function ItemPriceEditor({
               <button
                 type="button"
                 onClick={() => onDiscountTypeChange("pct")}
+                disabled={locked}
+                tabIndex={locked ? -1 : undefined}
                 className={`border-l border-border px-1.5 text-xs font-semibold transition-colors ${discountType === "pct" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
               >
                 %

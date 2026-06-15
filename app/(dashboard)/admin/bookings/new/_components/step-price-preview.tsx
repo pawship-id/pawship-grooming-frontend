@@ -134,6 +134,9 @@ export function StepPricePreview({
                 toggleBenefit={toggleBenefit}
                 serviceId={form.service_id}
                 selectedAddonIds={selectedAddonIds}
+                editServiceDiscount={editServiceDiscount}
+                editAddonDiscounts={editAddonDiscounts}
+                editTravelFeeDiscount={editTravelFeeDiscount}
               />
             )}
 
@@ -156,6 +159,10 @@ export function StepPricePreview({
                 setSelectedPromotionIds={setSelectedPromotionIds}
                 selectedBenefitIds={selectedBenefitIds}
                 availableBenefits={previewData.pricing.available_benefits}
+                editServiceDiscount={editServiceDiscount}
+                editAddonDiscounts={editAddonDiscounts}
+                editTravelFeeDiscount={editTravelFeeDiscount}
+                selectedAddonIds={selectedAddonIds}
               />
             )}
 
@@ -446,18 +453,52 @@ function PreviewError({
 
 // ── Benefit Section ────────────────────────────────────────────────────────────
 
+function hasAdminDiscountForBenefitTarget(
+  benefit: any,
+  editServiceDiscount: string,
+  editAddonDiscounts: Record<string, string>,
+  editTravelFeeDiscount: string,
+  selectedAddonIds: string[],
+): boolean {
+  const applies: string = benefit.applies_to;
+  if (applies === "service") return parseFloat(editServiceDiscount) > 0;
+  if (applies === "addon") {
+    const targetId: string | null = benefit.service_id || null;
+    if (targetId) return parseFloat(editAddonDiscounts[targetId] ?? "") > 0;
+    return selectedAddonIds.some(
+      (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+    );
+  }
+  if (applies === "pickup") return parseFloat(editTravelFeeDiscount) > 0;
+  if (applies === "booking")
+    return (
+      parseFloat(editServiceDiscount) > 0 ||
+      parseFloat(editTravelFeeDiscount) > 0 ||
+      selectedAddonIds.some(
+        (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+      )
+    );
+  return false;
+}
+
 function BenefitSection({
   benefits,
   selectedBenefitIds,
   toggleBenefit,
   serviceId,
   selectedAddonIds,
+  editServiceDiscount,
+  editAddonDiscounts,
+  editTravelFeeDiscount,
 }: {
   benefits: any[];
   selectedBenefitIds: string[];
   toggleBenefit: (id: string) => void;
   serviceId: string;
   selectedAddonIds: string[];
+  editServiceDiscount: string;
+  editAddonDiscounts: Record<string, string>;
+  editTravelFeeDiscount: string;
 }) {
   return (
     <div className="flex flex-col gap-2.5">
@@ -484,7 +525,17 @@ function BenefitSection({
               serviceId,
               selectedAddonIds,
             );
-          const isDisabled = !canApply || blockedByQuota;
+          const blockedByAdminDiscount =
+            canApply &&
+            !selected &&
+            hasAdminDiscountForBenefitTarget(
+              benefit,
+              editServiceDiscount,
+              editAddonDiscounts,
+              editTravelFeeDiscount,
+              selectedAddonIds,
+            );
+          const isDisabled = !canApply || blockedByQuota || blockedByAdminDiscount;
 
           return (
             <label
@@ -553,6 +604,12 @@ function BenefitSection({
                   <span className="text-[11px] text-amber-600 dark:text-amber-400">
                     Tidak dapat digabung — layanan sudah gratis dari benefit
                     kuota
+                  </span>
+                )}
+                {blockedByAdminDiscount && (
+                  <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                    Benefit tidak bisa dipakai — hapus diskon admin untuk
+                    menggunakan benefit ini
                   </span>
                 )}
               </div>
@@ -626,12 +683,20 @@ function PromotionSection({
   setSelectedPromotionIds,
   selectedBenefitIds,
   availableBenefits,
+  editServiceDiscount,
+  editAddonDiscounts,
+  editTravelFeeDiscount,
+  selectedAddonIds,
 }: {
   promotions: any[];
   selectedPromotionIds: string[];
   setSelectedPromotionIds: React.Dispatch<React.SetStateAction<string[]>>;
   selectedBenefitIds: string[];
   availableBenefits: any[];
+  editServiceDiscount: string;
+  editAddonDiscounts: Record<string, string>;
+  editTravelFeeDiscount: string;
+  selectedAddonIds: string[];
 }) {
   const getLimitLabel = (promo: any) => {
     if (!promo.limit_type || promo.limit_type === "none") return null;
@@ -679,9 +744,31 @@ function PromotionSection({
             });
           })();
 
+          const blockedByAdminDiscount = !selected && (() => {
+            const applies: string = promo.applies_to;
+            if (applies === "service") return parseFloat(editServiceDiscount) > 0;
+            if (applies === "addon") {
+              const targetId: string | null = promo.service_id || null;
+              if (targetId) return parseFloat(editAddonDiscounts[targetId] ?? "") > 0;
+              return selectedAddonIds.some(
+                (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+              );
+            }
+            if (applies === "pickup") return parseFloat(editTravelFeeDiscount) > 0;
+            if (applies === "booking")
+              return (
+                parseFloat(editServiceDiscount) > 0 ||
+                parseFloat(editTravelFeeDiscount) > 0 ||
+                selectedAddonIds.some(
+                  (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+                )
+              );
+            return false;
+          })();
+
           const blockedByLimit = promo.can_use === false;
           const isDisabled =
-            blockedByStacking || blockedByBenefit || blockedByLimit;
+            blockedByStacking || blockedByBenefit || blockedByLimit || blockedByAdminDiscount;
 
           const limitLabel = getLimitLabel(promo);
 
@@ -780,6 +867,12 @@ function PromotionSection({
                   <span className="text-[11px] text-amber-600 dark:text-amber-400">
                     Tidak dapat digabung — benefit membership untuk target yang
                     sama sudah dipilih
+                  </span>
+                )}
+                {blockedByAdminDiscount && (
+                  <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                    Promo tidak bisa dipakai — hapus diskon admin untuk
+                    menggunakan promo ini
                   </span>
                 )}
                 {blockedByLimit && (
@@ -955,6 +1048,9 @@ function PricingBreakdown({
         onEditTravelFeeDiscountChange={onEditTravelFeeDiscountChange}
         editTravelFeeDiscountType={editTravelFeeDiscountType}
         onEditTravelFeeDiscountTypeChange={onEditTravelFeeDiscountTypeChange}
+        selectedBenefitIds={selectedBenefitIds}
+        selectedPromotionIds={selectedPromotionIds}
+        formServiceId={formServiceId}
       />
 
       <div className="overflow-hidden rounded-xl border border-border/50 bg-card">
@@ -1302,6 +1398,8 @@ function ItemPriceEditor({
   discountType,
   onDiscountTypeChange,
   effectivePrice,
+  locked,
+  lockReason,
 }: {
   label: string;
   labelIcon?: React.ReactNode;
@@ -1312,6 +1410,8 @@ function ItemPriceEditor({
   discountType: "nominal" | "pct";
   onDiscountTypeChange: (t: "nominal" | "pct") => void;
   effectivePrice: number;
+  locked?: boolean;
+  lockReason?: string;
 }) {
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border border-border/50 bg-card p-3">
@@ -1319,7 +1419,13 @@ function ItemPriceEditor({
         {labelIcon}
         {label}
       </span>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+      {locked && lockReason && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{lockReason}</span>
+        </div>
+      )}
+      <div className={`flex flex-col gap-2 sm:flex-row sm:items-end ${locked ? "pointer-events-none opacity-40" : ""}`}>
         <div className="flex flex-1 flex-col gap-1">
           <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             Harga Dasar
@@ -1331,6 +1437,8 @@ function ItemPriceEditor({
             placeholder="Harga dasar"
             value={baseValue}
             onChange={(e) => onBaseChange(e.target.value)}
+            disabled={locked}
+            tabIndex={locked ? -1 : undefined}
           />
         </div>
         <span className="hidden shrink-0 pb-1.5 text-sm text-muted-foreground sm:inline">
@@ -1349,11 +1457,14 @@ function ItemPriceEditor({
               placeholder={discountType === "pct" ? "0–100" : "0"}
               value={discountValue}
               onChange={(e) => onDiscountChange(e.target.value)}
+              disabled={locked}
+              tabIndex={locked ? -1 : undefined}
             />
             <div className="flex h-8 shrink-0 overflow-hidden rounded-md border border-border">
               <button
                 type="button"
                 onClick={() => onDiscountTypeChange("nominal")}
+                disabled={locked}
                 className={`px-1.5 text-xs font-semibold transition-colors ${discountType === "nominal" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
               >
                 Rp
@@ -1361,6 +1472,7 @@ function ItemPriceEditor({
               <button
                 type="button"
                 onClick={() => onDiscountTypeChange("pct")}
+                disabled={locked}
                 className={`border-l border-border px-1.5 text-xs font-semibold transition-colors ${discountType === "pct" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
               >
                 %
@@ -1387,6 +1499,9 @@ function ItemPriceEditor({
 function AdminPriceSection({
   previewData,
   selectedAddonIds,
+  selectedBenefitIds,
+  selectedPromotionIds,
+  formServiceId,
   hasTravelFee,
   formType,
   isPickup,
@@ -1412,6 +1527,9 @@ function AdminPriceSection({
 }: {
   previewData: BookingPreviewResult;
   selectedAddonIds: string[];
+  selectedBenefitIds: string[];
+  selectedPromotionIds: string[];
+  formServiceId: string;
   hasTravelFee: boolean;
   formType: string;
   isPickup: boolean;
@@ -1483,6 +1601,56 @@ function AdminPriceSection({
         : Math.min(tFeeRaw, tFeeDiscRaw)
       : 0;
 
+  // ── Compute lock status (items covered by selected benefit or promo) ─────────
+  const activeBenefits = previewData.pricing.available_benefits.filter(
+    (b) => selectedBenefitIds.includes(b._id) && b.can_apply,
+  );
+  const activePromos = previewData.pricing.available_promotions.filter(
+    (p) => selectedPromotionIds.includes(p._id) && p.can_use !== false,
+  );
+
+  const buildLockReason = (benefit: any, promo: any): string => {
+    if (benefit && promo)
+      return `Sudah menggunakan benefit membership & promo "${promo.code}" — diskon admin tidak dapat ditambahkan`;
+    if (benefit)
+      return `Sudah menggunakan benefit membership — diskon admin tidak dapat ditambahkan`;
+    if (promo)
+      return `Sudah menggunakan promo "${promo.code}" — diskon admin tidak dapat ditambahkan`;
+    return "";
+  };
+
+  const svcLockedBenefit = activeBenefits.find(
+    (b) =>
+      b.applies_to === "service" &&
+      (!b.service_id || b.service_id === formServiceId),
+  );
+  const svcLockedPromo = activePromos.find(
+    (p) =>
+      p.applies_to === "service" &&
+      (!p.service_id || p.service_id === formServiceId),
+  );
+  const svcLocked = !!(svcLockedBenefit || svcLockedPromo);
+  const svcLockReason = buildLockReason(svcLockedBenefit, svcLockedPromo);
+
+  const tFeeLockedBenefit = activeBenefits.find(
+    (b) => b.applies_to === "pickup",
+  );
+  const tFeeLockedPromo = activePromos.find((p) => p.applies_to === "pickup");
+  const tFeeLocked = !!(tFeeLockedBenefit || tFeeLockedPromo);
+  const tFeeLockReason = buildLockReason(tFeeLockedBenefit, tFeeLockedPromo);
+
+  const getAddonLock = (addonId: string) => {
+    const b = activeBenefits.find(
+      (x) =>
+        x.applies_to === "addon" && (!x.service_id || x.service_id === addonId),
+    );
+    const p = activePromos.find(
+      (x) =>
+        x.applies_to === "addon" && (!x.service_id || x.service_id === addonId),
+    );
+    return { locked: !!(b || p), reason: buildLockReason(b, p) };
+  };
+
   return (
     <div className="overflow-hidden rounded-xl border border-orange-200 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/20">
       <button
@@ -1516,6 +1684,8 @@ function AdminPriceSection({
             discountType={editServiceDiscountType}
             onDiscountTypeChange={onEditServiceDiscountTypeChange}
             effectivePrice={Math.max(0, svcBase - svcDiscount)}
+            locked={svcLocked}
+            lockReason={svcLockReason}
           />
 
           {/* Addons */}
@@ -1536,6 +1706,8 @@ function AdminPriceSection({
                   ? Math.min(addonBase, (addonDiscRaw / 100) * addonBase)
                   : Math.min(addonBase, addonDiscRaw)
                 : 0;
+            const { locked: addonLocked, reason: addonLockReason } =
+              getAddonLock(addon._id);
             return (
               <ItemPriceEditor
                 key={addon._id}
@@ -1551,6 +1723,8 @@ function AdminPriceSection({
                   onEditAddonDiscountTypeChange(addon._id, t)
                 }
                 effectivePrice={Math.max(0, addonBase - addonDiscount)}
+                locked={addonLocked}
+                lockReason={addonLockReason}
               />
             );
           })}
@@ -1570,6 +1744,8 @@ function AdminPriceSection({
               discountType={editTravelFeeDiscountType}
               onDiscountTypeChange={onEditTravelFeeDiscountTypeChange}
               effectivePrice={Math.max(0, tFeeRaw - tFeeDiscount)}
+              locked={tFeeLocked}
+              lockReason={tFeeLockReason}
             />
           )}
         </div>
