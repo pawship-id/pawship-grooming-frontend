@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Truck, Gift, Sparkles, Pencil, Tag } from "lucide-react";
+import { Info, Loader2, Truck, Gift, Sparkles, Pencil, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -143,9 +143,7 @@ export function PriceEditPanel({
       const override = (booking.edited_addon_prices ?? []).find(
         (a) => a.addon_id === addon._id,
       );
-      addonPriceMap[addon._id!] = String(
-        override ? override.price : addon.price,
-      );
+      addonPriceMap[addon._id!] = String(override?.price ?? addon.price);
       addonDiscountMap[addon._id!] = String(override?.discount ?? 0);
     });
     setEditAddonPrices(addonPriceMap);
@@ -222,9 +220,12 @@ export function PriceEditPanel({
                 }
                 const effectiveCanApply =
                   b.can_apply || currentBenefitIdsFb.has(b._id);
+                const discountType = (b as any).discount_type ?? "percentage";
                 const effectiveAmount = effectiveCanApply
                   ? b.type === "discount"
-                    ? ((b.value ?? 0) / 100) * discountBase
+                    ? discountType === "fixed"
+                      ? Math.min(b.value ?? 0, discountBase)
+                      : ((b.value ?? 0) / 100) * discountBase
                     : discountBase
                   : 0;
                 return {
@@ -787,15 +788,19 @@ export function PriceEditPanel({
           ? Math.min(tFeeBase, (rawTFeeDisc / 100) * tFeeBase)
           : Math.min(tFeeBase, rawTFeeDisc);
 
-      const addonPricesPayload = selectedAddonIds.map((addonId) => {
+      const svcSnapshotPrice = booking.service_snapshot.price || 0;
+      // For hotel, service_price is stored per-night; compare unit price vs snapshot unit price
+      const svcPriceChanged = !isNaN(svcPriceNum) && svcUnit !== svcSnapshotPrice;
+
+      const addonPricesPayload = selectedAddonIds.flatMap((addonId) => {
         const snapshotAddon = (booking.service_snapshot.addons ?? []).find(
           (a) => a._id === addonId,
         );
         const liveAddon = allServiceAddons.find((a) => a._id === addonId);
-        const defaultPrice = snapshotAddon?.price ?? liveAddon?.price ?? 0;
+        const snapshotPrice = snapshotAddon?.price ?? liveAddon?.price ?? 0;
         const base =
-          parseFloat(editAddonPrices[addonId] ?? String(defaultPrice)) ||
-          defaultPrice ||
+          parseFloat(editAddonPrices[addonId] ?? String(snapshotPrice)) ||
+          snapshotPrice ||
           0;
         const rawDisc = parseFloat(editAddonDiscounts[addonId] ?? "0") || 0;
         const discType = editAddonDiscountTypes[addonId] ?? "nominal";
@@ -803,8 +808,16 @@ export function PriceEditPanel({
           discType === "pct"
             ? Math.min(base, (rawDisc / 100) * base)
             : Math.min(base, rawDisc);
-        return { addon_id: addonId, price: base, discount: discNominal };
+        const priceChanged = base !== snapshotPrice;
+        // Only include addon if price changed from snapshot or has non-zero discount
+        if (!priceChanged && discNominal === 0) return [];
+        return [{ addon_id: addonId, price: priceChanged ? base : undefined, discount: discNominal || undefined }];
       });
+
+      const tFeeSnapshotPrice = booking.travel_fee || 0;
+      const hasTravelFeeContext = editPickup || editDelivery || booking.type === "in home";
+      const tFeePriceChanged = hasTravelFeeContext && !isNaN(tFeeNum) && tFeeBase !== tFeeSnapshotPrice;
+
       await updateBookingPricing(bookingId, {
         service_id:
           editServiceId !== booking.service_snapshot._id
@@ -816,18 +829,11 @@ export function PriceEditPanel({
         selected_benefit_ids: editBenefitIds,
         selected_promotion_ids:
           editPromotionIds.length > 0 ? editPromotionIds : undefined,
-        service_price: !isNaN(svcPriceNum) ? svcPriceNum : undefined,
+        service_price: svcPriceChanged ? svcUnit : undefined,
         service_discount: svcDiscNominal > 0 ? svcDiscNominal : undefined,
-        travel_fee:
-          (editPickup || editDelivery || booking.type === "in home") &&
-          !isNaN(tFeeNum)
-            ? tFeeNum
-            : undefined,
+        travel_fee: tFeePriceChanged ? tFeeNum : undefined,
         travel_fee_discount:
-          (editPickup || editDelivery || booking.type === "in home") &&
-          tFeeDiscNominal > 0
-            ? tFeeDiscNominal
-            : undefined,
+          hasTravelFeeContext && tFeeDiscNominal > 0 ? tFeeDiscNominal : undefined,
         addon_prices:
           addonPricesPayload.length > 0 ? addonPricesPayload : undefined,
       });
@@ -900,6 +906,60 @@ export function PriceEditPanel({
     } finally {
       setLoadingTravelFee(false);
     }
+  };
+
+  // ── Lock computations (benefit/promo selected → price input disabled) ────────
+  const buildDetailLockReason = (benefit: any, promo: any): string => {
+    if (benefit && promo)
+      return `Sudah menggunakan benefit membership & promo "${promo.code}" — diskon admin tidak dapat ditambahkan`;
+    if (benefit)
+      return `Sudah menggunakan benefit membership — diskon admin tidak dapat ditambahkan`;
+    if (promo)
+      return `Sudah menggunakan promo "${promo.code}" — diskon admin tidak dapat ditambahkan`;
+    return "";
+  };
+
+  const activeBenefitsForLock = (
+    pricePreviewData?.pricing?.available_benefits ?? []
+  ).filter((b: any) => editBenefitIds.includes(b._id) && b.can_apply);
+  const activePromosForLock = (
+    pricePreviewData?.pricing?.available_promotions ?? []
+  ).filter((p: any) => editPromotionIds.includes(p._id) && p.can_use !== false);
+
+  const svcLockedBenefit = activeBenefitsForLock.find(
+    (b: any) =>
+      b.applies_to === "service" &&
+      (!b.service_id || b.service_id === editServiceId),
+  );
+  const svcLockedPromo = activePromosForLock.find(
+    (p: any) =>
+      p.applies_to === "service" &&
+      (!p.service_id || p.service_id === editServiceId),
+  );
+  const svcLocked = !!(svcLockedBenefit || svcLockedPromo);
+  const svcLockReason = buildDetailLockReason(svcLockedBenefit, svcLockedPromo);
+
+  const tFeeLockedBenefit = activeBenefitsForLock.find(
+    (b: any) => b.applies_to === "pickup",
+  );
+  const tFeeLockedPromo = activePromosForLock.find(
+    (p: any) => p.applies_to === "pickup",
+  );
+  const tFeeLocked = !!(tFeeLockedBenefit || tFeeLockedPromo);
+  const tFeeLockReason = buildDetailLockReason(tFeeLockedBenefit, tFeeLockedPromo);
+
+  const getAddonLockDetail = (addonId: string) => {
+    const b = activeBenefitsForLock.find(
+      (x: any) =>
+        x.applies_to === "addon" &&
+        (!x.service_id || x.service_id === addonId),
+    );
+    const p = activePromosForLock.find(
+      (x: any) =>
+        x.applies_to === "addon" &&
+        (!x.service_id || x.service_id === addonId),
+    );
+    return { locked: !!(b || p), reason: buildDetailLockReason(b, p) };
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -1011,6 +1071,8 @@ export function PriceEditPanel({
                   setEditServiceDiscount("");
                 }}
                 effectivePrice={svcEff}
+                locked={svcLocked}
+                lockReason={svcLockReason}
               />
             );
           })()}
@@ -1143,6 +1205,8 @@ export function PriceEditPanel({
                 ? Math.min(addonBase, (rawDisc / 100) * addonBase)
                 : Math.min(addonBase, rawDisc);
             const addonEff = Math.max(0, addonBase - addonDiscNominal);
+            const { locked: addonLocked, reason: addonLockReason } =
+              getAddonLockDetail(addonId);
             return (
               <ItemPriceEditor
                 key={addonId}
@@ -1164,6 +1228,8 @@ export function PriceEditPanel({
                   setEditAddonDiscounts((prev) => ({ ...prev, [addonId]: "" }));
                 }}
                 effectivePrice={addonEff}
+                locked={addonLocked}
+                lockReason={addonLockReason}
               />
             );
           })}
@@ -1202,6 +1268,8 @@ export function PriceEditPanel({
                     setEditTravelFeeDiscount("");
                   }}
                   effectivePrice={tFeeEff}
+                  locked={tFeeLocked}
+                  lockReason={tFeeLockReason}
                 />
               );
             })()}
@@ -1275,7 +1343,34 @@ export function PriceEditPanel({
                   }
                   return false;
                 })();
-              const isDisabled = !canApply || blockedByQuota;
+              const blockedByAdminDiscount =
+                canApply &&
+                !isSelected &&
+                (() => {
+                  const applies = benefit.applies_to as string;
+                  if (applies === "service")
+                    return parseFloat(editServiceDiscount) > 0;
+                  if (applies === "addon") {
+                    const targetId = (benefit as any).service_id || null;
+                    if (targetId)
+                      return parseFloat(editAddonDiscounts[targetId] ?? "") > 0;
+                    return selectedAddonIds.some(
+                      (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+                    );
+                  }
+                  if (applies === "pickup")
+                    return parseFloat(editTravelFeeDiscount) > 0;
+                  if (applies === "booking")
+                    return (
+                      parseFloat(editServiceDiscount) > 0 ||
+                      parseFloat(editTravelFeeDiscount) > 0 ||
+                      selectedAddonIds.some(
+                        (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+                      )
+                    );
+                  return false;
+                })();
+              const isDisabled = !canApply || blockedByQuota || blockedByAdminDiscount;
               const appliedBreakdown =
                 isSelected && priceApplyResult?.breakdown
                   ? priceApplyResult.breakdown.filter(
@@ -1324,9 +1419,15 @@ export function PriceEditPanel({
                       >
                         {isQuotaBenefit
                           ? "Quota gratis"
-                          : benefit.value != null
-                            ? `${benefit.value}% off`
-                            : "Diskon"}
+                          : (benefit as any).variant_mode === "per_variant"
+                            ? "Diskon per varian"
+                            : (benefit as any).discount_type === "fixed"
+                              ? benefit.value != null
+                                ? `Rp${benefit.value.toLocaleString("id-ID")} off`
+                                : "Diskon"
+                              : benefit.value != null
+                                ? `${benefit.value}% off`
+                                : "Diskon"}
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -1374,6 +1475,12 @@ export function PriceEditPanel({
                     {blockedByQuota && (
                       <span className="text-[11px] text-amber-600 dark:text-amber-400">
                         Tidak dapat digabung — sudah ada benefit kuota
+                      </span>
+                    )}
+                    {blockedByAdminDiscount && (
+                      <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                        Benefit tidak bisa dipakai — hapus diskon admin untuk
+                        menggunakan benefit ini
                       </span>
                     )}
                   </div>
@@ -1426,8 +1533,32 @@ export function PriceEditPanel({
                 // Promo is unusable if limit reached AND it's not already selected for this booking
                 const limitReached =
                   !selected && promo.can_use === false;
+                const blockedByAdminDiscount = !selected && (() => {
+                  const applies: string = promo.applies_to;
+                  if (applies === "service")
+                    return parseFloat(editServiceDiscount) > 0;
+                  if (applies === "addon") {
+                    const targetId: string | null = promo.service_id || null;
+                    if (targetId)
+                      return parseFloat(editAddonDiscounts[targetId] ?? "") > 0;
+                    return selectedAddonIds.some(
+                      (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+                    );
+                  }
+                  if (applies === "pickup")
+                    return parseFloat(editTravelFeeDiscount) > 0;
+                  if (applies === "booking")
+                    return (
+                      parseFloat(editServiceDiscount) > 0 ||
+                      parseFloat(editTravelFeeDiscount) > 0 ||
+                      selectedAddonIds.some(
+                        (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+                      )
+                    );
+                  return false;
+                })();
                 const isDisabled =
-                  blockedByStacking || blockedByBenefit || limitReached;
+                  blockedByStacking || blockedByBenefit || limitReached || blockedByAdminDiscount;
                 const hasLimit =
                   promo.limit_type &&
                   promo.limit_type !== "none" &&
@@ -1542,6 +1673,12 @@ export function PriceEditPanel({
                           yang sama sudah dipilih
                         </span>
                       )}
+                      {blockedByAdminDiscount && (
+                        <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                          Promo tidak bisa dipakai — hapus diskon admin untuk
+                          menggunakan promo ini
+                        </span>
+                      )}
                       {limitReached && promo.limit_message && (
                         <span className="text-[11px] text-destructive">
                           {promo.limit_message}
@@ -1620,6 +1757,8 @@ function ItemPriceEditor({
   discountType,
   onDiscountTypeChange,
   effectivePrice,
+  locked,
+  lockReason,
 }: {
   label: string;
   labelIcon?: React.ReactNode;
@@ -1630,6 +1769,8 @@ function ItemPriceEditor({
   discountType: "nominal" | "pct";
   onDiscountTypeChange: (t: "nominal" | "pct") => void;
   effectivePrice: number;
+  locked?: boolean;
+  lockReason?: string;
 }) {
   return (
     <div className="flex flex-col gap-1.5 rounded-lg border border-border/50 bg-card p-3">
@@ -1637,7 +1778,15 @@ function ItemPriceEditor({
         {labelIcon}
         {label}
       </span>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+      {locked && lockReason && (
+        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{lockReason}</span>
+        </div>
+      )}
+      <div
+        className={`flex flex-col gap-2 sm:flex-row sm:items-end${locked ? " pointer-events-none opacity-40" : ""}`}
+      >
         <div className="flex flex-1 flex-col gap-1">
           <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             Harga Dasar
@@ -1649,6 +1798,8 @@ function ItemPriceEditor({
             placeholder="Harga dasar"
             value={baseValue}
             onChange={(e) => onBaseChange(e.target.value)}
+            disabled={locked}
+            tabIndex={locked ? -1 : undefined}
           />
         </div>
         <span className="hidden shrink-0 pb-1.5 text-sm text-muted-foreground sm:inline">−</span>
@@ -1665,11 +1816,15 @@ function ItemPriceEditor({
               placeholder={discountType === "pct" ? "0–100" : "0"}
               value={discountValue}
               onChange={(e) => onDiscountChange(e.target.value)}
+              disabled={locked}
+              tabIndex={locked ? -1 : undefined}
             />
             <div className="flex h-8 shrink-0 overflow-hidden rounded-md border border-border">
               <button
                 type="button"
                 onClick={() => onDiscountTypeChange("nominal")}
+                disabled={locked}
+                tabIndex={locked ? -1 : undefined}
                 className={`px-1.5 text-xs font-semibold transition-colors ${discountType === "nominal" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
               >
                 Rp
@@ -1677,6 +1832,8 @@ function ItemPriceEditor({
               <button
                 type="button"
                 onClick={() => onDiscountTypeChange("pct")}
+                disabled={locked}
+                tabIndex={locked ? -1 : undefined}
                 className={`border-l border-border px-1.5 text-xs font-semibold transition-colors ${discountType === "pct" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
               >
                 %
@@ -2030,7 +2187,13 @@ function LivePreviewSection({
                               </span>
                             ) : (
                               <span className="shrink-0 rounded bg-green-100 px-1 py-px text-[9px] font-bold text-green-700 dark:bg-green-950/50 dark:text-green-400">
-                                {b.value != null ? `${b.value}%` : "DISC"}
+                                {(b as any).discount_type === "fixed"
+                                  ? b.value != null
+                                    ? `Rp${b.value.toLocaleString("id-ID")}`
+                                    : "DISC"
+                                  : b.value != null
+                                    ? `${b.value}%`
+                                    : "DISC"}
                               </span>
                             )}
                             {displayLabel}

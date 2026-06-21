@@ -95,7 +95,10 @@ export interface SelectableBenefit {
   remaining: number | null;
   can_apply: boolean;
   amount_discount?: number;
+  effective_value?: number | null; // matched variant's raw value (% or Rp), null if no match
   description: string;
+  discount_type?: string | null;
+  variant_mode?: string | null;
 }
 
 export interface SelectablePromotion {

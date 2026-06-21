@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
+  ChevronDown,
+  ChevronUp,
   Gift,
   Info,
   MapPin,
@@ -12,6 +15,7 @@ import {
   Truck,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { formatPrice } from "@/lib/format";
 import type {
   BookingPreviewResult,
@@ -37,6 +41,25 @@ interface StepPricePreviewProps {
   loadingApplyPromotion: boolean;
   isPickup: boolean;
   isDelivery: boolean;
+  // Admin price editing
+  editServicePrice: string;
+  onEditServicePriceChange: (v: string) => void;
+  editServiceDiscount: string;
+  onEditServiceDiscountChange: (v: string) => void;
+  editServiceDiscountType: "nominal" | "pct";
+  onEditServiceDiscountTypeChange: (t: "nominal" | "pct") => void;
+  editAddonPrices: Record<string, string>;
+  onEditAddonPriceChange: (id: string, v: string) => void;
+  editAddonDiscounts: Record<string, string>;
+  onEditAddonDiscountChange: (id: string, v: string) => void;
+  editAddonDiscountTypes: Record<string, "nominal" | "pct">;
+  onEditAddonDiscountTypeChange: (id: string, t: "nominal" | "pct") => void;
+  editTravelFeePrice: string;
+  onEditTravelFeePriceChange: (v: string) => void;
+  editTravelFeeDiscount: string;
+  onEditTravelFeeDiscountChange: (v: string) => void;
+  editTravelFeeDiscountType: "nominal" | "pct";
+  onEditTravelFeeDiscountTypeChange: (t: "nominal" | "pct") => void;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -57,6 +80,24 @@ export function StepPricePreview({
   loadingApplyPromotion,
   isPickup,
   isDelivery,
+  editServicePrice,
+  onEditServicePriceChange,
+  editServiceDiscount,
+  onEditServiceDiscountChange,
+  editServiceDiscountType,
+  onEditServiceDiscountTypeChange,
+  editAddonPrices,
+  onEditAddonPriceChange,
+  editAddonDiscounts,
+  onEditAddonDiscountChange,
+  editAddonDiscountTypes,
+  onEditAddonDiscountTypeChange,
+  editTravelFeePrice,
+  onEditTravelFeePriceChange,
+  editTravelFeeDiscount,
+  onEditTravelFeeDiscountChange,
+  editTravelFeeDiscountType,
+  onEditTravelFeeDiscountTypeChange,
 }: StepPricePreviewProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -93,6 +134,9 @@ export function StepPricePreview({
                 toggleBenefit={toggleBenefit}
                 serviceId={form.service_id}
                 selectedAddonIds={selectedAddonIds}
+                editServiceDiscount={editServiceDiscount}
+                editAddonDiscounts={editAddonDiscounts}
+                editTravelFeeDiscount={editTravelFeeDiscount}
               />
             )}
 
@@ -115,6 +159,10 @@ export function StepPricePreview({
                 setSelectedPromotionIds={setSelectedPromotionIds}
                 selectedBenefitIds={selectedBenefitIds}
                 availableBenefits={previewData.pricing.available_benefits}
+                editServiceDiscount={editServiceDiscount}
+                editAddonDiscounts={editAddonDiscounts}
+                editTravelFeeDiscount={editTravelFeeDiscount}
+                selectedAddonIds={selectedAddonIds}
               />
             )}
 
@@ -132,6 +180,26 @@ export function StepPricePreview({
             formServiceId={form.service_id}
             isPickup={isPickup}
             isDelivery={isDelivery}
+            editServicePrice={editServicePrice}
+            onEditServicePriceChange={onEditServicePriceChange}
+            editServiceDiscount={editServiceDiscount}
+            onEditServiceDiscountChange={onEditServiceDiscountChange}
+            editServiceDiscountType={editServiceDiscountType}
+            onEditServiceDiscountTypeChange={onEditServiceDiscountTypeChange}
+            editAddonPrices={editAddonPrices}
+            onEditAddonPriceChange={onEditAddonPriceChange}
+            editAddonDiscounts={editAddonDiscounts}
+            onEditAddonDiscountChange={onEditAddonDiscountChange}
+            editAddonDiscountTypes={editAddonDiscountTypes}
+            onEditAddonDiscountTypeChange={onEditAddonDiscountTypeChange}
+            editTravelFeePrice={editTravelFeePrice}
+            onEditTravelFeePriceChange={onEditTravelFeePriceChange}
+            editTravelFeeDiscount={editTravelFeeDiscount}
+            onEditTravelFeeDiscountChange={onEditTravelFeeDiscountChange}
+            editTravelFeeDiscountType={editTravelFeeDiscountType}
+            onEditTravelFeeDiscountTypeChange={
+              onEditTravelFeeDiscountTypeChange
+            }
           />
         </div>
       )}
@@ -140,6 +208,63 @@ export function StepPricePreview({
 }
 
 // ── Preview Error Display ──────────────────────────────────────────────────────
+
+function buildBenefitTitle(benefit: {
+  label?: string | null;
+  service?: { name?: string } | null;
+  type: string;
+  value?: number | null;
+  effective_value?: number | null;
+  discount_type?: string | null;
+  variant_mode?: string | null;
+  can_apply?: boolean;
+  amount_discount?: number | null;
+}): string {
+  const nameLabel = benefit.label || benefit.service?.name || null;
+
+  if (benefit.type !== "discount") {
+    return nameLabel ? `Kuota Sesi: ${nameLabel}` : "Kuota Gratis";
+  }
+
+  const variantMode = benefit.variant_mode ?? "all";
+  const discountType = benefit.discount_type ?? "percentage";
+
+  // effective_value = matched variant's raw value (% for percentage, Rp for fixed) from server
+  const effectiveValue = benefit.effective_value ?? benefit.value ?? null;
+
+  let discountValueStr: string;
+  if (variantMode === "per_variant") {
+    if (discountType === "fixed") {
+      discountValueStr =
+        effectiveValue != null && !isNaN(effectiveValue)
+          ? `Rp${effectiveValue.toLocaleString("id-ID")}`
+          : "Diskon";
+    } else {
+      // percentage per_variant — show % not Rp
+      discountValueStr =
+        effectiveValue != null && !isNaN(effectiveValue)
+          ? `${effectiveValue}%`
+          : "Diskon";
+    }
+  } else if (discountType === "fixed") {
+    discountValueStr =
+      benefit.value != null && !isNaN(benefit.value)
+        ? `Rp${benefit.value.toLocaleString("id-ID")}`
+        : "Diskon";
+  } else {
+    discountValueStr =
+      benefit.value != null && !isNaN(benefit.value)
+        ? `${benefit.value}%`
+        : "Diskon";
+  }
+
+  const variantLabel =
+    variantMode === "per_variant" ? "Per Variant" : "All Variant";
+
+  return nameLabel
+    ? `Diskon: ${nameLabel} - ${discountValueStr} - ${variantLabel}`
+    : `${discountValueStr} - ${variantLabel}`;
+}
 
 function PreviewError({
   error,
@@ -328,18 +453,52 @@ function PreviewError({
 
 // ── Benefit Section ────────────────────────────────────────────────────────────
 
+function hasAdminDiscountForBenefitTarget(
+  benefit: any,
+  editServiceDiscount: string,
+  editAddonDiscounts: Record<string, string>,
+  editTravelFeeDiscount: string,
+  selectedAddonIds: string[],
+): boolean {
+  const applies: string = benefit.applies_to;
+  if (applies === "service") return parseFloat(editServiceDiscount) > 0;
+  if (applies === "addon") {
+    const targetId: string | null = benefit.service_id || null;
+    if (targetId) return parseFloat(editAddonDiscounts[targetId] ?? "") > 0;
+    return selectedAddonIds.some(
+      (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+    );
+  }
+  if (applies === "pickup") return parseFloat(editTravelFeeDiscount) > 0;
+  if (applies === "booking")
+    return (
+      parseFloat(editServiceDiscount) > 0 ||
+      parseFloat(editTravelFeeDiscount) > 0 ||
+      selectedAddonIds.some(
+        (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+      )
+    );
+  return false;
+}
+
 function BenefitSection({
   benefits,
   selectedBenefitIds,
   toggleBenefit,
   serviceId,
   selectedAddonIds,
+  editServiceDiscount,
+  editAddonDiscounts,
+  editTravelFeeDiscount,
 }: {
   benefits: any[];
   selectedBenefitIds: string[];
   toggleBenefit: (id: string) => void;
   serviceId: string;
   selectedAddonIds: string[];
+  editServiceDiscount: string;
+  editAddonDiscounts: Record<string, string>;
+  editTravelFeeDiscount: string;
 }) {
   return (
     <div className="flex flex-col gap-2.5">
@@ -366,7 +525,17 @@ function BenefitSection({
               serviceId,
               selectedAddonIds,
             );
-          const isDisabled = !canApply || blockedByQuota;
+          const blockedByAdminDiscount =
+            canApply &&
+            !selected &&
+            hasAdminDiscountForBenefitTarget(
+              benefit,
+              editServiceDiscount,
+              editAddonDiscounts,
+              editTravelFeeDiscount,
+              selectedAddonIds,
+            );
+          const isDisabled = !canApply || blockedByQuota || blockedByAdminDiscount;
 
           return (
             <label
@@ -392,7 +561,7 @@ function BenefitSection({
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-foreground">
-                    {benefit.label || benefit.description}
+                    {buildBenefitTitle(benefit)}
                   </span>
                   <span
                     className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
@@ -402,7 +571,15 @@ function BenefitSection({
                     }`}
                   >
                     {benefit.type === "discount"
-                      ? `${benefit.value}% off`
+                      ? benefit.variant_mode === "per_variant"
+                        ? "Diskon per varian"
+                        : benefit.discount_type === "fixed"
+                          ? benefit.value != null
+                            ? `Rp${benefit.value.toLocaleString("id-ID")} off`
+                            : "Diskon"
+                          : benefit.value != null
+                            ? `${benefit.value}% off`
+                            : "Diskon"
                       : "Kuota gratis"}
                   </span>
                 </div>
@@ -427,6 +604,12 @@ function BenefitSection({
                   <span className="text-[11px] text-amber-600 dark:text-amber-400">
                     Tidak dapat digabung — layanan sudah gratis dari benefit
                     kuota
+                  </span>
+                )}
+                {blockedByAdminDiscount && (
+                  <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                    Benefit tidak bisa dipakai — hapus diskon admin untuk
+                    menggunakan benefit ini
                   </span>
                 )}
               </div>
@@ -500,12 +683,20 @@ function PromotionSection({
   setSelectedPromotionIds,
   selectedBenefitIds,
   availableBenefits,
+  editServiceDiscount,
+  editAddonDiscounts,
+  editTravelFeeDiscount,
+  selectedAddonIds,
 }: {
   promotions: any[];
   selectedPromotionIds: string[];
   setSelectedPromotionIds: React.Dispatch<React.SetStateAction<string[]>>;
   selectedBenefitIds: string[];
   availableBenefits: any[];
+  editServiceDiscount: string;
+  editAddonDiscounts: Record<string, string>;
+  editTravelFeeDiscount: string;
+  selectedAddonIds: string[];
 }) {
   const getLimitLabel = (promo: any) => {
     if (!promo.limit_type || promo.limit_type === "none") return null;
@@ -553,9 +744,31 @@ function PromotionSection({
             });
           })();
 
+          const blockedByAdminDiscount = !selected && (() => {
+            const applies: string = promo.applies_to;
+            if (applies === "service") return parseFloat(editServiceDiscount) > 0;
+            if (applies === "addon") {
+              const targetId: string | null = promo.service_id || null;
+              if (targetId) return parseFloat(editAddonDiscounts[targetId] ?? "") > 0;
+              return selectedAddonIds.some(
+                (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+              );
+            }
+            if (applies === "pickup") return parseFloat(editTravelFeeDiscount) > 0;
+            if (applies === "booking")
+              return (
+                parseFloat(editServiceDiscount) > 0 ||
+                parseFloat(editTravelFeeDiscount) > 0 ||
+                selectedAddonIds.some(
+                  (id) => parseFloat(editAddonDiscounts[id] ?? "") > 0,
+                )
+              );
+            return false;
+          })();
+
           const blockedByLimit = promo.can_use === false;
           const isDisabled =
-            blockedByStacking || blockedByBenefit || blockedByLimit;
+            blockedByStacking || blockedByBenefit || blockedByLimit || blockedByAdminDiscount;
 
           const limitLabel = getLimitLabel(promo);
 
@@ -656,6 +869,12 @@ function PromotionSection({
                     sama sudah dipilih
                   </span>
                 )}
+                {blockedByAdminDiscount && (
+                  <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                    Promo tidak bisa dipakai — hapus diskon admin untuk
+                    menggunakan promo ini
+                  </span>
+                )}
                 {blockedByLimit && (
                   <span className="text-[11px] text-red-600 dark:text-red-400 font-medium">
                     {promo.limit_message || "Limit penggunaan telah tercapai"}
@@ -692,6 +911,24 @@ function PricingBreakdown({
   formServiceId,
   isPickup,
   isDelivery,
+  editServicePrice,
+  onEditServicePriceChange,
+  editServiceDiscount,
+  onEditServiceDiscountChange,
+  editServiceDiscountType,
+  onEditServiceDiscountTypeChange,
+  editAddonPrices,
+  onEditAddonPriceChange,
+  editAddonDiscounts,
+  onEditAddonDiscountChange,
+  editAddonDiscountTypes,
+  onEditAddonDiscountTypeChange,
+  editTravelFeePrice,
+  onEditTravelFeePriceChange,
+  editTravelFeeDiscount,
+  onEditTravelFeeDiscountChange,
+  editTravelFeeDiscountType,
+  onEditTravelFeeDiscountTypeChange,
 }: {
   previewData: BookingPreviewResult;
   selectedBenefitIds: string[];
@@ -705,13 +942,117 @@ function PricingBreakdown({
   formServiceId: string;
   isPickup: boolean;
   isDelivery: boolean;
+  editServicePrice: string;
+  onEditServicePriceChange: (v: string) => void;
+  editServiceDiscount: string;
+  onEditServiceDiscountChange: (v: string) => void;
+  editServiceDiscountType: "nominal" | "pct";
+  onEditServiceDiscountTypeChange: (t: "nominal" | "pct") => void;
+  editAddonPrices: Record<string, string>;
+  onEditAddonPriceChange: (id: string, v: string) => void;
+  editAddonDiscounts: Record<string, string>;
+  onEditAddonDiscountChange: (id: string, v: string) => void;
+  editAddonDiscountTypes: Record<string, "nominal" | "pct">;
+  onEditAddonDiscountTypeChange: (id: string, t: "nominal" | "pct") => void;
+  editTravelFeePrice: string;
+  onEditTravelFeePriceChange: (v: string) => void;
+  editTravelFeeDiscount: string;
+  onEditTravelFeeDiscountChange: (v: string) => void;
+  editTravelFeeDiscountType: "nominal" | "pct";
+  onEditTravelFeeDiscountTypeChange: (t: "nominal" | "pct") => void;
 }) {
+  const hasTravelFee =
+    (formType === "in home" || isPickup || isDelivery) &&
+    previewData.pricing_breakdown.travel_fee != null &&
+    previewData.pricing_breakdown.travel_fee > 0;
+
+  // Compute admin discount amounts (all in nominal Rp)
+  const svcBaseRaw = previewData.pricing_breakdown.service.price;
+  const svcEditedBase = editServicePrice
+    ? Math.max(0, parseFloat(editServicePrice) || svcBaseRaw)
+    : svcBaseRaw;
+  const svcDiscRaw = parseFloat(editServiceDiscount) || 0;
+  const svcDiscount =
+    svcDiscRaw > 0
+      ? editServiceDiscountType === "pct"
+        ? Math.min(svcEditedBase, (svcDiscRaw / 100) * svcEditedBase)
+        : Math.min(svcEditedBase, svcDiscRaw)
+      : 0;
+
+  const addonAdminDiscountTotal = previewData.pricing_breakdown.addons
+    .filter((a) => selectedAddonIds.includes(a._id))
+    .reduce((sum, a) => {
+      const base = editAddonPrices[a._id]
+        ? Math.max(0, parseFloat(editAddonPrices[a._id]) || a.price)
+        : a.price;
+      const raw = parseFloat(editAddonDiscounts[a._id] ?? "") || 0;
+      if (raw <= 0) return sum;
+      const discType = editAddonDiscountTypes[a._id] ?? "nominal";
+      const disc =
+        discType === "pct"
+          ? Math.min(base, (raw / 100) * base)
+          : Math.min(base, raw);
+      return sum + disc;
+    }, 0);
+
+  const tFeeBase = hasTravelFee
+    ? editTravelFeePrice
+      ? Math.max(
+          0,
+          parseFloat(editTravelFeePrice) ||
+            previewData.pricing_breakdown.travel_fee!,
+        )
+      : previewData.pricing_breakdown.travel_fee!
+    : 0;
+  const tFeeDiscRaw = parseFloat(editTravelFeeDiscount) || 0;
+  const tFeeDiscount =
+    hasTravelFee && tFeeDiscRaw > 0
+      ? editTravelFeeDiscountType === "pct"
+        ? Math.min(tFeeBase, (tFeeDiscRaw / 100) * tFeeBase)
+        : Math.min(tFeeBase, tFeeDiscRaw)
+      : 0;
+
+  const totalAdminDiscount =
+    svcDiscount + addonAdminDiscountTotal + tFeeDiscount;
+
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
         <Receipt className="h-4 w-4 text-primary" />
         <p className="text-sm font-bold text-primary">Rincian Harga</p>
       </div>
+
+      {/* Admin price edit section */}
+      <AdminPriceSection
+        previewData={previewData}
+        selectedAddonIds={selectedAddonIds}
+        hasTravelFee={hasTravelFee}
+        formType={formType}
+        isPickup={isPickup}
+        isDelivery={isDelivery}
+        editServicePrice={editServicePrice}
+        onEditServicePriceChange={onEditServicePriceChange}
+        editServiceDiscount={editServiceDiscount}
+        onEditServiceDiscountChange={onEditServiceDiscountChange}
+        editServiceDiscountType={editServiceDiscountType}
+        onEditServiceDiscountTypeChange={onEditServiceDiscountTypeChange}
+        editAddonPrices={editAddonPrices}
+        onEditAddonPriceChange={onEditAddonPriceChange}
+        editAddonDiscounts={editAddonDiscounts}
+        onEditAddonDiscountChange={onEditAddonDiscountChange}
+        editAddonDiscountTypes={editAddonDiscountTypes}
+        onEditAddonDiscountTypeChange={onEditAddonDiscountTypeChange}
+        editTravelFeePrice={editTravelFeePrice}
+        onEditTravelFeePriceChange={onEditTravelFeePriceChange}
+        editTravelFeeDiscount={editTravelFeeDiscount}
+        onEditTravelFeeDiscountChange={onEditTravelFeeDiscountChange}
+        editTravelFeeDiscountType={editTravelFeeDiscountType}
+        onEditTravelFeeDiscountTypeChange={onEditTravelFeeDiscountTypeChange}
+        selectedBenefitIds={selectedBenefitIds}
+        selectedPromotionIds={selectedPromotionIds}
+        formServiceId={formServiceId}
+      />
+
       <div className="overflow-hidden rounded-xl border border-border/50 bg-card">
         {/* Service row */}
         {(() => {
@@ -730,7 +1071,14 @@ function PricingBreakdown({
                 <span className="text-muted-foreground">
                   {previewData.pricing_breakdown.service.name}
                 </span>
-                {b && <BenefitBadge isQuota={isQuota!} value={b.value} />}
+                {b && (
+                  <BenefitBadge
+                    isQuota={isQuota!}
+                    value={b.value}
+                    discountType={b.discount_type}
+                    variantMode={b.variant_mode}
+                  />
+                )}
               </div>
               {b ? (
                 <PriceWithDiscount
@@ -764,7 +1112,9 @@ function PricingBreakdown({
               ? (b.amount_discount ?? 0)
               : isQuota
                 ? addon.price
-                : (addon.price * (b.value ?? 0)) / 100;
+                : b.discount_type === "fixed"
+                  ? Math.min(b.value ?? 0, addon.price)
+                  : (addon.price * (b.value ?? 0)) / 100;
           return (
             <div
               key={addon._id}
@@ -772,7 +1122,14 @@ function PricingBreakdown({
             >
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">+ {addon.name}</span>
-                {b && <BenefitBadge isQuota={isQuota!} value={b.value} />}
+                {b && (
+                  <BenefitBadge
+                    isQuota={isQuota!}
+                    value={b.value}
+                    discountType={b.discount_type}
+                    variantMode={b.variant_mode}
+                  />
+                )}
               </div>
               {b ? (
                 <PriceWithDiscount
@@ -818,7 +1175,14 @@ function PricingBreakdown({
                     <Truck className="h-3.5 w-3.5" />
                     {travelLabel}
                   </span>
-                  {b && <BenefitBadge isQuota={isQuota!} value={b.value} />}
+                  {b && (
+                    <BenefitBadge
+                      isQuota={isQuota!}
+                      value={b.value}
+                      discountType={b.discount_type}
+                      variantMode={b.variant_mode}
+                    />
+                  )}
                 </div>
                 {b ? (
                   <PriceWithDiscount
@@ -838,6 +1202,19 @@ function PricingBreakdown({
           <span>Subtotal</span>
           <span>{formatPrice(previewData.pricing_breakdown.grand_total)}</span>
         </div>
+
+        {/* Admin discount */}
+        {totalAdminDiscount > 0 && (
+          <div className="flex items-center justify-between border-t border-orange-200 bg-orange-50 px-4 py-2.5 text-sm dark:border-orange-800 dark:bg-orange-950/30">
+            <span className="flex items-center gap-1.5 font-medium text-orange-700 dark:text-orange-400">
+              <Tag className="h-3.5 w-3.5" />
+              Diskon Admin
+            </span>
+            <span className="font-semibold text-orange-700 dark:text-orange-400">
+              - {formatPrice(totalAdminDiscount)}
+            </span>
+          </div>
+        )}
 
         {/* Member discount */}
         {selectedBenefitIds.length > 0 &&
@@ -929,7 +1306,8 @@ function PricingBreakdown({
             selectedPromotionIds.length > 0 && applyPromotionResult != null
               ? applyPromotionResult.total_discount
               : 0;
-          const displayTotal = grandTotal - benefitDiscount - promoDiscount;
+          const displayTotal =
+            grandTotal - totalAdminDiscount - benefitDiscount - promoDiscount;
           const showSkeleton =
             (selectedBenefitIds.length > 0 && loadingApplyBenefit) ||
             (selectedPromotionIds.length > 0 && loadingApplyPromotion);
@@ -956,10 +1334,24 @@ function PricingBreakdown({
 function BenefitBadge({
   isQuota,
   value,
+  discountType,
+  variantMode,
 }: {
   isQuota: boolean;
   value?: number | null;
+  discountType?: string | null;
+  variantMode?: string | null;
 }) {
+  let label: string;
+  if (isQuota) {
+    label = "Gratis";
+  } else if (variantMode === "per_variant") {
+    label = "Diskon";
+  } else if (discountType === "fixed") {
+    label = value != null ? `-Rp${value.toLocaleString("id-ID")}` : "Diskon";
+  } else {
+    label = value != null ? `-${value}%` : "Diskon";
+  }
   return (
     <span
       className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
@@ -968,7 +1360,7 @@ function BenefitBadge({
           : "bg-green-100 text-green-700 dark:bg-green-950/50 dark:text-green-400"
       }`}
     >
-      {isQuota ? "Gratis" : value != null ? `-${value}%` : "Diskon"}
+      {label}
     </span>
   );
 }
@@ -990,6 +1382,374 @@ function PriceWithDiscount({
       <span className="font-semibold text-primary">
         {isQuota ? "Gratis" : formatPrice(Math.max(0, original - discount))}
       </span>
+    </div>
+  );
+}
+
+// ── Admin Price Editing ────────────────────────────────────────────────────────
+
+function ItemPriceEditor({
+  label,
+  labelIcon,
+  baseValue,
+  onBaseChange,
+  discountValue,
+  onDiscountChange,
+  discountType,
+  onDiscountTypeChange,
+  effectivePrice,
+  locked,
+  lockReason,
+}: {
+  label: string;
+  labelIcon?: React.ReactNode;
+  baseValue: string;
+  onBaseChange: (v: string) => void;
+  discountValue: string;
+  onDiscountChange: (v: string) => void;
+  discountType: "nominal" | "pct";
+  onDiscountTypeChange: (t: "nominal" | "pct") => void;
+  effectivePrice: number;
+  locked?: boolean;
+  lockReason?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg border border-border/50 bg-card p-3">
+      <span className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+        {labelIcon}
+        {label}
+      </span>
+      {locked && lockReason && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{lockReason}</span>
+        </div>
+      )}
+      <div className={`flex flex-col gap-2 sm:flex-row sm:items-end ${locked ? "pointer-events-none opacity-40" : ""}`}>
+        <div className="flex flex-1 flex-col gap-1">
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Harga Dasar
+          </span>
+          <Input
+            type="number"
+            min={0}
+            className="h-8 bg-background"
+            placeholder="Harga dasar"
+            value={baseValue}
+            onChange={(e) => onBaseChange(e.target.value)}
+            disabled={locked}
+            tabIndex={locked ? -1 : undefined}
+          />
+        </div>
+        <span className="hidden shrink-0 pb-1.5 text-sm text-muted-foreground sm:inline">
+          −
+        </span>
+        <div className="flex flex-1 flex-col gap-1">
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Diskon Item
+          </span>
+          <div className="flex gap-1">
+            <Input
+              type="number"
+              min={0}
+              max={discountType === "pct" ? 100 : undefined}
+              className="h-8 min-w-0 flex-1 bg-background"
+              placeholder={discountType === "pct" ? "0–100" : "0"}
+              value={discountValue}
+              onChange={(e) => onDiscountChange(e.target.value)}
+              disabled={locked}
+              tabIndex={locked ? -1 : undefined}
+            />
+            <div className="flex h-8 shrink-0 overflow-hidden rounded-md border border-border">
+              <button
+                type="button"
+                onClick={() => onDiscountTypeChange("nominal")}
+                disabled={locked}
+                className={`px-1.5 text-xs font-semibold transition-colors ${discountType === "nominal" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
+              >
+                Rp
+              </button>
+              <button
+                type="button"
+                onClick={() => onDiscountTypeChange("pct")}
+                disabled={locked}
+                className={`border-l border-border px-1.5 text-xs font-semibold transition-colors ${discountType === "pct" ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"}`}
+              >
+                %
+              </button>
+            </div>
+          </div>
+        </div>
+        <span className="hidden shrink-0 pb-1.5 text-sm text-muted-foreground sm:inline">
+          =
+        </span>
+        <div className="flex items-center justify-between gap-2 border-t border-border/50 pt-2 sm:flex-col sm:items-end sm:gap-1 sm:border-t-0 sm:pt-0">
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Efektif
+          </span>
+          <span className="text-sm font-semibold text-primary sm:mb-0.5">
+            {formatPrice(effectivePrice)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminPriceSection({
+  previewData,
+  selectedAddonIds,
+  selectedBenefitIds,
+  selectedPromotionIds,
+  formServiceId,
+  hasTravelFee,
+  formType,
+  isPickup,
+  isDelivery,
+  editServicePrice,
+  onEditServicePriceChange,
+  editServiceDiscount,
+  onEditServiceDiscountChange,
+  editServiceDiscountType,
+  onEditServiceDiscountTypeChange,
+  editAddonPrices,
+  onEditAddonPriceChange,
+  editAddonDiscounts,
+  onEditAddonDiscountChange,
+  editAddonDiscountTypes,
+  onEditAddonDiscountTypeChange,
+  editTravelFeePrice,
+  onEditTravelFeePriceChange,
+  editTravelFeeDiscount,
+  onEditTravelFeeDiscountChange,
+  editTravelFeeDiscountType,
+  onEditTravelFeeDiscountTypeChange,
+}: {
+  previewData: BookingPreviewResult;
+  selectedAddonIds: string[];
+  selectedBenefitIds: string[];
+  selectedPromotionIds: string[];
+  formServiceId: string;
+  hasTravelFee: boolean;
+  formType: string;
+  isPickup: boolean;
+  isDelivery: boolean;
+  editServicePrice: string;
+  onEditServicePriceChange: (v: string) => void;
+  editServiceDiscount: string;
+  onEditServiceDiscountChange: (v: string) => void;
+  editServiceDiscountType: "nominal" | "pct";
+  onEditServiceDiscountTypeChange: (t: "nominal" | "pct") => void;
+  editAddonPrices: Record<string, string>;
+  onEditAddonPriceChange: (id: string, v: string) => void;
+  editAddonDiscounts: Record<string, string>;
+  onEditAddonDiscountChange: (id: string, v: string) => void;
+  editAddonDiscountTypes: Record<string, "nominal" | "pct">;
+  onEditAddonDiscountTypeChange: (id: string, t: "nominal" | "pct") => void;
+  editTravelFeePrice: string;
+  onEditTravelFeePriceChange: (v: string) => void;
+  editTravelFeeDiscount: string;
+  onEditTravelFeeDiscountChange: (v: string) => void;
+  editTravelFeeDiscountType: "nominal" | "pct";
+  onEditTravelFeeDiscountTypeChange: (t: "nominal" | "pct") => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const selectedAddons = previewData.pricing_breakdown.addons.filter((a) =>
+    selectedAddonIds.includes(a._id),
+  );
+
+  const travelLabel =
+    formType === "in home"
+      ? "Biaya Perjalanan (In-Home Service)"
+      : isPickup && isDelivery
+        ? "Biaya Perjalanan (Pickup & Delivery)"
+        : isPickup
+          ? "Biaya Perjalanan (Pickup)"
+          : "Biaya Perjalanan (Delivery)";
+
+  // Compute effective prices for display
+  const svcBase = editServicePrice
+    ? Math.max(
+        0,
+        parseFloat(editServicePrice) ||
+          previewData.pricing_breakdown.service.price,
+      )
+    : previewData.pricing_breakdown.service.price;
+  const svcDiscRaw = parseFloat(editServiceDiscount) || 0;
+  const svcDiscount =
+    svcDiscRaw > 0
+      ? editServiceDiscountType === "pct"
+        ? Math.min(svcBase, (svcDiscRaw / 100) * svcBase)
+        : Math.min(svcBase, svcDiscRaw)
+      : 0;
+
+  const tFeeRaw = hasTravelFee
+    ? editTravelFeePrice
+      ? Math.max(
+          0,
+          parseFloat(editTravelFeePrice) ||
+            previewData.pricing_breakdown.travel_fee!,
+        )
+      : previewData.pricing_breakdown.travel_fee!
+    : 0;
+  const tFeeDiscRaw = parseFloat(editTravelFeeDiscount) || 0;
+  const tFeeDiscount =
+    hasTravelFee && tFeeDiscRaw > 0
+      ? editTravelFeeDiscountType === "pct"
+        ? Math.min(tFeeRaw, (tFeeDiscRaw / 100) * tFeeRaw)
+        : Math.min(tFeeRaw, tFeeDiscRaw)
+      : 0;
+
+  // ── Compute lock status (items covered by selected benefit or promo) ─────────
+  const activeBenefits = previewData.pricing.available_benefits.filter(
+    (b) => selectedBenefitIds.includes(b._id) && b.can_apply,
+  );
+  const activePromos = previewData.pricing.available_promotions.filter(
+    (p) => selectedPromotionIds.includes(p._id) && p.can_use !== false,
+  );
+
+  const buildLockReason = (benefit: any, promo: any): string => {
+    if (benefit && promo)
+      return `Sudah menggunakan benefit membership & promo "${promo.code}" — diskon admin tidak dapat ditambahkan`;
+    if (benefit)
+      return `Sudah menggunakan benefit membership — diskon admin tidak dapat ditambahkan`;
+    if (promo)
+      return `Sudah menggunakan promo "${promo.code}" — diskon admin tidak dapat ditambahkan`;
+    return "";
+  };
+
+  const svcLockedBenefit = activeBenefits.find(
+    (b) =>
+      b.applies_to === "service" &&
+      (!b.service_id || b.service_id === formServiceId),
+  );
+  const svcLockedPromo = activePromos.find(
+    (p) =>
+      p.applies_to === "service" &&
+      (!p.service_id || p.service_id === formServiceId),
+  );
+  const svcLocked = !!(svcLockedBenefit || svcLockedPromo);
+  const svcLockReason = buildLockReason(svcLockedBenefit, svcLockedPromo);
+
+  const tFeeLockedBenefit = activeBenefits.find(
+    (b) => b.applies_to === "pickup",
+  );
+  const tFeeLockedPromo = activePromos.find((p) => p.applies_to === "pickup");
+  const tFeeLocked = !!(tFeeLockedBenefit || tFeeLockedPromo);
+  const tFeeLockReason = buildLockReason(tFeeLockedBenefit, tFeeLockedPromo);
+
+  const getAddonLock = (addonId: string) => {
+    const b = activeBenefits.find(
+      (x) =>
+        x.applies_to === "addon" && (!x.service_id || x.service_id === addonId),
+    );
+    const p = activePromos.find(
+      (x) =>
+        x.applies_to === "addon" && (!x.service_id || x.service_id === addonId),
+    );
+    return { locked: !!(b || p), reason: buildLockReason(b, p) };
+  };
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-orange-200 bg-orange-50/50 dark:border-orange-800 dark:bg-orange-950/20">
+      <button
+        type="button"
+        onClick={() => setExpanded((p) => !p)}
+        className="flex w-full items-center justify-between px-4 py-3 text-left"
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold text-orange-700 dark:text-orange-400">
+          <Tag className="h-4 w-4" />
+          Edit Harga Layanan
+        </span>
+        {expanded ? (
+          <ChevronUp className="h-4 w-4 text-orange-500" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-orange-500" />
+        )}
+      </button>
+
+      {expanded && (
+        <div className="flex flex-col gap-3 border-t border-orange-200 px-4 pb-4 pt-3 dark:border-orange-800">
+          {/* Service */}
+          <ItemPriceEditor
+            label={previewData.pricing_breakdown.service.name}
+            baseValue={
+              editServicePrice ||
+              String(previewData.pricing_breakdown.service.price)
+            }
+            onBaseChange={onEditServicePriceChange}
+            discountValue={editServiceDiscount}
+            onDiscountChange={onEditServiceDiscountChange}
+            discountType={editServiceDiscountType}
+            onDiscountTypeChange={onEditServiceDiscountTypeChange}
+            effectivePrice={Math.max(0, svcBase - svcDiscount)}
+            locked={svcLocked}
+            lockReason={svcLockReason}
+          />
+
+          {/* Addons */}
+          {selectedAddons.map((addon) => {
+            const addonBase = editAddonPrices[addon._id]
+              ? Math.max(
+                  0,
+                  parseFloat(editAddonPrices[addon._id]) || addon.price,
+                )
+              : addon.price;
+            const addonDiscRaw =
+              parseFloat(editAddonDiscounts[addon._id] ?? "") || 0;
+            const addonDiscType =
+              editAddonDiscountTypes[addon._id] ?? "nominal";
+            const addonDiscount =
+              addonDiscRaw > 0
+                ? addonDiscType === "pct"
+                  ? Math.min(addonBase, (addonDiscRaw / 100) * addonBase)
+                  : Math.min(addonBase, addonDiscRaw)
+                : 0;
+            const { locked: addonLocked, reason: addonLockReason } =
+              getAddonLock(addon._id);
+            return (
+              <ItemPriceEditor
+                key={addon._id}
+                label={`+ ${addon.name}`}
+                baseValue={editAddonPrices[addon._id] || String(addon.price)}
+                onBaseChange={(v) => onEditAddonPriceChange(addon._id, v)}
+                discountValue={editAddonDiscounts[addon._id] ?? ""}
+                onDiscountChange={(v) =>
+                  onEditAddonDiscountChange(addon._id, v)
+                }
+                discountType={editAddonDiscountTypes[addon._id] ?? "nominal"}
+                onDiscountTypeChange={(t) =>
+                  onEditAddonDiscountTypeChange(addon._id, t)
+                }
+                effectivePrice={Math.max(0, addonBase - addonDiscount)}
+                locked={addonLocked}
+                lockReason={addonLockReason}
+              />
+            );
+          })}
+
+          {/* Travel fee */}
+          {hasTravelFee && (
+            <ItemPriceEditor
+              label={travelLabel}
+              labelIcon={<Truck className="h-3.5 w-3.5" />}
+              baseValue={
+                editTravelFeePrice ||
+                String(previewData.pricing_breakdown.travel_fee)
+              }
+              onBaseChange={onEditTravelFeePriceChange}
+              discountValue={editTravelFeeDiscount}
+              onDiscountChange={onEditTravelFeeDiscountChange}
+              discountType={editTravelFeeDiscountType}
+              onDiscountTypeChange={onEditTravelFeeDiscountTypeChange}
+              effectivePrice={Math.max(0, tFeeRaw - tFeeDiscount)}
+              locked={tFeeLocked}
+              lockReason={tFeeLockReason}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

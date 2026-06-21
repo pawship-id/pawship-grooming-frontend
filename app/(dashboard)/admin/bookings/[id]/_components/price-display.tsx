@@ -49,7 +49,7 @@ export function PriceDisplay({ booking }: PriceDisplayProps) {
                   </span>
                 )}
               </span>
-              {booking.edited_service_price != null && (
+              {(booking.edited_service_price != null || (booking.edited_service_discount ?? 0) > 0) && (
                 <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
                   Diedit
                 </span>
@@ -132,7 +132,7 @@ export function PriceDisplay({ booking }: PriceDisplayProps) {
               <span className="text-muted-foreground">
                 + {addon.name}
               </span>
-              {addonOverride?.price != null && (
+              {addonOverride != null && (addonOverride.price != null || (addonOverride.discount ?? 0) > 0) && (
                 <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-950/50 dark:text-amber-400">
                   Diedit
                 </span>

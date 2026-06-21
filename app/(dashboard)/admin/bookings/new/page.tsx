@@ -23,6 +23,7 @@ import {
   getBookingPreview,
   applyBenefitPreview,
   applyPromotionPreview,
+  updateBookingPricing,
 } from "@/lib/api/bookings";
 import type {
   BookingPreviewResult,
@@ -100,6 +101,17 @@ export default function NewBookingPage() {
 
   const [isPickup, setIsPickup] = useState(false);
   const [isDelivery, setIsDelivery] = useState(false);
+
+  // Admin price editing
+  const [editServicePrice, setEditServicePrice] = useState("");
+  const [editServiceDiscount, setEditServiceDiscount] = useState("");
+  const [editServiceDiscountType, setEditServiceDiscountType] = useState<"nominal" | "pct">("nominal");
+  const [editAddonPrices, setEditAddonPrices] = useState<Record<string, string>>({});
+  const [editAddonDiscounts, setEditAddonDiscounts] = useState<Record<string, string>>({});
+  const [editAddonDiscountTypes, setEditAddonDiscountTypes] = useState<Record<string, "nominal" | "pct">>({});
+  const [editTravelFeePrice, setEditTravelFeePrice] = useState("");
+  const [editTravelFeeDiscount, setEditTravelFeeDiscount] = useState("");
+  const [editTravelFeeDiscountType, setEditTravelFeeDiscountType] = useState<"nominal" | "pct">("nominal");
 
   // ── Initial data ─────────────────────────────────────────────────────────────
 
@@ -398,6 +410,15 @@ export default function NewBookingPage() {
     setPreviewError(null);
     setSelectedBenefitIds([]);
     setApplyBenefitResult(null);
+    setEditServicePrice("");
+    setEditServiceDiscount("");
+    setEditServiceDiscountType("nominal");
+    setEditAddonPrices({});
+    setEditAddonDiscounts({});
+    setEditAddonDiscountTypes({});
+    setEditTravelFeePrice("");
+    setEditTravelFeeDiscount("");
+    setEditTravelFeeDiscountType("nominal");
 
     const isInHomeService = form.type === "in home";
     const needsPickupDelivery = !isInHomeService && (isPickup || isDelivery);
@@ -607,6 +628,87 @@ export default function NewBookingPage() {
           ? cleanedParentItems
           : undefined,
       });
+
+      // Apply admin price edits if any were entered
+      const hasAdminEdits =
+        editServicePrice ||
+        editServiceDiscount ||
+        Object.values(editAddonDiscounts).some(Boolean) ||
+        Object.values(editAddonPrices).some(Boolean) ||
+        editTravelFeePrice ||
+        editTravelFeeDiscount;
+
+      if (result?._id && hasAdminEdits && previewData) {
+        const svcBaseSnapshot = previewData.pricing_breakdown.service.price;
+        const svcBase = editServicePrice
+          ? Math.max(0, parseFloat(editServicePrice) || svcBaseSnapshot)
+          : svcBaseSnapshot;
+        const svcDiscRaw = parseFloat(editServiceDiscount) || 0;
+        const svcDiscount =
+          svcDiscRaw > 0
+            ? editServiceDiscountType === "pct"
+              ? Math.min(svcBase, (svcDiscRaw / 100) * svcBase)
+              : Math.min(svcBase, svcDiscRaw)
+            : 0;
+        // Send service_price only if it actually differs from snapshot
+        const svcPriceChanged = svcBase !== svcBaseSnapshot;
+
+        const addonPricesPayload = previewData.pricing_breakdown.addons
+          .filter((a) => selectedAddonIds.includes(a._id))
+          .flatMap((a) => {
+            const addonBase = editAddonPrices[a._id]
+              ? Math.max(0, parseFloat(editAddonPrices[a._id]) || a.price)
+              : a.price;
+            const raw = parseFloat(editAddonDiscounts[a._id] ?? "") || 0;
+            const discType = editAddonDiscountTypes[a._id] ?? "nominal";
+            const disc =
+              raw > 0
+                ? discType === "pct"
+                  ? Math.min(addonBase, (raw / 100) * addonBase)
+                  : Math.min(addonBase, raw)
+                : 0;
+            const priceChanged = addonBase !== a.price;
+            // Only include addon if price changed from snapshot or has a non-zero discount
+            if (!priceChanged && disc === 0) return [];
+            return [{ addon_id: a._id, price: priceChanged ? addonBase : undefined, discount: disc || undefined }];
+          });
+
+        const tFeeSnapshot = previewData.pricing_breakdown.travel_fee ?? 0;
+        const tFeeBase = editTravelFeePrice
+          ? Math.max(0, parseFloat(editTravelFeePrice) || tFeeSnapshot)
+          : tFeeSnapshot;
+        const tFeeDiscRaw = parseFloat(editTravelFeeDiscount) || 0;
+        const tFeeDiscount =
+          tFeeBase > 0 && tFeeDiscRaw > 0
+            ? editTravelFeeDiscountType === "pct"
+              ? Math.min(tFeeBase, (tFeeDiscRaw / 100) * tFeeBase)
+              : Math.min(tFeeBase, tFeeDiscRaw)
+            : 0;
+        const tFeePriceChanged = tFeeBase !== tFeeSnapshot;
+
+        const pricingPayload = {
+          service_price: svcPriceChanged ? svcBase : undefined,
+          service_discount: svcDiscount || undefined,
+          addon_prices: addonPricesPayload.length ? addonPricesPayload : undefined,
+          travel_fee: tFeePriceChanged ? tFeeBase : undefined,
+          travel_fee_discount: tFeeDiscount || undefined,
+          // Must carry selected benefits so updatePricing doesn't wipe them out
+          selected_benefit_ids: selectedBenefitIds.length > 0 ? selectedBenefitIds : undefined,
+          selected_promotion_ids: selectedPromotionIds.length > 0 ? selectedPromotionIds : undefined,
+        };
+
+        const hasMeaningfulEdit =
+          pricingPayload.service_price !== undefined ||
+          pricingPayload.service_discount !== undefined ||
+          pricingPayload.addon_prices !== undefined ||
+          pricingPayload.travel_fee !== undefined ||
+          pricingPayload.travel_fee_discount !== undefined;
+
+        if (hasMeaningfulEdit) {
+          await updateBookingPricing(result._id, pricingPayload);
+        }
+      }
+
       toast.success("Booking berhasil dibuat");
       router.push(
         result?._id ? `/admin/bookings/${result._id}` : "/admin/bookings",
@@ -764,6 +866,24 @@ export default function NewBookingPage() {
                   loadingApplyPromotion={loadingApplyPromotion}
                   isPickup={isPickup}
                   isDelivery={isDelivery}
+                  editServicePrice={editServicePrice}
+                  onEditServicePriceChange={setEditServicePrice}
+                  editServiceDiscount={editServiceDiscount}
+                  onEditServiceDiscountChange={setEditServiceDiscount}
+                  editServiceDiscountType={editServiceDiscountType}
+                  onEditServiceDiscountTypeChange={setEditServiceDiscountType}
+                  editAddonPrices={editAddonPrices}
+                  onEditAddonPriceChange={(id, v) => setEditAddonPrices((p) => ({ ...p, [id]: v }))}
+                  editAddonDiscounts={editAddonDiscounts}
+                  onEditAddonDiscountChange={(id, v) => setEditAddonDiscounts((p) => ({ ...p, [id]: v }))}
+                  editAddonDiscountTypes={editAddonDiscountTypes}
+                  onEditAddonDiscountTypeChange={(id, t) => setEditAddonDiscountTypes((p) => ({ ...p, [id]: t }))}
+                  editTravelFeePrice={editTravelFeePrice}
+                  onEditTravelFeePriceChange={setEditTravelFeePrice}
+                  editTravelFeeDiscount={editTravelFeeDiscount}
+                  onEditTravelFeeDiscountChange={setEditTravelFeeDiscount}
+                  editTravelFeeDiscountType={editTravelFeeDiscountType}
+                  onEditTravelFeeDiscountTypeChange={setEditTravelFeeDiscountType}
                 />
               </CardContent>
             </Card>

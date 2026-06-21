@@ -81,6 +81,9 @@ import {
   type BenefitType,
   type BenefitAppliesTo,
   type BenefitPeriod,
+  type BenefitDiscountType,
+  type BenefitVariantMode,
+  type BenefitVariantDiscount,
   getMemberships,
   getMembershipById,
   createMembership,
@@ -90,7 +93,12 @@ import {
 } from "@/lib/api/memberships";
 import { exportMembershipPurchasesToExcel } from "@/lib/export-membership";
 import { getOptions, type ApiOption } from "@/lib/api/options";
-import { getAdminServices, type AdminService } from "@/lib/api/services";
+import {
+  getAdminServices,
+  getAdminServiceById,
+  type AdminService,
+  type AdminServicePrice,
+} from "@/lib/api/services";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -107,6 +115,9 @@ function formatRupiah(value: number) {
 interface BenefitForm extends BenefitPayload {
   _localId: string;
   label: string;
+  discount_type?: BenefitDiscountType;
+  variant_mode?: BenefitVariantMode;
+  variant_discounts?: BenefitVariantDiscount[];
 }
 
 const DEFAULT_BENEFIT_FORM: Omit<BenefitForm, "_localId"> = {
@@ -117,17 +128,32 @@ const DEFAULT_BENEFIT_FORM: Omit<BenefitForm, "_localId"> = {
   value: undefined,
   service_id: "",
   limit: undefined,
+  discount_type: "percentage",
+  variant_mode: "all",
+  variant_discounts: [],
 };
 
 const BENEFIT_TYPE_LABEL: Record<BenefitType, string> = {
-  discount: "Diskon (%)",
+  discount: "Diskon",
   quota: "Kuota Sesi",
 };
+
+function formatBenefitDiscount(b: Omit<BenefitForm, "_localId">): string {
+  if (b.type !== "discount") return "";
+  if (b.variant_mode === "per_variant") {
+    return ` — Per varian (${b.variant_discounts?.length ?? 0} varian)`;
+  }
+  if (b.discount_type === "fixed") {
+    return ` — Rp${(b.value ?? 0).toLocaleString("id-ID")} off`;
+  }
+  return b.value !== undefined ? ` — ${b.value}%` : "";
+}
 
 const PERIOD_LABEL: Record<BenefitPeriod, string> = {
   weekly: "Mingguan",
   monthly: "Bulanan",
   unlimited: "Tidak terbatas",
+  once: "Hanya Sekali",
 };
 
 const APPLIES_TO_LABEL: Record<BenefitAppliesTo, string> = {
@@ -197,6 +223,9 @@ function membershipToForm(m: MembershipPlan): MembershipForm {
       value: b.value ?? undefined,
       service_id: b.service?._id ?? "",
       limit: b.limit ?? undefined,
+      discount_type: b.discount_type ?? "percentage",
+      variant_mode: b.variant_mode ?? "all",
+      variant_discounts: b.variant_discounts ?? [],
     })),
     code: m.code ?? "",
     show_on_website: m.show_on_website ?? false,
@@ -222,11 +251,17 @@ function formToPayload(form: MembershipForm): MembershipPayload {
       ...b,
       label: !b.service_id && label ? label : undefined,
       value:
-        b.type === "discount" && b.value !== undefined
+        b.type === "discount" && b.variant_mode !== "per_variant" && b.value !== undefined
           ? Number(b.value)
           : undefined,
       service_id: b.service_id || undefined,
       limit: b.limit !== undefined ? Number(b.limit) : null,
+      discount_type: b.discount_type,
+      variant_mode: b.variant_mode,
+      variant_discounts:
+        b.type === "discount" && b.variant_mode === "per_variant"
+          ? b.variant_discounts
+          : undefined,
     })),
     show_on_website: form.show_on_website,
     display_order: Number(form.display_order) || 0,
@@ -316,6 +351,133 @@ function DisplayBenefitsEditor({
 }
 
 // ── Benefit Form Fields (top-level to preserve focus) ─────────────────────
+
+function VariantDiscountTable({
+  serviceId,
+  discountType,
+  variantDiscounts,
+  onChange,
+}: {
+  serviceId?: string;
+  discountType: BenefitDiscountType;
+  variantDiscounts: BenefitVariantDiscount[];
+  onChange: (vd: BenefitVariantDiscount[]) => void;
+}) {
+  const [prices, setPrices] = useState<AdminServicePrice[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!serviceId) {
+      setPrices([]);
+      return;
+    }
+    setLoading(true);
+    getAdminServiceById(serviceId)
+      .then((res) => {
+        const svc = res.service;
+        if (svc?.price_type === "multiple" && svc.prices?.length) {
+          setPrices(svc.prices);
+          // Init missing rows with value 0
+          onChange(
+            svc.prices.map((p: AdminServicePrice) => {
+              const existing = variantDiscounts.find(
+                (vd) =>
+                  (vd.pet_type_id ?? "") === (p.pet_type_id ?? "") &&
+                  (vd.size_id ?? "") === (p.size_id ?? "") &&
+                  (vd.hair_id ?? "") === (p.hair_id ?? ""),
+              );
+              return {
+                pet_type_id: p.pet_type_id,
+                size_id: p.size_id,
+                hair_id: p.hair_id,
+                value: existing?.value ?? 0,
+              };
+            }),
+          );
+        } else {
+          setPrices([]);
+        }
+      })
+      .catch(() => setPrices([]))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviceId]);
+
+  if (!serviceId) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Pilih layanan terlebih dahulu untuk mengatur diskon per varian.
+      </p>
+    );
+  }
+
+  if (loading) {
+    return <p className="text-xs text-muted-foreground">Memuat varian...</p>;
+  }
+
+  if (prices.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Layanan ini tidak memiliki harga per varian.
+      </p>
+    );
+  }
+
+  const updateRow = (
+    idx: number,
+    rawVal: string,
+  ) => {
+    const num = rawVal === "" ? 0 : Number(rawVal);
+    const updated = variantDiscounts.map((vd, i) =>
+      i === idx ? { ...vd, value: num } : vd,
+    );
+    onChange(updated);
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label className="text-xs">
+        Diskon Per Varian {discountType === "fixed" ? "(Rp)" : "(%)"}
+      </Label>
+      <div className="border rounded-md overflow-hidden text-xs">
+        <table className="w-full">
+          <thead className="bg-muted">
+            <tr>
+              <th className="text-left px-2 py-1.5 font-medium text-muted-foreground">Varian</th>
+              <th className="text-right px-2 py-1.5 font-medium text-muted-foreground w-24">
+                {discountType === "fixed" ? "Rp" : "%"}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {prices.map((p, idx) => {
+              const label = [p.pet_name, p.size_name, p.hair_name]
+                .filter(Boolean)
+                .join(" · ");
+              const currentVal = variantDiscounts[idx]?.value ?? 0;
+              return (
+                <tr key={idx} className="border-t">
+                  <td className="px-2 py-1.5 text-foreground">{label}</td>
+                  <td className="px-2 py-1 text-right">
+                    <input
+                      type="number"
+                      min={0}
+                      max={discountType === "percentage" ? 100 : undefined}
+                      className="w-20 text-right border rounded px-1.5 py-0.5 text-xs h-7 bg-background"
+                      value={currentVal === 0 ? "" : currentVal}
+                      placeholder="0"
+                      onChange={(e) => updateRow(idx, e.target.value)}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 function BenefitFormFields({
   value,
@@ -449,31 +611,96 @@ function BenefitFormFields({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="quota">Kuota Sesi</SelectItem>
-            <SelectItem value="discount">Diskon (%)</SelectItem>
+            <SelectItem value="discount">Diskon</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      {/* 6. Nilai Diskon — only for discount */}
+      {/* Discount-specific fields */}
       {value.type === "discount" && (
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">Nilai Diskon (%)</Label>
-          <Input
-            className="h-8 text-xs"
-            type="number"
-            min={0}
-            max={100}
-            placeholder="10"
-            value={value.value ?? ""}
-            onChange={(e) =>
-              onFieldChange((p) => ({
-                ...p,
-                value:
-                  e.target.value === "" ? undefined : Number(e.target.value),
-              }))
-            }
-          />
-        </div>
+        <>
+          {/* Tipe Diskon */}
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Tipe Diskon</Label>
+            <Select
+              value={value.discount_type ?? "percentage"}
+              onValueChange={(v) =>
+                onFieldChange((p) => ({
+                  ...p,
+                  discount_type: v as BenefitDiscountType,
+                }))
+              }
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="percentage">Persentase (%)</SelectItem>
+                <SelectItem value="fixed">Fixed (Rp)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Cakupan Varian */}
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Cakupan Varian</Label>
+            <Select
+              value={value.variant_mode ?? "all"}
+              onValueChange={(v) =>
+                onFieldChange((p) => ({
+                  ...p,
+                  variant_mode: v as BenefitVariantMode,
+                  variant_discounts: v === "all" ? [] : p.variant_discounts,
+                }))
+              }
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Varian</SelectItem>
+                <SelectItem value="per_variant">Per Varian</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Nilai Diskon — shown when variant_mode = all */}
+          {(value.variant_mode ?? "all") === "all" && (
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-xs">
+                Nilai Diskon{" "}
+                {value.discount_type === "fixed" ? "(Rp)" : "(%)"}
+              </Label>
+              <Input
+                className="h-8 text-xs"
+                type="number"
+                min={0}
+                max={value.discount_type === "fixed" ? undefined : 100}
+                placeholder={value.discount_type === "fixed" ? "50000" : "10"}
+                value={value.value ?? ""}
+                onChange={(e) =>
+                  onFieldChange((p) => ({
+                    ...p,
+                    value:
+                      e.target.value === "" ? undefined : Number(e.target.value),
+                  }))
+                }
+              />
+            </div>
+          )}
+
+          {/* Variant Discount Table — shown when variant_mode = per_variant */}
+          {value.variant_mode === "per_variant" && (
+            <VariantDiscountTable
+              serviceId={value.service_id}
+              discountType={value.discount_type ?? "percentage"}
+              variantDiscounts={value.variant_discounts ?? []}
+              onChange={(vd) =>
+                onFieldChange((p) => ({ ...p, variant_discounts: vd }))
+              }
+            />
+          )}
+        </>
       )}
 
       {/* 5. Periode */}
@@ -482,7 +709,11 @@ function BenefitFormFields({
         <Select
           value={value.period ?? "monthly"}
           onValueChange={(v) =>
-            onFieldChange((p) => ({ ...p, period: v as BenefitPeriod }))
+            onFieldChange((p) => ({
+              ...p,
+              period: v as BenefitPeriod,
+              limit: v === "once" ? 1 : v === "unlimited" ? undefined : p.limit,
+            }))
           }
         >
           <SelectTrigger className="h-8 text-xs">
@@ -492,12 +723,13 @@ function BenefitFormFields({
             <SelectItem value="monthly">Bulanan</SelectItem>
             <SelectItem value="weekly">Mingguan</SelectItem>
             <SelectItem value="unlimited">Tidak terbatas</SelectItem>
+            <SelectItem value="once">Hanya Sekali</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      {/* 7. Batas Penggunaan — for non-unlimited period */}
-      {value.period !== "unlimited" && (
+      {/* 7. Batas Penggunaan — for non-unlimited, non-once period */}
+      {value.period !== "unlimited" && value.period !== "once" && (
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">Batas Penggunaan</Label>
           <Input
@@ -535,9 +767,16 @@ function validateBenefit(
     return "Layanan harus dipilih";
   if (effectiveSource === "label" && !b.label)
     return "Label benefit harus diisi";
-  if (b.type === "discount" && (b.value === undefined || b.value === null))
-    return "Nilai diskon harus diisi";
-  if (b.period !== "unlimited" && (b.limit === undefined || b.limit === null))
+  if (b.type === "discount") {
+    if (b.variant_mode === "per_variant") {
+      if (!b.variant_discounts || b.variant_discounts.length === 0)
+        return "Minimal 1 varian diskon harus diisi";
+    } else {
+      if (b.value === undefined || b.value === null)
+        return "Nilai diskon harus diisi";
+    }
+  }
+  if (b.period !== "unlimited" && b.period !== "once" && (b.limit === undefined || b.limit === null))
     return "Batas penggunaan harus diisi";
   return null;
 }
@@ -548,10 +787,12 @@ function BenefitEditor({
   benefits,
   onChange,
   services,
+  onPendingChange,
 }: {
   benefits: BenefitForm[];
   onChange: (benefits: BenefitForm[]) => void;
   services: AdminService[];
+  onPendingChange?: (hasPending: boolean) => void;
 }) {
   const [newBenefit, setNewBenefit] = useState<Omit<BenefitForm, "_localId">>({
     ...DEFAULT_BENEFIT_FORM,
@@ -562,6 +803,10 @@ function BenefitEditor({
   const [newError, setNewError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingLocalId, setEditingLocalId] = useState<string | null>(null);
+
+  useEffect(() => {
+    onPendingChange?.(showAddForm || editingLocalId !== null);
+  }, [showAddForm, editingLocalId, onPendingChange]);
   const [editBenefit, setEditBenefit] = useState<Omit<BenefitForm, "_localId">>(
     { ...DEFAULT_BENEFIT_FORM },
   );
@@ -682,9 +927,7 @@ function BenefitEditor({
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {BENEFIT_TYPE_LABEL[b.type]}
-                      {b.type === "discount" &&
-                        b.value !== undefined &&
-                        ` — ${b.value}%`}
+                      {formatBenefitDiscount(b)}
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {APPLIES_TO_LABEL[b.applies_to]} ·{" "}
@@ -1002,9 +1245,7 @@ function MembershipDetailSheet({
                           <span className="text-muted-foreground">Tipe</span>
                           <span className="font-medium text-foreground">
                             {BENEFIT_TYPE_LABEL[b.type]}
-                            {b.type === "discount" &&
-                              b.value != null &&
-                              ` — ${b.value}%`}
+                            {formatBenefitDiscount(b as Omit<BenefitForm, "_localId">)}
                           </span>
                         </div>
                         <div className="flex flex-col gap-0.5">
@@ -1055,6 +1296,12 @@ function MembershipFormDialog({
   isLoading: boolean;
   mode: "create" | "edit";
 }) {
+  const [hasPendingBenefit, setHasPendingBenefit] = useState(false);
+
+  useEffect(() => {
+    if (!open) setHasPendingBenefit(false);
+  }, [open]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
@@ -1328,6 +1575,7 @@ function MembershipFormDialog({
               benefits={form.benefits}
               onChange={(benefits) => setForm((p) => ({ ...p, benefits }))}
               services={services}
+              onPendingChange={setHasPendingBenefit}
             />
           </div>
 
@@ -1339,7 +1587,7 @@ function MembershipFormDialog({
             >
               Batal
             </Button>
-            <Button type="submit" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading || hasPendingBenefit} title={hasPendingBenefit ? "Konfirmasi benefit yang sedang diedit terlebih dahulu" : undefined}>
               {isLoading ? "Menyimpan..." : "Simpan"}
             </Button>
           </div>

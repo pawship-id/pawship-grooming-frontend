@@ -589,7 +589,7 @@ export interface PublicPreviewBenefit {
   service?: { name: string } | null;
   type: string;
   period: string;
-  value?: number;
+  value?: number | null;
   limit: number | null;
   used: number;
   remaining: number | null;
@@ -597,7 +597,10 @@ export interface PublicPreviewBenefit {
   period_reset_date?: string | null;
   next_reset_date?: string | null;
   amount_discount?: number;
+  effective_value?: number | null; // matched variant's raw value (% or Rp), null if no match
   description: string;
+  discount_type?: string | null; // "percentage" | "fixed" | null (null = legacy percentage)
+  variant_mode?: string | null;  // "all" | "per_variant" | null (null = legacy all)
 }
 
 export interface PublicPreviewPromotion {
