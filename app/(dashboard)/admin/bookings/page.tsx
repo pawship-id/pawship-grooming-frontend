@@ -130,6 +130,22 @@ function Highlight({ text, query }: { text: string; query: string }) {
   );
 }
 
+function getPageItems(current: number, total: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const around = new Set(
+    [1, total, current - 1, current, current + 1].filter(
+      (p) => p >= 1 && p <= total,
+    ),
+  );
+  const sorted = Array.from(around).sort((a, b) => a - b);
+  const items: (number | "...")[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) items.push("...");
+    items.push(sorted[i]);
+  }
+  return items;
+}
+
 type DatePreset = "today" | "week" | "month" | "custom" | "";
 
 function getPresetRange(
@@ -157,7 +173,7 @@ function getPresetRange(
   return null;
 }
 
-const LIMIT = 20;
+const LIMIT = 100;
 
 const FILTERS_STORAGE_KEY = "admin:bookings:filters";
 
@@ -1121,11 +1137,13 @@ export default function BookingsPage() {
           </div>
 
           {/* Pagination */}
-          <div className="mt-4 flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
+          <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
             <span className="text-xs text-muted-foreground sm:text-sm">
-              {totalCount} booking
+              {totalCount === 0
+                ? "0 booking"
+                : `Menampilkan ${(currentPage - 1) * LIMIT + 1}–${Math.min(currentPage * LIMIT, totalCount)} dari ${totalCount} booking`}
             </span>
-            <div className="flex w-full items-center justify-between gap-2 sm:w-auto">
+            <div className="flex items-center gap-1">
               <Button
                 variant="outline"
                 size="sm"
@@ -1133,11 +1151,29 @@ export default function BookingsPage() {
                 onClick={() => setCurrentPage((p) => p - 1)}
               >
                 <ChevronLeft className="h-4 w-4" />
-                Prev
+                Previous
               </Button>
-              <span className="text-xs sm:text-sm">
-                Hal. {currentPage} / {totalPages}
-              </span>
+              {getPageItems(currentPage, totalPages).map((item, idx) =>
+                item === "..." ? (
+                  <span
+                    key={`ellipsis-${idx}`}
+                    className="px-1 text-sm text-muted-foreground select-none"
+                  >
+                    …
+                  </span>
+                ) : (
+                  <Button
+                    key={item}
+                    variant={currentPage === item ? "default" : "outline"}
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    disabled={loading}
+                    onClick={() => setCurrentPage(item as number)}
+                  >
+                    {item}
+                  </Button>
+                ),
+              )}
               <Button
                 variant="outline"
                 size="sm"
