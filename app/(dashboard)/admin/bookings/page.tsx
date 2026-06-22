@@ -756,13 +756,30 @@ export default function BookingsPage() {
             )}
 
             {/* Active filter summary + reset */}
-            {(statusFilter.length > 0 ||
+            {(search !== "" ||
+              statusFilter.length > 0 ||
               createdByFilter !== "all" ||
               storeFilter !== "all" ||
               serviceFilter !== "all" ||
               datePreset !== "") && (
               <div className="flex flex-col gap-2 border-t pt-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap gap-1">
+                  {search && (
+                    <Badge variant="secondary" className="text-xs gap-1">
+                      Cari: &quot;{search}&quot;
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearch("");
+                          setDebouncedSearch("");
+                        }}
+                        className="hover:bg-background/50 rounded-sm"
+                        aria-label="Hapus pencarian"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  )}
                   {statusFilter.map((s) => (
                     <Badge
                       key={s}
@@ -831,7 +848,7 @@ export default function BookingsPage() {
                   }}
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
-                  Reset semua
+                  Reset Filter
                 </Button>
               </div>
             )}
