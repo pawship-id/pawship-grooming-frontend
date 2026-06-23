@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { Calendar, Clock, MapPin, Store, Loader2, RefreshCw, UserPlus, Scissors, CheckCircle, AlertCircle } from "lucide-react"
+import { Calendar, Clock, MapPin, Store, Loader2, RefreshCw, UserPlus, Scissors, CheckCircle, AlertCircle, ArrowRight } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -17,6 +17,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
+import Link from "next/link"
 import {
   claimSession,
   type AdminBooking,
@@ -197,7 +198,8 @@ export default function OpenJobsPage() {
                 : undefined
 
             return (
-              <Card key={booking._id} className="border-border/50">
+              <Link key={booking._id} href={`/groomer/jobs/${booking._id}`}>
+              <Card className="border-border/50 transition-all hover:border-primary/30 hover:shadow-md">
                 <CardContent className="flex flex-col gap-4 p-5">
                   {/* Booking Info */}
                   <div className="flex items-start justify-between gap-2">
@@ -314,9 +316,10 @@ export default function OpenJobsPage() {
                           {canClaim ? (
                             <Button
                               size="sm"
-                              onClick={() =>
+                              onClick={(e) => {
+                                e.preventDefault()
                                 session._id && handleClaim(booking._id, session._id)
-                              }
+                              }}
                               disabled={claimingId === session._id}
                             >
                               {claimingId === session._id ? (
@@ -336,8 +339,12 @@ export default function OpenJobsPage() {
                       )
                     })}
                   </div>
+                  <div className="flex items-center gap-1 text-xs font-medium text-primary">
+                    View Details <ArrowRight className="h-3 w-3" />
+                  </div>
                 </CardContent>
               </Card>
+              </Link>
             )
           })}
         </div>
