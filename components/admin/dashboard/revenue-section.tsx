@@ -23,12 +23,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Popover,
@@ -240,63 +235,64 @@ function KpiGrid({
   const kpis = data?.kpis;
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiTile
-          icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
-          label="Gross Revenue"
-          info="Total nilai order (harga asli sebelum diskon) dari seluruh booking pada periode ini. Tidak termasuk booking berstatus cancelled & rescheduled."
-          value={loading || !kpis ? null : formatPrice(kpis.gross_revenue)}
-          subtext={
-            loading || !kpis ? null : (
-              <div className="flex flex-col gap-1">
-                <RevenueBreakdown
-                  confirmed={kpis.gross_revenue_confirmed}
-                  pending={kpis.gross_revenue_pending}
-                />
-                <OrderTypeBreakdown
-                  total={kpis.gross_order_count}
-                  onetime={kpis.gross_order_onetime_count}
-                  membership={kpis.gross_order_membership_count}
-                  inhome={kpis.gross_order_inhome_count}
-                  instore={kpis.gross_order_instore_count}
-                />
-              </div>
-            )
-          }
-          delta={kpis?.delta.gross_revenue_pct ?? null}
-          tone="emerald"
-        />
-        <KpiTile
-          icon={<CircleDollarSign className="h-4 w-4 text-primary" />}
-          label="Net Revenue"
-          info="Gross revenue dikurangi total diskon (membership benefit, promo, dan diskon admin). Tidak termasuk booking berstatus cancelled & rescheduled."
-          value={loading || !kpis ? null : formatPrice(kpis.net_revenue)}
-          subtext={
-            loading || !kpis ? null : (
+      <KpiTile
+        icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
+        label="Gross Revenue"
+        info="Total nilai order (harga asli sebelum diskon) dari seluruh booking pada periode ini. Tidak termasuk booking berstatus cancelled & rescheduled."
+        value={loading || !kpis ? null : formatPrice(kpis.gross_revenue)}
+        subtext={
+          loading || !kpis ? null : (
+            <div className="flex flex-col gap-1">
               <RevenueBreakdown
-                confirmed={kpis.net_revenue_confirmed}
-                pending={kpis.net_revenue_pending}
+                confirmed={kpis.gross_revenue_confirmed}
+                pending={kpis.gross_revenue_pending}
               />
-            )
-          }
-          delta={kpis?.delta.net_revenue_pct ?? null}
-          tone="primary"
-        />
-        <KpiTile
-          icon={<ShoppingBag className="h-4 w-4 text-blue-600" />}
-          label="Completed Orders"
-          info="Jumlah order yang sudah selesai (status completed atau returned) pada periode ini. Tidak termasuk booking cancelled & rescheduled."
-          value={loading || !kpis ? null : kpis.total_orders.toString()}
-          delta={kpis?.delta.total_orders_pct ?? null}
-          tone="blue"
-        />
-        <KpiTile
-          icon={<Receipt className="h-4 w-4 text-amber-600" />}
-          label="Avg Order Value"
-          info="Rata-rata nilai net per order yang selesai (net revenue completed ÷ jumlah completed orders). Tidak termasuk booking cancelled & rescheduled."
-          value={loading || !kpis ? null : formatPrice(kpis.avg_order_value)}
-          delta={kpis?.delta.avg_order_value_pct ?? null}
-          tone="amber"
-        />
+              <OrderTypeBreakdown
+                onetime={kpis.gross_order_onetime_count}
+                membership={kpis.gross_order_membership_count}
+                onetimeInhome={kpis.gross_order_onetime_inhome_count}
+                onetimeInstore={kpis.gross_order_onetime_instore_count}
+                membershipInhome={kpis.gross_order_membership_inhome_count}
+                membershipInstore={kpis.gross_order_membership_instore_count}
+              />
+            </div>
+          )
+        }
+        delta={kpis?.delta.gross_revenue_pct ?? null}
+        tone="emerald"
+      />
+      <KpiTile
+        icon={<CircleDollarSign className="h-4 w-4 text-primary" />}
+        label="Net Revenue"
+        info="Gross revenue dikurangi total diskon (membership benefit, promo, dan diskon admin). Tidak termasuk booking berstatus cancelled & rescheduled."
+        value={loading || !kpis ? null : formatPrice(kpis.net_revenue)}
+        subtext={
+          loading || !kpis ? null : (
+            <RevenueBreakdown
+              confirmed={kpis.net_revenue_confirmed}
+              pending={kpis.net_revenue_pending}
+            />
+          )
+        }
+        delta={kpis?.delta.net_revenue_pct ?? null}
+        tone="primary"
+      />
+      <KpiTile
+        icon={<ShoppingBag className="h-4 w-4 text-blue-600" />}
+        label="Completed Orders"
+        info="Jumlah order yang sudah selesai (status completed atau returned) pada periode ini. Tidak termasuk booking cancelled & rescheduled."
+        value={loading || !kpis ? null : kpis.total_orders.toString()}
+        delta={kpis?.delta.total_orders_pct ?? null}
+        tone="blue"
+      />
+      <KpiTile
+        icon={<Receipt className="h-4 w-4 text-amber-600" />}
+        label="Avg Order Value"
+        info="Rata-rata nilai net per order yang selesai (net revenue completed ÷ jumlah completed orders). Tidak termasuk booking cancelled & rescheduled."
+        value={loading || !kpis ? null : formatPrice(kpis.avg_order_value)}
+        delta={kpis?.delta.avg_order_value_pct ?? null}
+        tone="amber"
+      />
     </div>
   );
 }
@@ -375,40 +371,52 @@ function RevenueBreakdown({
 }
 
 function OrderTypeBreakdown({
-  total,
   onetime,
   membership,
-  inhome,
-  instore,
+  onetimeInhome,
+  onetimeInstore,
+  membershipInhome,
+  membershipInstore,
 }: {
-  total: number;
   onetime: number;
   membership: number;
-  inhome: number;
-  instore: number;
+  onetimeInhome: number;
+  onetimeInstore: number;
+  membershipInhome: number;
+  membershipInstore: number;
 }) {
+  const total = onetime + membership;
   return (
-    <div className="mt-2 flex flex-col gap-1.5 border-t border-border/40 pt-2 text-xs">
+    <div className="mt-2 flex flex-col gap-1.5 border-t border-border/40 pt-2">
       <p className="text-sm font-semibold text-foreground">
-        {total} <span className="font-normal text-muted-foreground">order masuk</span>
+        {total}{" "}
+        <span className="font-normal text-muted-foreground">order masuk</span>
       </p>
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-0.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-muted-foreground">One-time</span>
-          <span className="font-medium text-foreground">{onetime}</span>
+          <span className="text-[13px] font-medium text-foreground">
+            One-time
+          </span>
+          <span className="text-[13px] font-semibold text-foreground">
+            {onetime}
+          </span>
         </div>
+        <span className="text-[12px] text-muted-foreground">
+          {onetimeInstore} In Store vs {onetimeInhome} In Home
+        </span>
+      </div>
+      <div className="flex flex-col gap-0.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-muted-foreground">Membership</span>
-          <span className="font-medium text-foreground">{membership}</span>
+          <span className="text-[13px] font-medium text-foreground">
+            Membership
+          </span>
+          <span className="text-[13px] font-semibold text-foreground">
+            {membership}
+          </span>
         </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-muted-foreground">In-home</span>
-          <span className="font-medium text-foreground">{inhome}</span>
-        </div>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-muted-foreground">In-store</span>
-          <span className="font-medium text-foreground">{instore}</span>
-        </div>
+        <span className="text-[12px] text-muted-foreground">
+          {membershipInstore} In Store vs {membershipInhome} In Home
+        </span>
       </div>
     </div>
   );
@@ -471,15 +479,12 @@ function ByGroomingServiceBlock({
       ) : (
         <ul className="mt-3 space-y-2">
           {rows.slice(0, 6).map((r) => (
-            <li
-              key={r.service_id ?? r.service_name}
-              className="text-xs"
-            >
+            <li key={r.service_id ?? r.service_name} className="text-xs">
               <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2">
                 <span className="truncate font-medium">{r.service_name}</span>
                 <span className="text-muted-foreground whitespace-nowrap">
-                  {formatPrice(r.revenue)} · {r.pct_of_total}% ·{" "}
-                  {r.order_count} order
+                  {formatPrice(r.revenue)} · {r.pct_of_total}% · {r.order_count}{" "}
+                  order
                 </span>
               </div>
               <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
