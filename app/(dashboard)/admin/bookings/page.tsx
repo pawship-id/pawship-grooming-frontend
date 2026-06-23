@@ -58,7 +58,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Combobox } from "@/components/ui/combobox";
 import {
   getAdminBookings,
   getAllAdminBookingsForExport,
@@ -177,6 +176,11 @@ const LIMIT = 100;
 
 const FILTERS_STORAGE_KEY = "admin:bookings:filters";
 
+const CREATED_BY_OPTIONS: { value: string; label: string }[] = [
+  { value: "admin", label: "Admin" },
+  { value: "customer", label: "Customer" },
+];
+
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: "requested", label: "Requested" },
   { value: "waitlist", label: "Waitlist" },
@@ -194,9 +198,9 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 type PersistedFilters = {
   search: string;
   statusFilter: string[];
-  createdByFilter: string;
-  storeFilter: string;
-  serviceFilter: string;
+  createdByFilter: string[];
+  storeFilter: string[];
+  serviceFilter: string[];
   datePreset: DatePreset;
   dateFrom: string;
   dateTo: string;
@@ -206,9 +210,9 @@ type PersistedFilters = {
 const defaultFilters: PersistedFilters = {
   search: "",
   statusFilter: [],
-  createdByFilter: "all",
-  storeFilter: "all",
-  serviceFilter: "all",
+  createdByFilter: [],
+  storeFilter: [],
+  serviceFilter: [],
   datePreset: "",
   dateFrom: "",
   dateTo: "",
@@ -228,7 +232,29 @@ function loadPersistedFilters(): PersistedFilters {
       : typeof rawStatus === "string" && rawStatus && rawStatus !== "all"
         ? [rawStatus]
         : [];
-    return { ...defaultFilters, ...parsed, statusFilter };
+
+    const rawStore = (parsed as { storeFilter?: unknown }).storeFilter;
+    const storeFilter: string[] = Array.isArray(rawStore)
+      ? (rawStore as string[])
+      : typeof rawStore === "string" && rawStore && rawStore !== "all"
+        ? [rawStore]
+        : [];
+
+    const rawService = (parsed as { serviceFilter?: unknown }).serviceFilter;
+    const serviceFilter: string[] = Array.isArray(rawService)
+      ? (rawService as string[])
+      : typeof rawService === "string" && rawService && rawService !== "all"
+        ? [rawService]
+        : [];
+
+    const rawCreatedBy = (parsed as { createdByFilter?: unknown }).createdByFilter;
+    const createdByFilter: string[] = Array.isArray(rawCreatedBy)
+      ? (rawCreatedBy as string[])
+      : typeof rawCreatedBy === "string" && rawCreatedBy && rawCreatedBy !== "all"
+        ? [rawCreatedBy]
+        : [];
+
+    return { ...defaultFilters, ...parsed, statusFilter, storeFilter, serviceFilter, createdByFilter };
   } catch {
     return defaultFilters;
   }
@@ -248,15 +274,18 @@ export default function BookingsPage() {
     () => loadPersistedFilters().statusFilter,
   );
   const [statusOpen, setStatusOpen] = useState(false);
-  const [createdByFilter, setCreatedByFilter] = useState<string>(
+  const [createdByFilter, setCreatedByFilter] = useState<string[]>(
     () => loadPersistedFilters().createdByFilter,
   );
-  const [storeFilter, setStoreFilter] = useState<string>(
+  const [createdByOpen, setCreatedByOpen] = useState(false);
+  const [storeFilter, setStoreFilter] = useState<string[]>(
     () => loadPersistedFilters().storeFilter,
   );
-  const [serviceFilter, setServiceFilter] = useState<string>(
+  const [storeOpen, setStoreOpen] = useState(false);
+  const [serviceFilter, setServiceFilter] = useState<string[]>(
     () => loadPersistedFilters().serviceFilter,
   );
+  const [serviceOpen, setServiceOpen] = useState(false);
   const [stores, setStores] = useState<ApiStore[]>([]);
   const [services, setServices] = useState<AdminService[]>([]);
   const [datePreset, setDatePreset] = useState<DatePreset>(
@@ -309,9 +338,9 @@ export default function BookingsPage() {
         date_from: from || undefined,
         date_to: to || undefined,
         created_by_role:
-          createdByFilter === "all" ? undefined : createdByFilter,
-        store_id: storeFilter === "all" ? undefined : storeFilter,
-        service_id: serviceFilter === "all" ? undefined : serviceFilter,
+          createdByFilter.length > 0 ? createdByFilter.join(",") : undefined,
+        store_id: storeFilter.length > 0 ? storeFilter.join(",") : undefined,
+        service_id: serviceFilter.length > 0 ? serviceFilter.join(",") : undefined,
         search: debouncedSearch || undefined,
       })
         .then((res) => {
@@ -675,55 +704,227 @@ export default function BookingsPage() {
                 </Popover>
               </div>
 
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 min-w-0">
                 <label className="text-xs font-medium text-muted-foreground">
                   Store
                 </label>
-                <Combobox
-                  options={[
-                    { value: "all", label: "Semua Store" },
-                    ...stores.map((s) => ({ value: s._id, label: s.name })),
-                  ]}
-                  value={storeFilter}
-                  onValueChange={(val) => setStoreFilter(val || "all")}
-                  placeholder="Semua Store"
-                  searchPlaceholder="Cari store..."
-                />
+                <Popover open={storeOpen} onOpenChange={setStoreOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={storeOpen}
+                      className="w-full min-w-0 justify-between font-normal"
+                    >
+                      <span
+                        className={`min-w-0 truncate text-left ${
+                          storeFilter.length === 0 ? "text-muted-foreground" : ""
+                        }`}
+                      >
+                        {storeFilter.length === 0
+                          ? "Semua Store"
+                          : storeFilter.length === 1
+                            ? (stores.find((s) => s._id === storeFilter[0])?.name ?? storeFilter[0])
+                            : `${storeFilter.length} store dipilih`}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-[var(--radix-popover-trigger-width)] p-0"
+                    align="start"
+                    sideOffset={4}
+                  >
+                    <Command>
+                      <CommandInput placeholder="Cari store..." className="h-9" />
+                      <CommandList>
+                        <CommandEmpty>Store tidak ditemukan.</CommandEmpty>
+                        <CommandGroup>
+                          {stores.map((store) => {
+                            const checked = storeFilter.includes(store._id);
+                            return (
+                              <CommandItem
+                                key={store._id}
+                                value={store.name}
+                                onSelect={() => {
+                                  setStoreFilter((prev) =>
+                                    prev.includes(store._id)
+                                      ? prev.filter((v) => v !== store._id)
+                                      : [...prev, store._id],
+                                  );
+                                }}
+                                className="gap-2"
+                              >
+                                <Checkbox checked={checked} className="pointer-events-none" />
+                                <span>{store.name}</span>
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                      {storeFilter.length > 0 && (
+                        <div className="border-t p-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full h-8 text-xs"
+                            onClick={() => setStoreFilter([])}
+                          >
+                            Bersihkan pilihan
+                          </Button>
+                        </div>
+                      )}
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 min-w-0">
                 <label className="text-xs font-medium text-muted-foreground">
                   Layanan
                 </label>
-                <Combobox
-                  options={[
-                    { value: "all", label: "Semua Layanan" },
-                    ...services.map((s) => ({ value: s._id, label: s.name })),
-                  ]}
-                  value={serviceFilter}
-                  onValueChange={(val) => setServiceFilter(val || "all")}
-                  placeholder="Semua Layanan"
-                  searchPlaceholder="Cari layanan..."
-                />
+                <Popover open={serviceOpen} onOpenChange={setServiceOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={serviceOpen}
+                      className="w-full min-w-0 justify-between font-normal"
+                    >
+                      <span
+                        className={`min-w-0 truncate text-left ${
+                          serviceFilter.length === 0 ? "text-muted-foreground" : ""
+                        }`}
+                      >
+                        {serviceFilter.length === 0
+                          ? "Semua Layanan"
+                          : serviceFilter.length === 1
+                            ? (services.find((s) => s._id === serviceFilter[0])?.name ?? serviceFilter[0])
+                            : `${serviceFilter.length} layanan dipilih`}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-[var(--radix-popover-trigger-width)] p-0"
+                    align="start"
+                    sideOffset={4}
+                  >
+                    <Command>
+                      <CommandInput placeholder="Cari layanan..." className="h-9" />
+                      <CommandList>
+                        <CommandEmpty>Layanan tidak ditemukan.</CommandEmpty>
+                        <CommandGroup>
+                          {services.map((service) => {
+                            const checked = serviceFilter.includes(service._id);
+                            return (
+                              <CommandItem
+                                key={service._id}
+                                value={service.name}
+                                onSelect={() => {
+                                  setServiceFilter((prev) =>
+                                    prev.includes(service._id)
+                                      ? prev.filter((v) => v !== service._id)
+                                      : [...prev, service._id],
+                                  );
+                                }}
+                                className="gap-2"
+                              >
+                                <Checkbox checked={checked} className="pointer-events-none" />
+                                <span>{service.name}</span>
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                      {serviceFilter.length > 0 && (
+                        <div className="border-t p-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full h-8 text-xs"
+                            onClick={() => setServiceFilter([])}
+                          >
+                            Bersihkan pilihan
+                          </Button>
+                        </div>
+                      )}
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 min-w-0">
                 <label className="text-xs font-medium text-muted-foreground">
                   Dibuat Oleh
                 </label>
-                <Select
-                  value={createdByFilter}
-                  onValueChange={setCreatedByFilter}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Semua" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="customer">Customer</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Popover open={createdByOpen} onOpenChange={setCreatedByOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={createdByOpen}
+                      className="w-full min-w-0 justify-between font-normal"
+                    >
+                      <span
+                        className={`min-w-0 truncate text-left ${
+                          createdByFilter.length === 0 ? "text-muted-foreground" : ""
+                        }`}
+                      >
+                        {createdByFilter.length === 0
+                          ? "Semua"
+                          : createdByFilter.length === 1
+                            ? (CREATED_BY_OPTIONS.find((o) => o.value === createdByFilter[0])?.label ?? createdByFilter[0])
+                            : `${createdByFilter.length} dipilih`}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-[var(--radix-popover-trigger-width)] p-0"
+                    align="start"
+                    sideOffset={4}
+                  >
+                    <Command>
+                      <CommandList>
+                        <CommandGroup>
+                          {CREATED_BY_OPTIONS.map((option) => {
+                            const checked = createdByFilter.includes(option.value);
+                            return (
+                              <CommandItem
+                                key={option.value}
+                                value={option.label}
+                                onSelect={() => {
+                                  setCreatedByFilter((prev) =>
+                                    prev.includes(option.value)
+                                      ? prev.filter((v) => v !== option.value)
+                                      : [...prev, option.value],
+                                  );
+                                }}
+                                className="gap-2"
+                              >
+                                <Checkbox checked={checked} className="pointer-events-none" />
+                                <span>{option.label}</span>
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                      {createdByFilter.length > 0 && (
+                        <div className="border-t p-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full h-8 text-xs"
+                            onClick={() => setCreatedByFilter([])}
+                          >
+                            Bersihkan pilihan
+                          </Button>
+                        </div>
+                      )}
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
@@ -758,9 +959,9 @@ export default function BookingsPage() {
             {/* Active filter summary + reset */}
             {(search !== "" ||
               statusFilter.length > 0 ||
-              createdByFilter !== "all" ||
-              storeFilter !== "all" ||
-              serviceFilter !== "all" ||
+              createdByFilter.length > 0 ||
+              storeFilter.length > 0 ||
+              serviceFilter.length > 0 ||
               datePreset !== "") && (
               <div className="flex flex-col gap-2 border-t pt-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap gap-1">
@@ -801,21 +1002,45 @@ export default function BookingsPage() {
                       </button>
                     </Badge>
                   ))}
-                  {createdByFilter !== "all" && (
-                    <Badge variant="secondary" className="text-xs capitalize">
-                      {createdByFilter}
+                  {createdByFilter.map((role) => (
+                    <Badge key={role} variant="secondary" className="text-xs capitalize gap-1">
+                      {CREATED_BY_OPTIONS.find((o) => o.value === role)?.label ?? role}
+                      <button
+                        type="button"
+                        onClick={() => setCreatedByFilter((prev) => prev.filter((v) => v !== role))}
+                        className="hover:bg-background/50 rounded-sm"
+                        aria-label={`Hapus filter ${role}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </Badge>
-                  )}
-                  {storeFilter !== "all" && (
-                    <Badge variant="secondary" className="text-xs">
-                      {stores.find((s) => s._id === storeFilter)?.name ?? storeFilter}
+                  ))}
+                  {storeFilter.map((id) => (
+                    <Badge key={id} variant="secondary" className="text-xs gap-1">
+                      {stores.find((s) => s._id === id)?.name ?? id}
+                      <button
+                        type="button"
+                        onClick={() => setStoreFilter((prev) => prev.filter((v) => v !== id))}
+                        className="hover:bg-background/50 rounded-sm"
+                        aria-label={`Hapus filter store`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </Badge>
-                  )}
-                  {serviceFilter !== "all" && (
-                    <Badge variant="secondary" className="text-xs">
-                      {services.find((s) => s._id === serviceFilter)?.name ?? serviceFilter}
+                  ))}
+                  {serviceFilter.map((id) => (
+                    <Badge key={id} variant="secondary" className="text-xs gap-1">
+                      {services.find((s) => s._id === id)?.name ?? id}
+                      <button
+                        type="button"
+                        onClick={() => setServiceFilter((prev) => prev.filter((v) => v !== id))}
+                        className="hover:bg-background/50 rounded-sm"
+                        aria-label={`Hapus filter layanan`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </Badge>
-                  )}
+                  ))}
                   {datePreset !== "" && datePreset !== "custom" && (
                     <Badge variant="secondary" className="text-xs">
                       {datePreset === "today"
@@ -839,9 +1064,9 @@ export default function BookingsPage() {
                     setSearch("");
                     setDebouncedSearch("");
                     setStatusFilter([]);
-                    setCreatedByFilter("all");
-                    setStoreFilter("all");
-                    setServiceFilter("all");
+                    setCreatedByFilter([]);
+                    setStoreFilter([]);
+                    setServiceFilter([]);
                     setDatePreset("");
                     setDateFrom("");
                     setDateTo("");
