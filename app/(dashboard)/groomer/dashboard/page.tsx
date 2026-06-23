@@ -204,7 +204,9 @@ export default function GroomerDashboard() {
   const today = useMemo(() => getToday(), []);
 
   const isActive = (b: AdminBooking) =>
-    b.booking_status !== "completed" && b.booking_status !== "cancelled";
+    b.booking_status !== "completed" &&
+    b.booking_status !== "cancelled" &&
+    b.booking_status !== "returned";
 
   const todayJobs = useMemo(
     () => bookings.filter((b) => getBookingDateStr(b) === today && isActive(b)),
