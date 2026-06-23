@@ -11,6 +11,7 @@ import {
   Scissors,
   CheckCircle2,
   X,
+  Search,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -185,6 +186,7 @@ function JobCard({ booking }: { booking: AdminBooking }) {
 const SESSION_KEY_FROM = "groomer_dashboard_date_from";
 const SESSION_KEY_TO = "groomer_dashboard_date_to";
 const SESSION_KEY_TAB = "groomer_dashboard_active_tab";
+const SESSION_KEY_SEARCH = "groomer_dashboard_search";
 
 export default function GroomerDashboard() {
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
@@ -198,6 +200,9 @@ export default function GroomerDashboard() {
   );
   const [activeTab, setActiveTab] = useState(() =>
     typeof window !== "undefined" ? (sessionStorage.getItem(SESSION_KEY_TAB) ?? "today") : "today"
+  );
+  const [search, setSearch] = useState(() =>
+    typeof window !== "undefined" ? (sessionStorage.getItem(SESSION_KEY_SEARCH) ?? "") : ""
   );
 
   const fetchJobs = useCallback(async () => {
@@ -231,6 +236,11 @@ export default function GroomerDashboard() {
     sessionStorage.setItem(SESSION_KEY_TAB, activeTab);
   }, [activeTab]);
 
+  useEffect(() => {
+    if (search) sessionStorage.setItem(SESSION_KEY_SEARCH, search);
+    else sessionStorage.removeItem(SESSION_KEY_SEARCH);
+  }, [search]);
+
   const today = useMemo(() => getToday(), []);
 
   const isActive = (b: AdminBooking) =>
@@ -239,16 +249,17 @@ export default function GroomerDashboard() {
     b.booking_status !== "returned";
 
   const hasDateFilter = dateFrom !== "" || dateTo !== "";
+  const hasFilter = hasDateFilter || search !== "";
 
   const filteredBookings = useMemo(() => {
-    if (!hasDateFilter) return bookings;
     return bookings.filter((b) => {
       const d = getBookingDateStr(b);
       if (dateFrom && d < dateFrom) return false;
       if (dateTo && d > dateTo) return false;
+      if (search && !b.pet_snapshot?.name?.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [bookings, dateFrom, dateTo, hasDateFilter]);
+  }, [bookings, dateFrom, dateTo, search]);
 
   const todayJobs = useMemo(
     () => filteredBookings.filter((b) => getBookingDateStr(b) === today && isActive(b)),
@@ -304,42 +315,52 @@ export default function GroomerDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-foreground">
-            My Jobs
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {todayJobs.length} today, {upcomingJobs.length} upcoming
-            {incompleteJobs.length > 0 && `, ${incompleteJobs.length} incomplete`}
-          </p>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="font-display text-2xl font-bold text-foreground">
+              My Jobs
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {todayJobs.length} today, {upcomingJobs.length} upcoming
+              {incompleteJobs.length > 0 && `, ${incompleteJobs.length} incomplete`}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="h-9 w-auto"
+            />
+            <span className="text-sm text-muted-foreground">–</span>
+            <Input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="h-9 w-auto"
+            />
+            {hasFilter && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setDateFrom(""); setDateTo(""); setSearch(""); }}
+              >
+                <X className="mr-1.5 h-3.5 w-3.5" />
+                Reset Filter
+              </Button>
+            )}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="h-9 w-auto"
-            placeholder="From"
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cari nama pet..."
+            className="pl-9"
           />
-          <span className="text-sm text-muted-foreground">–</span>
-          <Input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="h-9 w-auto"
-            placeholder="To"
-          />
-          {hasDateFilter && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => { setDateFrom(""); setDateTo(""); }}
-            >
-              <X className="mr-1.5 h-3.5 w-3.5" />
-              Reset Filter
-            </Button>
-          )}
         </div>
       </div>
 
