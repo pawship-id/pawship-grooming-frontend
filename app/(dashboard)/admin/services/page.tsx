@@ -750,17 +750,24 @@ function StypeFormFields({
   form,
   setForm,
   stores,
+  onUploadingChange,
 }: {
   form: StypeForm;
   setForm: React.Dispatch<React.SetStateAction<StypeForm>>;
   stores: ApiStore[];
+  onUploadingChange?: (uploading: boolean) => void;
 }) {
   const [isUploading, setIsUploading] = useState(false);
+
+  const setUploading = (v: boolean) => {
+    setIsUploading(v);
+    onUploadingChange?.(v);
+  };
 
   const handleFile = async (file: File) => {
     const url = URL.createObjectURL(file);
     setForm((p) => ({ ...p, imageFile: file, imagePreview: url }));
-    setIsUploading(true);
+    setUploading(true);
     try {
       const res = await uploadFile(file, "service-types");
       setForm((p) => ({
@@ -773,7 +780,7 @@ function StypeFormFields({
       toast.error(err instanceof Error ? err.message : "Gagal upload gambar");
       setForm((p) => ({ ...p, imageFile: null, imagePreview: null }));
     } finally {
-      setIsUploading(false);
+      setUploading(false);
     }
   };
   const handleClear = () => {
@@ -1482,11 +1489,13 @@ export default function ServicesPage() {
   const [stypeAddOpen, setStypeAddOpen] = useState(false);
   const [stypeForm, setStypeForm] = useState<StypeForm>(DEFAULT_STYPE_FORM);
   const [isCreatingStype, setIsCreatingStype] = useState(false);
+  const [isUploadingCreateStype, setIsUploadingCreateStype] = useState(false);
 
   const [editStype, setEditStype] = useState<ApiServiceType | null>(null);
   const [editStypeForm, setEditStypeForm] =
     useState<StypeForm>(DEFAULT_STYPE_FORM);
   const [isEditingStype, setIsEditingStype] = useState(false);
+  const [isUploadingEditStype, setIsUploadingEditStype] = useState(false);
 
   const [deleteStype, setDeleteStype] = useState<ApiServiceType | null>(null);
   const [isDeletingStype, setIsDeletingStype] = useState(false);
@@ -2419,15 +2428,20 @@ export default function ServicesPage() {
                 form={stypeForm}
                 setForm={setStypeForm}
                 stores={stores}
+                onUploadingChange={setIsUploadingCreateStype}
               />
             </div>
             <div className="pt-4 border-t border-border mt-4">
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isCreatingStype}
+                disabled={isCreatingStype || isUploadingCreateStype}
               >
-                {isCreatingStype ? "Menyimpan..." : "Tambah Tipe Layanan"}
+                {isUploadingCreateStype
+                  ? "Mengupload gambar..."
+                  : isCreatingStype
+                    ? "Menyimpan..."
+                    : "Tambah Tipe Layanan"}
               </Button>
             </div>
           </form>
@@ -2456,15 +2470,20 @@ export default function ServicesPage() {
                 form={editStypeForm}
                 setForm={setEditStypeForm}
                 stores={stores}
+                onUploadingChange={setIsUploadingEditStype}
               />
             </div>
             <div className="pt-4 border-t border-border mt-4">
               <Button
                 type="submit"
                 className="w-full"
-                disabled={isEditingStype}
+                disabled={isEditingStype || isUploadingEditStype}
               >
-                {isEditingStype ? "Menyimpan..." : "Simpan Perubahan"}
+                {isUploadingEditStype
+                  ? "Mengupload gambar..."
+                  : isEditingStype
+                    ? "Menyimpan..."
+                    : "Simpan Perubahan"}
               </Button>
             </div>
           </form>
