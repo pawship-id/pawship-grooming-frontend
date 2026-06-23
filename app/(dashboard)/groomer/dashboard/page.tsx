@@ -10,9 +10,12 @@ import {
   ArrowRight,
   Scissors,
   CheckCircle2,
+  X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
@@ -179,10 +182,23 @@ function JobCard({ booking }: { booking: AdminBooking }) {
   );
 }
 
+const SESSION_KEY_FROM = "groomer_dashboard_date_from";
+const SESSION_KEY_TO = "groomer_dashboard_date_to";
+const SESSION_KEY_TAB = "groomer_dashboard_active_tab";
+
 export default function GroomerDashboard() {
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dateFrom, setDateFrom] = useState(() =>
+    typeof window !== "undefined" ? (sessionStorage.getItem(SESSION_KEY_FROM) ?? "") : ""
+  );
+  const [dateTo, setDateTo] = useState(() =>
+    typeof window !== "undefined" ? (sessionStorage.getItem(SESSION_KEY_TO) ?? "") : ""
+  );
+  const [activeTab, setActiveTab] = useState(() =>
+    typeof window !== "undefined" ? (sessionStorage.getItem(SESSION_KEY_TAB) ?? "today") : "today"
+  );
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -201,6 +217,20 @@ export default function GroomerDashboard() {
     fetchJobs();
   }, [fetchJobs]);
 
+  useEffect(() => {
+    if (dateFrom) sessionStorage.setItem(SESSION_KEY_FROM, dateFrom);
+    else sessionStorage.removeItem(SESSION_KEY_FROM);
+  }, [dateFrom]);
+
+  useEffect(() => {
+    if (dateTo) sessionStorage.setItem(SESSION_KEY_TO, dateTo);
+    else sessionStorage.removeItem(SESSION_KEY_TO);
+  }, [dateTo]);
+
+  useEffect(() => {
+    sessionStorage.setItem(SESSION_KEY_TAB, activeTab);
+  }, [activeTab]);
+
   const today = useMemo(() => getToday(), []);
 
   const isActive = (b: AdminBooking) =>
@@ -208,25 +238,37 @@ export default function GroomerDashboard() {
     b.booking_status !== "cancelled" &&
     b.booking_status !== "returned";
 
+  const hasDateFilter = dateFrom !== "" || dateTo !== "";
+
+  const filteredBookings = useMemo(() => {
+    if (!hasDateFilter) return bookings;
+    return bookings.filter((b) => {
+      const d = getBookingDateStr(b);
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo && d > dateTo) return false;
+      return true;
+    });
+  }, [bookings, dateFrom, dateTo, hasDateFilter]);
+
   const todayJobs = useMemo(
-    () => bookings.filter((b) => getBookingDateStr(b) === today && isActive(b)),
-    [bookings, today],
+    () => filteredBookings.filter((b) => getBookingDateStr(b) === today && isActive(b)),
+    [filteredBookings, today],
   );
   const upcomingJobs = useMemo(
-    () => bookings.filter((b) => getBookingDateStr(b) > today && isActive(b)),
-    [bookings, today],
+    () => filteredBookings.filter((b) => getBookingDateStr(b) > today && isActive(b)),
+    [filteredBookings, today],
   );
   const incompleteJobs = useMemo(
-    () => bookings.filter((b) => getBookingDateStr(b) < today && isActive(b)),
-    [bookings, today],
+    () => filteredBookings.filter((b) => getBookingDateStr(b) < today && isActive(b)),
+    [filteredBookings, today],
   );
   const completedJobs = useMemo(
     () =>
-      bookings.filter(
+      filteredBookings.filter(
         (b) =>
           b.booking_status === "completed" || b.booking_status === "cancelled",
       ),
-    [bookings],
+    [filteredBookings],
   );
 
   if (loading) {
@@ -262,17 +304,50 @@ export default function GroomerDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-foreground">
-          My Jobs
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {todayJobs.length} today, {upcomingJobs.length} upcoming
-          {incompleteJobs.length > 0 && `, ${incompleteJobs.length} incomplete`}
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-foreground">
+            My Jobs
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {todayJobs.length} today, {upcomingJobs.length} upcoming
+            {incompleteJobs.length > 0 && `, ${incompleteJobs.length} incomplete`}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="h-9 w-auto"
+            placeholder="From"
+          />
+          <span className="text-sm text-muted-foreground">–</span>
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="h-9 w-auto"
+            placeholder="To"
+          />
+          {hasDateFilter && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setDateFrom(""); setDateTo(""); }}
+            >
+              <X className="mr-1.5 h-3.5 w-3.5" />
+              Reset Filter
+            </Button>
+          )}
+        </div>
       </div>
 
-      <Tabs defaultValue="today" className="w-full">
+      <Tabs
+        value={activeTab === "incomplete" && incompleteJobs.length === 0 ? "today" : activeTab}
+        onValueChange={setActiveTab}
+        className="w-full"
+      >
         <TabsList className="w-full">
           <TabsTrigger value="today" className="flex-1">
             Today{todayJobs.length > 0 && ` (${todayJobs.length})`}
