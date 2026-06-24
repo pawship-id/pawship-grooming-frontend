@@ -140,7 +140,23 @@ const roleBadgeClass: Record<ApiRole, string> = {
   customer: "bg-green-100 text-green-700 border-green-200",
 };
 
-const LIMIT = 12;
+const LIMIT = 100;
+function getPageItems(current: number, total: number): (number | "...")[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const around = new Set(
+    [1, total, current - 1, current, current + 1].filter(
+      (p) => p >= 1 && p <= total,
+    ),
+  );
+  const sorted = Array.from(around).sort((a, b) => a - b);
+  const items: (number | "...")[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) items.push("...");
+    items.push(sorted[i]);
+  }
+  return items;
+}
+
 type IsActiveFilter = "all" | "true" | "false";
 type ViewMode = "card" | "list";
 
@@ -1503,36 +1519,57 @@ export default function UsersPage() {
         )}
 
         {/* Pagination */}
-        {!isLoading && pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-border/50 pt-4">
-            <p className="text-sm text-muted-foreground">
-              Menampilkan {(page - 1) * LIMIT + 1}–
-              {Math.min(page * LIMIT, pagination.total)} dari {pagination.total}{" "}
-              pengguna
+        {!isLoading && (
+          <div className="flex flex-col items-center gap-3 border-t border-border/50 pt-4 sm:flex-row sm:justify-between">
+            <p className="text-xs text-muted-foreground sm:text-sm">
+              {pagination.total === 0
+                ? "0 pengguna"
+                : `Menampilkan ${(page - 1) * LIMIT + 1}–${Math.min(page * LIMIT, pagination.total)} dari ${pagination.total} pengguna`}
             </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-sm font-medium">
-                {page} / {pagination.totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setPage((p) => Math.min(pagination.totalPages, p + 1))
-                }
-                disabled={page >= pagination.totalPages}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+            {pagination.totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                {getPageItems(page, pagination.totalPages).map((item, idx) =>
+                  item === "..." ? (
+                    <span
+                      key={`ellipsis-${idx}`}
+                      className="px-1 text-sm text-muted-foreground select-none"
+                    >
+                      …
+                    </span>
+                  ) : (
+                    <Button
+                      key={item}
+                      variant={page === item ? "default" : "outline"}
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setPage(item as number)}
+                    >
+                      {item}
+                    </Button>
+                  ),
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setPage((p) => Math.min(pagination.totalPages, p + 1))
+                  }
+                  disabled={page >= pagination.totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>

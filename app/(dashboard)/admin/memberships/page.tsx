@@ -260,7 +260,12 @@ function formToPayload(form: MembershipForm): MembershipPayload {
       variant_mode: b.variant_mode,
       variant_discounts:
         b.type === "discount" && b.variant_mode === "per_variant"
-          ? b.variant_discounts
+          ? b.variant_discounts?.map(({ pet_type_id, size_id, hair_id, value }) => ({
+              pet_type_id,
+              size_id,
+              hair_id,
+              value,
+            }))
           : undefined,
     })),
     show_on_website: form.show_on_website,

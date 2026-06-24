@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { User, PawPrint, StickyNote } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AdminBooking } from "@/lib/api/bookings";
@@ -19,7 +20,12 @@ export function CustomerPetCard({ booking }: CustomerPetCardProps) {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {booking.customer && (
-          <div className="flex items-start gap-3 rounded-xl bg-muted/40 p-4">
+          <Link
+            href={`/admin/users/${booking.customer_id}/detail`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-start gap-3 rounded-xl bg-muted/40 p-4 transition-colors hover:bg-muted/70"
+          >
             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
               {booking.customer.username.slice(0, 2).toUpperCase()}
             </div>
@@ -34,9 +40,14 @@ export function CustomerPetCard({ booking }: CustomerPetCardProps) {
                 {booking.customer.phone_number}
               </p>
             </div>
-          </div>
+          </Link>
         )}
-        <div className="flex items-start gap-3 rounded-xl bg-muted/40 p-4">
+        <Link
+          href={`/admin/users/${booking.customer_id}/pets`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-start gap-3 rounded-xl bg-muted/40 p-4 transition-colors hover:bg-muted/70"
+        >
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10">
             <PawPrint className="h-5 w-5 text-primary" />
           </div>
@@ -72,7 +83,7 @@ export function CustomerPetCard({ booking }: CustomerPetCardProps) {
               )}
             </div>
           </div>
-        </div>
+        </Link>
         {booking.pet_snapshot.internal_note && (
           <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/30">
             <StickyNote className="h-4 w-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
