@@ -268,10 +268,20 @@ function KpiGrid({
         value={loading || !kpis ? null : formatPrice(kpis.net_revenue)}
         subtext={
           loading || !kpis ? null : (
-            <RevenueBreakdown
-              confirmed={kpis.net_revenue_confirmed}
-              pending={kpis.net_revenue_pending}
-            />
+            <div className="flex flex-col gap-1">
+              <RevenueBreakdown
+                confirmed={kpis.net_revenue_confirmed}
+                pending={kpis.net_revenue_pending}
+              />
+              <OrderTypeBreakdown
+                onetime={kpis.gross_order_onetime_count}
+                membership={kpis.gross_order_membership_count}
+                onetimeInhome={kpis.gross_order_onetime_inhome_count}
+                onetimeInstore={kpis.gross_order_onetime_instore_count}
+                membershipInhome={kpis.gross_order_membership_inhome_count}
+                membershipInstore={kpis.gross_order_membership_instore_count}
+              />
+            </div>
           )
         }
         delta={kpis?.delta.net_revenue_pct ?? null}
