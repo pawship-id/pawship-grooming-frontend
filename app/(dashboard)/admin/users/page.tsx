@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
   Search,
@@ -200,6 +201,8 @@ function Highlight({ text, query }: { text: string; query: string }) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function UsersPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [activeRole, setActiveRole] = useState<ApiRole | "all">("all");
   const [isActiveFilter, setIsActiveFilter] = useState<IsActiveFilter>("all");
   const [search, setSearch] = useState("");
@@ -653,6 +656,17 @@ export default function UsersPage() {
   useEffect(() => {
     fetchCustomerCategories();
   }, [fetchCustomerCategories]);
+
+  // Open edit dialog from ?edit=<userId> URL param (e.g. from detail page)
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (!editId || isLoading || users.length === 0) return;
+    const target = users.find((u) => u._id === editId);
+    if (target) {
+      openEdit(target);
+      router.replace("/admin/users", { scroll: false });
+    }
+  }, [searchParams, users, isLoading]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Helper function to highlight matching text
