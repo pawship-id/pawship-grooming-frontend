@@ -139,18 +139,40 @@ export function onTimeInfo(booking: AdminBooking): {
   };
 }
 
-// ─── Commission base ──────────────────────────────────────────────────────────
-// Per-session commission base:
-//   (Sub Total Layanan + travel fee [only when booking type is "in home"])
-//   ÷ jumlah session
-// The same value is shown on every session row of the booking.
+// ─── Commission helpers ───────────────────────────────────────────────────────
+
+const VOID_STATUSES = new Set(["cancelled", "rescheduled"]);
+
+function isCommissionable(booking: AdminBooking): boolean {
+  return !VOID_STATUSES.has(booking.booking_status ?? "");
+}
+
+export function uniqueGroomerCount(booking: AdminBooking): number {
+  const ids = new Set<string>();
+  for (const sess of booking.sessions ?? []) {
+    const id =
+      sess.groomer_detail?._id ??
+      (typeof sess.groomer_id === "string"
+        ? sess.groomer_id
+        : sess.groomer_id?._id);
+    if (id) ids.add(id);
+  }
+  return Math.max(1, ids.size);
+}
+
+export function komisiService(booking: AdminBooking): number {
+  if (!isCommissionable(booking)) return 0;
+  return (booking.sub_total_service ?? 0) * 0.05;
+}
+
+export function komisiTravel(booking: AdminBooking): number {
+  if (!isCommissionable(booking)) return 0;
+  return booking.type === "in home" ? (booking.travel_fee ?? 0) * 0.25 : 0;
+}
 
 export function commissionBase(booking: AdminBooking): number {
-  const subTotal = booking.sub_total_service ?? 0;
-  const travelFee =
-    booking.type === "in home" ? (booking.travel_fee ?? 0) : 0;
-  const sessionCount = Math.max(1, (booking.sessions ?? []).length);
-  return (subTotal + travelFee) / sessionCount;
+  if (!isCommissionable(booking)) return 0;
+  return (komisiService(booking) + komisiTravel(booking)) / uniqueGroomerCount(booking);
 }
 
 // ─── Row builder — single source of truth used by both table & export ─────────
@@ -250,7 +272,17 @@ export function buildFinancialRow(
     total_discount: totalDiscount,
     net_total: b.final_total_price ?? 0,
 
-    // ── COMMISSION BASE (Formula & Status) — overridden per session ───
+    // ── COMMISSION & GROOMER BREAKDOWN ────────────────────────────────
+    komisi_service: komisiService(b),
+    komisi_travel: komisiTravel(b),
+    total_comm: komisiService(b) + komisiTravel(b),
+    jumlah_groomer: isCommissionable(b) ? uniqueGroomerCount(b) : 0,
+    per_groomer_service: isCommissionable(b)
+      ? komisiService(b) / uniqueGroomerCount(b)
+      : 0,
+    per_groomer_travel: isCommissionable(b)
+      ? komisiTravel(b) / uniqueGroomerCount(b)
+      : 0,
     commission_base_groomer: commissionBase(b),
   };
 }
@@ -283,7 +315,6 @@ export function buildSessionRows(
     started_at: fmtDateTime(sess.started_at),
     finished_at: fmtDateTime(sess.finished_at),
     duration_mins: fmtDuration(diffMinutes(sess.started_at, sess.finished_at)),
-    commission_base_groomer: commissionBase(b),
     _sessionIndex: i,
     _sessionCount: sessions.length,
   }));
@@ -331,7 +362,13 @@ export const FINANCIAL_COLUMN_LABELS: Partial<Record<keyof FinancialRow, string>
   membership_benefit: "Benefit Membership",
   total_discount: "Total Diskon",
   net_total: "Net Total (Dibayar)",
-  commission_base_groomer: "Komisi Base Groomer",
+  komisi_service: "Komisi Service",
+  komisi_travel: "Komisi Biaya Perjalanan",
+  total_comm: "Total Comm",
+  jumlah_groomer: "Jumlah Groomer",
+  per_groomer_service: "Per-Groomer Service",
+  per_groomer_travel: "Per-Groomer Travel",
+  commission_base_groomer: "Komisi Base Per-Groomer",
 };
 
 // ─── Column widths for Excel ──────────────────────────────────────────────────
@@ -383,6 +420,12 @@ const COL_WIDTHS: Partial<Record<keyof FinancialRow, number>> = {
   membership_benefit: 18,
   total_discount: 14,
   net_total: 18,
+  komisi_service: 20,
+  komisi_travel: 24,
+  total_comm: 16,
+  jumlah_groomer: 16,
+  per_groomer_service: 22,
+  per_groomer_travel: 22,
   commission_base_groomer: 22,
 };
 
@@ -395,7 +438,6 @@ const SESSION_COL_KEYS = new Set<keyof FinancialRow>([
   "started_at",
   "finished_at",
   "duration_mins",
-  "commission_base_groomer",
 ]);
 
 // ─── Main export (ALL columns — column visibility doesn't apply here) ──────────

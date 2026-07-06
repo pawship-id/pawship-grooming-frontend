@@ -17,6 +17,7 @@ import {
   Tag,
   ChevronLeft,
   ChevronRight,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -284,14 +285,22 @@ export default function AdminUserDetailPage() {
             </div>
           </div>
         </div>
-        {user.role === "customer" && (
+        <div className="flex items-center gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link href={`/admin/users/${user._id}/pets`}>
-              <PawPrint className="mr-2 h-4 w-4" />
-              Kelola Pet
+            <Link href={`/admin/users?edit=${user._id}`}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
             </Link>
           </Button>
-        )}
+          {user.role === "customer" && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/admin/users/${user._id}/pets`}>
+                <PawPrint className="mr-2 h-4 w-4" />
+                Kelola Pet
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

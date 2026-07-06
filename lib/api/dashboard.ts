@@ -88,6 +88,14 @@ export interface RevenueKpis {
   gross_order_onetime_instore_count: number;
   gross_order_membership_inhome_count: number;
   gross_order_membership_instore_count: number;
+  gross_revenue_onetime_inhome: number;
+  gross_revenue_onetime_instore: number;
+  gross_revenue_membership_inhome: number;
+  gross_revenue_membership_instore: number;
+  net_revenue_onetime_inhome: number;
+  net_revenue_onetime_instore: number;
+  net_revenue_membership_inhome: number;
+  net_revenue_membership_instore: number;
   avg_order_value: number;
   delta: RevenueKpiDelta;
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
   Search,
@@ -25,6 +26,7 @@ import {
   Map,
   ChevronDown,
   X,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -113,6 +115,8 @@ type EditUserForm = UpdateUserPayload & {
   addresses: UserAddress[];
 };
 
+const USERS_FILTER_KEY = "admin_users_filters";
+
 const ROLE_OPTIONS: ApiRole[] = ["admin", "ops", "groomer", "customer"];
 
 const DEFAULT_CREATE: CreateUserForm = {
@@ -200,6 +204,8 @@ function Highlight({ text, query }: { text: string; query: string }) {
 
 // ── Component ──────────────────────────────────────────────────────────────
 export default function UsersPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [activeRole, setActiveRole] = useState<ApiRole | "all">("all");
   const [isActiveFilter, setIsActiveFilter] = useState<IsActiveFilter>("all");
   const [search, setSearch] = useState("");
@@ -221,6 +227,7 @@ export default function UsersPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [filtersRestored, setFiltersRestored] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateUserForm>(DEFAULT_CREATE);
@@ -570,6 +577,17 @@ export default function UsersPage() {
     }
   }, []);
 
+  const handleResetFilters = () => {
+    setActiveRole("all");
+    setIsActiveFilter("all");
+    setSearch("");
+    setDebouncedSearch("");
+    setPage(1);
+    try {
+      localStorage.removeItem(USERS_FILTER_KEY);
+    } catch {}
+  };
+
   // Debounce search
   useEffect(() => {
     const t = setTimeout(() => {
@@ -639,8 +657,9 @@ export default function UsersPage() {
   }, []);
 
   useEffect(() => {
+    if (!filtersRestored) return;
     fetchUsers();
-  }, [fetchUsers]);
+  }, [fetchUsers, filtersRestored]);
 
   useEffect(() => {
     fetchStores();
@@ -653,6 +672,51 @@ export default function UsersPage() {
   useEffect(() => {
     fetchCustomerCategories();
   }, [fetchCustomerCategories]);
+
+  // Restore filter state from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(USERS_FILTER_KEY);
+      if (saved) {
+        const filters = JSON.parse(saved);
+        if (filters.role) setActiveRole(filters.role);
+        if (filters.active) setIsActiveFilter(filters.active);
+        if (filters.search) {
+          setSearch(filters.search);
+          setDebouncedSearch(filters.search);
+        }
+        if (filters.viewMode) setViewMode(filters.viewMode);
+      }
+    } catch {}
+    setFiltersRestored(true);
+  }, []);
+
+  // Persist filter state to localStorage whenever filters change
+  useEffect(() => {
+    if (!filtersRestored) return;
+    try {
+      localStorage.setItem(
+        USERS_FILTER_KEY,
+        JSON.stringify({
+          role: activeRole,
+          active: isActiveFilter,
+          search: debouncedSearch,
+          viewMode,
+        }),
+      );
+    } catch {}
+  }, [activeRole, isActiveFilter, debouncedSearch, viewMode, filtersRestored]);
+
+  // Open edit dialog from ?edit=<userId> URL param (e.g. from detail page)
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (!editId || isLoading || users.length === 0) return;
+    const target = users.find((u) => u._id === editId);
+    if (target) {
+      openEdit(target);
+      router.replace("/admin/users", { scroll: false });
+    }
+  }, [searchParams, users, isLoading]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Helper function to highlight matching text
@@ -1048,6 +1112,17 @@ export default function UsersPage() {
                 <SelectItem value="false">Nonaktif</SelectItem>
               </SelectContent>
             </Select>
+            {(activeRole !== "all" || isActiveFilter !== "all" || search !== "") && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetFilters}
+                className="h-9 gap-1.5 border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground hover:border-destructive font-medium shrink-0"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset Filter
+              </Button>
+            )}
             <Separator orientation="vertical" className="h-8" />
             <div className="flex rounded-md border border-border">
               <Button

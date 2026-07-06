@@ -55,7 +55,6 @@ const SESSION_COLS = new Set<keyof FinancialRow>([
   "started_at",
   "finished_at",
   "duration_mins",
-  "commission_base_groomer",
 ]);
 
 const RUPIAH_COLS = new Set<keyof FinancialRow>([
@@ -68,6 +67,11 @@ const RUPIAH_COLS = new Set<keyof FinancialRow>([
   "membership_benefit",
   "total_discount",
   "net_total",
+  "komisi_service",
+  "komisi_travel",
+  "total_comm",
+  "per_groomer_service",
+  "per_groomer_travel",
   "commission_base_groomer",
 ]);
 
@@ -124,7 +128,13 @@ const TABLE_COLUMNS: {
   { key: "membership_benefit", group: "Revenue", defaultVisible: false },
   { key: "total_discount", group: "Revenue", defaultVisible: false },
   { key: "net_total", group: "Revenue", defaultVisible: true },
-  { key: "commission_base_groomer", group: "Revenue", defaultVisible: false },
+  { key: "komisi_service", group: "Komisi", defaultVisible: false },
+  { key: "komisi_travel", group: "Komisi", defaultVisible: false },
+  { key: "total_comm", group: "Komisi", defaultVisible: false },
+  { key: "jumlah_groomer", group: "Komisi", defaultVisible: false },
+  { key: "per_groomer_service", group: "Komisi", defaultVisible: false },
+  { key: "per_groomer_travel", group: "Komisi", defaultVisible: false },
+  { key: "commission_base_groomer", group: "Komisi", defaultVisible: false },
 ];
 
 const DEFAULT_VISIBLE = new Set(
