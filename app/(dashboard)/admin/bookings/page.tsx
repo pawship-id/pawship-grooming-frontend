@@ -487,6 +487,7 @@ export default function BookingsPage() {
       if (modalSearch) {
         const q = modalSearch.toLowerCase();
         const matchesSearch =
+          (booking.code ?? "").toLowerCase().includes(q) ||
           (booking.customer?.username ?? "").toLowerCase().includes(q) ||
           booking.pet_snapshot.name.toLowerCase().includes(q) ||
           booking.service_snapshot.name.toLowerCase().includes(q);
@@ -580,7 +581,7 @@ export default function BookingsPage() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                    placeholder="Nama customer atau hewan..."
+                    placeholder="Kode booking, nama customer, atau hewan..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="pl-9"
@@ -1128,7 +1129,10 @@ export default function BookingsPage() {
                       <TableCell className="whitespace-nowrap">
                         {booking.code ? (
                           <span className="font-mono text-xs font-medium">
-                            {booking.code}
+                            <Highlight
+                              text={booking.code}
+                              query={debouncedSearch}
+                            />
                           </span>
                         ) : (
                           <span className="text-muted-foreground">—</span>
@@ -1254,7 +1258,10 @@ export default function BookingsPage() {
                     <div className="flex min-w-0 flex-col gap-0.5">
                       {booking.code && (
                         <span className="font-mono text-[10px] font-medium text-muted-foreground">
-                          {booking.code}
+                          <Highlight
+                            text={booking.code}
+                            query={debouncedSearch}
+                          />
                         </span>
                       )}
                       <span className="text-sm font-medium text-foreground">
@@ -1476,7 +1483,7 @@ export default function BookingsPage() {
                     <div className="relative md:col-span-2">
                       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                       <Input
-                        placeholder="Cari customer, hewan, atau layanan..."
+                        placeholder="Cari kode booking, customer, hewan, atau layanan..."
                         value={modalSearch}
                         onChange={(e) => setModalSearch(e.target.value)}
                         className="pl-9"
