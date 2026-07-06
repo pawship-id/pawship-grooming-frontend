@@ -254,6 +254,10 @@ function KpiGrid({
                 onetimeInstore={kpis.gross_order_onetime_instore_count}
                 membershipInhome={kpis.gross_order_membership_inhome_count}
                 membershipInstore={kpis.gross_order_membership_instore_count}
+                onetimeInhomeValue={kpis.gross_revenue_onetime_inhome}
+                onetimeInstoreValue={kpis.gross_revenue_onetime_instore}
+                membershipInhomeValue={kpis.gross_revenue_membership_inhome}
+                membershipInstoreValue={kpis.gross_revenue_membership_instore}
               />
             </div>
           )
@@ -280,6 +284,10 @@ function KpiGrid({
                 onetimeInstore={kpis.gross_order_onetime_instore_count}
                 membershipInhome={kpis.gross_order_membership_inhome_count}
                 membershipInstore={kpis.gross_order_membership_instore_count}
+                onetimeInhomeValue={kpis.net_revenue_onetime_inhome}
+                onetimeInstoreValue={kpis.net_revenue_onetime_instore}
+                membershipInhomeValue={kpis.net_revenue_membership_inhome}
+                membershipInstoreValue={kpis.net_revenue_membership_instore}
               />
             </div>
           )
@@ -387,6 +395,10 @@ function OrderTypeBreakdown({
   onetimeInstore,
   membershipInhome,
   membershipInstore,
+  onetimeInhomeValue,
+  onetimeInstoreValue,
+  membershipInhomeValue,
+  membershipInstoreValue,
 }: {
   onetime: number;
   membership: number;
@@ -394,6 +406,10 @@ function OrderTypeBreakdown({
   onetimeInstore: number;
   membershipInhome: number;
   membershipInstore: number;
+  onetimeInhomeValue: number;
+  onetimeInstoreValue: number;
+  membershipInhomeValue: number;
+  membershipInstoreValue: number;
 }) {
   const total = onetime + membership;
   return (
@@ -402,7 +418,7 @@ function OrderTypeBreakdown({
         {total}{" "}
         <span className="font-normal text-muted-foreground">order masuk</span>
       </p>
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[13px] font-medium text-foreground">
             One-time
@@ -414,8 +430,12 @@ function OrderTypeBreakdown({
         <span className="text-[12px] text-muted-foreground">
           {onetimeInstore} In Store vs {onetimeInhome} In Home
         </span>
+        <LocationValueRows
+          instoreValue={onetimeInstoreValue}
+          inhomeValue={onetimeInhomeValue}
+        />
       </div>
-      <div className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[13px] font-medium text-foreground">
             Membership
@@ -426,6 +446,35 @@ function OrderTypeBreakdown({
         </div>
         <span className="text-[12px] text-muted-foreground">
           {membershipInstore} In Store vs {membershipInhome} In Home
+        </span>
+        <LocationValueRows
+          instoreValue={membershipInstoreValue}
+          inhomeValue={membershipInhomeValue}
+        />
+      </div>
+    </div>
+  );
+}
+
+function LocationValueRows({
+  instoreValue,
+  inhomeValue,
+}: {
+  instoreValue: number;
+  inhomeValue: number;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5 rounded-md bg-muted/40 px-2 py-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] text-muted-foreground">In Store</span>
+        <span className="text-[11px] font-medium text-foreground">
+          {formatPrice(instoreValue)}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] text-muted-foreground">In Home</span>
+        <span className="text-[11px] font-medium text-foreground">
+          {formatPrice(inhomeValue)}
         </span>
       </div>
     </div>
