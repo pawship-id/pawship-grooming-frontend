@@ -62,7 +62,8 @@ import {
   type BookingSession,
   type SessionMedia,
 } from "@/lib/api/bookings";
-import { getCurrentUser } from "@/lib/api/users";
+import { getCurrentUser, getUser } from "@/lib/api/users";
+import type { UserAddress } from "@/lib/api/users";
 import { useAuth } from "@/lib/auth-context";
 
 const sessionStatusColors: Record<string, string> = {
@@ -122,6 +123,10 @@ export default function GroomerJobDetailPage({
   >(null);
   const [newSessionFinishDate, setNewSessionFinishDate] = useState("");
   const [newSessionFinishTime, setNewSessionFinishTime] = useState("");
+  const [customerAddress, setCustomerAddress] = useState<UserAddress | null>(
+    null,
+  );
+  const [addressLoading, setAddressLoading] = useState(false);
 
   const fetchBooking = useCallback(async () => {
     try {
@@ -139,6 +144,21 @@ export default function GroomerJobDetailPage({
       );
       if (firstActive?._id) {
         setExpandedSessions(new Set([firstActive._id]));
+      }
+      const b = res.booking;
+      if (b.customer_id && (b.type === "in home" || b.pick_up || b.delivery)) {
+        setAddressLoading(true);
+        getUser(b.customer_id)
+          .then((userRes) => {
+            const addresses = userRes.user.profile?.addresses ?? [];
+            const mainAddress =
+              addresses.find((a) => a.is_main_address) ?? addresses[0] ?? null;
+            setCustomerAddress(mainAddress);
+          })
+          .catch(() => setCustomerAddress(null))
+          .finally(() => setAddressLoading(false));
+      } else {
+        setCustomerAddress(null);
       }
     } catch (err: any) {
       setError(err.message || "Gagal memuat data");
@@ -651,6 +671,57 @@ export default function GroomerJobDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Alamat (home visit / pickup / delivery) */}
+      {(booking.type === "in home" || booking.pick_up || booking.delivery) && (
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 font-display text-lg">
+              <MapPin className="h-5 w-5 text-primary" />
+              Alamat
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {addressLoading ? (
+              <Skeleton className="h-16 w-full rounded-lg" />
+            ) : !customerAddress ? (
+              <p className="text-sm text-muted-foreground">
+                Alamat pelanggan tidak ditemukan
+              </p>
+            ) : (
+              <div className="rounded-lg bg-muted/50 p-3">
+                <div className="mb-1 flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-foreground">
+                    {customerAddress.label || "Alamat"}
+                  </span>
+                  {customerAddress.is_main_address && (
+                    <Badge variant="outline" className="text-xs">
+                      Utama
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm text-foreground">
+                  {[
+                    customerAddress.street,
+                    customerAddress.subdistrict,
+                    customerAddress.district,
+                    customerAddress.city,
+                    customerAddress.province,
+                    customerAddress.postal_code,
+                  ]
+                    .filter(Boolean)
+                    .join(", ") || "-"}
+                </p>
+                {customerAddress.note && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Catatan: {customerAddress.note}
+                  </p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Pet Information */}
       <Card className="border-border/50">
