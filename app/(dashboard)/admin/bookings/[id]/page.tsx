@@ -15,8 +15,8 @@ import {
 import { getAdminBookingById } from "@/lib/api/bookings";
 import type { AdminBooking } from "@/lib/api/bookings";
 import { getStoreById } from "@/lib/api/stores";
-import { getUsers } from "@/lib/api/users";
-import type { ApiUser } from "@/lib/api/users";
+import { getUsers, getUser } from "@/lib/api/users";
+import type { ApiUser, UserAddress } from "@/lib/api/users";
 import { getOptions } from "@/lib/api/options";
 import type { ApiOption } from "@/lib/api/options";
 
@@ -25,6 +25,7 @@ import { StatusBookingCard } from "./_components/status-booking-card";
 import { PriceEditPanel } from "./_components/price-edit-panel";
 import { PriceDisplay } from "./_components/price-display";
 import { CustomerPetCard } from "./_components/customer-pet-card";
+import { AddressCard } from "./_components/address-card";
 import { BookingNotesCard } from "./_components/booking-notes-card";
 import { BroughtItemsCard } from "./_components/brought-items-card";
 import { StatusLogsCard } from "./_components/status-logs-card";
@@ -47,6 +48,14 @@ export default function BookingDetailPage({
   );
   const [editingPrice, setEditingPrice] = useState(false);
   const isReturned = booking?.booking_status === "returned";
+  const [customerAddress, setCustomerAddress] = useState<UserAddress | null>(
+    null,
+  );
+  const [addressLoading, setAddressLoading] = useState(false);
+
+  const needsAddress =
+    !!booking &&
+    (booking.type === "in home" || !!booking.pick_up || !!booking.delivery);
 
   useEffect(() => {
     Promise.all([
@@ -63,6 +72,23 @@ export default function BookingDetailPage({
           getStoreById(b.store_id)
             .then((storeRes) => setStoreSessions(storeRes.store.sessions ?? []))
             .catch(() => {});
+        }
+        if (
+          b.customer_id &&
+          (b.type === "in home" || b.pick_up || b.delivery)
+        ) {
+          setAddressLoading(true);
+          getUser(b.customer_id)
+            .then((userRes) => {
+              const addresses = userRes.user.profile?.addresses ?? [];
+              const mainAddress =
+                addresses.find((a) => a.is_main_address) ??
+                addresses[0] ??
+                null;
+              setCustomerAddress(mainAddress);
+            })
+            .catch(() => setCustomerAddress(null))
+            .finally(() => setAddressLoading(false));
         }
       })
       .catch(() => setNotFound(true))
@@ -241,6 +267,11 @@ export default function BookingDetailPage({
           <div className="flex flex-col gap-6">
             {/* Customer & Pet */}
             <CustomerPetCard booking={booking} />
+
+            {/* Alamat (home grooming / pickup / delivery) */}
+            {needsAddress && (
+              <AddressCard address={customerAddress} loading={addressLoading} />
+            )}
 
             {/* Booking Notes */}
             <BookingNotesCard
